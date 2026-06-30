@@ -28,7 +28,8 @@ export default function AdminLogin() {
     onSuccess: (data) => {
       if (data.success && data.token) {
         localStorage.setItem("admin_token", data.token);
-        window.location.href = "/admin";
+        window.location.hash = "#/admin";
+        window.location.reload();
       }
     },
     onError: (err) => {
