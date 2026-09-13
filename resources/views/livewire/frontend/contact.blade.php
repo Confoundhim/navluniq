@@ -1,45 +1,82 @@
 <?php
 
-use Livewire\Volt\Component;
 use App\Models\SupportTicket;
+use App\Support\Phone;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
+use Livewire\Volt\Component;
 
 new class extends Component {
     public string $name = '';
+
     public string $email = '';
+
     public string $phone = '';
+
     public string $role = 'guest';
+
     public string $category = 'other';
+
     public string $message = '';
 
-    public function submitTicket()
+    public function mount(): void
+    {
+        if ($user = Auth::user()) {
+            $this->name = $user->full_name;
+            $this->email = $user->email;
+            $this->phone = Phone::format($user->phone);
+            $this->role = in_array($user->current_role, ['cargo_owner', 'driver'], true) ? $user->current_role : 'guest';
+        }
+    }
+
+    public function submitTicket(): void
     {
         $this->validate([
-            'name' => 'required|string|min:3',
-            'email' => 'required|email',
-            'phone' => 'required|string|min:10',
-            'message' => 'required|string|min:15'
+            'name' => 'required|string|min:3|max:120',
+            'email' => 'required|email|max:255',
+            'phone' => ['required', 'string', Phone::RULE],
+            'role' => ['required', Rule::in(['cargo_owner', 'driver', 'guest'])],
+            'category' => ['required', Rule::in(array_keys(SupportTicket::CATEGORIES))],
+            'message' => 'required|string|min:15|max:4000',
         ], [
             'name.required' => 'Ad Soyad alanı boş bırakılamaz.',
             'email.required' => 'E-posta adresi boş bırakılamaz.',
             'phone.required' => 'Telefon numarası boş bırakılamaz.',
+            'phone.regex' => 'Geçerli bir cep telefonu numarası girin.',
             'message.required' => 'Lütfen mesajınızı yazınız.',
-            'message.min' => 'Mesajınız en az 15 karakter olmalıdır.'
+            'message.min' => 'Mesajınız en az 15 karakter olmalıdır.',
         ]);
+
+        $key = 'contact-form:'.request()->ip();
+        if (RateLimiter::tooManyAttempts($key, 3)) {
+            $this->addError('message', 'Kısa sürede çok fazla talep gönderildi. Lütfen birkaç dakika sonra tekrar deneyin.');
+
+            return;
+        }
+        RateLimiter::hit($key, 600);
 
         SupportTicket::create([
-            'name' => $this->name,
-            'email' => $this->email,
-            'phone' => $this->phone,
+            'user_id' => Auth::id(),
+            'name' => trim($this->name),
+            'email' => mb_strtolower(trim($this->email)),
+            'phone' => Phone::normalize($this->phone),
             'role' => $this->role,
             'category' => $this->category,
-            'message' => $this->message,
-            'status' => 'open'
+            'subject' => SupportTicket::CATEGORIES[$this->category],
+            'message' => trim($this->message),
+            'status' => 'open',
         ]);
 
-        $this->reset(['name', 'email', 'phone', 'message']);
-        session()->flash('success', 'Destek talebiniz başarıyla alındı! Ekibimiz en kısa sürede e-posta adresinize yanıt iletecektir.');
+        $this->reset(['message']);
+        if (! Auth::check()) {
+            $this->reset(['name', 'email', 'phone']);
+        }
+
+        session()->flash('success', 'Destek talebiniz alındı. Ekibimiz en kısa sürede e-posta ile yanıt verecektir.');
     }
 }; ?>
+
 
 <div class="max-w-6xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in text-xs">
 
@@ -62,7 +99,7 @@ new class extends Component {
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
 
-        <!-- Sol: 12 Konu Kategorili Bilet Formu -->
+        
         <div class="lg:col-span-2 apple-glass rounded-3xl p-8 md:p-10 space-y-6 shadow-apple-md">
             <h3 class="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800">BİZİMLE İLETİŞİME GEÇİN</h3>
 
@@ -70,12 +107,12 @@ new class extends Component {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Adınız Soyadınız</label>
-                        <input type="text" wire:model.defer="name" placeholder="Ad Soyad" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
+                        <input type="text" wire:model="name" placeholder="Ad Soyad" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
                         @error('name') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Telefon Numaranız</label>
-                        <input type="text" wire:model.defer="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
+                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
                         @error('phone') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
                     </div>
                 </div>
@@ -83,12 +120,12 @@ new class extends Component {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">E-Posta Adresiniz</label>
-                        <input type="email" wire:model.defer="email" placeholder="ornek@mail.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
+                        <input type="email" wire:model="email" placeholder="ornek@mail.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
                         @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Platform Rolünüz</label>
-                        <select wire:model.defer="role" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
+                        <select wire:model="role" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
                             <option value="cargo_owner">Yük Sahibi (Gönderici)</option>
                             <option value="driver">Şoför (Taşıyıcı)</option>
                             <option value="guest">Ziyaretçi / Misafir</option>
@@ -96,27 +133,18 @@ new class extends Component {
                     </div>
                 </div>
 
-                <!-- 12 Konu Kategorisi Seçici -->
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Konu Kategorisi</label>
-                    <select wire:model.defer="category" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
-                        <option value="technical">Teknik Hata, Bug ve Çökme</option>
-                        <option value="billing">Abonelik & Fiyatlandırma</option>
-                        <option value="kyc">Evrak Analizi (KYC)</option>
-                        <option value="escrow">PayTR Ödeme & Escrow</option>
-                        <option value="other">İlan & Rota Sorunları</option>
-                        <option value="technical">PWA & GPS Sinyal Hataları</option>
-                        <option value="technical">WhatsApp Entegrasyonları / Telegram</option>
-                        <option value="dispute">Uyuşmazlık (Dispute) Yönetimi</option>
-                        <option value="billing">Fatura & Muhasebe</option>
-                        <option value="technical">Hesap Güvenliği</option>
-                        <option value="other">Diğer / Genel Sorular</option>
+                    <select wire:model="category" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
+                        @foreach(\App\Models\SupportTicket::CATEGORIES as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Mesajınız</label>
-                    <textarea wire:model.defer="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white"></textarea>
+                    <textarea wire:model="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white"></textarea>
                     @error('message') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
                 </div>
 

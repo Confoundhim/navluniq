@@ -301,7 +301,7 @@ new class extends Component {
                             <!-- Gerekçeli Karar Formu -->
                             <div class="space-y-2">
                                 <span class="font-bold text-neutral-400 uppercase tracking-wider text-[11px] block">Hakem Heyeti Gerekçeli Kararı</span>
-                                <textarea wire:model.defer="decisionNotes" rows="4" placeholder="Örn: Sürücünün sunduğu teslim kanıtı (POD) fotoğrafında yükün hasarsız teslim edildiği ve göndericinin imzası olduğu resmen kanıtlanmıştır. Navlun bedelinin şoföre aktarılmasına karar verilmiştir..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300"></textarea>
+                                <textarea wire:model="decisionNotes" rows="4" placeholder="Örn: Sürücünün sunduğu teslim kanıtı (POD) fotoğrafında yükün hasarsız teslim edildiği ve göndericinin imzası olduğu resmen kanıtlanmıştır. Navlun bedelinin şoföre aktarılmasına karar verilmiştir..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300"></textarea>
                                 @error('decisionNotes') <span class="text-red-500 text-[11px] block font-medium pl-1">{{ $message }}</span> @enderror
                             </div>
 
@@ -345,7 +345,7 @@ new class extends Component {
                             <!-- Bilet Yanıt Formu -->
                             <div class="space-y-2">
                                 <span class="font-bold text-neutral-400 uppercase tracking-wider text-[11px] block">E-Posta Bilet Yanıtınız</span>
-                                <textarea wire:model.defer="ticketReplyMessage" rows="5" placeholder="Merhaba Osman Bey, talep ettiğiniz üzere sunucu gecikmeleri teknik ekibimiz tarafından incelenmiş ve önbellek sorguları optimize edilmiştir. Problem tamamen giderilmiştir. İyi çalışmalar dileriz..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300"></textarea>
+                                <textarea wire:model="ticketReplyMessage" rows="5" placeholder="Merhaba Osman Bey, talep ettiğiniz üzere sunucu gecikmeleri teknik ekibimiz tarafından incelenmiş ve önbellek sorguları optimize edilmiştir. Problem tamamen giderilmiştir. İyi çalışmalar dileriz..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300"></textarea>
                                 @error('ticketReplyMessage') <span class="text-red-500 text-[11px] block font-medium pl-1">{{ $message }}</span> @enderror
                             </div>
 

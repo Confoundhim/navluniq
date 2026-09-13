@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\CmsContent;
+use Illuminate\Database\Seeder;
 
 class CmsContractSeeder extends Seeder
 {
@@ -13,7 +13,7 @@ class CmsContractSeeder extends Seeder
     public function run(): void
     {
         // 1. KVKK AYDINLATMA METNİ
-        $kvkk = <<<HTML
+        $kvkk = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve KVKK Uyumu</span>
@@ -106,7 +106,7 @@ class CmsContractSeeder extends Seeder
 HTML;
 
         // 2. KULLANICI SÖZLEŞMESİ
-        $terms = <<<HTML
+        $terms = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Taahhüt</span>
@@ -201,7 +201,7 @@ HTML;
 HTML;
 
         // 3. GİZLİLİK POLİTİKASI
-        $privacy = <<<HTML
+        $privacy = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Güvence</span>
@@ -266,7 +266,7 @@ HTML;
 HTML;
 
         // 4. MESAFELİ SATIŞ SÖZLEŞMESİ
-        $distanceSale = <<<HTML
+        $distanceSale = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Ticaret</span>
@@ -319,7 +319,7 @@ HTML;
 HTML;
 
         // 5. İADE VE İPTAL POLİTİKASI
-        $cancellation = <<<HTML
+        $cancellation = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve İade</span>

@@ -14,27 +14,40 @@ class Payout extends Model
     protected $fillable = [
         'load_id',
         'user_id',
+        'bank_account_id',
         'iban',
         'bank_name',
         'total_amount',
         'commission_amount',
         'net_amount',
+        'currency',
         'status',
         'reference_no',
+        'available_at',
         'paid_at',
     ];
 
     protected $casts = [
         'paid_at' => 'datetime',
+        'available_at' => 'datetime',
         'total_amount' => 'decimal:2',
         'commission_amount' => 'decimal:2',
         'net_amount' => 'decimal:2',
     ];
 
-    /**
-     * Ait Olduğu Yük / Sevkiyat İlişkisi
-     * 🚀 İsim çakışmasını önlemek için 'cargoLoad' yapılmıştır [11.2].
-     */
+    public const STATUS_LABELS = [
+        'pending' => 'Ödeme sırasında',
+        'processing' => 'Banka transferi yapılıyor',
+        'paid' => 'Ödendi',
+        'failed' => 'Başarısız',
+        'cancelled' => 'İptal edildi',
+    ];
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
+    }
+
     public function cargoLoad(): BelongsTo
     {
         return $this->belongsTo(Load::class, 'load_id');

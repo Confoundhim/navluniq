@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Review extends Model
 {
@@ -18,6 +19,21 @@ class Review extends Model
     ];
 
     protected $casts = [
-        'rating'=>'integer',
+        'rating' => 'integer',
     ];
+
+    public function cargoLoad(): BelongsTo
+    {
+        return $this->belongsTo(Load::class, 'load_id');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function reviewee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewee_id');
+    }
 }

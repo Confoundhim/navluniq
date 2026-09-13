@@ -13,15 +13,24 @@ class ScrapedLoad extends Model
 
     protected $fillable = [
         'scraper_id',
+        'source_permission_id',
+        'content_hash',
         'raw_message',
         'sender_phone',
+        'encrypted_sender_phone',
         'pickup_location',
         'delivery_location',
         'goods_type',
         'weight',
         'price',
+        'currency',
         'status',
         'parsed_by_llm',
+        'parse_confidence',
+        'parse_metadata',
+        'visibility',
+        'available_to_free_at',
+        'retention_expires_at',
     ];
 
     protected $casts = [
@@ -37,14 +46,14 @@ class ScrapedLoad extends Model
     }
 
     /**
-     * 🚀 AKILLI TELEFON BİÇİMLENDİRİCİSİ (Accessor)
+     * AKILLI TELEFON BİÇİMLENDİRİCİSİ (Accessor)
      * Telefon numarasını temizler ve tam olarak '533 444 55 66' formatında boşluklu döndürür.
      */
     public function getFormattedPhoneAttribute(): string
     {
         $phone = $this->sender_phone;
 
-        if (!$phone || $phone === 'Bilinmiyor') {
+        if (! $phone || $phone === 'Bilinmiyor') {
             return 'Bilinmiyor';
         }
 
@@ -60,9 +69,9 @@ class ScrapedLoad extends Model
 
         // Eğer tam 10 haneli standart TR cep telefonu ise biçimlendir: "533 444 55 66"
         if (strlen($clean) === 10) {
-            return substr($clean, 0, 3) . ' ' .
-                   substr($clean, 3, 3) . ' ' .
-                   substr($clean, 6, 2) . ' ' .
+            return substr($clean, 0, 3).' '.
+                   substr($clean, 3, 3).' '.
+                   substr($clean, 6, 2).' '.
                    substr($clean, 8, 2);
         }
 
@@ -70,7 +79,7 @@ class ScrapedLoad extends Model
     }
 
     /**
-     * 🚀 APPLE TARZI MİNİMALİST MASKELEYİCİ (Accessor)
+     * APPLE TARZI MİNİMALİST MASKELEYİCİ (Accessor)
      * "533 444 55 66" formatındaki telefonu "533 444 ** **" olarak kısaltır.
      * Fazla karakter kalabalığını tamamen önler.
      */
@@ -83,6 +92,6 @@ class ScrapedLoad extends Model
         }
 
         // "533 444 55 66" -> "533 444 ** **"
-        return substr($phone, 0, 7) . ' ** **';
+        return substr($phone, 0, 7).' ** **';
     }
 }

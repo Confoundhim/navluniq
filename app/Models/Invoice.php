@@ -13,13 +13,20 @@ class Invoice extends Model
 
     protected $fillable = [
         'user_id',
+        'payment_order_id',
+        'payout_id',
         'invoice_type',
         'invoice_no',
+        'provider',
+        'provider_reference',
         'base_amount',
         'tax_amount',
         'total_amount',
+        'currency',
+        'tax_rate',
         'status',
         'issued_at',
+        'cancelled_at',
     ];
 
     protected $casts = [

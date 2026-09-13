@@ -12,9 +12,14 @@ class Backup extends Model
     protected $fillable = [
         'filename',
         'backup_type',
+        'storage_disk',
+        'storage_path',
+        'size_bytes',
         'size_mb',
         'status',
+        'failure_message',
         'download_url',
+        'completed_at',
     ];
 
     protected $casts = [

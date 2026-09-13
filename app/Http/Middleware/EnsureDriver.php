@@ -12,18 +12,18 @@ class EnsureDriver
     /**
      * Gelen isteği denetler.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!Auth::check()) {
+        if (! Auth::check()) {
             return redirect()->route('login');
         }
 
         $user = Auth::user();
 
         // Kullanıcı pasif veya yasaklı ise oturumu kapat
-        if (!$user->is_active || $user->banned_at !== null) {
+        if (! $user->is_active || $user->banned_at !== null) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
@@ -33,8 +33,7 @@ class EnsureDriver
             ]);
         }
 
-        // Kullanıcının mevcut rolü driver veya admin olmalıdır
-        if ($user->current_role !== 'driver' || !$user->driverProfile) {
+        if ($user->current_role !== 'driver' || ! $user->driverProfile) {
             if ($user->current_role === 'cargo_owner') {
                 return redirect()->route('cargo-owner.dashboard');
             }

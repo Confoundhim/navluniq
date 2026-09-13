@@ -167,34 +167,34 @@ new class extends Component {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Ad</label>
-                            <input type="text" wire:model.defer="newFirstName" placeholder="Örn: Canan" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                            <input type="text" wire:model="newFirstName" placeholder="Örn: Canan" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Soyad</label>
-                            <input type="text" wire:model.defer="newLastName" placeholder="Örn: Öztürk" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                            <input type="text" wire:model="newLastName" placeholder="Örn: Öztürk" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">E-Posta Adresi</label>
-                        <input type="email" wire:model.defer="newEmail" placeholder="canan@navluniq.com" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                        <input type="email" wire:model="newEmail" placeholder="canan@navluniq.com" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         @error('newEmail') <span class="text-red-500 text-[10px] block mt-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Telefon</label>
-                            <input type="text" wire:model.defer="newPhone" placeholder="+90555..." class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                            <input type="text" wire:model="newPhone" placeholder="+90555..." class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Giriş Şifresi</label>
-                            <input type="password" wire:model.defer="newPassword" placeholder="••••••••" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                            <input type="password" wire:model="newPassword" placeholder="••••••••" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Atanacak Rol</label>
-                        <select wire:model.defer="selectedRole" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-bold">
+                        <select wire:model="selectedRole" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-bold">
                             @foreach($this->getRoles() as $r)
                                 <option value="{{ $r->name }}">{{ strtoupper($r->name) }}</option>
                             @endforeach
@@ -261,7 +261,7 @@ new class extends Component {
                 <form wire:submit.prevent="addRole" class="space-y-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Rol Adı (Örn: 'evrak_onaycisi', 'operasyon_amiri')</label>
-                        <input type="text" wire:model.defer="newRoleName" placeholder="evrak_onaycisi" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                        <input type="text" wire:model="newRoleName" placeholder="evrak_onaycisi" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         @error('newRoleName') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
@@ -272,7 +272,7 @@ new class extends Component {
                         <div class="space-y-2 max-h-60 overflow-y-auto p-2 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200/40">
                             @foreach($this->getPermissions() as $p)
                                 <label class="flex items-center space-x-2 p-1.5 hover:bg-neutral-200/40 dark:hover:bg-neutral-800 rounded-lg cursor-pointer transition-colors">
-                                    <input type="checkbox" wire:model.defer="selectedPermissions" value="{{ $p->name }}" class="w-4 h-4 accent-brand-500 rounded">
+                                    <input type="checkbox" wire:model="selectedPermissions" value="{{ $p->name }}" class="w-4 h-4 accent-brand-500 rounded">
                                     <span class="font-medium text-neutral-800 dark:text-neutral-200">{{ $p->name }}</span>
                                 </label>
                             @endforeach

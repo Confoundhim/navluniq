@@ -21,6 +21,6 @@ class AiParseAttempt extends Model
     ];
 
     protected $casts = [
-        'response_metadata'=>'array',
+        'response_metadata' => 'array',
     ];
 }

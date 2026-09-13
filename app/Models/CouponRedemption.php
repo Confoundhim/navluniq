@@ -18,7 +18,7 @@ class CouponRedemption extends Model
     ];
 
     protected $casts = [
-        'discount_amount'=>'decimal:4',
-        'redeemed_at'=>'datetime',
+        'discount_amount' => 'decimal:4',
+        'redeemed_at' => 'datetime',
     ];
 }

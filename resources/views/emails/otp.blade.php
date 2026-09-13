@@ -72,18 +72,16 @@
         </div>
         <div class="content">
             <p>Merhaba,</p>
-            <p>NavlunIQ Yönetim Paneline giriş yapmak için tek kullanımlık güvenlik kodunuz aşağıdadır. Bu kod 5 dakika
-                boyunca geçerlidir.</p>
+            <p>{{ $intro }}</p>
 
-            <!-- OTP Kodu Alanı -->
             <div class="otp-box">
                 {{ $otpCode }}
             </div>
 
-            <p>Eğer bu işlemi siz gerçekleştirmediyseniz, lütfen sistem yöneticinizle iletişime geçin.</p>
+            <p>{{ $warning }}</p>
         </div>
         <div class="footer">
-            © {{ date('Y') }} NavlunIQ Akıllı Lojistik Teknolojileri A.Ş.<br>
+            © {{ date('Y') }} {{ config('company.name') }}<br>
             Bu e-posta otomatik olarak gönderilmiştir, lütfen yanıtlamayınız.
         </div>
     </div>

@@ -29,26 +29,26 @@ class NetGsmService
                 'gsmno' => preg_replace('/[^0-9]/', '', $phone), // Sadece rakamları gönder
                 'message' => $message,
                 'msgheader' => $header,
-                'filter' => '0'
+                'filter' => '0',
             ]);
 
             if ($response->successful() && str_contains($response->body(), '00')) {
                 return [
                     'success' => true,
-                    'message' => 'Gerçek NetGSM API: SMS başarıyla operatöre iletildi. Kod: ' . $response->body(),
-                    'source' => 'NetGSM API'
+                    'message' => 'Gerçek NetGSM API: SMS başarıyla operatöre iletildi. Kod: '.$response->body(),
+                    'source' => 'NetGSM API',
                 ];
             }
 
-            throw new \Exception("NetGSM Yanıt Hatası: " . $response->body());
+            throw new \Exception('NetGSM Yanıt Hatası: '.$response->body());
         } catch (\Exception $e) {
-            Log::error('NetGSM SMS Gönderim Hatası: ' . $e->getMessage());
+            Log::error('NetGSM SMS Gönderim Hatası: '.$e->getMessage());
         }
 
         return [
             'success' => false,
             'message' => 'NetGSM sunucularıyla bağlantı kurulamadı.',
-            'source' => 'Hata'
+            'source' => 'Hata',
         ];
     }
 }

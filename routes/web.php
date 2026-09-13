@@ -1,10 +1,13 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Livewire\Volt\Volt;
+use App\Http\Controllers\Driver\LocationController;
+use App\Http\Controllers\Files\ProtectedFileController;
+use App\Http\Controllers\Payment\PaytrController;
 use App\Http\Middleware\EnsureCargoOwner;
 use App\Http\Middleware\EnsureDriver;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use Livewire\Volt\Volt;
 
 // =========================================================
 // 1. ÖN YÜZ VE ZİYARETÇİ ROTALARI (FAZ 3)
@@ -53,18 +56,14 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
     return view('frontend.contract-page', ['activeContract' => $slug]);
 })->name('contracts');
 
-// Giriş ve Kayıt Rotaları
-Route::get('/giris', function () {
-    return view('frontend.login-page');
-})->name('login');
-
-Route::get('/kayit/yuk-sahibi', function () {
-    return view('frontend.register-cargo-owner-page');
-})->name('register.cargo-owner');
-
-Route::get('/kayit/sofor', function () {
-    return view('frontend.register-driver-page');
-})->name('register.driver');
+// Giriş, kayıt ve şifre sıfırlama (yalnız oturumu olmayan ziyaretçiler)
+Route::middleware('guest')->group(function () {
+    Route::get('/giris', fn () => view('frontend.login-page'))->name('login');
+    Route::get('/kayit/yuk-sahibi', fn () => view('frontend.register-cargo-owner-page'))->name('register.cargo-owner');
+    Route::get('/kayit/sofor', fn () => view('frontend.register-driver-page'))->name('register.driver');
+    Route::get('/sifremi-unuttum', fn () => view('frontend.forgot-password-page'))->name('password.request');
+    Route::get('/sifre-sifirla/{token}', fn (string $token) => view('frontend.reset-password-page', ['token' => $token]))->name('password.reset');
+});
 
 // Akıllı Panel Yönlendiricisi
 Route::middleware('auth')->get('/panel', function () {
@@ -81,11 +80,25 @@ Route::middleware('auth')->get('/panel', function () {
     return redirect()->route('cargo-owner.dashboard');
 })->name('panel');
 
+// Ödeme sağlayıcısı geri dönüşleri
+Route::post('/odeme/paytr/bildirim', [PaytrController::class, 'callback'])->name('payment.paytr.callback');
+Route::middleware('auth')->group(function () {
+    Route::get('/odeme/paytr/basarili/{load}', [PaytrController::class, 'success'])->name('payment.paytr.success');
+    Route::get('/odeme/paytr/basarisiz/{load}', [PaytrController::class, 'fail'])->name('payment.paytr.fail');
+
+    // Özel diskteki belgeler (yalnız ilgili taraflar ve yetkili personel)
+    Route::get('/dosya/kyc/{document}', [ProtectedFileController::class, 'kyc'])->name('files.kyc');
+    Route::get('/dosya/kanit/{evidence}', [ProtectedFileController::class, 'evidence'])->name('files.evidence');
+    Route::get('/dosya/uyusmazlik/{dispute}/{side}', [ProtectedFileController::class, 'disputePhoto'])->whereIn('side', ['claim', 'defense'])->name('files.dispute');
+    Route::get('/dosya/e-irsaliye/{load}', [ProtectedFileController::class, 'eIrsaliye'])->name('files.e-irsaliye');
+});
+
 // Oturum Kapatma
 Route::post('/cikis', function () {
     Auth::logout();
     request()->session()->invalidate();
     request()->session()->regenerateToken();
+
     return redirect()->route('login');
 })->name('logout');
 
@@ -93,28 +106,63 @@ Route::post('/cikis', function () {
 // 2. ADMİN YÖNETİM PANELİ ROTALARI (FAZ 2)
 // =========================================================
 Route::prefix('adminsystem')->group(function () {
-    Route::get('/', function () { return view('admin.login-page'); })->name('admin.login');
+    Route::get('/', function () {
+        if (Auth::check() && Auth::user()->current_role === 'admin') {
+            return redirect()->route('admin.dashboard');
+        }
+
+        return view('admin.login-page');
+    })->name('admin.login');
 
     Route::middleware(['auth', 'admin'])->group(function () {
-        Route::get('/dashboard', function () { return view('admin.dashboard'); })->name('admin.dashboard');
-        Route::get('/kyc', function () { return view('admin.kyc-page'); })->name('admin.kyc');
-        Route::get('/operations', function () { return view('admin.operations-page'); })->name('admin.operations');
-        Route::get('/scrapers', function () { return view('admin.scrapers-page'); })->name('admin.scrapers');
-        Route::get('/finance', function () { return view('admin.finance-page'); })->name('admin.finance');
-        Route::get('/disputes', function () { return view('admin.disputes-page'); })->name('admin.disputes');
-        Route::get('/crm', function () { return view('admin.crm-page'); })->name('admin.crm');
-        Route::get('/cms', function () { return view('admin.cms-page'); })->name('admin.cms');
-        Route::get('/languages', function () { return view('admin.languages-page'); })->name('admin.languages');
-        Route::get('/settings', function () { return view('admin.settings-page'); })->name('admin.settings');
-        Route::get('/staff', function () { return view('admin.staff-page'); })->name('admin.staff');
-        Route::get('/rollback', function () { return view('admin.rollback-page'); })->name('admin.rollback');
-        Route::get('/health', function () { return view('admin.health-page'); })->name('admin.health');
-        Route::get('/firewall', function () { return view('admin.firewall-page'); })->name('admin.firewall');
+        Route::get('/dashboard', function () {
+            return view('admin.dashboard');
+        })->name('admin.dashboard');
+        Route::get('/kyc', function () {
+            return view('admin.kyc-page');
+        })->name('admin.kyc');
+        Route::get('/operations', function () {
+            return view('admin.operations-page');
+        })->name('admin.operations');
+        Route::get('/scrapers', function () {
+            return view('admin.scrapers-page');
+        })->name('admin.scrapers');
+        Route::get('/finance', function () {
+            return view('admin.finance-page');
+        })->name('admin.finance');
+        Route::get('/disputes', function () {
+            return view('admin.disputes-page');
+        })->name('admin.disputes');
+        Route::get('/crm', function () {
+            return view('admin.crm-page');
+        })->name('admin.crm');
+        Route::get('/cms', function () {
+            return view('admin.cms-page');
+        })->name('admin.cms');
+        Route::get('/languages', function () {
+            return view('admin.languages-page');
+        })->name('admin.languages');
+        Route::get('/settings', function () {
+            return view('admin.settings-page');
+        })->name('admin.settings');
+        Route::get('/staff', function () {
+            return view('admin.staff-page');
+        })->name('admin.staff');
+        Route::get('/rollback', function () {
+            return view('admin.rollback-page');
+        })->name('admin.rollback');
+        Route::get('/health', function () {
+            return view('admin.health-page');
+        })->name('admin.health');
+        Route::get('/firewall', function () {
+            return view('admin.firewall-page');
+        })->name('admin.firewall');
 
         Route::post('/logout', function () {
             Auth::logout();
             request()->session()->invalidate();
             request()->session()->regenerateToken();
+
             return redirect()->route('admin.login');
         })->name('admin.logout');
     });
@@ -153,6 +201,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     });
 
     Volt::route('/dashboard', 'driver.dashboard')->name('dashboard');
+    Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
     Volt::route('/sevkiyatlarim', 'driver.shipments.index')->name('shipments.index');
     Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show');

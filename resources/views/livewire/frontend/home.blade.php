@@ -37,7 +37,7 @@ new class extends Component {
         $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'Biz sadece bir lojistik yazılımı kodlamadık. Biz, gece gündüz direksiyon başında ömür tüketen şoförlerimiz ile, alın terini ve tüm sermayesini o yüke emanet eden iş insanlarımızın arasına sarsılmaz bir güven köprüsü kurduk.');
 
         // Veritabanı Sayaçları
-        $this->vehicleCount = DriverVehicle::count();
+        $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
         $this->systemLoadsCount = Load::whereIn('status', ['active_seeking', 'driver_assigned', 'on_the_way'])->count();
         $this->webLoadsCount = ScrapedLoad::where('visibility', 'public')->count();
         $this->completedCount = Load::where('status', 'delivered')->count();
@@ -49,7 +49,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="space-y-20 md:space-y-28 pb-12 animate-fade-in" wire:poll.10s>
+<div class="space-y-20 md:space-y-28 pb-12 animate-fade-in">
 
     <style>
         /* İpeksi ve Kesintisiz Kayan Araç Şeridi */
@@ -114,14 +114,14 @@ new class extends Component {
                             <a href="{{ route('register.cargo-owner') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md">
                                 Hemen İlan Ver
                             </a>
-                            <a href="/nasil-calisir" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
+                            <a href="{{ route('how-it-works') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
                                 Süreç Nasıl İşler?
                             </a>
                         @else
                             <a href="{{ route('register.driver') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md">
                                 Belgelerini Yükle
                             </a>
-                            <a href="/abonelik" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
+                            <a href="{{ route('subscription') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
                                 Premium Avantajları
                             </a>
                         @endif
@@ -132,25 +132,25 @@ new class extends Component {
                 <div class="lg:col-span-5 flex justify-center w-full">
                     <div class="w-full max-w-sm bg-gradient-to-tr from-brand-500/20 via-brand-500/5 to-transparent rounded-3xl p-5 sm:p-6 flex flex-col justify-between border border-brand-500/20 shadow-apple-md space-y-4">
                         <div class="flex justify-between items-center border-b border-neutral-200/50 dark:border-neutral-800/60 pb-3">
-                            <span class="text-xs font-black tracking-wider uppercase text-brand-600 dark:text-brand-400">NavlunIQ Canlı Takip</span>
-                            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-[10px]">● Aktif Eşleşme</span>
+                            <span class="text-xs font-black tracking-wider uppercase text-brand-600 dark:text-brand-400">Örnek sevkiyat akışı</span>
+                            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-[10px]">Örnek</span>
                         </div>
 
                         <div class="space-y-2.5">
                             <div class="p-3.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-apple rounded-2xl border border-neutral-200/50 dark:border-neutral-800 space-y-1 shadow-apple-sm">
                                 <span class="text-[10px] text-neutral-400 font-semibold block">Güzergah & Escrow Durumu</span>
                                 <div class="text-xs sm:text-sm font-black text-neutral-900 dark:text-white">Ankara Ostim → İzmir Aliağa</div>
-                                <div class="text-xs text-brand-500 font-bold font-mono">18.500,00 ₺ • PayTR Havuzunda Güvende</div>
+                                <div class="text-xs text-brand-500 font-bold font-mono">18.500,00 ₺ • Güvenli havuzda bekliyor</div>
                             </div>
 
                             <div class="p-3 bg-white/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/40 dark:border-neutral-800/40 flex items-center justify-between text-[11px]">
                                 <span class="text-neutral-500">Sürücü Durumu:</span>
-                                <span class="text-emerald-500 font-bold">✓ Belgeleri AI Onaylı</span>
+                                <span class="text-emerald-500 font-bold">Belgeleri doğrulanmış</span>
                             </div>
                         </div>
 
                         <div class="text-[10px] text-neutral-400 font-medium text-center pt-1 border-t border-neutral-200/40 dark:border-neutral-800/40">
-                            %100 Güvenli Escrow Havuz Protokolü
+                            Ödeme, teslimat onayına kadar havuzda tutulur
                         </div>
                     </div>
                 </div>
@@ -183,7 +183,7 @@ new class extends Component {
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Başarılı Sevkiyat</span>
                 <div class="text-3xl sm:text-4xl font-black text-emerald-500">{{ number_format($completedCount) }}</div>
-                <span class="text-[10px] text-emerald-600 font-bold">%100 Memnuniyet</span>
+                <span class="text-[10px] text-emerald-600 font-bold">Onaylı teslimat</span>
             </div>
         </div>
     </section>
@@ -304,7 +304,7 @@ new class extends Component {
                         Yapay zeka radarımız tarafından WhatsApp grupları ve web mecralarından derlenen sıcak yük ilanlarına gerçek zamanlı erişim.
                     </p>
                 </div>
-                <a href="/abonelik" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
+                <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
             </div>
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 shadow-apple-sm flex flex-col justify-between">

@@ -190,21 +190,21 @@ new class extends Component {
                 <form wire:submit.prevent="addCoupon" class="space-y-4 text-xs">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Kupon Kodu</label>
-                        <input type="text" wire:model.defer="couponCode" placeholder="Örn: NAVLUN50" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 uppercase">
+                        <input type="text" wire:model="couponCode" placeholder="Örn: NAVLUN50" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 uppercase">
                         @error('couponCode') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">İndirim Tipi</label>
-                            <select wire:model.defer="discountType" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                            <select wire:model="discountType" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                                 <option value="percentage">Yüzde (%)</option>
                                 <option value="fixed">Sabit (&#8378;)</option>
                             </select>
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Değeri</label>
-                            <input type="number" wire:model.defer="discountValue" placeholder="Örn: 50" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                            <input type="number" wire:model="discountValue" placeholder="Örn: 50" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                             @error('discountValue') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -212,11 +212,11 @@ new class extends Component {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Kullanım Sınırı</label>
-                            <input type="number" wire:model.defer="usageLimit" placeholder="100" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                            <input type="number" wire:model="usageLimit" placeholder="100" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Son Tarih</label>
-                            <input type="date" wire:model.defer="expiresAt" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                            <input type="date" wire:model="expiresAt" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                         </div>
                     </div>
 
@@ -312,14 +312,14 @@ new class extends Component {
                     <!-- Başlık -->
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Kampanya Başlığı</label>
-                        <input type="text" wire:model.defer="broadcastTitle" placeholder="Örn: NavlunIQ Özel Fırsat" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                        <input type="text" wire:model="broadcastTitle" placeholder="Örn: NavlunIQ Özel Fırsat" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                         @error('broadcastTitle') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
                     <!-- Mesaj Metni -->
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Kampanya Mesaj Metni</label>
-                        <textarea wire:model.defer="broadcastMessage" rows="5" placeholder="Kampanya mesajınızı buraya yazın..." class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
+                        <textarea wire:model="broadcastMessage" rows="5" placeholder="Kampanya mesajınızı buraya yazın..." class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
                         @error('broadcastMessage') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
@@ -335,7 +335,7 @@ new class extends Component {
                 @if($isSending)
                     <div class="p-4 bg-neutral-900 text-white rounded-2xl font-mono text-[10px] space-y-3 leading-relaxed animate-fade-in shadow-apple-lg">
                         <div class="flex justify-between items-center text-brand-400 font-sans font-bold">
-                            <span>🚀 TOPLU KAMPANYA GÖNDERİLİYOR...</span>
+                            <span>TOPLU KAMPANYA GÖNDERİLİYOR...</span>
                             <span>{{ $sentCount }} / {{ $totalTargets }}</span>
                         </div>
 

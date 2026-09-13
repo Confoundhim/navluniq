@@ -21,9 +21,9 @@ class SubscriptionCycle extends Model
     ];
 
     protected $casts = [
-        'period_start'=>'datetime',
-        'period_end'=>'datetime',
-        'amount'=>'decimal:4',
-        'paid_at'=>'datetime',
+        'period_start' => 'datetime',
+        'period_end' => 'datetime',
+        'amount' => 'decimal:4',
+        'paid_at' => 'datetime',
     ];
 }

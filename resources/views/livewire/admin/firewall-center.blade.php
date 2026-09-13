@@ -136,13 +136,13 @@ new class extends Component {
                 <form wire:submit.prevent="banIp" class="space-y-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">IP Adresi (IPv4 veya IPv6)</label>
-                        <input type="text" wire:model.defer="newIpAddress" placeholder="Örn: 198.51.100.45" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white font-mono rounded-xl focus:outline-none">
+                        <input type="text" wire:model="newIpAddress" placeholder="Örn: 198.51.100.45" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white font-mono rounded-xl focus:outline-none">
                         @error('newIpAddress') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Engel Gerekçesi</label>
-                        <select wire:model.defer="banReason" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                        <select wire:model="banReason" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                             <option value="DDoS / Şüpheli Bot Trafiği">DDoS / Şüpheli Bot Trafiği</option>
                             <option value="Brute Force Hatalı Şifre Denemesi">Brute Force Hatalı Şifre Denemesi</option>
                             <option value="Kötü Niyetli Veri Kazıma (Scraping)">Kötü Niyetli Veri Kazıma (Scraping)</option>
@@ -167,7 +167,7 @@ new class extends Component {
                     @if($banType === 'temporary')
                         <div class="space-y-1.5 animate-slide-up">
                             <label class="font-semibold text-neutral-500">Engel Süresi (Gün)</label>
-                            <input type="number" wire:model.defer="banDays" min="1" max="365" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                            <input type="number" wire:model="banDays" min="1" max="365" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                     @endif
 
@@ -223,19 +223,19 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
                         <label class="font-bold text-neutral-900 dark:text-white block">Maksimum İstek Limiti (Dakikada)</label>
-                        <input type="number" wire:model.defer="rateLimitPerMinute" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
+                        <input type="number" wire:model="rateLimitPerMinute" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Bir IP'den dakikada gelebilecek maksimum ilan/sayfa isteği.</span>
                     </div>
 
                     <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
                         <label class="font-bold text-neutral-900 dark:text-white block">Maksimum Hatalı Giriş Sınırı</label>
-                        <input type="number" wire:model.defer="maxLoginAttempts" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
+                        <input type="number" wire:model="maxLoginAttempts" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Brute-force kalkanı: Üst üste hatalı şifre denemesi limiti.</span>
                     </div>
 
                     <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
                         <label class="font-bold text-neutral-900 dark:text-white block">Oto-Ban Karantina Süresi (Dakika)</label>
-                        <input type="number" wire:model.defer="autoBanDuration" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
+                        <input type="number" wire:model="autoBanDuration" class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Sınırı aşan saldırgan IP'nin otomatik karantinaya alınma süresi.</span>
                     </div>
                 </div>

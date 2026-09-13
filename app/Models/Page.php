@@ -14,7 +14,10 @@ class Page extends Model
         'title',
         'slug',
         'content',
+        'status',
         'is_active',
+        'published_at',
+        'updated_by',
     ];
 
     protected $casts = [

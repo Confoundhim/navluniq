@@ -17,6 +17,9 @@ class Scraper extends Model
         'source_identifier',
         'is_active',
         'last_scraped_at',
+        'last_success_at',
+        'last_failure_at',
+        'last_error',
     ];
 
     protected $casts = [

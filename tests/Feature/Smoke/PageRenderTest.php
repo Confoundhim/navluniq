@@ -63,7 +63,7 @@ class PageRenderTest extends TestCase
 
         foreach (Route::getRoutes() as $route) {
             $name = $route->getName();
-            if (! $name || ! str_starts_with($name, 'cargo-owner.') || str_ends_with($name, '.') || str_contains($route->uri(), '{')) {
+            if (! $name || ! str_starts_with($name, 'cargo-owner.') || str_ends_with($name, '.') || str_contains($route->uri(), '{') || ! in_array('GET', $route->methods(), true)) {
                 continue;
             }
             $this->actingAs($user)->get('/'.$route->uri())
@@ -95,7 +95,7 @@ class PageRenderTest extends TestCase
 
         foreach (Route::getRoutes() as $route) {
             $name = $route->getName();
-            if (! $name || ! str_starts_with($name, 'driver.') || str_ends_with($name, '.') || str_contains($route->uri(), '{')) {
+            if (! $name || ! str_starts_with($name, 'driver.') || str_ends_with($name, '.') || str_contains($route->uri(), '{') || ! in_array('GET', $route->methods(), true)) {
                 continue;
             }
             $this->actingAs($user)->get('/'.$route->uri())
@@ -110,7 +110,7 @@ class PageRenderTest extends TestCase
 
         foreach (Route::getRoutes() as $route) {
             $name = $route->getName();
-            if (! $name || ! str_starts_with($name, 'admin.') || $name === 'admin.login' || $name === 'admin.logout') {
+            if (! $name || ! str_starts_with($name, 'admin.') || $name === 'admin.login' || $name === 'admin.logout' || ! in_array('GET', $route->methods(), true)) {
                 continue;
             }
             $this->actingAs($admin)->get('/'.$route->uri())
@@ -128,7 +128,7 @@ class PageRenderTest extends TestCase
     {
         $this->actingAs($this->driver())->get('/panel/yuk-sahibi/dashboard')->assertRedirect();
         $this->actingAs($this->cargoOwner())->get('/panel/sofor/dashboard')->assertRedirect();
-        $this->actingAs($this->cargoOwner())->get('/adminsystem/dashboard')->assertRedirect(route('admin.login'));
+        $this->actingAs($this->cargoOwner())->get('/adminsystem/dashboard')->assertRedirect(route('panel'));
     }
 
     private function cargoOwner(): User

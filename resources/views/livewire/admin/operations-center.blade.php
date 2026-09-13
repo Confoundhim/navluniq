@@ -174,7 +174,6 @@ new class extends Component {
         const routeLine = L.polyline([
             [39.9208, 32.8541],
             [40.3500, 30.8000],
-            [40.9818, 29.0318]
         ], { color: '#3b82f6', weight: 3, dashArray: '5, 10' }).addTo(this.map);
         this.markers.push(routeLine);
     }
@@ -408,7 +407,7 @@ new class extends Component {
 
                     <div class="space-y-1.5">
                         <label class="text-xs font-semibold text-neutral-500">Yeni Navlun Bedeli (₺)</label>
-                        <input type="number" wire:model.defer="newPrice" class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300">
+                        <input type="number" wire:model="newPrice" class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300">
                         @error('newPrice') <span class="text-red-500 text-[11px] block font-medium pl-1">{{ $message }}</span> @enderror
                     </div>
 

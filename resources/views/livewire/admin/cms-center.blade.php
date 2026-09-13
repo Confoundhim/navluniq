@@ -233,12 +233,12 @@ new class extends Component {
                     <span class="font-bold text-brand-500 block">YÜK SAHİBİ SLIDER ALANI</span>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Slider Ana Başlığı</label>
-                        <input type="text" wire:model.defer="sliderOwnerTitle"
+                        <input type="text" wire:model="sliderOwnerTitle"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Slider Açıklama Metni</label>
-                        <textarea wire:model.defer="sliderOwnerDesc" rows="3"
+                        <textarea wire:model="sliderOwnerDesc" rows="3"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                     </div>
                 </div>
@@ -248,12 +248,12 @@ new class extends Component {
                     <span class="font-bold text-brand-500 block">ŞOFÖR SLIDER ALANI</span>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Slider Ana Başlığı</label>
-                        <input type="text" wire:model.defer="sliderDriverTitle"
+                        <input type="text" wire:model="sliderDriverTitle"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Slider Açıklama Metni</label>
-                        <textarea wire:model.defer="sliderDriverDesc" rows="3"
+                        <textarea wire:model="sliderDriverDesc" rows="3"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                     </div>
                 </div>
@@ -265,12 +265,12 @@ new class extends Component {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="md:col-span-2 space-y-1.5">
                             <label class="font-semibold text-neutral-500">Hakkımızda Özet Metni (Anasayfa İçin)</label>
-                            <textarea wire:model.defer="hakkimizdaOzet" rows="3"
+                            <textarea wire:model="hakkimizdaOzet" rows="3"
                                 class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Araç Galerisi Kayma Hızı (px/sn)</label>
-                            <input type="number" wire:model.defer="scrollSpeed"
+                            <input type="number" wire:model="scrollSpeed"
                                 class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                     </div>
@@ -296,12 +296,12 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Footer Sloganı</label>
-                        <input type="text" wire:model.defer="footerSlogan"
+                        <input type="text" wire:model="footerSlogan"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">ETBİS Kayıt Numarası</label>
-                        <input type="text" wire:model.defer="etbisCode"
+                        <input type="text" wire:model="etbisCode"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                 </div>
@@ -311,17 +311,17 @@ new class extends Component {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Instagram Hesabı URL</label>
-                            <input type="url" wire:model.defer="socialInstagram"
+                            <input type="url" wire:model="socialInstagram"
                                 class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">WhatsApp Kanalı URL</label>
-                            <input type="url" wire:model.defer="socialWhatsapp"
+                            <input type="url" wire:model="socialWhatsapp"
                                 class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                         <div class="space-y-1.5">
                             <label class="font-semibold text-neutral-500">Telegram Kanalı URL</label>
-                            <input type="url" wire:model.defer="socialTelegram"
+                            <input type="url" wire:model="socialTelegram"
                                 class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                         </div>
                     </div>
@@ -347,13 +347,13 @@ new class extends Component {
                 <form wire:submit.prevent="addFaq" class="space-y-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Soru Metni</label>
-                        <input type="text" wire:model.defer="faqQuestion"
+                        <input type="text" wire:model="faqQuestion"
                             placeholder="Örn: NavlunIQ komisyon oranları nedir?"
                             class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Gerekçeli Cevap</label>
-                        <textarea wire:model.defer="faqAnswer" rows="5" placeholder="Soruya verilecek resmi cevabı yazın..."
+                        <textarea wire:model="faqAnswer" rows="5" placeholder="Soruya verilecek resmi cevabı yazın..."
                             class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                     </div>
 
@@ -369,7 +369,7 @@ new class extends Component {
                         SORULAR & GÖSTERİM LİMİTİ</h3>
                     <div class="flex items-center space-x-2 text-xs">
                         <label class="font-semibold text-neutral-500">Gösterim Limiti:</label>
-                        <input type="number" wire:model.defer="faqLimit"
+                        <input type="number" wire:model="faqLimit"
                             class="w-16 p-1.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 rounded-lg text-center font-bold">
                         <button wire:click="saveFaqLimit"
                             class="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 px-2 py-1.5 rounded-lg font-bold">Kaydet</button>
@@ -401,12 +401,12 @@ new class extends Component {
                 <form wire:submit.prevent="createPage" class="space-y-4">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Sayfa Başlığı</label>
-                        <input type="text" wire:model.defer="pageTitle" placeholder="Örn: Yaz Sezonu İndirim Kampanyası"
+                        <input type="text" wire:model="pageTitle" placeholder="Örn: Yaz Sezonu İndirim Kampanyası"
                             class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">HTML / Metin Sayfa İçeriği</label>
-                        <textarea wire:model.defer="pageContent" rows="6"
+                        <textarea wire:model="pageContent" rows="6"
                             placeholder="Sayfanın içeriğini HTML formatında veya düz metin olarak buraya yazın..."
                             class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                     </div>
@@ -478,7 +478,7 @@ new class extends Component {
                             <label class="font-bold text-neutral-700 dark:text-neutral-200">1. KVKK Aydınlatma Metni</label>
                             <span class="text-[10px] font-mono text-neutral-400">contract_kvkk</span>
                         </div>
-                        <textarea wire:model.defer="contractKvkk" rows="10"
+                        <textarea wire:model="contractKvkk" rows="10"
                             class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
                     </div>
 
@@ -488,7 +488,7 @@ new class extends Component {
                             <label class="font-bold text-neutral-700 dark:text-neutral-200">2. Kullanıcı Sözleşmesi</label>
                             <span class="text-[10px] font-mono text-neutral-400">contract_terms</span>
                         </div>
-                        <textarea wire:model.defer="contractTerms" rows="10"
+                        <textarea wire:model="contractTerms" rows="10"
                             class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
                     </div>
 
@@ -498,7 +498,7 @@ new class extends Component {
                             <label class="font-bold text-neutral-700 dark:text-neutral-200">3. Gizlilik Politikası</label>
                             <span class="text-[10px] font-mono text-neutral-400">contract_privacy</span>
                         </div>
-                        <textarea wire:model.defer="contractPrivacy" rows="10"
+                        <textarea wire:model="contractPrivacy" rows="10"
                             class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
                     </div>
 
@@ -509,7 +509,7 @@ new class extends Component {
                                 Sözleşmesi</label>
                             <span class="text-[10px] font-mono text-neutral-400">contract_distance_sale</span>
                         </div>
-                        <textarea wire:model.defer="contractDistanceSale" rows="10"
+                        <textarea wire:model="contractDistanceSale" rows="10"
                             class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
                     </div>
 
@@ -521,7 +521,7 @@ new class extends Component {
                                 Politikası</label>
                             <span class="text-[10px] font-mono text-neutral-400">contract_cancellation</span>
                         </div>
-                        <textarea wire:model.defer="contractCancellation" rows="8"
+                        <textarea wire:model="contractCancellation" rows="8"
                             class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
                     </div>
 

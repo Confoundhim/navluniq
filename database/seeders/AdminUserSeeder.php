@@ -17,6 +17,7 @@ class AdminUserSeeder extends Seeder
 
         if ($email === '' && $password === '' && $phone === '') {
             $this->command?->warn('Admin oluşturulmadı: ADMIN_INIT_* değerleri boş.');
+
             return;
         }
 

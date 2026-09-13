@@ -489,7 +489,7 @@ new class extends Component {
                 <div class="space-y-4">
                     <p class="text-xs text-neutral-500 dark:text-neutral-400">Lütfen belgelerin reddedilme nedenini girin. Bu neden kullanıcıya e-posta olarak gönderilecektir.</p>
 
-                    <textarea wire:model.defer="rejectionReason" rows="4" placeholder="Örn: Sürücü ehliyet belgesinin geçerlilik süresi dolmuştur..." class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all duration-300"></textarea>
+                    <textarea wire:model="rejectionReason" rows="4" placeholder="Örn: Sürücü ehliyet belgesinin geçerlilik süresi dolmuştur..." class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all duration-300"></textarea>
                     @error('rejectionReason') <span class="text-red-500 text-[11px] block font-medium pl-1">{{ $message }}</span> @enderror
 
                     <div class="flex justify-end space-x-3 pt-2">

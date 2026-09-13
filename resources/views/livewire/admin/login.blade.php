@@ -156,7 +156,7 @@ new class extends Component {
                 <!-- Giriş Tipi Input (autocomplete="username" eklendi) -->
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Yönetici Kimliği</label>
-                    <input type="text" wire:model.defer="identifier" autocomplete="username"
+                    <input type="text" wire:model="identifier" autocomplete="username"
                         placeholder="Kullanıcı adı veya e-posta"
                         class="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
                     @error('identifier') <span
@@ -171,7 +171,7 @@ new class extends Component {
                             class="text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-brand-500 dark:hover:text-brand-500 transition-colors duration-300">Şifremi
                             Unuttum?</a>
                     </div>
-                    <input type="password" wire:model.defer="password" autocomplete="current-password"
+                    <input type="password" wire:model="password" autocomplete="current-password"
                         placeholder="••••••••"
                         class="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
                     @error('password') <span
@@ -200,7 +200,7 @@ new class extends Component {
 
                     <!-- OTP Giriş Alanı -->
                     <div class="space-y-1.5">
-                        <input type="text" wire:model.defer="otp" maxlength="6" placeholder="000000"
+                        <input type="text" wire:model="otp" maxlength="6" placeholder="000000"
                             class="w-full tracking-[0.5em] text-center px-4 py-3.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-lg font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
                         @error('otp') <span
                             class="text-red-500 text-[11px] block mt-1 text-center font-medium">{{ $message }}</span>

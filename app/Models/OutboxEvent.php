@@ -22,8 +22,8 @@ class OutboxEvent extends Model
     ];
 
     protected $casts = [
-        'payload'=>'array',
-        'available_at'=>'datetime',
-        'published_at'=>'datetime',
+        'payload' => 'array',
+        'available_at' => 'datetime',
+        'published_at' => 'datetime',
     ];
 }

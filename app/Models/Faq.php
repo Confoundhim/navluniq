@@ -15,6 +15,7 @@ class Faq extends Model
         'answer',
         'order_num',
         'is_active',
+        'updated_by',
     ];
 
     protected $casts = [

@@ -20,6 +20,6 @@ class DisputeAllocation extends Model
     ];
 
     protected $casts = [
-        'amount'=>'decimal:4',
+        'amount' => 'decimal:4',
     ];
 }

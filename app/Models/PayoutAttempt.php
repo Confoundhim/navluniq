@@ -22,8 +22,8 @@ class PayoutAttempt extends Model
     ];
 
     protected $casts = [
-        'request_payload'=>'array',
-        'response_payload'=>'array',
-        'attempted_at'=>'datetime',
+        'request_payload' => 'array',
+        'response_payload' => 'array',
+        'attempted_at' => 'datetime',
     ];
 }

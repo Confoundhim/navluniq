@@ -2,17 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Concerns\HasPublicId;
 
 class LedgerTransaction extends Model
 {
-    use HasFactory, SoftDeletes, HasPublicId;
+    use HasFactory, HasPublicId;
 
     protected $fillable = [
-        'public_id',
         'reference_type',
         'reference_id',
         'transaction_type',
@@ -24,8 +22,8 @@ class LedgerTransaction extends Model
     ];
 
     protected $casts = [
-        'occurred_at'=>'datetime',
-        'posted_at'=>'datetime',
-        'metadata'=>'array',
+        'occurred_at' => 'datetime',
+        'posted_at' => 'datetime',
+        'metadata' => 'array',
     ];
 }

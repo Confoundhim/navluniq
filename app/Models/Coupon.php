@@ -27,11 +27,11 @@ class Coupon extends Model
     ];
 
     /**
-     * Kuponun geçerli olup olmadığını denetleyen yardımcı metod [16]
+     * Kuponun geçerli olup olmadığını denetleyen yardımcı metod
      */
     public function isValid(): bool
     {
-        if (!$this->is_active) {
+        if (! $this->is_active) {
             return false;
         }
 
@@ -39,7 +39,7 @@ class Coupon extends Model
             return false;
         }
 
-        if ($this->used_count >= $this->usage_limit) {
+        if ($this->usage_limit !== null && $this->used_count >= $this->usage_limit) {
             return false;
         }
 

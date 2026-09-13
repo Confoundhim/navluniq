@@ -21,8 +21,8 @@ class UserConsent extends Model
     ];
 
     protected $casts = [
-        'granted'=>'boolean',
-        'recorded_at'=>'datetime',
-        'revoked_at'=>'datetime',
+        'granted' => 'boolean',
+        'recorded_at' => 'datetime',
+        'revoked_at' => 'datetime',
     ];
 }

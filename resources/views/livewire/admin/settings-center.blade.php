@@ -178,15 +178,15 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Site Başlığı (Title)</label>
-                        <input type="text" wire:model.defer="siteTitle"
+                        <input type="text" wire:model="siteTitle"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">Varsayılan Para Birimi & Zaman Dilimi</label>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <input type="text" wire:model.defer="defaultCurrency" readonly
+                            <input type="text" wire:model="defaultCurrency" readonly
                                 class="w-full p-3 bg-neutral-200/50 dark:bg-neutral-800 border border-neutral-200/40 text-neutral-500 rounded-xl font-bold">
-                            <input type="text" wire:model.defer="defaultTimezone" readonly
+                            <input type="text" wire:model="defaultTimezone" readonly
                                 class="w-full p-3 bg-neutral-200/50 dark:bg-neutral-800 border border-neutral-200/40 text-neutral-500 rounded-xl font-bold">
                         </div>
                     </div>
@@ -194,7 +194,7 @@ new class extends Component {
 
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Meta Açıklamaları (SEO Description)</label>
-                    <textarea wire:model.defer="metaDescription" rows="3"
+                    <textarea wire:model="metaDescription" rows="3"
                         class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
                 </div>
 
@@ -205,7 +205,7 @@ new class extends Component {
                         <span class="text-[11px] text-neutral-400">Aktif edildiğinde site ziyaretçilere kapalı, sadece
                             adminlere açık olur.</span>
                     </div>
-                    <input type="checkbox" wire:model.defer="maintenanceMode"
+                    <input type="checkbox" wire:model="maintenanceMode"
                         class="w-5 h-5 accent-brand-500 rounded cursor-pointer">
                 </div>
 
@@ -228,17 +228,17 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">PayTR Merchant ID (Mağaza No)</label>
-                        <input type="text" wire:model.defer="paytrMerchantId" readonly
+                        <input type="text" wire:model="paytrMerchantId" readonly
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white font-mono rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">PayTR API Key</label>
-                        <input type="password" wire:model.defer="paytrMerchantKey" readonly
+                        <input type="password" wire:model="paytrMerchantKey" readonly
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white font-mono rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">PayTR Secret Salt</label>
-                        <input type="password" wire:model.defer="paytrMerchantSalt" readonly
+                        <input type="password" wire:model="paytrMerchantSalt" readonly
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white font-mono rounded-xl focus:outline-none">
                     </div>
                 </div>
@@ -249,7 +249,7 @@ new class extends Component {
                         <span class="text-[11px] text-neutral-500">Açık olduğunda gerçek kartlar çekilmez, PayTR test ortamı
                             kullanılır.</span>
                     </div>
-                    <input type="checkbox" wire:model.defer="paytrSandboxMode"
+                    <input type="checkbox" wire:model="paytrSandboxMode"
                         class="w-5 h-5 accent-brand-500 rounded cursor-pointer">
                 </div>
 
@@ -272,7 +272,7 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
                         <label class="font-bold text-neutral-900 dark:text-white block">Standart Şoför Komisyonu (%)</label>
-                        <input type="number" step="0.01" wire:model.defer="commissionStandardDriver"
+                        <input type="number" step="0.01" wire:model="commissionStandardDriver"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Başarılı teslimatlardan şoförden kesilen
                             standart oran.</span>
@@ -280,7 +280,7 @@ new class extends Component {
 
                     <div class="space-y-1.5 p-4 bg-brand-500/5 rounded-2xl border border-brand-500/10">
                         <label class="font-bold text-brand-500 block">Premium Şoför İndirimli Komisyon (%)</label>
-                        <input type="number" step="0.01" wire:model.defer="commissionDiscountedPremium"
+                        <input type="number" step="0.01" wire:model="commissionDiscountedPremium"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Aylık Premium üye olan şoförlere uygulanan
                             indirimli oran.</span>
@@ -288,7 +288,7 @@ new class extends Component {
 
                     <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
                         <label class="font-bold text-neutral-900 dark:text-white block">Yük Sahibi Hizmet Bedeli (%)</label>
-                        <input type="number" step="0.01" wire:model.defer="commissionCargoOwner"
+                        <input type="number" step="0.01" wire:model="commissionCargoOwner"
                             class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white font-bold text-lg rounded-xl focus:outline-none">
                         <span class="text-[10px] text-neutral-400 mt-1 block">Yük sahibinden PayTR havuz aşamasında alınan
                             hizmet bedeli.</span>
@@ -314,12 +314,12 @@ new class extends Component {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">NetGSM Kullanıcı Kodu</label>
-                        <input type="text" wire:model.defer="netgsmUser"
+                        <input type="text" wire:model="netgsmUser"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                     <div class="space-y-1.5">
                         <label class="font-semibold text-neutral-500">NetGSM SMS / WhatsApp Başlık (Header)</label>
-                        <input type="text" wire:model.defer="netgsmHeader"
+                        <input type="text" wire:model="netgsmHeader"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     </div>
                 </div>
@@ -328,21 +328,21 @@ new class extends Component {
                 <div class="space-y-4 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
                     <div class="space-y-1.5">
                         <label class="font-bold text-neutral-900 dark:text-white block">"Şifremi Unuttum / OTP" SMS Şablonu</label>
-                        <textarea wire:model.defer="templateOtpSms" rows="2"
+                        <textarea wire:model="templateOtpSms" rows="2"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono"></textarea>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="font-bold text-neutral-900 dark:text-white block">"Ödeme Alındı / Escrow Bloke"
                             Bildirim Şablonu</label>
-                        <textarea wire:model.defer="templatePaymentReceived" rows="2"
+                        <textarea wire:model="templatePaymentReceived" rows="2"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono"></textarea>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="font-bold text-neutral-900 dark:text-white block">"Teslimat Tamamlandı / EFT Ödendi"
                             Şablonu</label>
-                        <textarea wire:model.defer="templateDeliveryCompleted" rows="2"
+                        <textarea wire:model="templateDeliveryCompleted" rows="2"
                             class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono"></textarea>
                     </div>
                 </div>

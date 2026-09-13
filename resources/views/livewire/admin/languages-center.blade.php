@@ -139,13 +139,13 @@ new class extends Component {
             <form wire:submit.prevent="addLanguage" class="space-y-4">
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">ISO Dil Kodu (Örn: 'en', 'ru', 'ar')</label>
-                    <input type="text" wire:model.defer="newLangCode" placeholder="en" maxlength="5" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none uppercase">
+                    <input type="text" wire:model="newLangCode" placeholder="en" maxlength="5" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none uppercase">
                     @error('newLangCode') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Dil Resmi Adı</label>
-                    <input type="text" wire:model.defer="newLangName" placeholder="English" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
+                    <input type="text" wire:model="newLangName" placeholder="English" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
                     @error('newLangName') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                 </div>
 
@@ -235,7 +235,7 @@ new class extends Component {
                                     {{ $item['key'] }}
                                 </td>
                                 <td class="p-3">
-                                    <input type="text" wire:model.defer="translations.{{ $id }}.value" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white text-xs font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                                    <input type="text" wire:model="translations.{{ $id }}.value" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white text-xs font-semibold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                                 </td>
                             </tr>
                         @empty

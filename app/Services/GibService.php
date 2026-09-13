@@ -1,4 +1,5 @@
 <?php
+
 // app/Services/GibService.php
 
 namespace App\Services;
@@ -14,14 +15,14 @@ class GibService
     public function verifyTax(string $vkn): array
     {
         // VKN tam olarak 10 haneli ve sadece rakamlardan oluşmalıdır.
-        if (strlen($vkn) !== 10 || !ctype_digit($vkn)) {
+        if (strlen($vkn) !== 10 || ! ctype_digit($vkn)) {
             return [
                 'success' => true,
                 'is_match' => false,
                 'company_title' => null,
                 'tax_office' => null,
                 'message' => 'Geçersiz Vergi Kimlik Numarası formatı. VKN 10 haneli olmalıdır.',
-                'source' => 'NavlunIQ Algoritması'
+                'source' => 'NavlunIQ Algoritması',
             ];
         }
 
@@ -39,7 +40,7 @@ class GibService
         }
 
         $lastDigit = (10 - ($sum % 10)) % 10;
-        $isValid = ($lastDigit === (int)$vkn[9]);
+        $isValid = ($lastDigit === (int) $vkn[9]);
 
         if ($isValid) {
             return [
@@ -48,7 +49,7 @@ class GibService
                 'company_title' => 'Unvan KYC Aşamasında Doğrulanacak', // Unvanı formdan alıp evrakla eşleştireceğiz
                 'tax_office' => 'Vergi Dairesi KYC Aşamasında Doğrulanacak',
                 'message' => 'Vergi Kimlik Numarası algoritması geçerli. Resmi unvan evrak yükleme aşamasında teyit edilecektir.',
-                'source' => 'NavlunIQ Algoritması'
+                'source' => 'NavlunIQ Algoritması',
             ];
         }
 
@@ -58,7 +59,7 @@ class GibService
             'company_title' => null,
             'tax_office' => null,
             'message' => 'Girdiğiniz Vergi Kimlik Numarası matematiksel olarak geçersizdir (Sahte VKN).',
-            'source' => 'NavlunIQ Algoritması'
+            'source' => 'NavlunIQ Algoritması',
         ];
     }
 }

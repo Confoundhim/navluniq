@@ -38,6 +38,23 @@ return [
             'report' => false,
         ],
 
+        // KYC belgeleri ve teslimat kanıtları: web'den erişilemez, yalnız imzalı rotalarla sunulur.
+        'kyc_private' => [
+            'driver' => 'local',
+            'root' => storage_path('app/kyc'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'private' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

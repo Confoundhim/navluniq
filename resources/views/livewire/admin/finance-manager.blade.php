@@ -120,7 +120,7 @@ new class extends Component {
         <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
             <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">HAVUZDA BEKLEYEN BAKİYE (ESCROW)</span>
             <div class="text-2xl font-bold text-neutral-900 dark:text-white">
-                <!-- 🚀 KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
+                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
                 &#8378;{{ number_format($kartlar['escrow_pending'], 2) }}
             </div>
             <p class="text-[11px] text-neutral-400">Sevkiyatı süren ve güvence altında tutulan bloke navlun bedelleri.</p>
@@ -130,7 +130,7 @@ new class extends Component {
         <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
             <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">KAZANILAN NET KOMİSYON (%5)</span>
             <div class="text-2xl font-bold text-brand-500">
-                <!-- 🚀 KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
+                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
                 &#8378;{{ number_format($kartlar['total_commission'], 2) }}
             </div>
             <p class="text-[11px] text-neutral-400">Başarıyla biten sevkiyatların kesilen komisyon faturaları toplamı.</p>
@@ -140,7 +140,7 @@ new class extends Component {
         <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
             <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">PREMİUM ABONELİK GELİRLERİ</span>
             <div class="text-2xl font-bold text-emerald-500">
-                <!-- 🚀 KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
+                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
                 &#8378;{{ number_format($kartlar['total_subscription'], 2) }}
             </div>
             <p class="text-[11px] text-neutral-400">Şoförler tarafından satın alınan aylık Premium üyelik faturaları toplamı.</p>

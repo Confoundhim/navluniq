@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Scraper;
 use App\Models\ScrapedLoad;
+use App\Models\Scraper;
 use App\Services\AiParserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,10 +19,11 @@ class WhatsappWebhookController extends Controller
 
         if ($expectedToken === '') {
             Log::critical('Scraper webhook güvenlik anahtarı yapılandırılmamış.');
+
             return response()->json(['error' => 'Servis yapılandırılmamış.'], 503);
         }
 
-        if ($providedToken === '' || !hash_equals($expectedToken, $providedToken)) {
+        if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
             return response()->json(['error' => 'Yetkisiz erişim.'], 401);
         }
 
@@ -40,6 +41,7 @@ class WhatsappWebhookController extends Controller
             $parsedData = $parser->parseMessage($validated['raw_message'], $provider);
         } catch (\Throwable $e) {
             Log::error('Scraper mesajı ayrıştırılamadı.', ['exception' => $e::class]);
+
             return response()->json(['success' => false, 'message' => 'Mesaj işlenemedi.'], 503);
         }
 
@@ -47,7 +49,7 @@ class WhatsappWebhookController extends Controller
         $phone = $parsedData['sender_phone'] ?? $validated['sender_phone'] ?? null;
         $hasPhone = is_string($phone) && $phone !== '' && $phone !== 'Bilinmiyor';
 
-        if (!$isSuccess || !$hasPhone) {
+        if (! $isSuccess || ! $hasPhone) {
             return response()->json(['success' => false, 'message' => 'İlan ölçütleri karşılanmadı.']);
         }
 
@@ -56,7 +58,7 @@ class WhatsappWebhookController extends Controller
             ['name' => $validated['group_name'], 'type' => 'whatsapp', 'is_active' => false]
         );
 
-        if (!$scraper->is_active) {
+        if (! $scraper->is_active) {
             return response()->json(['success' => false, 'message' => 'Kaynak yönetici onayı bekliyor.'], 202);
         }
 

@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\FirewallMiddleware;
+use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,26 +16,26 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // NavlunIQ Özel Güvenlik Ara Yazılımları
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin' => AdminMiddleware::class,
         ]);
 
-        // Güvenlik Duvarı (Firewall)
-        $middleware->append(\App\Http\Middleware\FirewallMiddleware::class);
+        $middleware->append(FirewallMiddleware::class);
 
-        // Misafir Yönlendirme Kapısı [6]
+        // Ödeme sağlayıcısı sunucudan sunucuya bildirir; CSRF yerine imza doğrulaması yapılır.
+        $middleware->validateCsrfTokens(except: ['odeme/paytr/bildirim']);
+
+        // Uygulama bir yük dengeleyici veya CDN arkasına alınırsa gerçek istemci IP'si için
+        // burada trustProxies(at: [...]) tanımlanmalıdır; aksi halde firewall ve hız sınırlayıcı proxy IP'sini görür.
+
         $middleware->redirectGuestsTo('/giris');
 
-        // 🚀 DİNAMİK KULLANICI YÖNLENDİRMESİ:
-        // Intelephense uyarısını önlemek için doğrudan resmi Auth Facade sınıfı kullanılmıştır [1.1.3, 6].
+        // Oturumu olan kullanıcı giriş/kayıt sayfalarına gelirse rolüne uygun panele gönderilir.
         $middleware->redirectUsersTo(function () {
-            /** @var \App\Models\User|null $user */
+            /** @var User|null $user */
             $user = Auth::user();
-            if ($user && $user->current_role === 'admin') {
-                return '/adminsystem/dashboard';
-            }
-            return '/';
+
+            return $user && $user->current_role === 'admin' ? '/adminsystem/dashboard' : '/panel';
         });
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -121,7 +121,7 @@ new class extends Component {
 
     /**
      * Süzülen son 10 ilanı getirir
-     * 🚀 Sadece yapay zekanın "success: true" döndüğü gerçek ilanları çeker!
+     * Sadece yapay zekanın "success: true" döndüğü gerçek ilanları çeker!
      */
     private function getScrapedLoads()
     {
@@ -165,7 +165,7 @@ new class extends Component {
             <form wire:submit.prevent="addSource" class="space-y-4 text-xs">
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Kaynak Sınıfı</label>
-                    <select wire:model.defer="selectedSourceType" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <select wire:model="selectedSourceType" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                         <option value="whatsapp">WhatsApp Grubu</option>
                         <option value="telegram">Telegram Kanalı</option>
                         <option value="facebook">Facebook Nakliye Grubu</option>
@@ -175,13 +175,13 @@ new class extends Component {
 
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Grup / Kanal Adı</label>
-                    <input type="text" wire:model.defer="newSourceName" placeholder="Örn: Marmara Nakliyeciler WhatsApp" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <input type="text" wire:model="newSourceName" placeholder="Örn: Marmara Nakliyeciler WhatsApp" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                     @error('newSourceName') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="font-semibold text-neutral-500">Kaynak Bağlantı Tanımlayıcı (Link / Grup Başlığı)</label>
-                    <input type="text" wire:model.defer="newSourceIdentifier" placeholder="Örn: t.me/nakliyegrubu veya WhatsApp Başlığı" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
+                    <input type="text" wire:model="newSourceIdentifier" placeholder="Örn: t.me/nakliyegrubu veya WhatsApp Başlığı" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                     @error('newSourceIdentifier') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
                 </div>
 
@@ -242,7 +242,7 @@ new class extends Component {
             <p class="text-xs text-neutral-500">WhatsApp'tan gelen karmaşık, bozuk Türkçe lojistik mesajını buraya yazıp yapay zekanın bunu saniyeler içinde nasıl temiz bir ilana dönüştürdüğünü test edin!</p>
 
             <div class="space-y-4 text-xs">
-                <textarea wire:model.defer="testRawText" rows="4" class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
+                <textarea wire:model="testRawText" rows="4" class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
 
                 <button wire:click="runAiParserTest" class="w-full btn-apple-brand py-3 text-xs flex items-center justify-center space-x-2">
                     <span wire:loading.remove wire:target="runAiParserTest">Yapay Zekaya Gönder ve Çözümle</span>
@@ -341,7 +341,7 @@ new class extends Component {
                                     <!-- 🛡️ KUSURSUZ GİZLİLİK VE VERİ KALİTESİ KORUMASI -->
                                     <span class="text-neutral-400 font-medium text-xs italic" title="Bu kullanıcı rehberinizde kayıtlı olmadığı için numarası gizlenmiştir.">Gizli Numara (LID)</span>
                                 @else
-                                    <!-- 🚀 TIKLANABİLİR MASKE LİNKİ (533 444 ** ** formatında) -->
+                                    <!-- TIKLANABİLİR MASKE LİNKİ (533 444 ** ** formatında) -->
                                     <div class="flex items-center space-x-2">
                                         <a href="tel:{{ preg_replace('/[^0-9+]/', '', $load->sender_phone) }}" class="hover:underline text-brand-500 hover:text-brand-600 transition-colors font-bold text-xs">
                                             {{ substr($load->formatted_phone, 0, 7) . ' ** **' }}
@@ -361,7 +361,7 @@ new class extends Component {
                             @endif
                         </td>
                         <td class="py-3 font-bold">
-                            <!-- 🚀 KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ederek uyuşmazlığı çözüyoruz -->
+                            <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ederek uyuşmazlığı çözüyoruz -->
                             &#8378;{{ number_format($load->price, 2) }}
                         </td>
                         <td class="py-3">

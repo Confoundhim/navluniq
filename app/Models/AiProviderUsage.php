@@ -9,6 +9,8 @@ class AiProviderUsage extends Model
 {
     use HasFactory;
 
+    protected $table = 'ai_provider_usage';
+
     protected $fillable = [
         'provider',
         'usage_date',
@@ -23,9 +25,9 @@ class AiProviderUsage extends Model
     ];
 
     protected $casts = [
-        'usage_date'=>'date',
-        'quota_exhausted'=>'boolean',
-        'quota_resets_at'=>'datetime',
-        'estimated_cost'=>'decimal:6',
+        'usage_date' => 'date',
+        'quota_exhausted' => 'boolean',
+        'quota_resets_at' => 'datetime',
+        'estimated_cost' => 'decimal:6',
     ];
 }
