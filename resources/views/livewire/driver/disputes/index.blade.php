@@ -43,6 +43,11 @@ class extends Component {
             ->whereHas('cargoLoad', fn (Builder $q) => $q->where('driver_profile_id', $profileId));
     }
 
+    public function mount(): void
+    {
+        $this->ticketFormOpen = request()->boolean('ticket');
+    }
+
     public function openDefense(int $disputeId): void
     {
         $dispute = $this->disputeQuery()->whereKey($disputeId)->first();

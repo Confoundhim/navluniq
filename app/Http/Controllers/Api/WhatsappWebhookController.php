@@ -82,7 +82,7 @@ class WhatsappWebhookController extends Controller
             'weight' => $parsedData['weight'] ?? null,
             'price' => $parsedData['price'] ?? null,
             'currency' => 'TRY',
-            'status' => 'parsed_success',
+            'status' => (! empty($parsedData['pickup_location']) && ! empty($parsedData['delivery_location'])) ? 'parsed_success' : 'parsed_partial',
             'parsed_by_llm' => $parsedData['parsed_by_llm'] ?? 'unknown',
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30),

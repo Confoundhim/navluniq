@@ -141,7 +141,6 @@ class PaymentService
 
         if (! $response->successful() || ($data['status'] ?? '') !== 'success' || empty($data['token'])) {
             Log::error('PayTR token alınamadı.', ['order' => $order->id, 'response' => $response->body()]);
-            $order->update(['status' => 'failed', 'failed_at' => now()]);
             throw new RuntimeException('Ödeme sağlayıcısından yanıt alınamadı: '.($data['reason'] ?? 'bilinmeyen hata'));
         }
 

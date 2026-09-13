@@ -33,14 +33,14 @@ new class extends Component {
         $this->ownerTitle = CmsContent::getVal('slider_owner_title', 'Ödemeleriniz NavlunIQ ile Güvende!');
         $this->ownerDesc = CmsContent::getVal('slider_owner_desc', 'Gerçek Zamanlı Eşleşme ve Kontrollü Ödeme Süreci. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Ödemeleriniz havuz sistemi ile yükleriniz KYC doğrulamalı güvenilir şoförlerle korunmaktadır.');
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
-        $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Akıllı Dönüş Radarı ile yükün seni bulsun. WhatsApp gruplarında paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
+        $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. WhatsApp gruplarında paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
         $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'Biz sadece bir lojistik yazılımı kodlamadık. Biz, gece gündüz direksiyon başında ömür tüketen şoförlerimiz ile, alın terini ve tüm sermayesini o yüke emanet eden iş insanlarımızın arasına sarsılmaz bir güven köprüsü kurduk.');
 
         // Veritabanı Sayaçları
         $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
         $this->systemLoadsCount = Load::whereIn('status', ['active_seeking', 'driver_assigned', 'on_the_way'])->count();
         $this->webLoadsCount = ScrapedLoad::where('visibility', 'public')->count();
-        $this->completedCount = Load::where('status', 'delivered')->count();
+        $this->completedCount = Load::whereIn('status', [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED])->count();
     }
 
     public function getAllFaqs()
@@ -82,10 +82,10 @@ new class extends Component {
             <div class="flex justify-center mb-6 md:mb-8">
                 <div class="p-1 bg-neutral-100 dark:bg-neutral-900 rounded-2xl inline-flex border border-neutral-200/40 shadow-apple-sm">
                     <button wire:click="$set('activeSlider', 'owner')" class="px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300 {{ $activeSlider === 'owner' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm scale-100' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white scale-95' }}">
-                        📦 Yük Sahibi
+                         Yük Sahibi
                     </button>
                     <button wire:click="$set('activeSlider', 'driver')" class="px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300 {{ $activeSlider === 'driver' ? 'bg-brand-500 text-white shadow-apple-sm scale-100' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white scale-95' }}">
-                        🚛 Şoför
+                         Şoför
                     </button>
                 </div>
             </div>
@@ -97,7 +97,7 @@ new class extends Component {
                 <div class="lg:col-span-7 space-y-4 md:space-y-5 text-center lg:text-left">
                     <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-extrabold uppercase tracking-wider">
                         <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                        <span>{{ $activeSlider === 'owner' ? 'Kontrollü Ödeme Süreci' : 'Akıllı Dönüş Radarı' }}</span>
+                        <span>{{ $activeSlider === 'owner' ? 'Kontrollü Ödeme Süreci' : 'Tek Panelden Tüm İlanlar' }}</span>
                     </div>
 
                     <h1 class="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-neutral-950 dark:text-white leading-[1.15]">
@@ -173,12 +173,12 @@ new class extends Component {
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sistem İlanları</span>
                 <div class="text-3xl sm:text-4xl font-black text-brand-500">{{ number_format($systemLoadsCount) }}</div>
-                <span class="text-[10px] text-neutral-400 font-medium">Yeşil Rozet</span>
+                <span class="text-[10px] text-neutral-400 font-medium">Platform ilanları</span>
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Anlık Web İlanları</span>
                 <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white">{{ number_format($webLoadsCount) }}</div>
-                <span class="text-[10px] text-brand-500 font-bold">Sarı Rozet</span>
+                <span class="text-[10px] text-brand-500 font-bold">Dış kaynak ilanları</span>
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Başarılı Sevkiyat</span>
@@ -234,7 +234,7 @@ new class extends Component {
                 <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white font-black text-lg flex items-center justify-center">2</div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">Güvenli Havuz & Canlı Takip</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Yük sahibi bedeli PayTR havuzuna yatırır, teslimat başlar. Süreç çift taraflı canlı haritadan izlenir, şoföre dönüş yükü radarları araştırma yapar.
+                    Yük sahibi navlun bedelini PayTR ile güvenli havuza yatırır, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
                 </p>
             </div>
 
@@ -242,7 +242,7 @@ new class extends Component {
                 <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 font-black text-lg flex items-center justify-center">3</div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">POD Onay & Hak Ediş</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Teslimat belgesi (POD) yüklenir ve onaylanır. Göndericinin parası korunmuş olurken, şoförün hak edişi hesabına 24 saat sonra aktarılır.
+                    Şoför teslimat kanıtını yükler, yük sahibi onaylar. Onayın ardından şoförün hak edişi finans ekibimizce banka hesabına aktarılır.
                 </p>
             </div>
         </div>
@@ -298,10 +298,10 @@ new class extends Component {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div class="apple-glass rounded-3xl p-8 space-y-4 shadow-apple-sm flex flex-col justify-between">
                 <div class="space-y-3">
-                    <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl">🤖</div>
+                    <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">NavlunIQ İlan Aboneliği</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Yapay zeka radarımız tarafından WhatsApp grupları ve web mecralarından derlenen sıcak yük ilanlarına gerçek zamanlı erişim.
+                        WhatsApp grupları ve web mecralarından derlenip ayrıştırılan yük ilanlarına gerçek zamanlı erişim.
                     </p>
                 </div>
                 <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
@@ -309,7 +309,7 @@ new class extends Component {
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 shadow-apple-sm flex flex-col justify-between">
                 <div class="space-y-3">
-                    <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 font-bold flex items-center justify-center text-xl">🏙️</div>
+                    <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">Şehir İçi Yük Taşımacılığı</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                         Şehir içi kısa mesafeli ve acil sevkiyatlarınız için optimize edilmiş taşımacılık ağı. Hafif ticari araçlardan kamyonlara onaylı şoför atayın.
@@ -320,10 +320,10 @@ new class extends Component {
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 shadow-apple-sm flex flex-col justify-between">
                 <div class="space-y-3">
-                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 font-bold flex items-center justify-center text-xl">🛣️</div>
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">Şehirler Arası Yük Taşımacılığı</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Türkiye geneli tüm şehirler arasında kesintisiz ve güvenli taşımacılık. Şoförler için akıllı dönüş yükü radarları ile boş dönüşe son veriyoruz.
+                        Türkiye geneli tüm şehirler arasında güvenli taşımacılık. Şoförler tercih ettikleri rotalardaki ilanlara tek panelden ulaşır.
                     </p>
                 </div>
                 <a href="{{ route('register.cargo-owner') }}" class="text-xs font-bold text-emerald-500 hover:underline pt-2 block">Hemen İlan Ver →</a>
@@ -338,7 +338,7 @@ new class extends Component {
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ABONELİK PAKETLERİ</span>
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yük Bulma Hızınızı Zirveye Taşıyın</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Yapay zeka radarı tarafından derlenen tüm ilanlara anında erişin.</p>
+            <p class="text-xs sm:text-sm text-neutral-400">Dış kaynaklardan derlenen tüm ilanlara tek panelden erişin.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
@@ -346,17 +346,17 @@ new class extends Component {
                 <div class="space-y-4">
                     <div class="space-y-1">
                         <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">BAŞLANGIÇ</span>
-                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Telegram Kanalı</h3>
+                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h3>
                         <div class="text-3xl font-black text-neutral-900 dark:text-white pt-2">0 &#8378; <span class="text-xs text-neutral-400 font-normal">/ Süresiz</span></div>
                     </div>
                     <ul class="space-y-2.5 text-xs text-neutral-500 dark:text-neutral-400 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Web siteleri ve gruplardan derlenen ilanlar</span></li>
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Telegram kanalında 20 dakika rötarlı akış</span></li>
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Sınırsız süreyle katılım garantisi</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Web siteleri ve gruplardan derlenen ilanlar</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Platform ilanlarına ücretsiz teklif hakkı</span></li>
                     </ul>
                 </div>
-                <a href="https://t.me/navluniq" target="_blank" class="w-full btn-apple-secondary py-3 text-center text-xs font-bold block">
-                    Telegram Kanalımıza Katıl
+                <a href="{{ route('register.driver') }}" class="w-full btn-apple-secondary py-3 text-center text-xs font-bold block">
+                    Ücretsiz Kaydol
                 </a>
             </div>
 
@@ -368,17 +368,17 @@ new class extends Component {
                     <div class="space-y-1">
                         <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PROFESYONEL</span>
                         <h3 class="text-2xl font-black text-neutral-900 dark:text-white">NavlunIQ Premium Sürücü</h3>
-                        <div class="text-3xl font-black text-brand-500 pt-2">900 &#8378; <span class="text-xs text-neutral-400 font-normal">/ Ay (KDV Dahil)</span></div>
+                        <div class="text-3xl font-black text-brand-500 pt-2">{{ number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.') }} &#8378; <span class="text-xs text-neutral-400 font-normal">/ Ay (KDV Dahil)</span></div>
                     </div>
                     <ul class="space-y-2.5 text-xs text-neutral-600 dark:text-neutral-300 pt-4 border-t border-neutral-100 dark:border-neutral-800 font-semibold">
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>Tüm web ve platform ilanlarını ANINDA görün</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>WhatsApp, Telegram ve Web Push ile anlık bildirim</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>Onaylı dış kaynak ilanlarına 20 dakika erken erişim</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>Sürücü kontrol paneline tam erişim</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Tüm web ve platform ilanlarını ANINDA görün</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Daha düşük komisyon oranı</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Onaylı dış kaynak ilanlarına 20 dakika erken erişim</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Sürücü kontrol paneline tam erişim</span></li>
                     </ul>
                 </div>
-                <a href="{{ route('register.driver') }}" class="w-full btn-apple-brand py-3.5 text-center text-xs font-bold block shadow-apple-sm">
-                    Premium Sürücü Ol
+                <a href="{{ route('subscription') }}" class="w-full btn-apple-brand py-3.5 text-center text-xs font-bold block shadow-apple-sm">
+                    Premium Detayları
                 </a>
             </div>
         </div>
@@ -486,11 +486,11 @@ new class extends Component {
             <div class="space-y-1 text-center md:text-left">
                 <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
                 <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Partnerimiz PayTR</h3>
-                <p class="text-xs text-neutral-400">256-Bit SSL Secured, PayTR Havuz Sistemi ile ödemeler güvence altındadır.</p>
+                <p class="text-xs text-neutral-400">Ödemeler PayTR altyapısı üzerinden alınır ve teslimat onayına kadar havuzda tutulur.</p>
             </div>
             <div class="flex items-center space-x-3 text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-4 py-2 rounded-xl">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                <span>256-Bit SSL Secured</span>
+                <span>SSL ile şifreli bağlantı</span>
             </div>
         </div>
     </section>

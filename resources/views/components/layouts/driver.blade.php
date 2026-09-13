@@ -32,8 +32,8 @@
         class="fixed inset-0 z-40 bg-neutral-950/80 backdrop-blur-sm md:hidden"></div>
 
     <!-- Kenar Çubuğu (Sidebar) -->
-    <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-        class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0">
+    <aside :class="{ 'translate-x-0': mobileSidebarOpen, '-translate-x-full': !mobileSidebarOpen }"
+        class="-translate-x-full fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0">
 
         <!-- Üst Logo & Şoför Paneli Başlığı (Keskin & Prestijli Tasarım) -->
         <div class="h-20 flex items-center justify-between px-5 border-b border-neutral-800 bg-neutral-900/60">
@@ -67,7 +67,6 @@
             </button>
         </div>
 
-        <!-- Hızlı Aksiyon: Yakındaki Yükleri Bul -->
         <div class="p-4">
             <a href="{{ route('driver.loads.index') }}"
                 class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-sm transition-all duration-200 shadow-lg shadow-brand-500/20 active:scale-[0.98]">
@@ -75,7 +74,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <span>Yakındaki Yükleri Bul</span>
+                <span>İlan Havuzu</span>
             </a>
         </div>
 
@@ -87,7 +86,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span>Komuta & Dönüş Radarı</span>
+                <span>Genel Bakış</span>
             </a>
 
             <a href="{{ route('driver.loads.index') }}"
@@ -178,7 +177,7 @@
                         <div class="text-xs font-semibold text-neutral-200 truncate">{{ auth()->user()?->full_name }}
                         </div>
                         <div class="text-[10px] text-neutral-500 truncate">
-                            {{ auth()->user()?->phone ?? auth()->user()?->email }}</div>
+                            {{ \App\Support\Phone::format(auth()->user()?->phone) ?: auth()->user()?->email }}</div>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
@@ -219,7 +218,7 @@
                 <div
                     class="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-full text-xs font-mono font-bold text-white">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>{{ $activeVehicle ? $activeVehicle->plate . ' (' . $activeVehicle->brand . ' ' . $activeVehicle->model . ')' : '06 TR 992 (Mercedes Actros)' }}</span>
+                    <span>{{ $activeVehicle ? $activeVehicle->plate.' ('.$activeVehicle->brand.' '.$activeVehicle->model.')' : 'Aktif araç tanımlı değil' }}</span>
                 </div>
 
                 <a href="{{ route('home') }}" target="_blank"

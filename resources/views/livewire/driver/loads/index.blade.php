@@ -363,7 +363,7 @@ class extends Component {
 
             <div class="space-y-3">
                 @forelse($externalLoads as $item)
-                    @php $fullPhone = $isPremium && $item->formatted_phone !== 'Bilinmiyor' ? $item->formatted_phone : null; @endphp
+                    @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; @endphp
                     <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                         <div class="space-y-1.5 flex-1">
                             <div class="text-sm font-bold text-white">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
@@ -383,13 +383,12 @@ class extends Component {
                                 @endif
                             </div>
                             @if($fullPhone)
-                                @php $digits = preg_replace('/\D/', '', $fullPhone); @endphp
-                                <div class="flex items-center gap-3">
-                                    <a href="tel:+90{{ $digits }}" class="text-brand-400 font-mono font-bold hover:underline">{{ $fullPhone }}</a>
-                                    <a href="https://wa.me/90{{ $digits }}" target="_blank" rel="noopener" class="text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                                                <div class="flex items-center gap-3">
+                                    <a href="tel:+90{{ $plainPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ $fullPhone }}</a>
+                                    <a href="https://wa.me/90{{ $plainPhone }}" target="_blank" rel="noopener" class="text-emerald-400 font-bold hover:underline">WhatsApp</a>
                                 </div>
                             @else
-                                <span class="text-neutral-400 font-mono">{{ $item->masked_phone }}</span>
+                                <span class="text-neutral-400 font-mono">{{ $plainPhone ? '0'.substr($plainPhone, 0, 3).' *** ** '.substr($plainPhone, -2) : 'Bilinmiyor' }}</span>
                             @endif
                         </div>
                     </div>

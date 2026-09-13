@@ -309,7 +309,11 @@ class extends Component {
                                 lastSentAt: 0,
                                 lastSentLabel: null,
                                 error: null,
-                                init() { this.$nextTick(() => this.initMap()); },
+                                init() {
+                                    this.$nextTick(() => this.initMap());
+                                    window.addEventListener('livewire:navigating', () => this.stop(), { once: true });
+                                },
+                                destroy() { this.stop(); },
                                 csrf() { const m = document.querySelector('meta[name=csrf-token]'); return m ? m.content : ''; },
                                 initMap() {
                                     if (typeof L === 'undefined' || this.map) return;
@@ -422,7 +426,7 @@ class extends Component {
                     <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Yük sahibi</h3>
                     <div class="text-white font-bold">{{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</div>
                     @if($ownerPhone)
-                        <a href="tel:{{ $ownerPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
+                        <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
                     @else
                         <div class="text-neutral-500">İletişim numarası, yük sahibi havuz ödemesini yaptıktan sonra görünür.</div>
                     @endif

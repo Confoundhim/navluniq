@@ -73,6 +73,12 @@ new class extends Component {
 
     public function saveGeneral(): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'general.system_site_title' => 'nullable|string|max:120',
             'general.system_meta_description' => 'nullable|string|max:320',
@@ -92,6 +98,12 @@ new class extends Component {
 
     public function saveLimits(): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         foreach ($this->limits as $key => $value) {
             $this->limits[$key] = str_replace(',', '.', trim((string) $value));
         }

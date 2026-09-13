@@ -88,15 +88,10 @@ new class extends Component {
         }
     }
 
-    /** Ham HTML'den betik, çerçeve, olay öznitelikleri ve javascript: adreslerini temizler. */
+    /** İzin listesi tabanlı HTML temizliği (HTMLPurifier). */
     private function sanitizeHtml(string $html): string
     {
-        $html = preg_replace('#<\s*(script|iframe|object|embed|style)\b[^>]*>.*?<\s*/\s*\1\s*>#is', '', $html) ?? $html;
-        $html = preg_replace('#<\s*/?\s*(script|iframe|object|embed|style)\b[^>]*>#i', '', $html) ?? $html;
-        $html = preg_replace('/\s+on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html) ?? $html;
-        $html = preg_replace('/(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*javascript\s*:[^"\'>\s]*/i', '$1=$2#', $html) ?? $html;
-
-        return $html;
+        return \App\Support\HtmlSanitizer::clean($html);
     }
 
     private function storeKeys(array $values, array $labels, string $group): int
@@ -120,6 +115,12 @@ new class extends Component {
 
     public function saveTexts(): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'texts.*' => 'nullable|string|max:2000',
             'texts.social_instagram' => 'nullable|url|max:255',
@@ -134,6 +135,12 @@ new class extends Component {
 
     public function saveContracts(): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate(['contracts.*' => 'nullable|string|max:200000']);
 
         $clean = [];
@@ -170,6 +177,12 @@ new class extends Component {
 
     public function saveFaq(): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'faqQuestion' => 'required|string|min:5|max:255',
             'faqAnswer' => 'required|string|min:10|max:5000',
@@ -193,6 +206,12 @@ new class extends Component {
 
     public function toggleFaq(int $id): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $faq = Faq::query()->find($id);
         if ($faq) {
             $faq->update(['is_active' => ! $faq->is_active, 'updated_by' => auth()->id()]);
@@ -201,6 +220,12 @@ new class extends Component {
 
     public function deleteFaq(int $id): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         Faq::query()->whereKey($id)->delete();
         ActivityLog::record('faq.deleted', "SSS #{$id} silindi", auth()->id());
         if ($this->faqId === $id) {
@@ -232,6 +257,12 @@ new class extends Component {
 
     public function savePage(): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $slug = Str::slug($this->pageSlug !== '' ? $this->pageSlug : $this->pageTitle);
         $this->pageSlug = $slug;
 
@@ -274,6 +305,12 @@ new class extends Component {
 
     public function deletePage(int $id): void
     {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         Page::query()->whereKey($id)->delete();
         ActivityLog::record('page.deleted', "Sayfa #{$id} silindi", auth()->id());
         if ($this->pageId === $id) {

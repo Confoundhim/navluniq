@@ -204,7 +204,8 @@ new class extends Component {
                         const map = L.map(this.$refs.canvas, { zoomControl: true });
                         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
                         const bounds = [];
-                        points.forEach(p => { L.marker([p.lat, p.lng]).addTo(map).bindPopup(p.label + '<br>' + (p.time || '') + ' · ' + p.speed + ' km/s'); bounds.push([p.lat, p.lng]); });
+                        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                        points.forEach(p => { L.marker([p.lat, p.lng]).addTo(map).bindPopup(esc(p.label) + '<br>' + esc(p.time || '') + ' · ' + esc(p.speed) + ' km/s'); bounds.push([p.lat, p.lng]); });
                         map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
                     }
                  }">

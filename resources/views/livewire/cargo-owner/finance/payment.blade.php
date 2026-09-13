@@ -45,7 +45,14 @@ class extends Component {
         if ($this->configured && $this->isPayable($load)) {
             try {
                 $order = $payments->orderFor($load, Auth::user());
-                $this->token = $payments->iframeToken($order, request());
+                $cacheKey = 'paytr.token.'.$order->id;
+                $cached = session($cacheKey);
+                if (is_array($cached) && ($cached['expires'] ?? 0) > time() && ! empty($cached['token'])) {
+                    $this->token = $cached['token'];
+                } else {
+                    $this->token = $payments->iframeToken($order, request());
+                    session()->put($cacheKey, ['token' => $this->token, 'expires' => time() + 25 * 60]);
+                }
             } catch (\RuntimeException $e) {
                 $this->tokenError = $e->getMessage();
             }

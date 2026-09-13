@@ -40,6 +40,12 @@ new class extends Component {
 
     public function restore(string $type, int $id): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $model = $this->modelFor($type);
         $record = $model ? $model::onlyTrashed()->find($id) : null;
         if (! $record) {
@@ -55,6 +61,12 @@ new class extends Component {
 
     public function forceDelete(string $type, int $id): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $model = $this->modelFor($type);
         $record = $model ? $model::onlyTrashed()->find($id) : null;
         if (! $record) {
@@ -74,6 +86,12 @@ new class extends Component {
 
     public function rollback(int $revisionId): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $revision = SettingRevision::query()->find($revisionId);
         if (! $revision) {
             session()->flash('error_message', 'Revizyon bulunamadı.');

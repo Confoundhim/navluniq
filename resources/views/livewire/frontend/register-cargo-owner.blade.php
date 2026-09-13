@@ -66,10 +66,10 @@ new class extends Component {
         ];
 
         if ($this->type === 'individual') {
-            $rules['tcNo'] = ['required', 'digits:11', Rule::unique('cargo_owner_profiles', 'tc_no')];
+            $rules['tcNo'] = ['required', 'digits:11', Rule::unique('cargo_owner_profiles', 'tc_no')->where(fn ($q) => $q->whereNotIn('user_id', $this->draftUserIds()))];
             $rules['birthYear'] = 'required|digits:4|integer|min:1920|max:'.(date('Y') - 18);
         } else {
-            $rules['taxNo'] = ['required', 'digits:10', Rule::unique('cargo_owner_profiles', 'tax_no')];
+            $rules['taxNo'] = ['required', 'digits:10', Rule::unique('cargo_owner_profiles', 'tax_no')->where(fn ($q) => $q->whereNotIn('user_id', $this->draftUserIds()))];
             $rules['companyTitle'] = 'required|string|min:3|max:255';
             $rules['taxOffice'] = 'nullable|string|max:120';
         }
@@ -142,7 +142,7 @@ new class extends Component {
                 $user = $existingUser;
             } elseif ($isDraft) {
                 $user = $existingUser;
-                $user->cargoOwnerProfile()->delete();
+                $user->cargoOwnerProfile()->withTrashed()->forceDelete();
                 $user->update([
                     'first_name' => $firstName,
                     'last_name' => $lastName,
@@ -194,6 +194,12 @@ new class extends Component {
 
         $this->registeredUserId = $user->id;
         $this->sendOtp($user);
+    }
+
+    /** E-posta doğrulaması yapılmamış taslak hesapların kullanıcı kimlikleri (benzersizlik kontrolünde hariç tutulur). */
+    private function draftUserIds(): array
+    {
+        return User::query()->whereNull('email_verified_at')->where('is_active', false)->pluck('id')->all();
     }
 
     private function sendOtp(User $user): void

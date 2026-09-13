@@ -128,6 +128,12 @@ new class extends Component {
 
     public function verifyGib(): void
     {
+        if (! auth()->user()->can('verify kyc')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $user = $this->selectedId ? User::query()->with('cargoOwnerProfile')->find($this->selectedId) : null;
         $profile = $user?->cargoOwnerProfile;
 

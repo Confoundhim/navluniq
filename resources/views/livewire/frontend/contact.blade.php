@@ -161,27 +161,20 @@ new class extends Component {
                 <div class="space-y-3 text-neutral-600 dark:text-neutral-300">
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Müşteri Hizmetleri / Telefon</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">+90 850 304 04 00</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.phone') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">E-Posta Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">info@navluniq.com</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.email') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Merkez Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.address') ?: 'Yakında' }}</span>
                     </div>
                 </div>
             </div>
 
             <!-- Google Maps Entegrasyonu -->
-            <div class="apple-glass rounded-3xl overflow-hidden border border-neutral-200/50 shadow-apple-md h-64 relative">
-                <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3061.6517120578505!2d32.81019417650525!3d39.882038788008295!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14d345e0df8e262b%3A0x62c27832d6a96e13!2sCevizlidere%2C%20Mevlana%20Blv.%20No%3A221%2C%2006520%20%C3%87ankaya%2FAnkara!5e0!3m2!1str!2str!4v1788433898346!5m2!1str!2str"
-                        class="w-full h-full border-0"
-                        allowfullscreen=""
-                        loading="lazy"
-                        referrerpolicy="no-referrer-when-downgrade"></iframe>
-            </div>
         </div>
 
     </div>

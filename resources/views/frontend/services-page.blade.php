@@ -16,7 +16,7 @@
             <div class="apple-glass rounded-3xl p-8 md:p-10 space-y-4 border-l-4 border-l-brand-500 shadow-apple-sm">
                 <span class="font-bold text-brand-500 text-sm">1. NavlunIQ İlan Aboneliği</span>
                 <p class="text-neutral-500 leading-relaxed">
-                    Yapay zeka radarımız tarafından WhatsApp grupları ve web mecralarından derlenen sıcak yük ilanlarına gerçek zamanlı erişim elde edin. Kendi WhatsApp gruplarınızı da sisteme bağlayarak her şeyi tek bir panelden yönetin.
+                    İzinli WhatsApp grupları ve web mecralarından derlenip ayrıştırılan yük ilanlarına tek panelden erişin.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Otomatik İlan Tarama ve Filtreleme</span>
@@ -42,7 +42,7 @@
             <div class="apple-glass rounded-3xl p-8 md:p-10 space-y-4 border-l-4 border-l-emerald-500 shadow-apple-sm">
                 <span class="font-bold text-emerald-500 text-sm">3. Şehirler Arası Yük Taşımacılığı</span>
                 <p class="text-neutral-500 leading-relaxed">
-                    Türkiye geneli tüm şehirler arasında kesintisiz ve güvenli taşımacılık. Şoförler için akıllı dönüş yükü radarları ile boş dönmesini engelleyerek lojistik maliyetlerini en alt sınıra çekiyoruz.
+                    Türkiye geneli tüm şehirler arasında güvenli taşımacılık. Şoförler tercih ettikleri rotalardaki ilanlara tek panelden ulaşarak boş dönüşü azaltır.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">KYC Doğrulamalı Güvenilir Şoförler</span>

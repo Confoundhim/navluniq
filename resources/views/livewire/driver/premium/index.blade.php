@@ -70,7 +70,7 @@ class extends Component {
                 @else
                     <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-300 text-xs leading-relaxed">
                         Premium abonelik satın alma akışı bu sayfaya henüz bağlanmadı. Abonelik için destek ekibiyle iletişime geçebilirsiniz.
-                        <a href="{{ route('driver.disputes.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Destek talebi oluştur</a>
+                        <a href="{{ route('driver.disputes.index', ['ticket' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Destek talebi oluştur</a>
                     </div>
                 @endif
             </div>

@@ -28,7 +28,8 @@ new class extends Component {
     public array $failReason = [];
 
     /** @var array<int, string> Banka hesabı kimliğine göre çözülmüş IBAN */
-    public array $revealed = [];
+    #[\Livewire\Attributes\Locked]
+    public ?int $revealedAccountId = null;
 
     public string $exportMonth = '';
 
@@ -41,7 +42,7 @@ new class extends Component {
     public function updatedActiveTab(): void
     {
         $this->resetPage();
-        $this->revealed = [];
+        $this->revealedAccountId = null;
     }
 
     public function updatedPayoutStatus(): void
@@ -78,7 +79,8 @@ new class extends Component {
         }
 
         try {
-            $this->revealed[$bankAccountId] = app(BankAccountService::class)->decrypt($account);
+            app(BankAccountService::class)->decrypt($account);
+            $this->revealedAccountId = $account->id;
             ActivityLog::record('bank_account.revealed', "IBAN görüntülendi (hesap #{$account->id}, kullanıcı #{$account->user_id})", auth()->id(), $account);
         } catch (\Throwable) {
             session()->flash('error_message', 'IBAN çözülemedi; şifreleme anahtarı değişmiş olabilir.');
@@ -87,7 +89,9 @@ new class extends Component {
 
     public function hideIban(int $bankAccountId): void
     {
-        unset($this->revealed[$bankAccountId]);
+        if ($this->revealedAccountId === $bankAccountId) {
+            $this->revealedAccountId = null;
+        }
     }
 
     public function markPaid(int $payoutId): void
@@ -146,6 +150,10 @@ new class extends Component {
 
     public function exportCsv()
     {
+        if (! $this->requireManage()) {
+            return null;
+        }
+
         $this->validate(['exportMonth' => 'required|date_format:Y-m']);
 
         $start = \Carbon\Carbon::createFromFormat('Y-m', $this->exportMonth)->startOfMonth();
@@ -297,10 +305,10 @@ new class extends Component {
                                 <td class="p-4">{{ $payout->user?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $payout->user?->email }}</div></td>
                                 <td class="p-4 whitespace-nowrap">
                                     @if($payout->bankAccount)
-                                        <span class="font-mono">{{ $revealed[$payout->bank_account_id] ?? $payout->bankAccount->maskedIban() }}</span>
+                                        <span class="font-mono">{{ $revealedAccountId === $payout->bank_account_id && $canManage ? app(\App\Services\BankAccountService::class)->decrypt($payout->bankAccount) : $payout->bankAccount->maskedIban() }}</span>
                                         <div class="text-[11px] text-neutral-400">{{ $payout->bankAccount->account_holder }}</div>
                                         @if($canManage)
-                                            @if(isset($revealed[$payout->bank_account_id]))
+                                            @if($revealedAccountId === $payout->bank_account_id)
                                                 <button type="button" wire:click="hideIban({{ $payout->bank_account_id }})" class="text-[11px] text-brand-500 font-semibold">Gizle</button>
                                             @else
                                                 <button type="button" wire:click="revealIban({{ $payout->bank_account_id }})" class="text-[11px] text-brand-500 font-semibold">IBAN'ı göster</button>

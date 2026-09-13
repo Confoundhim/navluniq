@@ -180,11 +180,11 @@ Route::middleware(['auth', EnsureCargoOwner::class])->prefix('panel/yuk-sahibi')
     Volt::route('/dashboard', 'cargo-owner.dashboard')->name('dashboard');
     Volt::route('/ilan-olustur', 'cargo-owner.loads.create')->name('loads.create');
     Volt::route('/ilanlarim', 'cargo-owner.loads.index')->name('loads.index');
-    Volt::route('/ilanlar/{loadId}/teklifler', 'cargo-owner.loads.offers')->name('loads.offers');
-    Volt::route('/odeme/{loadId}', 'cargo-owner.finance.payment')->name('finance.payment');
+    Volt::route('/ilanlar/{loadId}/teklifler', 'cargo-owner.loads.offers')->name('loads.offers')->whereNumber('loadId');
+    Volt::route('/odeme/{loadId}', 'cargo-owner.finance.payment')->name('finance.payment')->whereNumber('loadId');
     Volt::route('/finans-ve-faturalar', 'cargo-owner.finance.index')->name('finance.index');
     Volt::route('/sevkiyatlarim', 'cargo-owner.shipments.index')->name('shipments.index');
-    Volt::route('/sevkiyat/{loadId}', 'cargo-owner.shipments.show')->name('shipments.show');
+    Volt::route('/sevkiyat/{loadId}', 'cargo-owner.shipments.show')->name('shipments.show')->whereNumber('loadId');
     Volt::route('/uyusmazliklar', 'cargo-owner.disputes.index')->name('disputes.index');
     Volt::route('/destek', 'cargo-owner.support.index')->name('support.index');
     Volt::route('/adres-defteri', 'cargo-owner.address-book.index')->name('address-book.index');
@@ -204,7 +204,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
     Volt::route('/sevkiyatlarim', 'driver.shipments.index')->name('shipments.index');
-    Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show');
+    Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show')->whereNumber('loadId');
     Volt::route('/premium', 'driver.premium.index')->name('premium.index');
     Volt::route('/cuzdan', 'driver.wallet.index')->name('wallet.index');
     Volt::route('/uyusmazliklar', 'driver.disputes.index')->name('disputes.index');

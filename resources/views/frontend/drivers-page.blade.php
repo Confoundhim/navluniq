@@ -7,24 +7,24 @@
                 Boş Dönüşe Son, Alın Teriniz Güvende
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Yola çıktığınız an çalışan Akıllı Dönüş Radarı ile varış noktanızdaki dönüş yüklerini ayağınıza getirin. Teslimat onaylandığında hak edişiniz banka hesabınıza aktarılır.
+                Tercih ettiğiniz rotalardaki ilanları tek panelden görün, teklif verin. Teslimat onaylandığında hak edişiniz banka hesabınıza aktarılır.
             </p>
         </div>
 
         <!-- Avantajlar 3'lü Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
             <div class="apple-glass rounded-3xl p-6 space-y-3">
-                <div class="text-2xl">🎯</div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Akıllı Dönüş Radarı</h4>
-                <p class="text-neutral-500 leading-relaxed">Varış noktanıza yaklaşırken dönüş rotanıza en uygun yükleri otomatik filtreler.</p>
+                <div class="text-2xl"></div>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Rota Tercihleri</h4>
+                <p class="text-neutral-500 leading-relaxed">Profilinize kaydettiğiniz rotalara uyan ilanlar panelinizde öne çıkar.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
-                <div class="text-2xl">💰</div>
+                <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Garantili Hak Ediş</h4>
                 <p class="text-neutral-500 leading-relaxed">Navlun bedeli yola çıkmadan havuzda bloke edilir, paranız teslimat onayı sonrası banka hesabınıza aktarılır; süre banka iş günlerine göre değişinde IBAN'ınıza yatar.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
-                <div class="text-2xl">📱</div>
+                <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Tek Ekranda Tüm İlanlar</h4>
                 <p class="text-neutral-500 leading-relaxed">Onlarca WhatsApp grubundaki dağınık mesajları yapay zeka temiz bir tablo halinde önünüze serer.</p>
             </div>

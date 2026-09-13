@@ -177,7 +177,7 @@ class extends Component {
             return;
         }
 
-        $vehicle->delete();
+        $vehicle->forceDelete();
         session()->flash('success_message', 'Araç silindi.');
     }
 

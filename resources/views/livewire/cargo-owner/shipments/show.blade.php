@@ -202,7 +202,7 @@ class extends Component {
         @if($openDispute)
             <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Havuz ödemesi karar verilene kadar askıda.</span>
-                <a href="{{ route('cargo-owner.disputes.index') }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
+                <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
             </div>
         @endif
 
@@ -446,7 +446,7 @@ class extends Component {
                     <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
                         <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sorun mu var?</h3>
                         <p class="text-[11px] text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
-                        <a href="{{ route('cargo-owner.disputes.index') }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
+                        <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>
                 @endif
 

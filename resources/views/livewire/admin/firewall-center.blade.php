@@ -31,6 +31,12 @@ new class extends Component {
 
     public function ban(): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'ipAddress' => 'required|ip',
             'reason' => 'required|string|min:5|max:255',
@@ -76,6 +82,12 @@ new class extends Component {
 
     public function unban(int $banId): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $ban = BannedIp::query()->find($banId);
         if (! $ban) {
             return;

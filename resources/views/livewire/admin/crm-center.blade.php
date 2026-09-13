@@ -92,6 +92,12 @@ new class extends Component {
 
     public function saveCoupon(): void
     {
+        if (! auth()->user()?->can('manage marketing')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'code' => ['required', 'string', 'min:3', 'max:32', 'regex:/^[A-Za-z0-9_-]+$/', Rule::unique('coupons', 'code')->ignore($this->editingId)->whereNull('deleted_at')],
             'type' => 'required|in:percentage,fixed',
@@ -134,6 +140,12 @@ new class extends Component {
 
     public function toggleCoupon(int $couponId): void
     {
+        if (! auth()->user()?->can('manage marketing')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $coupon = Coupon::query()->find($couponId);
         if (! $coupon) {
             return;
@@ -144,6 +156,12 @@ new class extends Component {
 
     public function deleteCoupon(int $couponId): void
     {
+        if (! auth()->user()?->can('manage marketing')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $coupon = Coupon::query()->find($couponId);
         if (! $coupon) {
             return;
@@ -187,6 +205,12 @@ new class extends Component {
 
     public function sendAnnouncement(): void
     {
+        if (! auth()->user()?->can('manage marketing')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'subject' => 'required|string|min:5|max:120',
             'message' => 'required|string|min:20|max:4000',

@@ -9,7 +9,7 @@ use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Yük Sahibi Gösterge Paneli & Canlı Radar')]
+#[Title('Genel Bakış')]
 class extends Component {
     public function with(): array
     {

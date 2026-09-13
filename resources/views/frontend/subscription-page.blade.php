@@ -17,16 +17,16 @@
             <div class="apple-glass rounded-3xl p-8 space-y-6 shadow-apple-sm flex flex-col justify-between">
                 <div class="space-y-4">
                     <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">ÜCRETSİZ KANAL</span>
-                    <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Telegram Haberleşme</h3>
+                    <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h3>
                     <div class="text-3xl font-black text-neutral-900 dark:text-white pt-2">0 &#8378; <span class="text-xs text-neutral-400 font-normal">/ Süresiz</span></div>
                     <ul class="space-y-3 text-neutral-500 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Web siteleri ve WhatsApp gruplarından derlenen ilanlar</span></li>
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Telegram kanalında yaklaşık 20 dakika rötarlı akış</span></li>
-                        <li class="flex items-center space-x-2"><span>✓</span><span>Sınırsız süreyle katılım garantisi</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Web siteleri ve WhatsApp gruplarından derlenen ilanlar</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
+                        <li class="flex items-center space-x-2"><span></span><span>Platform ilanlarına ücretsiz teklif hakkı</span></li>
                     </ul>
                 </div>
-                <a href="https://t.me/navluniq" target="_blank" class="w-full btn-apple-secondary py-3.5 text-center font-bold block">
-                    Telegram Kanalımıza Katıl
+                <a href="{{ route('register.driver') }}" class="w-full btn-apple-secondary py-3.5 text-center font-bold block">
+                    Ücretsiz Kaydol
                 </a>
             </div>
 
@@ -38,17 +38,15 @@
                 <div class="space-y-4">
                     <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PROFESYONEL</span>
                     <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Premium Sürücü Üyeliği</h3>
-                    <div class="text-3xl font-black text-brand-500 pt-2">900 &#8378; <span class="text-xs text-neutral-400 font-normal">/ Ay (KDV Dahil)</span></div>
+                    <div class="text-3xl font-black text-brand-500 pt-2">{{ number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.') }} &#8378; <span class="text-xs text-neutral-400 font-normal">/ Ay (KDV Dahil)</span></div>
                     <ul class="space-y-3 text-neutral-600 dark:text-neutral-300 pt-4 border-t border-neutral-100 dark:border-neutral-800 font-semibold">
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>Tüm platform ve web ilanlarını ANINDA görün</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>WhatsApp, Telegram ve Web Push üzerinden anlık anons bildirimleri</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>WhatsApp Grup Entegrasyonu: Gruplarınızdaki ilanları panelinizde otomatik listeletin</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500">✓</span><span>Sürücü kontrol paneline tam erişim sağlayın</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Tüm platform ve web ilanlarını ANINDA görün</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Daha düşük komisyon oranı</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Dış kaynak ilanlarında iletişim bilgisine erişim</span></li>
+                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Sürücü kontrol paneline tam erişim sağlayın</span></li>
                     </ul>
                 </div>
-                <a href="{{ route('register.driver') }}" class="w-full btn-apple-brand py-3.5 text-center font-bold block shadow-apple-sm">
-                    Premium Sürücü Ol
-                </a>
+                <a href="{{ route('register.driver') }}" class="w-full btn-apple-brand py-3.5 text-center font-bold block shadow-apple-sm">Şoför Olarak Kaydol</a>
             </div>
         </div>
 

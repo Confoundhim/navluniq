@@ -51,7 +51,7 @@ new class extends Component {
             'email' => 'required|email|max:255',
             'phone' => ['required', 'string', Phone::RULE],
             'password' => 'required|string|min:12|max:255|confirmed',
-            'plate' => ['required', 'string', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')],
+            'plate' => ['required', 'string', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')->where(fn ($q) => $q->whereNotIn('driver_profile_id', $this->draftProfileIds()))],
             'vehicleType' => ['required', Rule::in(array_keys($this->availableVehicleTypes))],
             'brand' => 'required|string|max:80',
             'model' => 'required|string|max:80',
@@ -113,8 +113,8 @@ new class extends Component {
             } elseif ($isDraft) {
                 $user = $existingUser;
                 if ($profile = $user->driverProfile) {
-                    $profile->vehicles()->delete();
-                    $profile->delete();
+                    $profile->vehicles()->withTrashed()->forceDelete();
+                    $profile->forceDelete();
                 }
                 $user->update([
                     'first_name' => $firstName,
@@ -169,6 +169,12 @@ new class extends Component {
 
         $this->registeredUserId = $user->id;
         $this->sendOtp($user);
+    }
+
+    /** Taslak (doğrulanmamış) hesaplara ait şoför profilleri; plaka benzersizliğinde hariç tutulur. */
+    private function draftProfileIds(): array
+    {
+        return DriverProfile::query()->whereIn('user_id', User::query()->whereNull('email_verified_at')->where('is_active', false)->select('id'))->pluck('id')->all();
     }
 
     private function sendOtp(User $user): void

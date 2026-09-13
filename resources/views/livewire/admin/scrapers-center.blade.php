@@ -39,6 +39,12 @@ new class extends Component {
 
     public function addSource(): void
     {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
             'sourceName' => 'required|string|min:3|max:120',
             'sourceType' => 'required|in:whatsapp,telegram,web',
@@ -58,6 +64,12 @@ new class extends Component {
 
     public function toggleSource(int $scraperId): void
     {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $scraper = Scraper::query()->find($scraperId);
         if (! $scraper) {
             return;
@@ -68,6 +80,12 @@ new class extends Component {
 
     public function deleteSource(int $scraperId): void
     {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $scraper = Scraper::query()->find($scraperId);
         if (! $scraper) {
             return;
@@ -79,6 +97,12 @@ new class extends Component {
 
     public function approve(int $loadId): void
     {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $load = ScrapedLoad::query()->find($loadId);
         if (! $load || $load->visibility === 'public') {
             session()->flash('error_message', 'İlan adayı bulunamadı veya zaten yayında.');
@@ -102,6 +126,12 @@ new class extends Component {
 
     public function reject(int $loadId): void
     {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $load = ScrapedLoad::query()->find($loadId);
         if (! $load) {
             return;
@@ -122,7 +152,7 @@ new class extends Component {
             match ($this->queueFilter) {
                 'published' => $query->where('visibility', 'public'),
                 'rejected' => $query->where('status', 'rejected'),
-                default => $query->where('visibility', 'private')->where('status', 'parsed_success'),
+                default => $query->where('visibility', 'private')->where('status', '!=', 'rejected'),
             };
             $data['queue'] = $query->latest('id')->paginate(15);
         }
@@ -182,7 +212,7 @@ new class extends Component {
                                 <td class="p-4 whitespace-nowrap font-semibold">{{ $load->price !== null ? number_format((float) $load->price, 2, ',', '.').' ₺' : '—' }}</td>
                                 <td class="p-4 max-w-xs text-neutral-500">{{ \Illuminate\Support\Str::limit($load->raw_message, 160) }}</td>
                                 <td class="p-4">
-                                    <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
+                                    <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : ($load->status === 'parsed_partial' ? 'Eksik ayrıştırma' : 'Onay bekliyor')) }}</span>
                                     @if($load->available_to_free_at)
                                         <div class="text-[11px] text-neutral-400 mt-1">Herkese açılış: {{ \Illuminate\Support\Carbon::parse($load->available_to_free_at)->format('d.m.Y H:i') }}</div>
                                     @endif

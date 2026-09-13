@@ -88,7 +88,7 @@ class extends Component {
 
         $all = $load
             ? Offer::query()
-                ->with(['driverProfile.user', 'driverProfile.activeVehicle'])
+                ->with(['driverProfile.user' => fn ($q) => $q->withAvg('reviewsReceived', 'rating')->withCount('reviewsReceived'), 'driverProfile.activeVehicle'])
                 ->where('load_id', $load->id)
                 ->latest()
                 ->get()
@@ -103,8 +103,8 @@ class extends Component {
                 'driver' => $driver,
                 'user' => $user,
                 'vehicle' => $driver?->activeVehicle,
-                'rating' => $user?->averageRating(),
-                'reviews_count' => $user ? $user->reviewsReceived()->count() : 0,
+                'rating' => $user?->reviews_received_avg_rating !== null ? round((float) $user->reviews_received_avg_rating, 1) : null,
+                'reviews_count' => (int) ($user?->reviews_received_count ?? 0),
             ];
         });
 

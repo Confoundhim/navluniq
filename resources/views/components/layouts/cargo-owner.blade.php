@@ -32,8 +32,8 @@
         class="fixed inset-0 z-40 bg-neutral-950/80 backdrop-blur-sm md:hidden"></div>
 
     <!-- Kenar Çubuğu (Sidebar) -->
-    <aside :class="mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-        class="fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0">
+    <aside :class="{ 'translate-x-0': mobileSidebarOpen, '-translate-x-full': !mobileSidebarOpen }"
+        class="-translate-x-full fixed inset-y-0 left-0 z-50 w-64 bg-neutral-900 border-r border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0">
 
         <!-- Üst Logo & Yük Sahibi Başlığı (Keskin & Prestijli Tasarım) -->
         <div class="h-20 flex items-center justify-between px-5 border-b border-neutral-800 bg-neutral-900/60">
@@ -85,7 +85,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
-                <span>Genel Bakış & Radar</span>
+                <span>Genel Bakış</span>
             </a>
 
             <a href="{{ route('cargo-owner.loads.index') }}"
@@ -172,7 +172,7 @@
                         <div class="text-xs font-semibold text-neutral-200 truncate">{{ auth()->user()?->full_name }}
                         </div>
                         <div class="text-[10px] text-neutral-500 truncate">
-                            {{ auth()->user()?->phone ?? auth()->user()?->email }}</div>
+                            {{ \App\Support\Phone::format(auth()->user()?->phone) ?: auth()->user()?->email }}</div>
                     </div>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">

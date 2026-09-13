@@ -25,6 +25,13 @@ class extends Component {
 
     public $claim_photo = null;
 
+    public function mount(): void
+    {
+        if (($preselect = request()->integer('load')) > 0) {
+            $this->openModal($preselect);
+        }
+    }
+
     public function openModal(?int $loadId = null): void
     {
         $this->resetErrorBag();
