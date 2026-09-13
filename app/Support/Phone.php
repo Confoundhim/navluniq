@@ -8,7 +8,7 @@ namespace App\Support;
  */
 final class Phone
 {
-    public const RULE = 'regex:/^(\+?90|0)?5\d{9}$/';
+    public const RULE = 'regex:/^(\+?90[\s-]?|0)?5\d{2}[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}$/';
 
     public static function normalize(?string $raw): ?string
     {

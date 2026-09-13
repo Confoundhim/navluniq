@@ -1,67 +1,209 @@
 <?php
 
-use Livewire\Volt\Component;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use App\Models\Load;
+use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
+use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.cargo-owner')]
 #[Title('Güvenli Ödeme')]
 class extends Component {
+    #[Locked]
     public int $loadId = 0;
-    public ?Load $load = null;
 
-    public function mount(int $loadId): void
+    #[Locked]
+    public ?string $token = null;
+
+    #[Locked]
+    public ?string $tokenError = null;
+
+    #[Locked]
+    public bool $configured = false;
+
+    #[Locked]
+    public bool $sandbox = true;
+
+    public function mount(int $loadId, PaymentService $payments): void
     {
-        $user = Auth::user();
-        abort_unless($user?->cargoOwnerProfile, 403);
-
         $this->loadId = $loadId;
-        $this->load = Load::query()
-            ->whereKey($loadId)
-            ->where('cargo_owner_profile_id', $user->cargoOwnerProfile->id)
-            ->firstOrFail();
+        $load = $this->ownerLoad();
+
+        if (! $load) {
+            session()->flash('error_message', 'İlan bulunamadı veya size ait değil.');
+            $this->redirect(route('cargo-owner.loads.index'), navigate: true);
+
+            return;
+        }
+
+        $this->configured = $payments->isConfigured();
+        $this->sandbox = $payments->isSandbox();
+
+        if ($this->configured && $this->isPayable($load)) {
+            try {
+                $order = $payments->orderFor($load, Auth::user());
+                $this->token = $payments->iframeToken($order, request());
+            } catch (\RuntimeException $e) {
+                $this->tokenError = $e->getMessage();
+            }
+        }
+    }
+
+    private function ownerLoad(): ?Load
+    {
+        return Load::query()
+            ->whereKey($this->loadId)
+            ->where('cargo_owner_profile_id', (int) Auth::user()->cargoOwnerProfile?->id)
+            ->first();
+    }
+
+    private function isPayable(Load $load): bool
+    {
+        return $load->status === Load::STATUS_ASSIGNED && $load->escrow_status === Load::ESCROW_PENDING;
+    }
+
+    /** wire:poll ile çağrılır; ödeme sunucu bildirimiyle işlendiğinde sevkiyat sayfasına yönlendirir. */
+    public function checkStatus(): void
+    {
+        $load = $this->ownerLoad();
+
+        if ($load && $load->escrow_status === Load::ESCROW_PAID) {
+            session()->flash('success_message', 'Ödemeniz alındı. Navlun bedeli teslimat onayınıza kadar güvenli havuzda tutulacak.');
+            $this->redirect(route('cargo-owner.shipments.show', $load->id), navigate: true);
+        }
+    }
+
+    public function with(): array
+    {
+        $load = $this->ownerLoad();
+        $payments = app(PaymentService::class);
+
+        return [
+            'load' => $load,
+            'payable' => $load ? $this->isPayable($load) : false,
+            'amounts' => $load ? $payments->calculateAmounts($load) : ['price' => 0.0, 'service_fee' => 0.0, 'total' => 0.0],
+            'iframeUrl' => $this->token ? PaymentService::IFRAME_URL.$this->token : null,
+        ];
     }
 }; ?>
 
 <div class="max-w-3xl mx-auto space-y-6">
-    <div class="flex items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+            {{ session('error_message') }}
+        </div>
+    @endif
+
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
         <div>
-            <a href="{{ route('cargo-owner.loads.offers', $loadId) }}"
-                class="text-xs text-neutral-400 hover:text-brand-400 font-semibold">
-                &larr; Tekliflere geri dön
+            <a href="{{ route('cargo-owner.loads.index') }}" wire:navigate class="text-xs text-neutral-400 hover:text-brand-400 font-semibold">
+                &larr; İlanlarıma dön
             </a>
-            <h2 class="mt-2 text-xl font-bold text-white">Güvenli ödeme</h2>
+            <h2 class="mt-2 text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                <span>Güvenli ödeme</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
+            </h2>
         </div>
-        <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">
-            Entegrasyon güvenli moda alındı
-        </span>
+        @if($configured && $sandbox)
+            <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">Test (sandbox) modu</span>
+        @endif
     </div>
 
-    <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
-        <h3 class="text-base font-bold text-amber-200">Gerçek PayTR doğrulaması tamamlanmadan tahsilat alınmıyor</h3>
-        <p class="mt-3 text-sm leading-6 text-neutral-300">
-            Önceki simülasyon, ödeme alınmadan ilanı ödenmiş gösterdiği ve kart bilgilerini uygulamaya taşıdığı için kapatıldı.
-            Bu sayfa, PayTR mağaza yetkileriyle kurulan güvenli ödeme oturumu ve imzalı sunucu bildirimi tamamlandıktan sonra açılacaktır.
-        </p>
-        <ul class="mt-4 space-y-2 text-xs text-neutral-400">
-            <li>• Kart numarası ve CVV NavlunIQ sunucusunda tutulmayacaktır.</li>
-            <li>• Ödeme yalnız doğrulanmış PayTR bildirimi sonrasında başarılı sayılacaktır.</li>
-            <li>• Aynı bildirim ikinci bir finansal işlem oluşturmayacaktır.</li>
-            <li>• Fatura, gerçek ERP/e-belge sonucu gelmeden “kesildi” olarak gösterilmeyecektir.</li>
-        </ul>
-    </div>
+    @if($load)
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+            <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ödeme özeti</h3>
+            <div class="text-sm font-bold text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->statusLabel() }}</span>
+                <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->escrowLabel() }}</span>
+            </div>
+            <div class="divide-y divide-neutral-800 border-t border-neutral-800">
+                <div class="flex items-center justify-between py-3">
+                    <span class="text-neutral-400">Navlun bedeli</span>
+                    <span class="font-mono text-white">{{ number_format($amounts['price'], 2, ',', '.') }} ₺</span>
+                </div>
+                <div class="flex items-center justify-between py-3">
+                    <span class="text-neutral-400">Hizmet bedeli</span>
+                    <span class="font-mono text-white">{{ number_format($amounts['service_fee'], 2, ',', '.') }} ₺</span>
+                </div>
+                <div class="flex items-center justify-between py-3">
+                    <span class="text-neutral-200 font-semibold">Ödenecek toplam</span>
+                    <span class="font-mono font-bold text-brand-400 text-base">{{ number_format($amounts['total'], 2, ',', '.') }} ₺</span>
+                </div>
+            </div>
+            <p class="text-[11px] text-neutral-500 leading-relaxed">Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. Ödeme yalnız ödeme sağlayıcısının sunucu bildirimi doğrulandığında tamamlanmış sayılır.</p>
+        </div>
 
-    <div class="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-300">
-        <div class="flex items-center justify-between gap-4">
-            <span>İlan</span>
-            <strong>#{{ $load?->id }}</strong>
-        </div>
-        <div class="mt-3 flex items-center justify-between gap-4 border-t border-neutral-800 pt-3">
-            <span>Navlun bedeli</span>
-            <strong>{{ number_format((float) ($load?->price ?? 0), 2, ',', '.') }} ₺</strong>
-        </div>
-    </div>
+        @if(! $payable)
+            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                <h3 class="text-sm font-bold text-white">Bu ilan ödeme adımında değil</h3>
+                <p class="text-neutral-400 leading-relaxed">
+                    İlan durumu: <strong class="text-white">{{ $load->statusLabel() }}</strong> · Havuz durumu: <strong class="text-white">{{ $load->escrowLabel() }}</strong>.
+                    @if($load->status === 'active_seeking')
+                        Ödeme, bir teklifi kabul ettikten sonra yapılır.
+                    @elseif($load->isPaid())
+                        Ödemeniz alınmış durumda.
+                    @endif
+                </p>
+                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                    @if($load->status === 'active_seeking')
+                        <a href="{{ route('cargo-owner.loads.offers', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-center">Teklifleri gör</a>
+                    @elseif(in_array($load->status, ['driver_assigned', 'on_the_way', 'delivered', 'disputed', 'completed'], true))
+                        <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-center">Sevkiyatı görüntüle</a>
+                    @endif
+                </div>
+            </div>
+        @elseif(! $configured)
+            <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-3 text-xs">
+                <h3 class="text-sm font-bold text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
+                <p class="text-neutral-300 leading-relaxed">
+                    Ödeme sağlayıcısı henüz bu ortam için etkinleştirilmedi; bu nedenle şu anda kart ile tahsilat yapılamıyor.
+                    Ödeme altyapısı açıldığında bu sayfadan {{ number_format($amounts['total'], 2, ',', '.') }} ₺ tutarındaki bedeli güvenli havuza yatırabileceksiniz.
+                </p>
+                <p class="text-neutral-400 leading-relaxed">Şoför, ödeme havuza yatırılmadan sevkiyatı başlatamaz. Sorularınız için <a href="{{ route('cargo-owner.support.index') }}" wire:navigate class="text-brand-400 hover:underline">destek bileti</a> açabilirsiniz.</p>
+            </div>
+        @elseif($tokenError)
+            <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">
+                <h3 class="text-sm font-bold text-rose-300">Ödeme sayfası açılamadı</h3>
+                <p class="text-neutral-300 leading-relaxed">{{ $tokenError }}</p>
+                <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold">Tekrar dene</a>
+            </div>
+        @elseif($iframeUrl)
+            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-neutral-800 text-xs text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme, sağlayıcının güvenli sayfasında tamamlanır.</div>
+                <div class="bg-white" wire:ignore>
+                    <iframe src="{{ $iframeUrl }}" id="paytriframe" frameborder="0" scrolling="no" style="width:100%"></iframe>
+                </div>
+            </div>
+
+            <div wire:poll.10s="checkStatus" class="p-3 rounded-xl bg-neutral-900 border border-neutral-800 text-[11px] text-neutral-400 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                <span>Ödeme durumu izleniyor: <span class="text-neutral-200">{{ $load->escrowLabel() }}</span>. Ödeme tamamlandığında sevkiyat sayfasına yönlendirileceksiniz.</span>
+            </div>
+
+            @assets
+            <script src="https://www.paytr.com/js/iframeResizer.min.js"></script>
+            @endassets
+
+            @script
+            <script>
+                const startResizer = () => {
+                    if (window.iFrameResize && document.getElementById('paytriframe')) {
+                        iFrameResize({}, '#paytriframe');
+                    } else {
+                        setTimeout(startResizer, 250);
+                    }
+                };
+                startResizer();
+            </script>
+            @endscript
+        @endif
+    @else
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-400">İlan bulunamadı.</div>
+    @endif
+
 </div>

@@ -1,377 +1,459 @@
 <?php
 
-use Livewire\Volt\Component;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
+use App\Models\DriverVehicle;
 use App\Models\Load;
+use App\Models\Shipment;
+use App\Services\DriverLocationService;
+use App\Services\ReviewService;
+use App\Services\ShipmentService;
+use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
+use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Geniş Ekran Canlı Radar & Teslimat Onayı')]
+#[Title('Sevkiyat Takibi & Teslimat Onayı')]
 class extends Component {
+    #[Locked]
     public int $loadId = 0;
-    public ?Load $load = null;
 
-    // Teslim Kanıtı (POD) Modal ve Puanlama Değişkenleri
-    public bool $podModalOpen = false;
-    public bool $reviewModalOpen = false;
     public int $rating = 5;
-    public string $reviewComment = '';
+
+    public string $review_comment = '';
 
     public function mount(int $loadId): void
     {
         $this->loadId = $loadId;
+
+        if (! $this->ownerLoad()) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı veya size ait değil.');
+            $this->redirect(route('cargo-owner.shipments.index'), navigate: true);
+        }
+    }
+
+    private function ownerLoad(): ?Load
+    {
+        return Load::query()
+            ->whereKey($this->loadId)
+            ->where('cargo_owner_profile_id', (int) Auth::user()->cargoOwnerProfile?->id)
+            ->with(['shipment.vehicle', 'shipment.evidence.uploader', 'driverProfile.user', 'driverProfile.activeVehicle'])
+            ->first();
+    }
+
+    public function approveDelivery(ShipmentService $shipments): void
+    {
+        $load = $this->ownerLoad();
+
+        if (! $load || ! $load->shipment) {
+            session()->flash('error_message', 'Onaylanacak sevkiyat bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $shipments->approveDelivery($load->shipment, Auth::user());
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('success_message', 'Teslimat onaylandı. Şoförün hakedişi ödeme sırasına alındı.');
+    }
+
+    public function submitReview(ReviewService $reviews): void
+    {
+        $this->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'review_comment' => 'nullable|string|max:1000',
+        ], [
+            'rating.min' => 'Lütfen 1 ile 5 arasında bir puan seçin.',
+            'rating.max' => 'Lütfen 1 ile 5 arasında bir puan seçin.',
+        ]);
+
+        $load = $this->ownerLoad();
+        if (! $load) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $reviews->submit($load, Auth::user(), $this->rating, $this->review_comment !== '' ? $this->review_comment : null);
+        } catch (\RuntimeException $e) {
+            $this->addError('rating', $e->getMessage());
+
+            return;
+        }
+
+        $this->reset(['review_comment']);
+        $this->rating = 5;
+        session()->flash('success_message', 'Değerlendirmeniz kaydedildi.');
+    }
+
+    /** Canlı konum bloğu wire:poll ile çağırır; yeni rota izini tarayıcıya iletir. */
+    public function refreshTrail(DriverLocationService $locations): void
+    {
+        $load = $this->ownerLoad();
+        $shipment = $load?->shipment;
+
+        if (! $shipment || ! in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+            return;
+        }
+
+        $trail = $locations->trailFor($shipment);
+        if ($trail['latest']) {
+            $this->dispatch('trail-updated', trail: $trail['trail'], latest: $trail['latest']->lat_lng, recordedAt: $trail['latest']->recorded_at?->format('d.m.Y H:i'));
+        }
+    }
+
+    public function with(): array
+    {
+        $load = $this->ownerLoad();
+        $shipment = $load?->shipment;
         $user = Auth::user();
-        if ($user && $user->cargoOwnerProfile) {
-            $this->load = Load::with(['driverProfile.user', 'driverProfile.activeVehicle'])
-                ->where('id', $loadId)
-                ->where('cargo_owner_profile_id', (int) $user->cargoOwnerProfile->id)
-                ->first();
 
-            // ID eşleşmezse kullanıcının mevcut sevkiyatını getir
-            if (!$this->load) {
-                $this->load = Load::with(['driverProfile.user', 'driverProfile.activeVehicle'])
-                    ->where('cargo_owner_profile_id', (int) $user->cargoOwnerProfile->id)
-                    ->latest()
-                    ->first();
-
-                if ($this->load) {
-                    $this->loadId = (int) $this->load->id;
-                }
-            }
+        $trail = ['latest' => null, 'trail' => []];
+        if ($shipment && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+            $trail = app(DriverLocationService::class)->trailFor($shipment);
         }
-    }
 
-    /**
-     * Sevkiyatın İlerleme Aşama İndeksi (1: Yükleniyor, 2: Yolda, 3: Yaklaştı, 4: Teslim Edildi)
-     */
-    public function getProgressStepProperty(): int
-    {
-        if (!$this->load) return 1;
+        $timeline = $load ? [
+            ['label' => 'İlan yayınlandı', 'at' => $load->published_at ?? $load->created_at],
+            ['label' => 'Şoför atandı', 'at' => $shipment?->created_at],
+            ['label' => 'Ödeme havuza alındı', 'at' => $load->isPaid() ? ($load->paymentOrders()->where('status', 'paid')->latest('paid_at')->value('paid_at')) : null, 'done' => $load->isPaid()],
+            ['label' => 'Yük teslim alındı', 'at' => $shipment?->pickup_confirmed_at],
+            ['label' => 'Yola çıkıldı', 'at' => $shipment?->in_transit_at],
+            ['label' => 'Teslim edildi', 'at' => $shipment?->delivered_at],
+            ['label' => 'Teslimat onaylandı', 'at' => $shipment?->owner_approved_at],
+        ] : [];
 
-        if ($this->load->status === 'delivered') return 4;
-        if ($this->load->status === 'on_the_way') return 2;
-        return 1;
-    }
-
-    /**
-     * Teslimatı Onayla (PayTR Havuzundaki Parayı Şoförün IBAN'ına Aktarır)
-     */
-    public function confirmDelivery(): void
-    {
-        if ($this->load) {
-            $this->load->update([
-                'status' => 'delivered',
-                'escrow_status' => 'released_to_driver',
-            ]);
-
-            $this->podModalOpen = false;
-            $this->reviewModalOpen = true; // Onay sonrası puanlama modalını aç
-            session()->flash('success_message', 'Teslimat onayı kaydedildi. Hak ediş, uyuşmazlık ve ödeme sağlayıcısı kontrollerinden sonra işleme alınacaktır.');
-        }
-    }
-
-    /**
-     * Şoföre Puan ve Yorum Kaydeder
-     */
-    public function submitReview(): void
-    {
-        $this->reviewModalOpen = false;
-        session()->flash('success_message', 'Geri bildiriminiz için teşekkürler! Değerlendirmeniz şoförün profiline eklendi.');
+        return [
+            'load' => $load,
+            'shipment' => $shipment,
+            'driverUser' => $load?->driverProfile?->user,
+            'vehicle' => $shipment?->vehicle ?? $load?->driverProfile?->activeVehicle,
+            'openDispute' => $load?->openDispute(),
+            'trail' => $trail['trail'],
+            'latest' => $trail['latest'],
+            'timeline' => $timeline,
+            'hasReviewed' => $load ? app(ReviewService::class)->hasReviewed($load, $user) : false,
+            'vehicleTypes' => DriverVehicle::getVehicleTypes(),
+            'evidenceTypes' => ['pod' => 'Teslimat kanıtı', 'pickup' => 'Yükleme kanıtı', 'damage' => 'Hasar kaydı'],
+        ];
     }
 }; ?>
 
-<div class="space-y-6" x-data="{
-    initLiveShipmentMap() {
-        if (typeof L === 'undefined') return;
-        const mapEl = document.getElementById('shipmentLiveMap');
-        if (!mapEl || mapEl._leaflet_id) return;
+<div class="space-y-6">
 
-        const map = L.map('shipmentLiveMap', { zoomControl: true }).setView([39.0, 35.0], 7);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 18,
-            attribution: '&copy; NavlunIQ Canlı GPS Takip'
-        }).addTo(map);
-
-        const pickup = [39.9334, 32.8597]; // Ankara
-        const delivery = [38.4237, 27.1428]; // İzmir
-        const truck = [39.1500, 29.9800]; // Kütahya mevkiisi
-
-        L.circleMarker(pickup, { radius: 7, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 1 }).addTo(map).bindPopup('<b>Yükleme Noktası</b><br>Ankara');
-        L.circleMarker(delivery, { radius: 7, color: '#10b981', fillColor: '#10b981', fillOpacity: 1 }).addTo(map).bindPopup('<b>Teslimat Noktası</b><br>İzmir');
-
-        // Hareketli Kamyon İkonu
-        L.circleMarker(truck, { radius: 10, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(map).bindPopup('<b>06 TR 992</b><br>Hız: 84 km/s<br>Durum: Seyir Halinde');
-
-        const polyline = L.polyline([pickup, truck, delivery], { color: '#f97316', weight: 4, opacity: 0.85, dashArray: '8, 8' }).addTo(map);
-        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-    }
-}" x-init="initLiveShipmentMap()">
-
-    <!-- Başarı Bildirimi -->
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{{ session('success_message') }}</span>
-            </div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+            {{ session('success_message') }}
         </div>
     @endif
 
-    <!-- Üst Başlık & Geri Dönüş -->
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+            {{ session('error_message') }}
+        </div>
+    @endif
+
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
         <div>
-            <a href="{{ route('cargo-owner.shipments.index') }}" class="text-xs text-neutral-400 hover:text-brand-400 font-semibold inline-flex items-center gap-1.5 mb-1 transition-colors">
-                &larr; Sevkiyatlarıma Geri Dön
+            <a href="{{ route('cargo-owner.shipments.index') }}" wire:navigate class="text-xs text-neutral-400 hover:text-brand-400 font-semibold inline-flex items-center gap-1.5 mb-1 transition-colors">
+                &larr; Sevkiyatlarıma dön
             </a>
             <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Canlı Sevkiyat Radarı</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">
-                    #NVL-{{ str_pad((string)$loadId, 5, '0', STR_PAD_LEFT) }}
-                </span>
+                <span>Sevkiyat takibi</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
         </div>
 
-        <div class="flex items-center gap-3">
-            @if($load && $load->status !== 'delivered')
-                <button type="button" wire:click="$set('podModalOpen', true)" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 active:scale-95">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Teslimat Kanıtını Gör & Onayla</span>
-                </button>
-            @else
-                <span class="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                    ✓ Sevkiyat Başarıyla Tamamlandı
-                </span>
-            @endif
-        </div>
+        @if($load)
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-200 text-xs font-bold">{{ $load->statusLabel() }}</span>
+                <span class="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 text-xs font-bold">{{ $load->escrowLabel() }}</span>
+            </div>
+        @endif
     </div>
 
     @if($load)
-        <!-- 4 Aşamalı Takip Çubuğu (Progress Bar) -->
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-            <div class="flex items-center justify-between relative">
-                <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-neutral-800 w-full z-0"></div>
-                <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-brand-500 transition-all duration-500 z-0"
-                     style="width: {{ $this->progressStep === 1 ? '10%' : ($this->progressStep === 2 ? '50%' : ($this->progressStep === 3 ? '80%' : '100%')) }};"></div>
+        @php
+            $canApprove = $shipment && $shipment->status === 'delivered' && $load->status === 'delivered' && ! $openDispute;
+            $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && $load->escrow_status === 'paid_in_escrow' && ! $openDispute;
+            $canReview = in_array($load->status, ['delivered', 'completed'], true) && ! $hasReviewed && $driverUser;
+            $isLive = $shipment && $shipment->status === 'in_transit';
+            $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered'], true) && $latest;
+        @endphp
 
-                <!-- 1. Aşama -->
-                <div class="relative z-10 flex flex-col items-center gap-1.5">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold {{ $this->progressStep >= 1 ? 'bg-brand-500 text-white ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-500' }}">
-                        1
-                    </div>
-                    <span class="text-[11px] font-semibold {{ $this->progressStep >= 1 ? 'text-white' : 'text-neutral-500' }}">Yükleniyor</span>
+        @if($load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment')
+            <div class="p-5 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="text-xs text-neutral-200 leading-relaxed">
+                    <span class="font-bold text-white block mb-0.5">Ödeme bekleniyor</span>
+                    Şoför, navlun bedeli güvenli havuza yatırılmadan sevkiyatı başlatamaz.
                 </div>
-
-                <!-- 2. Aşama -->
-                <div class="relative z-10 flex flex-col items-center gap-1.5">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold {{ $this->progressStep >= 2 ? 'bg-brand-500 text-white ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-500' }}">
-                        2
-                    </div>
-                    <span class="text-[11px] font-semibold {{ $this->progressStep >= 2 ? 'text-white' : 'text-neutral-500' }}">Yolda</span>
-                </div>
-
-                <!-- 3. Aşama -->
-                <div class="relative z-10 flex flex-col items-center gap-1.5">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold {{ $this->progressStep >= 3 ? 'bg-brand-500 text-white ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-500' }}">
-                        3
-                    </div>
-                    <span class="text-[11px] font-semibold {{ $this->progressStep >= 3 ? 'text-white' : 'text-neutral-500' }}">Yaklaştı</span>
-                </div>
-
-                <!-- 4. Aşama -->
-                <div class="relative z-10 flex flex-col items-center gap-1.5">
-                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold {{ $this->progressStep === 4 ? 'bg-emerald-500 text-white ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-500' }}">
-                        ✓
-                    </div>
-                    <span class="text-[11px] font-semibold {{ $this->progressStep === 4 ? 'text-emerald-400' : 'text-neutral-500' }}">Teslim Edildi</span>
-                </div>
+                <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs text-center shadow-lg shadow-brand-500/20">Ödemeye git</a>
             </div>
-        </div>
+        @endif
 
-        <!-- Ana Çalışma Bloğu: Geniş Harita ve Canlı Telemetri -->
+        @if($openDispute)
+            <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Havuz ödemesi karar verilene kadar askıda.</span>
+                <a href="{{ route('cargo-owner.disputes.index') }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
+            </div>
+        @endif
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <!-- Sol 2 Kolon: Leaflet Canlı GPS Radarı (isolate z-0 ile hapsedildi) -->
-            <div class="lg:col-span-2 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col isolate z-0">
-                <div class="p-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/60 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="font-bold text-white">Canlı GPS Sinyali Aktif</span>
+            <div class="lg:col-span-2 space-y-6">
+
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.30s="refreshTrail" @endif>
+                    <div class="p-4 border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full {{ $isLive && $latest ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600' }}"></span>
+                            <span class="font-bold text-white">Canlı konum</span>
+                        </div>
+                        @if($latest)
+                            <span class="text-neutral-400" x-data="{ at: @js($latest->recorded_at?->format('d.m.Y H:i')) }" x-on:trail-updated.window="at = $event.detail.recordedAt || at">Son konum: <span class="text-neutral-200" x-text="at"></span></span>
+                        @endif
                     </div>
-                    <span class="text-neutral-400 font-mono">PWA Arka Plan Servisi</span>
+
+                    @if($showMap)
+                        <div
+                            x-data="{
+                                init() {
+                                    if (typeof L === 'undefined') return;
+                                    const el = document.getElementById('ownerTrackMap');
+                                    if (!el || el._leaflet_id) return;
+                                    const trail = @js($trail);
+                                    const latest = @js($latest->lat_lng);
+                                    const map = L.map(el, { zoomControl: true }).setView(latest, 11);
+                                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+                                    el._ntLine = L.polyline(trail, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
+                                    el._ntMarker = L.circleMarker(latest, { radius: 9, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(map);
+                                    if (trail.length > 1) { map.fitBounds(el._ntLine.getBounds(), { padding: [30, 30] }); }
+                                    el._ntMap = map;
+                                },
+                                update(detail) {
+                                    const el = document.getElementById('ownerTrackMap');
+                                    if (!el || !el._ntMap || !detail || !detail.latest) return;
+                                    el._ntLine.setLatLngs(detail.trail || []);
+                                    el._ntMarker.setLatLng(detail.latest);
+                                    el._ntMap.panTo(detail.latest);
+                                }
+                            }"
+                            x-on:trail-updated.window="update($event.detail)"
+                        >
+                            <div wire:ignore id="ownerTrackMap" class="h-72 rounded-2xl"></div>
+                        </div>
+                    @else
+                        <div class="p-10 text-center text-xs text-neutral-400">
+                            @if($shipment && $shipment->status === 'awaiting_pickup')
+                                Şoför yola çıktığında canlı konum burada görünür.
+                            @else
+                                Şoför konumu henüz paylaşılmadı.
+                            @endif
+                        </div>
+                    @endif
                 </div>
 
-                <!-- Harita Alanı -->
-                <div class="relative w-full h-96 bg-neutral-950 z-0" wire:ignore id="shipmentLiveMap"></div>
-
-                <div class="p-4 bg-neutral-900/95 border-t border-neutral-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                    <div>
-                        <span class="text-neutral-500 block">Anlık Hız</span>
-                        <span class="text-white font-bold font-mono text-sm">84 km/s</span>
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Rota ve yük</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
+                            <span class="text-neutral-500 block mb-0.5">Yükleme adresi</span>
+                            <span class="text-white font-medium break-words">{{ $load->pickup_location }}</span>
+                            <span class="text-neutral-500 block mt-1">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
+                        </div>
+                        <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
+                            <span class="text-neutral-500 block mb-0.5">Teslimat adresi</span>
+                            <span class="text-white font-medium break-words">{{ $load->delivery_location }}</span>
+                            <span class="text-neutral-500 block mt-1">{{ $load->delivery_date ? 'En geç '.$load->delivery_date->format('d.m.Y') : 'Teslim tarihi belirtilmedi' }}</span>
+                        </div>
                     </div>
-                    <div>
-                        <span class="text-neutral-500 block">Kalan Tahmini Süre (ETA)</span>
-                        <span class="text-brand-400 font-bold font-mono text-sm">~ 2 Sa 40 Dk</span>
-                    </div>
-                    <div>
-                        <span class="text-neutral-500 block">Konum Güncelleme</span>
-                        <span class="text-emerald-400 font-medium">10 sn önce</span>
+                    <div class="flex flex-wrap gap-4 text-xs text-neutral-400">
+                        <span>Yük: <span class="text-neutral-200 font-medium">{{ $load->goods_type }}</span></span>
+                        <span>Ağırlık: <span class="text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span></span>
+                        @if($load->volume)
+                            <span>Hacim: <span class="text-neutral-200 font-medium">{{ $load->volume }} m³</span></span>
+                        @endif
+                        <span>Araç tipi: <span class="text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span></span>
+                        @if($load->e_irsaliye_no)
+                            <span>e-İrsaliye: <span class="text-neutral-200 font-mono">{{ $load->e_irsaliye_no }}</span></span>
+                        @endif
+                        @if($load->e_irsaliye_path)
+                            <a href="{{ route('files.e-irsaliye', $load->id) }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">e-İrsaliye belgesi</a>
+                        @endif
                     </div>
                 </div>
+
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sevkiyat zaman çizelgesi</h3>
+                    <div class="space-y-3">
+                        @foreach($timeline as $step)
+                            @php $done = $step['done'] ?? ($step['at'] !== null); @endphp
+                            <div class="relative pl-6 text-xs">
+                                <span class="absolute left-0 top-0.5 w-3 h-3 rounded-full border-2 {{ $done ? 'bg-brand-500 border-brand-500' : 'bg-neutral-900 border-neutral-700' }}"></span>
+                                <div class="font-semibold {{ $done ? 'text-white' : 'text-neutral-500' }}">{{ $step['label'] }}</div>
+                                <div class="text-[11px] text-neutral-500 font-mono">{{ $step['at']?->format('d.m.Y H:i') ?? ($done ? 'Tamamlandı' : 'Bekleniyor') }}</div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Teslimat kanıtları</h3>
+                        @if($canApprove)
+                            <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda havuzdaki navlun bedeli şoförün hakedişi olarak ödeme sırasına alınır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                                <span wire:loading.remove wire:target="approveDelivery">Teslimatı onayla</span>
+                                <span wire:loading wire:target="approveDelivery">Onaylanıyor...</span>
+                            </button>
+                        @endif
+                    </div>
+
+                    @if($shipment && $shipment->status === 'delivered' && $shipment->auto_approval_due_at)
+                        <p class="text-[11px] text-neutral-500">Onay vermezseniz teslimat {{ $shipment->auto_approval_due_at->format('d.m.Y H:i') }} tarihinde otomatik olarak onaylanır.</p>
+                    @endif
+
+                    @if($shipment && $shipment->evidence->isNotEmpty())
+                        <div class="space-y-2 text-xs">
+                            @foreach($shipment->evidence as $evidence)
+                                <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <div class="text-white font-semibold">{{ $evidenceTypes[$evidence->type] ?? $evidence->type }}</div>
+                                        <div class="text-[11px] text-neutral-500">
+                                            {{ ($evidence->captured_at ?? $evidence->created_at)?->format('d.m.Y H:i') }}
+                                            @if($evidence->uploader) · {{ $evidence->uploader->full_name }} @endif
+                                        </div>
+                                        @if(! empty($evidence->metadata['note']))
+                                            <div class="text-neutral-300 mt-1 break-words">{{ $evidence->metadata['note'] }}</div>
+                                        @endif
+                                    </div>
+                                    <a href="{{ route('files.evidence', $evidence->id) }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline font-semibold shrink-0">Belgeyi aç</a>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-xs text-neutral-400">Henüz teslimat kanıtı yüklenmedi.</p>
+                    @endif
+                </div>
+
+                @if($canReview)
+                    <form wire:submit.prevent="submitReview" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Şoförü değerlendirin</h3>
+                        <div class="flex items-center gap-2">
+                            @for($i = 1; $i <= 5; $i++)
+                                <button type="button" wire:click="$set('rating', {{ $i }})" class="p-1 transition-transform hover:scale-110" aria-label="{{ $i }} puan">
+                                    <svg class="w-7 h-7 {{ $i <= $rating ? 'text-amber-400' : 'text-neutral-700' }}" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                </button>
+                            @endfor
+                            <span class="text-xs text-neutral-400 ml-2">{{ $rating }} / 5</span>
+                        </div>
+                        @error('rating') <span class="text-rose-500 text-[11px] block">{{ $message }}</span> @enderror
+                        <div>
+                            <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yorumunuz (isteğe bağlı)</label>
+                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:border-brand-500 focus:outline-none"></textarea>
+                            @error('review_comment') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">Değerlendirmeyi gönder</button>
+                        </div>
+                    </form>
+                @elseif($hasReviewed)
+                    <div class="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-400">Bu sevkiyat için değerlendirmeniz kaydedildi.</div>
+                @endif
             </div>
 
-            <!-- Sağ 1 Kolon: Şoför, Araç ve Yük Detayları -->
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-6">
+            <div class="space-y-6">
 
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-3">Operasyon Detayları</h3>
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Şoför ve araç</h3>
 
-                <!-- Şoför Profili -->
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20 flex items-center justify-center font-black text-lg">
-                        {{ strtoupper(substr($load->driverProfile?->user?->first_name ?? 'M', 0, 1)) }}
-                    </div>
-                    <div>
-                        <div class="text-sm font-bold text-white">{{ $load->driverProfile?->user?->full_name ?? 'Mehmet Demir' }}</div>
-                        <div class="text-xs text-neutral-400">{{ $load->driverProfile?->user?->phone ?? '0544 200 30 40' }}</div>
-                        <div class="text-[11px] text-emerald-400 font-semibold mt-0.5">✓ Belgeleri AI Tarafından Onaylı</div>
-                    </div>
+                    @if($driverUser)
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20 flex items-center justify-center font-black text-lg shrink-0">
+                                {{ mb_strtoupper(mb_substr($driverUser->first_name ?: 'S', 0, 1)) }}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-bold text-white">{{ $driverUser->full_name }}</div>
+                                <div class="text-xs text-neutral-400">
+                                    @if($load->isPaid() && $driverUser->phone)
+                                        <a href="tel:0{{ Phone::normalize($driverUser->phone) ?? preg_replace('/\D/', '', $driverUser->phone) }}" class="font-mono text-brand-400 hover:underline">{{ Phone::format(Phone::normalize($driverUser->phone) ?? $driverUser->phone) }}</a>
+                                    @else
+                                        Telefon, ödeme havuza alındıktan sonra görünür.
+                                    @endif
+                                </div>
+                                @if($load->driverProfile?->isKycApproved())
+                                    <div class="text-[11px] text-emerald-400 font-semibold mt-0.5">Belgeleri doğrulandı</div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 text-xs border-t border-neutral-800 pt-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-neutral-400">Plaka</span>
+                                <span class="text-white font-mono font-bold">{{ $vehicle?->plate ?: '—' }}</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-neutral-400">Marka / model</span>
+                                <span class="text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
+                            </div>
+                            <div class="flex items-center justify-between gap-3">
+                                <span class="text-neutral-400">Araç tipi</span>
+                                <span class="text-neutral-200">{{ $vehicle ? ($vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type) : '—' }}</span>
+                            </div>
+                        </div>
+                    @else
+                        <p class="text-xs text-neutral-400">Henüz şoför atanmadı.</p>
+                    @endif
                 </div>
 
-                <!-- Araç ve Sevkiyat Özeti -->
-                <div class="space-y-3 text-xs border-t border-neutral-800 pt-4">
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Araç Plakası:</span>
-                        <span class="text-white font-mono font-bold">{{ $load->driverProfile?->activeVehicle?->plate ?? '06 TR 992' }}</span>
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Güvenli havuz</h3>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-neutral-400">Navlun bedeli</span>
+                        <span class="text-brand-400 font-bold font-mono text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Araç Modeli:</span>
-                        <span class="text-neutral-200">{{ $load->driverProfile?->activeVehicle?->brand ?? 'Mercedes-Benz' }} Actros</span>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-neutral-400">Durum</span>
+                        <span class="text-white font-semibold text-right">{{ $load->escrowLabel() }}</span>
                     </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Yük Cinsi:</span>
-                        <span class="text-neutral-200 font-medium">{{ $load->goods_type }}</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Ağırlık:</span>
-                        <span class="text-neutral-200 font-medium">{{ number_format($load->weight) }} Kg</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">e-İrsaliye No:</span>
-                        <span class="text-neutral-200 font-mono">{{ $load->e_irsaliye_no }}</span>
-                    </div>
+                    <p class="text-[11px] text-neutral-500 leading-relaxed">
+                        @if($load->escrow_status === 'pending_payment')
+                            Ödeme henüz alınmadı.
+                        @elseif($load->escrow_status === 'paid_in_escrow')
+                            Teslimatı onayladığınızda bedel şoförün hakedişi olarak ödeme sırasına alınır.
+                        @elseif($load->escrow_status === 'on_hold')
+                            Uyuşmazlık karara bağlanana kadar ödeme askıda.
+                        @elseif(in_array($load->escrow_status, ['release_approved', 'released_to_driver'], true))
+                            Hakediş şoföre aktarım sürecinde ya da aktarıldı.
+                        @else
+                            İade süreci tamamlandı.
+                        @endif
+                    </p>
+                    @if($load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment')
+                        <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-center block">Ödemeye git</a>
+                    @endif
                 </div>
 
-                <!-- Finansal Güvence -->
-                <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-2 text-xs">
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Havuzdaki Tutar:</span>
-                        <span class="text-brand-400 font-bold font-mono text-sm">{{ number_format((float)$load->price, 2, ',', '.') }} ₺</span>
+                @if($canDispute)
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sorun mu var?</h3>
+                        <p class="text-[11px] text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
+                        <a href="{{ route('cargo-owner.disputes.index') }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>
-                    <div class="text-[11px] text-neutral-500 leading-relaxed">
-                        Siz teslimat onayını verene kadar para PayTR korumasında bloke tutulur.
-                    </div>
-                </div>
-
-                <!-- Sorun Bildir / Uyuşmazlık Köprüsü -->
-                <div class="pt-2">
-                    <a href="{{ route('cargo-owner.disputes.index') }}" class="w-full py-2.5 rounded-xl bg-neutral-800/80 hover:bg-rose-500/10 text-neutral-400 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center gap-1.5">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <span>Hasar / Sorun Bildir (Uyuşmazlık Başlat)</span>
-                    </a>
-                </div>
+                @endif
 
             </div>
-
         </div>
-    @endif
-
-    <!-- Teslimat Kanıtı (POD) İnceleme Modalı (z-[9999] ile en önde) -->
-    @if($podModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('podModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <div>
-                        <h3 class="text-base font-bold text-white">Teslimat Kanıtı (POD) İncelemesi</h3>
-                        <p class="text-xs text-neutral-400 mt-0.5">Sürücünün yük teslimatında sisteme yüklediği imzalı irsaliye ve kargo görseli.</p>
-                    </div>
-                    <button wire:click="$set('podModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Simüle POD Görsel Alanı -->
-                <div class="p-4 bg-neutral-950 rounded-xl border border-neutral-800 text-center space-y-3">
-                    <div class="h-44 bg-neutral-900 border border-dashed border-neutral-700 rounded-lg flex flex-col items-center justify-center text-neutral-500 text-xs">
-                        <svg class="w-10 h-10 mb-2 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span class="font-semibold text-neutral-300">İmzalı Teslim Fişi (POD-06TR992.pdf / jpg)</span>
-                        <span class="text-[10px] text-neutral-500 mt-1">İmzalayan: Alıcı Depo Sorumlusu</span>
-                    </div>
-                </div>
-
-                <div class="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 leading-relaxed">
-                    ✓ Onay verdiğiniz anda PayTR havuzundaki bloke navlun bedeli saniyeler içinde şoförün banka hesabına aktarılacaktır.
-                </div>
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('podModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                        Kapat
-                    </button>
-                    <button type="button" wire:click="confirmDelivery" class="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all">
-                        Teslimatı Onayla & Ödemeyi Çöz
-                    </button>
-                </div>
-
-            </div>
-        </div>
-    @endif
-
-    <!-- Şoför Puanlama ve Yorum Modalı (z-[9999] ile en önde) -->
-    @if($reviewModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('reviewModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="text-center space-y-2">
-                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto text-xl font-bold">
-                        ✓
-                    </div>
-                    <h3 class="text-base font-bold text-white">Sevkiyat Tamamlandı!</h3>
-                    <p class="text-xs text-neutral-400">Şoförün taşıma performansını değerlendirerek topluluğumuza katkıda bulunun.</p>
-                </div>
-
-                <!-- Yıldız Seçimi -->
-                <div class="flex items-center justify-center gap-2 py-2">
-                    @for($i = 1; $i <= 5; $i++)
-                        <button type="button" wire:click="$set('rating', {{ $i }})" class="text-2xl transition-transform hover:scale-125 {{ $i <= $rating ? 'text-amber-400' : 'text-neutral-700' }}">
-                            ★
-                        </button>
-                    @endfor
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-neutral-300 mb-1.5">Şoför Hakkındaki Yorumunuz</label>
-                    <textarea wire:model="reviewComment" rows="3" placeholder="Zamanında ve güvenli teslimat sağladı..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                </div>
-
-                <button type="button" wire:click="submitReview" class="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
-                    Değerlendirmeyi Gönder
-                </button>
-
-            </div>
-        </div>
+    @else
+        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-400">Sevkiyat bulunamadı.</div>
     @endif
 
 </div>

@@ -210,7 +210,7 @@
                 <div
                     class="hidden sm:flex items-center space-x-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 text-xs font-medium">
                     <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span>PayTR Escrow Korumalı</span>
+                    <span>Güvenli havuz ödemesi</span>
                 </div>
 
                 <a href="{{ route('home') }}" target="_blank"
