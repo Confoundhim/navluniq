@@ -1,0 +1,32 @@
+{
+  "status": "production_candidate_static_passed",
+  "checked_route_targets": 48,
+  "missing_route_targets": 0,
+  "volt_components": 43,
+  "volt_structure_issues": 0,
+  "undefined_component_methods": 0,
+  "models": 53,
+  "migrations": 9,
+  "missing_models": 0,
+  "dangerous_mock_mutation_methods": 0,
+  "secret_value_leaks_outside_env": 0,
+  "archive_env_included": false,
+  "fixed_runtime_defects": [
+    "admin.health-center Volt class restored",
+    "AiParserService.parseMessage restored",
+    "CMS/firewall/settings loader methods verified",
+    "default DB-less ExampleTest replaced"
+  ],
+  "sandbox_limits": [
+    "PHP/Composer unavailable in sandbox",
+    "npm offline cache lacks vite-plugin-full-reload; run supplied PowerShell validator in Herd"
+  ],
+  "external_acceptance_required": [
+    "PayTR live merchant/platform callback and transfer tests",
+    "ERP e-invoice adapter credentials and acceptance",
+    "SMTP delivery/DKIM/SPF",
+    "Redis queue/scheduler/worker",
+    "WhatsApp source permissions and daemon",
+    "insurance provider contract"
+  ]
+}

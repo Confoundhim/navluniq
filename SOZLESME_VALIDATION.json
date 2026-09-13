@@ -1,0 +1,30 @@
+{
+  "status": "passed",
+  "document_keys": [
+    "contract_kvkk",
+    "contract_terms",
+    "contract_user",
+    "contract_privacy",
+    "contract_distance_sale",
+    "contract_cancellation"
+  ],
+  "document_count": 6,
+  "destructive_operations": false,
+  "legacy_risk_phrases_found": [],
+  "covered_final_state_topics": [
+    "PayTR",
+    "muhasebe",
+    "abonelik",
+    "kısmi dağıtım",
+    "poliçe",
+    "açık bir onay işlemi",
+    "e-fatura/e-arşiv",
+    "konum",
+    "KYC",
+    "yapay zekâ",
+    "tüketici hakem heyeti"
+  ],
+  "issues": [],
+  "runtime_php_lint_required": true,
+  "legal_note": "Production candidate; not a formal legal opinion."
+}

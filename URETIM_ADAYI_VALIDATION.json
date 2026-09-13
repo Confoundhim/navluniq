@@ -1,0 +1,11 @@
+{
+  "status": "static_passed",
+  "route_targets": 48,
+  "missing_route_targets": 0,
+  "models": 53,
+  "migrations": 9,
+  "mock_mutation_methods": 0,
+  "secrets_in_archive": false,
+  "php_runtime_note": "Sandbox PHP içermediği için php artisan test yerelde zorunlu",
+  "frontend_note": "Sandbox çevrimdışı paket önbelleğinde vite-plugin-full-reload yok; kullanıcı ortamında npm ci/build zorunlu"
+}

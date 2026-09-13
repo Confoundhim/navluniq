@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class PaymentEvent extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'payment_order_id',
+        'provider_event_id',
+        'event_type',
+        'status',
+        'payload_hash',
+        'payload_encrypted',
+        'processed_at',
+        'failure_message',
+    ];
+
+    protected $casts = [
+        'processed_at'=>'datetime',
+    ];
+}
