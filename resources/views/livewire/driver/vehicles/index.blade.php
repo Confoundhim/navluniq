@@ -1,244 +1,289 @@
 <?php
 
+use App\Models\DriverVehicle;
+use App\Models\Shipment;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
-use App\Models\DriverVehicle;
-use Illuminate\Support\Facades\Auth;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Filom & Araç Yönetimi')]
+#[Title('Araçlarım')]
 class extends Component {
     use WithFileUploads;
 
-    public bool $addVehicleModalOpen = false;
+    public bool $formOpen = false;
 
-    // Yeni Araç Form Alanları
+    #[Locked]
+    public ?int $editingId = null;
+
     public string $plate = '';
-    public string $brand = 'Mercedes-Benz';
-    public string $model = 'Actros 1845';
-    public string $vehicle_type = 'tir';
-    public $ruhsat_file = null;
-    public $vehicle_photo = null;
 
-    public array $vehicleTypeOptions = [
-        'tir' => 'Tır (Çekici + Dorse)',
-        'kirkayak' => 'Kırkayak Kamyon',
-        '10_teker_kamyon' => '10 Teker Kamyon',
-        '8_teker_kamyon' => '8 Teker Kamyon',
-        '6_teker_kamyon' => '6 Teker Kamyon',
-        'kamyonet' => 'Kamyonet',
-        'uzun_panelvan' => 'Uzun Panelvan',
-        'orta_panelvan' => 'Orta Panelvan',
-        'minivan' => 'Minivan',
-        'otomobil' => 'Otomobil'
-    ];
+    public string $brand = '';
 
-    public function saveVehicle(): void
+    public string $model = '';
+
+    public string $vehicle_type = '';
+
+    public $ruhsat = null;
+
+    private function profileId(): int
     {
-        $this->validate([
-            'plate' => 'required|min:6|unique:driver_vehicles,plate',
-            'brand' => 'required',
-            'model' => 'required',
-            'vehicle_type' => 'required',
-        ], [
-            'plate.required' => 'Plaka numarası zorunludur.',
-            'plate.unique' => 'Bu plaka numarası sistemde zaten kayıtlıdır.',
-        ]);
-
-        $user = Auth::user();
-        if ($user && $user->driverProfile) {
-            $driverId = (int) $user->driverProfile->id;
-
-            $ruhsatPath = null;
-            if ($this->ruhsat_file) {
-                $ruhsatPath = $this->ruhsat_file->store('private/vehicle_ruhsat', 'local');
-            }
-
-            DriverVehicle::create([
-                'driver_profile_id' => $driverId,
-                'plate' => strtoupper(trim($this->plate)),
-                'brand' => $this->brand,
-                'model' => $this->model,
-                'vehicle_type' => $this->vehicle_type,
-                'ruhsat_path' => $ruhsatPath,
-                'is_active' => true,
-            ]);
-
-            $this->addVehicleModalOpen = false;
-            $this->reset(['plate', 'ruhsat_file', 'vehicle_photo']);
-            session()->flash('success_message', 'Yeni aracınız filonuza başarıyla eklendi.');
-        }
+        return (int) (Auth::user()->driverProfile?->id ?? 0);
     }
 
-    public function toggleActive(int $vehicleId): void
+    private function ownedVehicle(int $id): ?DriverVehicle
     {
-        $vehicle = DriverVehicle::find($vehicleId);
-        if ($vehicle) {
-            $vehicle->update(['is_active' => !$vehicle->is_active]);
-            session()->flash('success_message', 'Araç durumu güncellendi.');
+        return DriverVehicle::query()->where('driver_profile_id', $this->profileId())->whereKey($id)->first();
+    }
+
+    public function openCreate(): void
+    {
+        $this->reset(['editingId', 'plate', 'brand', 'model', 'ruhsat']);
+        $this->vehicle_type = array_key_first(DriverVehicle::getVehicleTypes());
+        $this->resetErrorBag();
+        $this->formOpen = true;
+    }
+
+    public function openEdit(int $vehicleId): void
+    {
+        $vehicle = $this->ownedVehicle($vehicleId);
+        if (! $vehicle) {
+            session()->flash('error_message', 'Araç bulunamadı.');
+
+            return;
         }
+
+        $this->editingId = $vehicle->id;
+        $this->plate = $vehicle->plate;
+        $this->brand = $vehicle->brand;
+        $this->model = $vehicle->model;
+        $this->vehicle_type = $vehicle->vehicle_type;
+        $this->ruhsat = null;
+        $this->resetErrorBag();
+        $this->formOpen = true;
+    }
+
+    public function closeForm(): void
+    {
+        $this->formOpen = false;
+        $this->reset(['editingId', 'plate', 'brand', 'model', 'vehicle_type', 'ruhsat']);
+        $this->resetErrorBag();
+    }
+
+    public function save(): void
+    {
+        $this->plate = DriverVehicle::normalizePlate($this->plate);
+
+        $this->validate([
+            'plate' => ['required', 'string', 'max:32', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')->ignore($this->editingId)],
+            'brand' => ['required', 'string', 'min:2', 'max:80'],
+            'model' => ['required', 'string', 'min:1', 'max:80'],
+            'vehicle_type' => ['required', Rule::in(array_keys(DriverVehicle::getVehicleTypes()))],
+            'ruhsat' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
+        ], [
+            'plate.required' => 'Plaka zorunludur.',
+            'plate.regex' => 'Geçerli bir Türk plakası girin (örn. 34ABC123).',
+            'plate.unique' => 'Bu plaka sistemde zaten kayıtlı.',
+            'brand.required' => 'Marka zorunludur.',
+            'model.required' => 'Model zorunludur.',
+            'vehicle_type.in' => 'Geçerli bir araç türü seçin.',
+            'ruhsat.mimes' => 'Ruhsat JPG, PNG veya PDF olmalıdır.',
+            'ruhsat.max' => 'Ruhsat dosyası en fazla 10 MB olabilir.',
+        ]);
+
+        $profileId = $this->profileId();
+        if ($profileId === 0) {
+            $this->addError('plate', 'Şoför profili bulunamadı.');
+
+            return;
+        }
+
+        $data = [
+            'plate' => $this->plate,
+            'brand' => trim($this->brand),
+            'model' => trim($this->model),
+            'vehicle_type' => $this->vehicle_type,
+        ];
+
+        if ($this->ruhsat) {
+            $data['ruhsat_path'] = $this->ruhsat->storeAs(
+                'vehicles/'.$profileId,
+                'ruhsat-'.now()->format('YmdHis').'-'.$this->plate.'.'.strtolower($this->ruhsat->getClientOriginalExtension()),
+                'private'
+            );
+        }
+
+        if ($this->editingId) {
+            $vehicle = $this->ownedVehicle($this->editingId);
+            if (! $vehicle) {
+                $this->addError('plate', 'Araç bulunamadı.');
+
+                return;
+            }
+            $vehicle->update($data);
+            $message = 'Araç bilgileri güncellendi.';
+        } else {
+            $hasActive = DriverVehicle::query()->where('driver_profile_id', $profileId)->where('is_active', true)->exists();
+            DriverVehicle::create($data + ['driver_profile_id' => $profileId, 'is_active' => ! $hasActive]);
+            $message = 'Araç eklendi.';
+        }
+
+        $this->closeForm();
+        session()->flash('success_message', $message);
+    }
+
+    public function activate(int $vehicleId): void
+    {
+        $vehicle = $this->ownedVehicle($vehicleId);
+        if (! $vehicle) {
+            session()->flash('error_message', 'Araç bulunamadı.');
+
+            return;
+        }
+
+        DriverVehicle::query()->where('driver_profile_id', $this->profileId())->whereKeyNot($vehicle->id)->update(['is_active' => false]);
+        $vehicle->update(['is_active' => true]);
+
+        session()->flash('success_message', $vehicle->plate.' aktif araç olarak ayarlandı.');
+    }
+
+    public function delete(int $vehicleId): void
+    {
+        $vehicle = $this->ownedVehicle($vehicleId);
+        if (! $vehicle) {
+            session()->flash('error_message', 'Araç bulunamadı.');
+
+            return;
+        }
+
+        $activeCount = DriverVehicle::query()->where('driver_profile_id', $this->profileId())->where('is_active', true)->count();
+        if ($vehicle->is_active && $activeCount <= 1) {
+            session()->flash('error_message', 'Tek aktif aracınızı silemezsiniz. Önce başka bir aracı aktif yapın.');
+
+            return;
+        }
+
+        $inUse = Shipment::query()->where('vehicle_id', $vehicle->id)
+            ->whereIn('status', [Shipment::STATUS_AWAITING_PICKUP, Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_DISPUTED])
+            ->exists();
+        if ($inUse) {
+            session()->flash('error_message', 'Bu araç devam eden bir sevkiyata bağlı olduğu için silinemez.');
+
+            return;
+        }
+
+        $vehicle->delete();
+        session()->flash('success_message', 'Araç silindi.');
     }
 
     public function with(): array
     {
-        $user = Auth::user();
-        $vehicles = collect();
-
-        if ($user && $user->driverProfile) {
-            $vehicles = DriverVehicle::where('driver_profile_id', (int) $user->driverProfile->id)
-                ->latest()
-                ->get();
-        }
-
         return [
-            'vehicles' => $vehicles,
+            'vehicles' => DriverVehicle::query()->where('driver_profile_id', $this->profileId())->orderByDesc('is_active')->latest('id')->get(),
+            'vehicleTypes' => DriverVehicle::getVehicleTypes(),
         ];
     }
 }; ?>
 
 <div class="space-y-6">
 
-    <!-- Başarı Bildirimi -->
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{{ session('success_message') }}</span>
-            </div>
-        </div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık & Araç Ekle Butonu -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="border-b border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <span class="p-1.5 rounded-lg bg-brand-500/10 text-brand-500">🚛</span>
-                <span>Filom & Çoklu Araç Yönetimi</span>
-            </h2>
-            <p class="text-xs text-neutral-400 mt-1">Sahip olduğunuz tüm araçları kaydedin; ilanlara teklif verirken uygun olan aracınızı seçin.</p>
+            <h2 class="text-xl font-bold text-white tracking-tight">Araçlarım</h2>
+            <p class="text-xs text-neutral-400 mt-1">Teklif verebilmek için en az bir aktif aracınız olmalı. Aktif araç, kabul edilen sevkiyata atanır.</p>
         </div>
-
-        <button type="button" wire:click="$set('addVehicleModalOpen', true)" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2 active:scale-95">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Yeni Araç Tanımla</span>
-        </button>
+        <button type="button" wire:click="openCreate" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20">Araç ekle</button>
     </div>
 
-    <!-- Araç Kartları Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @forelse($vehicles as $veh)
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 transition-all duration-200">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-lg font-black text-white font-mono bg-neutral-950 px-3 py-1 rounded-xl border border-neutral-800">
-                            {{ $veh->plate }}
-                        </span>
-                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase {{ $veh->is_active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-neutral-800 text-neutral-500' }}">
-                            {{ $veh->is_active ? 'Aktif Araç' : 'Pasif' }}
-                        </span>
-                    </div>
-
-                    <div class="space-y-1 text-xs text-neutral-400 pt-1">
-                        <div class="flex items-center justify-between">
-                            <span class="text-neutral-500">Marka & Model:</span>
-                            <span class="text-white font-semibold">{{ $veh->brand }} {{ $veh->model }}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-neutral-500">Araç Tipi:</span>
-                            <span class="text-brand-400 font-medium uppercase">{{ str_replace('_', ' ', $veh->vehicle_type) }}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-neutral-500">Ruhsat Durumu:</span>
-                            <span class="text-emerald-400">✓ AI Onaylı</span>
-                        </div>
-                    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        @forelse($vehicles as $vehicle)
+            <div class="bg-neutral-900 border {{ $vehicle->is_active ? 'border-brand-500/40' : 'border-neutral-800' }} rounded-2xl p-6 space-y-3 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="text-base font-black text-white font-mono">{{ $vehicle->plate }}</div>
+                    @if($vehicle->is_active)
+                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[10px]">Aktif</span>
+                    @else
+                        <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 font-bold text-[10px]">Pasif</span>
+                    @endif
                 </div>
-
-                <div class="pt-3 border-t border-neutral-800 flex items-center justify-between text-xs">
-                    <span class="text-neutral-500 text-[11px]">Seferler için hazır</span>
-                    <button type="button" wire:click="toggleActive({{ $veh->id }})" class="text-neutral-400 hover:text-white font-medium transition-colors">
-                        {{ $veh->is_active ? 'Pasife Al' : 'Aktif Et' }}
-                    </button>
+                <div class="text-neutral-300">{{ $vehicle->brand }} {{ $vehicle->model }}</div>
+                <div class="text-neutral-500">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</div>
+                <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-400' : 'text-neutral-500' }}">
+                    {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
+                </div>
+                <div class="pt-3 border-t border-neutral-800 flex flex-col sm:flex-row gap-2">
+                    @if(! $vehicle->is_active)
+                        <button type="button" wire:click="activate({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-500/30 text-brand-400 font-bold hover:bg-brand-500/20">Aktif yap</button>
+                    @endif
+                    <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white font-bold hover:bg-neutral-700">Düzenle</button>
+                    <button type="button" wire:click="delete({{ $vehicle->id }})" wire:confirm="{{ $vehicle->plate }} plakalı aracı silmek istediğinize emin misiniz?" class="px-3 py-2 rounded-xl border border-rose-500/30 text-rose-300 font-bold hover:bg-rose-500/10">Sil</button>
                 </div>
             </div>
         @empty
-            <div class="col-span-full bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center space-y-4">
-                <div class="w-16 h-16 rounded-full bg-neutral-800 flex items-center justify-center mx-auto text-2xl font-bold">
-                    🚛
-                </div>
-                <div class="space-y-1">
-                    <h4 class="text-base font-bold text-white">Henüz Kayıtlı Bir Aracınız Yok</h4>
-                    <p class="text-xs text-neutral-400 max-w-sm mx-auto">İlanlara teklif verebilmek için en az bir ticari araç tanımlamalısınız.</p>
-                </div>
-            </div>
+            <div class="sm:col-span-2 p-6 bg-neutral-900 border border-dashed border-neutral-800 rounded-2xl text-center text-xs text-neutral-400">Henüz kayıtlı aracınız yok. Teklif verebilmek için bir araç ekleyin.</div>
         @endforelse
     </div>
 
-    <!-- YENİ ARAÇ EKLEME MODALI -->
-    @if($addVehicleModalOpen)
+    @if($formOpen)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('addVehicleModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
+            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md" wire:click="closeForm"></div>
+            <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <h3 class="text-base font-bold text-white border-b border-neutral-800 pb-3">{{ $editingId ? 'Aracı düzenle' : 'Yeni araç' }}</h3>
 
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <span>🚛 Filonuza Yeni Araç Ekleyin</span>
-                    </h3>
-                    <button wire:click="$set('addVehicleModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Araç Plakası <span class="text-brand-500">*</span></label>
-                        <input type="text" wire:model="plate" placeholder="Örn: 06 TR 992" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-mono font-bold uppercase focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-300 mb-1">Plaka</label>
+                        <input type="text" wire:model="plate" placeholder="34ABC123" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-mono uppercase focus:border-brand-500 focus:outline-none">
                         @error('plate') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Marka <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="brand" placeholder="Örn: Mercedes-Benz" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
-                        </div>
-
-                        <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Model <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="model" placeholder="Örn: Actros 1845" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
-                        </div>
-                    </div>
-
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Araç / Kasa Tipi <span class="text-brand-500">*</span></label>
+                        <label class="block font-medium text-neutral-300 mb-1">Araç türü</label>
                         <select wire:model="vehicle_type" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none">
-                            @foreach($vehicleTypeOptions as $k => $v)
-                                <option value="{{ $k }}">{{ $v }}</option>
+                            @foreach($vehicleTypes as $key => $label)
+                                <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
                         </select>
+                        @error('vehicle_type') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
-
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Araç Ruhsat Görseli / PDF (Opsiyonel)</label>
-                        <input type="file" wire:model="ruhsat_file" class="w-full text-xs text-neutral-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white hover:file:bg-neutral-700 cursor-pointer">
+                        <label class="block font-medium text-neutral-300 mb-1">Marka</label>
+                        <input type="text" wire:model="brand" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        @error('brand') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
+                    <div>
+                        <label class="block font-medium text-neutral-300 mb-1">Model</label>
+                        <input type="text" wire:model="model" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        @error('model') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-medium text-neutral-300 mb-1">Ruhsat (JPG, PNG, PDF; en fazla 10 MB, isteğe bağlı)</label>
+                    <input type="file" wire:model="ruhsat" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white">
+                    @error('ruhsat') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    <div wire:loading wire:target="ruhsat" class="text-[10px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
 
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('addVehicleModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-semibold">Vazgeç</button>
-                    <button type="button" wire:click="saveVehicle" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold">Aracı Kaydet</button>
+                    <button type="button" wire:click="closeForm" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold">Vazgeç</button>
+                    <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="save">Kaydet</span>
+                        <span wire:loading wire:target="save">Kaydediliyor...</span>
+                    </button>
                 </div>
-
-            </div>
+            </form>
         </div>
     @endif
-
 </div>

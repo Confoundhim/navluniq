@@ -1,390 +1,498 @@
 <?php
 
+use App\Models\Load;
+use App\Models\Shipment;
+use App\Services\DriverLocationService;
+use App\Services\ReviewService;
+use App\Services\ShipmentService;
+use App\Support\Phone;
+use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
-use App\Models\Load;
-use Illuminate\Support\Facades\Auth;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Canlı Navigasyon & Teslimat (POD)')]
+#[Title('Sevkiyat Detayı')]
 class extends Component {
     use WithFileUploads;
 
+    #[Locked]
     public int $loadId = 0;
-    public ?Load $load = null;
 
-    // Yasal Zorunluluk: U-ETDS Onay Kutusu
-    public bool $uetds_confirmed = false;
+    public $pod_file = null;
 
-    // POD (Teslim Kanıtı) Yükleme Modalı
-    public bool $podUploadModalOpen = false;
-    public $pod_document = null;
+    public string $pod_note = '';
 
-    // Yük Sahibi Değerlendirme Modalı
-    public bool $ratingModalOpen = false;
-    public int $owner_rating = 5;
-    public string $owner_comment = '';
+    public int $rating = 5;
+
+    public string $review_comment = '';
 
     public function mount(int $loadId): void
     {
         $this->loadId = $loadId;
-        $user = Auth::user();
-        if ($user && $user->driverProfile) {
-            $driverId = (int) $user->driverProfile->id;
 
-            $this->load = Load::with(['cargoOwnerProfile.user'])
-                ->where('id', $loadId)
-                ->where('driver_profile_id', $driverId)
-                ->first();
-
-            // Eğer ID eşleşmezse şoförün ilk aktif yükünü getir
-            if (!$this->load) {
-                $this->load = Load::with(['cargoOwnerProfile.user'])
-                    ->where('driver_profile_id', $driverId)
-                    ->latest()
-                    ->first();
-
-                if ($this->load) {
-                    $this->loadId = (int) $this->load->id;
-                }
-            }
-
-            if ($this->load && $this->load->status === 'on_the_way') {
-                $this->uetds_confirmed = true;
-            }
+        if (! $this->ownedLoadQuery()->exists()) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı veya size ait değil.');
+            $this->redirect(route('driver.shipments.index'), navigate: true);
         }
     }
 
-    /**
-     * Sevkiyat Durumunu 'Yüklendi / Yolda' Olarak Günceller (U-ETDS Şartlı)
-     */
-    public function updateStatusToOnWay(): void
+    private function ownedLoadQuery()
     {
-        if (!$this->uetds_confirmed) {
-            $this->addError('uetds_confirmed', 'Yola çıkmadan önce U-ETDS bildirimini onaylamanız yasal zorunluluktur.');
+        return Load::query()
+            ->where('driver_profile_id', Auth::user()->driverProfile?->id ?? 0)
+            ->whereKey($this->loadId);
+    }
+
+    private function ownedShipment(): ?Shipment
+    {
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+
+        return Shipment::query()->where('load_id', $this->loadId)->where('driver_profile_id', $profileId)->first();
+    }
+
+    public function startTransit(ShipmentService $shipments): void
+    {
+        $profile = Auth::user()->driverProfile;
+        $shipment = $this->ownedShipment();
+
+        if (! $profile || ! $shipment) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı.');
+
             return;
         }
 
-        if ($this->load) {
-            $this->load->update([
-                'status' => 'on_the_way',
-            ]);
-            session()->flash('success_message', 'Sevkiyat durumu "Yolda" olarak güncellendi. Yük sahibine canlı takip bildirimi iletildi.');
+        try {
+            $shipments->startTransit($shipment, $profile);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
         }
+
+        session()->flash('success_message', 'Sevkiyat yola çıktı olarak kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
     }
 
-    /**
-     * Teslim Kanıtı (POD) Belgesini Yükler ve Yük Sahibine Onaya Gönderir
-     */
-    public function submitPOD(): void
+    public function markDelivered(ShipmentService $shipments): void
     {
         $this->validate([
-            'pod_document' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'pod_file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
+            'pod_note' => 'nullable|string|max:500',
         ], [
-            'pod_document.required' => 'Lütfen imzalı irsaliye veya teslimat fotoğrafını yükleyiniz.',
+            'pod_file.required' => 'Teslimat kanıtı olarak bir fotoğraf veya PDF yükleyin.',
+            'pod_file.mimes' => 'Dosya JPG, PNG veya PDF olmalıdır.',
+            'pod_file.max' => 'Dosya en fazla 10 MB olabilir.',
         ]);
 
-        if ($this->load) {
-            $path = $this->pod_document->store('private/pod_documents', 'local');
+        $profile = Auth::user()->driverProfile;
+        $shipment = $this->ownedShipment();
 
-            // İlan durumunu teslim edildi olarak güncelle ve yük sahibine onay aç
-            $this->load->update([
-                'status' => 'delivered',
-            ]);
+        if (! $profile || ! $shipment) {
+            $this->addError('pod_file', 'Sevkiyat bulunamadı.');
 
-            $this->podUploadModalOpen = false;
-            $this->ratingModalOpen = true; // Yük sahibine puan verme modalını aç
-            session()->flash('success_message', 'Teslimat kanıtı (POD) başarıyla yüklendi! Yük sahibi onayı ve ödeme kontrollerinden sonra hak ediş süreci başlatılacaktır.');
+            return;
         }
+
+        try {
+            $shipments->markDelivered($shipment, $profile, $this->pod_file, trim($this->pod_note) ?: null);
+        } catch (\RuntimeException $e) {
+            $this->addError('pod_file', $e->getMessage());
+
+            return;
+        }
+
+        $this->reset(['pod_file', 'pod_note']);
+        session()->flash('success_message', 'Teslimat kanıtı yüklendi. Yük sahibinin onayı bekleniyor.');
     }
 
-    /**
-     * Yük Sahibine Puan ve Yorum Gönderir
-     */
-    public function submitOwnerRating(): void
+    public function submitReview(ReviewService $reviews): void
     {
-        $this->ratingModalOpen = false;
-        session()->flash('success_message', 'Değerlendirmeniz kaydedildi. Hayırlı ve bol kazançlı seferler dileriz!');
+        $this->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'review_comment' => 'nullable|string|max:1000',
+        ]);
+
+        $load = $this->ownedLoadQuery()->first();
+        if (! $load) {
+            $this->addError('rating', 'Sevkiyat bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $reviews->submit($load, Auth::user(), $this->rating, trim($this->review_comment) ?: null);
+        } catch (\RuntimeException $e) {
+            $this->addError('rating', $e->getMessage());
+
+            return;
+        }
+
+        $this->reset(['rating', 'review_comment']);
+        session()->flash('success_message', 'Değerlendirmeniz kaydedildi.');
+    }
+
+    public function with(): array
+    {
+        $user = Auth::user();
+        $load = $this->ownedLoadQuery()
+            ->with(['cargoOwnerProfile.user', 'driverProfile', 'shipment.evidence.uploader', 'shipment.vehicle', 'payout'])
+            ->first();
+        $shipment = $load?->shipment;
+
+        $trail = $shipment ? app(DriverLocationService::class)->trailFor($shipment) : ['latest' => null, 'trail' => []];
+        $latest = $trail['latest'];
+
+        $hasReviewed = $load ? app(ReviewService::class)->hasReviewed($load, $user) : true;
+
+        return [
+            'load' => $load,
+            'shipment' => $shipment,
+            'latestLocation' => $latest,
+            'trailPoints' => $trail['trail'],
+            'mapCenter' => $latest ? [(float) $latest->latitude, (float) $latest->longitude] : [39.0, 35.0],
+            'mapZoom' => $latest ? 12 : 6,
+            'canReview' => $load && in_array($load->status, [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED], true) && ! $hasReviewed,
+            'hasReviewed' => $hasReviewed,
+            'ownerPhone' => $load && $load->isPaid() ? $load->cargoOwnerProfile?->user?->phone : null,
+        ];
     }
 }; ?>
 
-<div class="space-y-6" x-data="{
-    initDriverMap() {
-        if (typeof L === 'undefined') return;
-        const mapEl = document.getElementById('driverNavMap');
-        if (!mapEl || mapEl._leaflet_id) return;
+<div class="space-y-6">
 
-        const map = L.map('driverNavMap', { zoomControl: true }).setView([39.0, 35.0], 7);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 18,
-            attribution: '&copy; NavlunIQ Canlı GPS Navigasyon'
-        }).addTo(map);
-
-        const pickup = [39.9334, 32.8597]; // Ankara
-        const delivery = [38.4237, 27.1428]; // İzmir
-        const truck = [39.1500, 29.9800]; // Kütahya
-
-        L.circleMarker(pickup, { radius: 7, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 1 }).addTo(map).bindPopup('<b>Yükleme Noktası</b><br>Ostim OSB / Ankara');
-        L.circleMarker(delivery, { radius: 7, color: '#10b981', fillColor: '#10b981', fillOpacity: 1 }).addTo(map).bindPopup('<b>Teslimat Noktası</b><br>Aliağa OSB / İzmir');
-
-        // Kamyon Pini
-        L.circleMarker(truck, { radius: 10, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(map).bindPopup('<b>Aracınız (06 TR 992)</b><br>Hız: 84 km/s');
-
-        const polyline = L.polyline([pickup, truck, delivery], { color: '#f97316', weight: 4, opacity: 0.9, dashArray: '8, 8' }).addTo(map);
-        map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-    }
-}" x-init="initDriverMap()">
-
-    <!-- Başarı Bildirimi -->
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{{ session('success_message') }}</span>
-            </div>
-        </div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık & Geri Dönüş -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
-        <div>
-            <a href="{{ route('driver.shipments.index') }}" class="text-xs text-neutral-400 hover:text-brand-400 font-semibold inline-flex items-center gap-1.5 mb-1 transition-colors">
-                &larr; Sevkiyatlarıma Geri Dön
-            </a>
-            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Canlı Navigasyon & Sefer Yönetimi</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">
-                    #NVL-{{ str_pad((string)$loadId, 5, '0', STR_PAD_LEFT) }}
-                </span>
-            </h2>
-        </div>
-
-        <div class="flex items-center gap-2">
-            @if($load && $load->status !== 'delivered')
-                <button type="button" wire:click="$set('podUploadModalOpen', true)" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 active:scale-95">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Teslimat Kanıtı (POD) Yükle</span>
-                </button>
-            @else
-                <span class="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                    ✓ Teslim Edildi (Onay Bekleniyor)
-                </span>
-            @endif
-        </div>
+    <div class="border-b border-neutral-800 pb-4">
+        <a href="{{ route('driver.shipments.index') }}" wire:navigate class="text-xs text-neutral-400 hover:text-brand-400 font-semibold">&larr; Sevkiyatlarım</a>
+        <h2 class="text-xl font-bold text-white tracking-tight mt-1">Sevkiyat Detayı</h2>
     </div>
 
-    @if($load)
-        <!-- AŞAMA KONTROL ÇUBUĞU VE YASAL U-ETDS ONAYI -->
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-6">
+    @if(! $load)
+        <div class="p-6 bg-neutral-900 border border-dashed border-neutral-800 rounded-2xl text-center text-xs text-neutral-400">Sevkiyat bulunamadı veya size ait değil.</div>
+    @else
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
-                <div class="space-y-1">
-                    <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Aşama Yönetimi</span>
-                    <div class="text-sm font-bold text-white">
-                        Mevcut Durum:
-                        <span class="text-brand-400">
-                            {{ $load->status === 'driver_assigned' ? 'Yükleme Noktasına Gidiliyor' : ($load->status === 'on_the_way' ? 'Seyir Halinde (Yolda)' : 'Teslimat Yapıldı') }}
-                        </span>
+            <div class="lg:col-span-2 space-y-6">
+
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div class="text-base font-bold text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[10px]">{{ $load->statusLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400' }}">{{ $load->escrowLabel() }}</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+                            <div class="text-neutral-500">Yükleme tarihi</div>
+                            <div class="text-white font-semibold">{{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}</div>
+                        </div>
+                        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+                            <div class="text-neutral-500">Teslim tarihi</div>
+                            <div class="text-white font-semibold">{{ $load->delivery_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}</div>
+                        </div>
+                        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+                            <div class="text-neutral-500">Yük</div>
+                            <div class="text-white font-semibold">
+                                {{ $load->goods_type }}
+                                @if($load->weight) · {{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg @endif
+                                @if($load->volume) · {{ number_format((int) ($load->volume ?? 0), 0, ',', '.') }} m³ @endif
+                            </div>
+                        </div>
+                        <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800">
+                            <div class="text-neutral-500">Navlun bedeli</div>
+                            <div class="text-white font-mono font-bold">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
+                        </div>
+                        @if($load->e_irsaliye_no || $load->e_irsaliye_path)
+                            <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <div class="text-neutral-500">e-İrsaliye</div>
+                                    <div class="text-white font-mono">{{ $load->e_irsaliye_no ?: 'Numara belirtilmemiş' }}</div>
+                                </div>
+                                @if($load->e_irsaliye_path)
+                                    <a href="{{ route('files.e-irsaliye', $load->id) }}" target="_blank" rel="noopener" class="text-brand-400 font-bold hover:underline">Belgeyi görüntüle</a>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 </div>
 
-                <!-- Aşama Aksiyon Butonu -->
-                @if($load->status === 'driver_assigned')
-                    <div class="space-y-2">
-                        <button type="button" wire:click="updateStatusToOnWay" class="w-full md:w-auto px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            <span>Yüklendi & Yola Çıktım</span>
-                        </button>
+                @if($shipment)
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sevkiyat aşaması</h3>
+
+                        @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
+                            @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
+                                <p class="text-xs text-neutral-300">Navlun bedeli havuzda bloke edildi. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
+                                <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs" wire:loading.attr="disabled">
+                                    Yükü aldım, yola çıktım
+                                </button>
+                            @else
+                                <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                                    Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme havuza yatırıldığında bu sayfada yola çıkma düğmesi görünecektir.
+                                </div>
+                            @endif
+                        @elseif($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT)
+                            <p class="text-xs text-neutral-300">Yola çıkış: {{ $shipment->in_transit_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}. Teslimatı tamamladığınızda imzalı irsaliye veya teslimat fotoğrafını yükleyin.</p>
+                            <form wire:submit.prevent="markDelivered" class="space-y-3 text-xs border-t border-neutral-800 pt-4">
+                                <div>
+                                    <label class="block font-medium text-neutral-300 mb-1">Teslimat kanıtı (JPG, PNG, PDF; en fazla 10 MB)</label>
+                                    <input type="file" wire:model="pod_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white">
+                                    @error('pod_file') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                                    <div wire:loading wire:target="pod_file" class="text-[10px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                                </div>
+                                <div>
+                                    <label class="block font-medium text-neutral-300 mb-1">Not (isteğe bağlı)</label>
+                                    <textarea wire:model="pod_note" rows="2" maxlength="500" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none"></textarea>
+                                    @error('pod_note') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                                </div>
+                                <button type="submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold" wire:loading.attr="disabled">
+                                    <span wire:loading.remove wire:target="markDelivered">Teslim ettim, kanıtı yükle</span>
+                                    <span wire:loading wire:target="markDelivered">Yükleniyor...</span>
+                                </button>
+                            </form>
+                        @elseif($shipment->status === \App\Models\Shipment::STATUS_DELIVERED)
+                            <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs space-y-1">
+                                <div class="font-bold">Yük sahibinin onayı bekleniyor.</div>
+                                <div>Teslim: {{ $shipment->delivered_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}.
+                                    @if($shipment->auto_approval_due_at)
+                                        Yük sahibi {{ $shipment->auto_approval_due_at->format('d.m.Y H:i') }} tarihine kadar yanıt vermezse teslimat otomatik onaylanır.
+                                    @endif
+                                </div>
+                            </div>
+                        @elseif($shipment->status === \App\Models\Shipment::STATUS_COMPLETED)
+                            <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs space-y-2">
+                                <div class="font-bold">Sevkiyat tamamlandı.</div>
+                                @if($load->payout)
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <div>Navlun: <span class="font-mono font-bold text-white">{{ number_format((float) ($load->payout->total_amount ?? 0), 2, ',', '.') }} ₺</span></div>
+                                        <div>Komisyon: <span class="font-mono text-white">{{ number_format((float) ($load->payout->commission_amount ?? 0), 2, ',', '.') }} ₺</span></div>
+                                        <div>Net hakediş: <span class="font-mono font-bold text-white">{{ number_format((float) ($load->payout->net_amount ?? 0), 2, ',', '.') }} ₺</span></div>
+                                    </div>
+                                    <div>Durum: {{ \App\Models\Payout::STATUS_LABELS[$load->payout->status] ?? $load->payout->status }}</div>
+                                @else
+                                    <div>Hakediş kaydı henüz oluşmadı.</div>
+                                @endif
+                                <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Cüzdana git</a>
+                            </div>
+                        @elseif($shipment->status === \App\Models\Shipment::STATUS_DISPUTED)
+                            <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+                                Bu sevkiyat için yük sahibi uyuşmazlık açtı. Savunmanızı uyuşmazlık sayfasından iletebilirsiniz.
+                                <a href="{{ route('driver.disputes.index') }}" wire:navigate class="font-bold underline">Uyuşmazlıklar</a>
+                            </div>
+                        @else
+                            <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 text-neutral-400 text-xs">Sevkiyat iptal edildi.</div>
+                        @endif
                     </div>
+
+                    @if($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT)
+                        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden" wire:ignore
+                            x-data="{
+                                shipmentId: {{ (int) $shipment->id }},
+                                endpoint: @js(route('driver.location.store')),
+                                center: @js($mapCenter),
+                                zoom: {{ (int) $mapZoom }},
+                                trail: @js($trailPoints),
+                                map: null,
+                                marker: null,
+                                line: null,
+                                enabled: false,
+                                watchId: null,
+                                lastSentAt: 0,
+                                lastSentLabel: null,
+                                error: null,
+                                init() { this.$nextTick(() => this.initMap()); },
+                                csrf() { const m = document.querySelector('meta[name=csrf-token]'); return m ? m.content : ''; },
+                                initMap() {
+                                    if (typeof L === 'undefined' || this.map) return;
+                                    const el = this.$refs.map;
+                                    if (!el || el._leaflet_id) return;
+                                    this.map = L.map(el, { zoomControl: true }).setView(this.center, this.zoom);
+                                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                                        maxZoom: 18,
+                                        attribution: '&copy; OpenStreetMap katkıda bulunanlar &copy; CARTO'
+                                    }).addTo(this.map);
+                                    if (this.trail.length > 0) {
+                                        this.line = L.polyline(this.trail, { color: '#f97316', weight: 4, opacity: 0.9 }).addTo(this.map);
+                                        this.marker = L.circleMarker(this.trail[this.trail.length - 1], { radius: 9, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(this.map);
+                                    }
+                                },
+                                updateMarker(lat, lng) {
+                                    if (!this.map) return;
+                                    const point = [lat, lng];
+                                    this.trail.push(point);
+                                    if (this.line) { this.line.addLatLng(point); } else { this.line = L.polyline(this.trail, { color: '#f97316', weight: 4, opacity: 0.9 }).addTo(this.map); }
+                                    if (this.marker) { this.marker.setLatLng(point); } else { this.marker = L.circleMarker(point, { radius: 9, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(this.map); }
+                                    this.map.setView(point, Math.max(this.map.getZoom(), 12));
+                                },
+                                toggle() { this.enabled ? this.stop() : this.start(); },
+                                start() {
+                                    if (!('geolocation' in navigator)) { this.error = 'Tarayıcınız konum paylaşımını desteklemiyor.'; return; }
+                                    this.error = null;
+                                    this.enabled = true;
+                                    this.watchId = navigator.geolocation.watchPosition(
+                                        (position) => this.onPosition(position),
+                                        (err) => { this.error = 'Konum alınamadı: ' + err.message; },
+                                        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+                                    );
+                                },
+                                stop() {
+                                    if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
+                                    this.watchId = null;
+                                    this.enabled = false;
+                                },
+                                onPosition(position) {
+                                    const now = Date.now();
+                                    if (now - this.lastSentAt < 15000) return;
+                                    this.lastSentAt = now;
+                                    const c = position.coords;
+                                    const num = (v) => (typeof v === 'number' && isFinite(v)) ? v : null;
+                                    fetch(this.endpoint, {
+                                        method: 'POST',
+                                        credentials: 'same-origin',
+                                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+                                        body: JSON.stringify({ lat: c.latitude, lng: c.longitude, speed: num(c.speed), heading: num(c.heading), accuracy: num(c.accuracy), shipment_id: this.shipmentId })
+                                    }).then((response) => {
+                                        if (!response.ok) throw new Error('Sunucu yanıtı ' + response.status);
+                                        this.lastSentLabel = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                        this.error = null;
+                                        this.updateMarker(c.latitude, c.longitude);
+                                    }).catch((e) => { this.error = 'Konum gönderilemedi: ' + e.message; });
+                                }
+                            }">
+                            <div class="p-4 border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                <div class="space-y-1">
+                                    <div class="font-bold text-white">Canlı konum paylaşımı</div>
+                                    <div class="text-neutral-400">
+                                        Konum paylaşımı:
+                                        <span class="font-bold" :class="enabled ? 'text-emerald-400' : 'text-neutral-300'" x-text="enabled ? 'Açık' : 'Kapalı'"></span>
+                                        <template x-if="lastSentLabel"><span> · Son gönderim: <span class="font-mono" x-text="lastSentLabel"></span></span></template>
+                                        <template x-if="!lastSentLabel"><span> · Bu oturumda henüz konum gönderilmedi</span></template>
+                                    </div>
+                                    <div class="text-rose-400" x-show="error" x-text="error" x-cloak></div>
+                                </div>
+                                <button type="button" @click="toggle()" class="shrink-0 px-4 py-2 rounded-xl font-bold border transition-colors" :class="enabled ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-brand-500 border-brand-500 text-white hover:bg-brand-600'">
+                                    <span x-text="enabled ? 'Paylaşımı durdur' : 'Paylaşımı başlat'"></span>
+                                </button>
+                            </div>
+                            <div class="relative w-full h-80 bg-neutral-950 z-0" x-ref="map"></div>
+                            <div class="p-3 text-[11px] text-neutral-500 border-t border-neutral-800">
+                                @if($latestLocation)
+                                    Sunucuya kaydedilen son konum: {{ $latestLocation->recorded_at?->format('d.m.Y H:i') }}
+                                @else
+                                    Bu sevkiyat için henüz kaydedilmiş konum yok. Paylaşımı başlattığınızda konumunuz yük sahibiyle paylaşılır.
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Yüklenen kanıtlar</h3>
+                        @forelse($shipment->evidence as $evidence)
+                            <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                <div>
+                                    <div class="text-white font-semibold">{{ $evidence->type === 'pod' ? 'Teslimat kanıtı' : $evidence->type }}</div>
+                                    <div class="text-[10px] text-neutral-500">
+                                        {{ $evidence->captured_at?->format('d.m.Y H:i') ?? $evidence->created_at?->format('d.m.Y H:i') }}
+                                        @if($evidence->uploader) · {{ $evidence->uploader->full_name }} @endif
+                                        @if(! empty($evidence->metadata['note'])) · {{ $evidence->metadata['note'] }} @endif
+                                    </div>
+                                </div>
+                                <a href="{{ route('files.evidence', $evidence->id) }}" target="_blank" rel="noopener" class="text-brand-400 font-bold hover:underline">Görüntüle</a>
+                            </div>
+                        @empty
+                            <div class="text-xs text-neutral-500">Henüz kanıt yüklenmedi.</div>
+                        @endforelse
+                    </div>
+                @else
+                    <div class="p-6 bg-neutral-900 border border-dashed border-neutral-800 rounded-2xl text-center text-xs text-neutral-400">Bu ilan için sevkiyat kaydı henüz oluşmadı.</div>
                 @endif
             </div>
 
-            <!-- Yasal U-ETDS Zorunlu Onay Kutusu -->
-            @if($load->status === 'driver_assigned')
-                <div class="p-4 rounded-xl bg-neutral-950 border border-brand-500/30 space-y-2">
-                    <label class="flex items-start gap-3 cursor-pointer">
-                        <input type="checkbox" wire:model.live="uetds_confirmed" class="mt-0.5 w-4 h-4 rounded bg-neutral-900 border-neutral-700 text-brand-500 focus:ring-brand-500/20">
-                        <div class="space-y-0.5">
-                            <span class="text-xs font-bold text-white">Yasal Bildirim: U-ETDS Sefer Bildirimini Yaptım</span>
-                            <p class="text-[11px] text-neutral-400 leading-relaxed">
-                                Ulaştırma ve Altyapı Bakanlığı mevzuatı gereği, yükleme noktasından ayrılmadan önce U-ETDS sistemine sefer kaydı girilmesi yasal zorunluluktur.
-                            </p>
-                        </div>
-                    </label>
-                    @error('uetds_confirmed') <span class="text-rose-500 text-[11px] mt-1 block font-semibold">{{ $message }}</span> @enderror
-                </div>
-            @endif
-
-        </div>
-
-        <!-- ANA ÇALIŞMA ALANI: HARİTA VE YÜK SAHİBİ BİLGİLERİ -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            <!-- Sol 2 Kolon: Canlı GPS Navigasyon Haritası -->
-            <div class="lg:col-span-2 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col isolate z-0">
-                <div class="p-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/60 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span class="font-bold text-white">Arka Plan GPS Aktif (PWA)</span>
-                    </div>
-                    <span class="text-neutral-400 font-mono">Pil Tasarruf Modu Devrede</span>
+            <div class="space-y-6">
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Yük sahibi</h3>
+                    <div class="text-white font-bold">{{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</div>
+                    @if($ownerPhone)
+                        <a href="tel:{{ $ownerPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
+                    @else
+                        <div class="text-neutral-500">İletişim numarası, yük sahibi havuz ödemesini yaptıktan sonra görünür.</div>
+                    @endif
                 </div>
 
-                <div class="relative w-full h-96 bg-neutral-950 z-0" wire:ignore id="driverNavMap"></div>
-
-                <div class="p-4 bg-neutral-900/95 border-t border-neutral-800 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                    <div>
-                        <span class="text-neutral-500 block">Kamyon Hızı</span>
-                        <span class="text-white font-bold font-mono text-sm">84 km/s</span>
-                    </div>
-                    <div>
-                        <span class="text-neutral-500 block">Varışa Kalan Süre</span>
-                        <span class="text-brand-400 font-bold font-mono text-sm">~ 2 Sa 40 Dk</span>
-                    </div>
-                    <div>
-                        <span class="text-neutral-500 block">Kalan Mesafe</span>
-                        <span class="text-emerald-400 font-bold font-mono text-sm">218 km</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sağ 1 Kolon: Yük Sahibi, Yük Bilgisi ve Hak Ediş -->
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-6">
-
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-800 pb-3">Sefer Detayları</h3>
-
-                <!-- Yük Sahibi Bilgisi -->
-                <div class="space-y-2">
-                    <span class="text-neutral-500 text-xs block">Yük Sahibi / Firma:</span>
-                    <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-1 text-xs">
-                        <div class="text-white font-bold">{{ $load->cargoOwnerProfile?->company_title ?? 'Yılmaz Lojistik A.Ş.' }}</div>
-                        <div class="text-neutral-400">Yetkili: {{ $load->cargoOwnerProfile?->user?->full_name ?? 'Ahmet Yılmaz' }}</div>
-                        <div class="text-neutral-400">İletişim: <b class="text-brand-400 font-mono">{{ $load->cargoOwnerProfile?->user?->phone ?? '0532 100 20 30' }}</b></div>
-                    </div>
-                </div>
-
-                <!-- Rota & e-İrsaliye -->
-                <div class="space-y-3 text-xs border-t border-neutral-800 pt-4">
-                    <div>
-                        <span class="text-neutral-500 block">Yükleme Adresi:</span>
-                        <span class="text-neutral-200">{{ $load->pickup_location }}</span>
-                    </div>
-                    <div>
-                        <span class="text-neutral-500 block">Teslimat Adresi:</span>
-                        <span class="text-neutral-200">{{ $load->delivery_location }}</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-500">Yük & Tonaj:</span>
-                        <span class="text-white font-medium">{{ $load->goods_type }} ({{ number_format($load->weight) }} Kg)</span>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-500">e-İrsaliye Numarası:</span>
-                        <span class="text-white font-mono font-bold">{{ $load->e_irsaliye_no ?? 'GIB202600008891' }}</span>
-                    </div>
-                </div>
-
-                <!-- Hak Ediş Güvencesi -->
-                <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1 text-xs">
-                    <div class="flex items-center justify-between">
-                        <span class="text-neutral-400">Net Alacağınız (%95):</span>
-                        <span class="text-emerald-400 font-bold font-mono text-base">{{ number_format(((float)$load->price) * 0.95, 2, ',', '.') }} ₺</span>
-                    </div>
-                    <p class="text-[11px] text-neutral-400 leading-relaxed">
-                        Paranız PayTR havuzunda %100 bloke garantilidir. Teslimat belgesi onaylandığında banka hesabınıza aktarılır.
+                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-2 text-xs">
+                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ödeme durumu</h3>
+                    <div class="text-white font-bold">{{ $load->escrowLabel() }}</div>
+                    <p class="text-neutral-400 leading-relaxed">
+                        @switch($load->escrow_status)
+                            @case(\App\Models\Load::ESCROW_PENDING)
+                                Yük sahibi ödemeyi yapmadan yola çıkamazsınız.
+                                @break
+                            @case(\App\Models\Load::ESCROW_PAID)
+                                Navlun bedeli havuzda bloke. Teslimat onaylandığında hakedişiniz komisyon düşülerek ödeme sırasına alınır.
+                                @break
+                            @case(\App\Models\Load::ESCROW_ON_HOLD)
+                                Uyuşmazlık karara bağlanana kadar ödeme askıda tutulur.
+                                @break
+                            @case(\App\Models\Load::ESCROW_RELEASE_APPROVED)
+                                Hakedişiniz onaylandı; finans ekibi banka transferini tamamladığında bilgilendirilirsiniz.
+                                @break
+                            @case(\App\Models\Load::ESCROW_RELEASED)
+                                Hakedişiniz kayıtlı banka hesabınıza aktarıldı.
+                                @break
+                            @case(\App\Models\Load::ESCROW_REFUNDED)
+                                Navlun bedeli yük sahibine iade edildi.
+                                @break
+                            @default
+                                Ödeme durumu güncellenmedi.
+                        @endswitch
                     </p>
+                    @if($load->isPaid() && $load->driverProfile)
+                        <div class="pt-2 border-t border-neutral-800 text-neutral-400">
+                            Komisyon oranınız: %{{ number_format($load->driverProfile->commissionRate(), 1, ',', '.') }}
+                        </div>
+                    @endif
                 </div>
 
-            </div>
-
-        </div>
-    @endif
-
-    <!-- POD (Teslim Kanıtı) Yükleme Modalı (z-[9999]) -->
-    @if($podUploadModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('podUploadModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <div>
-                        <h3 class="text-base font-bold text-white">Teslimat Kanıtı (POD) Yükle</h3>
-                        <p class="text-xs text-neutral-400 mt-0.5">İmzalı teslim fişini veya yükün boşaltılmış halini fotoğraflayarak yükleyin.</p>
+                @if($shipment?->vehicle)
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-1 text-xs">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Atanan araç</h3>
+                        <div class="text-white font-mono font-bold">{{ $shipment->vehicle->plate }}</div>
+                        <div class="text-neutral-400">{{ $shipment->vehicle->brand }} {{ $shipment->vehicle->model }}</div>
                     </div>
-                    <button wire:click="$set('podUploadModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+                @endif
 
-                <div class="space-y-4 text-xs">
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1.5">İmzalı İrsaliye / Teslimat Fotoğrafı <span class="text-brand-500">*</span></label>
-                        <input type="file" wire:model="pod_document" class="w-full text-xs text-neutral-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white hover:file:bg-neutral-700 cursor-pointer">
-                        @error('pod_document') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-400 leading-relaxed">
-                        💡 Bu görsel anında yük sahibinin paneline iletilecek ve bloke edilmiş olan <b class="text-emerald-400 font-mono">{{ number_format(((float)($load?->price ?? 0)) * 0.95, 2, ',', '.') }} ₺</b> hak edişinizin serbest bırakılmasını tetikleyecektir.
-                    </div>
-                </div>
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('podUploadModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                        Vazgeç
-                    </button>
-                    <button type="button" wire:click="submitPOD" class="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all">
-                        Belgeyi Gönder & Teslimatı Bitir
-                    </button>
-                </div>
-
+                @if($canReview)
+                    <form wire:submit.prevent="submitReview" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Yük sahibini değerlendir</h3>
+                        <div>
+                            <label class="block font-medium text-neutral-300 mb-1">Puan</label>
+                            <select wire:model="rating" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                                @for($i = 5; $i >= 1; $i--)
+                                    <option value="{{ $i }}">{{ $i }} / 5</option>
+                                @endfor
+                            </select>
+                            @error('rating') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="block font-medium text-neutral-300 mb-1">Yorum (isteğe bağlı)</label>
+                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none"></textarea>
+                            @error('review_comment') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+                        <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold">Değerlendirmeyi gönder</button>
+                    </form>
+                @elseif($hasReviewed && in_array($load->status, [\App\Models\Load::STATUS_DELIVERED, \App\Models\Load::STATUS_COMPLETED], true))
+                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 text-xs text-neutral-400">Bu sevkiyat için değerlendirmenizi gönderdiniz.</div>
+                @endif
             </div>
         </div>
     @endif
-
-    <!-- Yük Sahibine Puan ve Yorum Modalı (z-[9999]) -->
-    @if($ratingModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('ratingModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="text-center space-y-2">
-                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto text-xl font-bold">
-                        ✓
-                    </div>
-                    <h3 class="text-base font-bold text-white">Teslimat Başarıyla Kaydedildi!</h3>
-                    <p class="text-xs text-neutral-400">Yük sahibinin iletişimini ve yükleme kolaylığını değerlendirin.</p>
-                </div>
-
-                <!-- Yıldız Seçimi -->
-                <div class="flex items-center justify-center gap-2 py-2">
-                    @for($i = 1; $i <= 5; $i++)
-                        <button type="button" wire:click="$set('owner_rating', {{ $i }})" class="text-2xl transition-transform hover:scale-125 {{ $i <= $owner_rating ? 'text-amber-400' : 'text-neutral-700' }}">
-                            ★
-                        </button>
-                    @endfor
-                </div>
-
-                <div>
-                    <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yorumunuz (Opsiyonel)</label>
-                    <textarea wire:model="owner_comment" rows="3" placeholder="Yük tam vaktinde hazırlandı, ödeme havuzda hazırdı..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                </div>
-
-                <button type="button" wire:click="submitOwnerRating" class="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
-                    Değerlendirmeyi Tamamla
-                </button>
-
-            </div>
-        </div>
-    @endif
-
 </div>
