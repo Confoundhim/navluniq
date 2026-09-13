@@ -76,7 +76,8 @@ return new class extends Migration {
         Schema::create('driver_locations', function (Blueprint $table) {
             $table->id(); $table->foreignId('driver_profile_id')->constrained()->cascadeOnDelete(); $table->foreignId('shipment_id')->nullable()->constrained()->nullOnDelete();
             $table->geometry('coordinates', subtype:'point', srid:4326); $table->decimal('speed',7,2)->default(0); $table->decimal('heading',6,2)->default(0);
-            $table->decimal('accuracy_meters',8,2)->nullable(); $table->timestamp('recorded_at')->useCurrent()->index(); $table->spatialIndex('coordinates');
+            $table->decimal('accuracy_meters',8,2)->nullable(); $table->timestamp('recorded_at')->useCurrent()->index();
+            if (Schema::getConnection()->getDriverName() !== 'sqlite') { $table->spatialIndex('coordinates'); }
             $table->index(['driver_profile_id','recorded_at']);
         });
         Schema::create('shipment_evidence', function (Blueprint $table) {
