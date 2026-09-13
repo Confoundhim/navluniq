@@ -19,9 +19,9 @@
                     Yapay zeka radarımız tarafından WhatsApp grupları ve web mecralarından derlenen sıcak yük ilanlarına gerçek zamanlı erişim elde edin. Kendi WhatsApp gruplarınızı da sisteme bağlayarak her şeyi tek bir panelden yönetin.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Otomatik AI İlan Tarama & Filtreleme</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Sarı Rozetli Dış Kaynak İlanlarına Erişim</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Anlık Bildirimler</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Otomatik İlan Tarama ve Filtreleme</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Sarı Rozetli Dış Kaynak İlanlarına Erişim</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Anlık Bildirimler</span>
                 </div>
             </div>
 
@@ -32,9 +32,9 @@
                     Şehir içi kısa mesafeli ve acil sevkiyatlarınız için optimize edilmiş taşımacılık ağı. Hafif ticari araçlardan ağır tonajlı kamyonlara kadar ihtiyacınıza yönelik, belgeleri onaylı şoförü atayın.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Dakikalar İçinde Sürücü Teklifleri</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Şehir İçi Rota Optimizasyonu</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Canlı Takipli Güvenli Teslimat</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Dakikalar İçinde Sürücü Teklifleri</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Şehir İçi Rota Optimizasyonu</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Canlı Takipli Güvenli Teslimat</span>
                 </div>
             </div>
 
@@ -45,9 +45,9 @@
                     Türkiye geneli tüm şehirler arasında kesintisiz ve güvenli taşımacılık. Şoförler için akıllı dönüş yükü radarları ile boş dönmesini engelleyerek lojistik maliyetlerini en alt sınıra çekiyoruz.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ KYC Doğrulamalı Güvenilir Şoförler</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Arka Planda Kesintisiz Konum Takibi</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">✓ Akıllı Dönüş Yükü Eşleştirme Motoru</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">KYC Doğrulamalı Güvenilir Şoförler</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Arka Planda Kesintisiz Konum Takibi</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Akıllı Dönüş Yükü Eşleştirme Motoru</span>
                 </div>
             </div>
         </div>

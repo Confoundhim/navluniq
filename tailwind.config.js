@@ -41,9 +41,8 @@ export default {
                 },
             },
             fontFamily: {
-                // 🚀 GÜNCELLEME: Inter fontunu en başa ekleyerek TL sembolünün
-                // her cihazda kusursuz çizilmesini sağlıyoruz.
                 sans: [
+                    'Inter Variable',
                     'Inter',
                     '-apple-system',
                     'BlinkMacSystemFont',

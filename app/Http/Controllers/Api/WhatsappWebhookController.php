@@ -8,6 +8,7 @@ use App\Models\Scraper;
 use App\Services\AiParserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 
 class WhatsappWebhookController extends Controller
@@ -36,6 +37,12 @@ class WhatsappWebhookController extends Controller
             'occurred_at' => ['nullable', 'date'],
         ]);
 
+        // Aynı mesajın tekrar teslimi (daemon yeniden bağlanması) çift kayıt üretmemeli.
+        $contentHash = hash('sha256', ($validated['source_jid'] ?? $validated['group_name']).'|'.($validated['message_id'] ?? '').'|'.$validated['raw_message']);
+        if ($existing = ScrapedLoad::query()->where('content_hash', $contentHash)->first()) {
+            return response()->json(['success' => true, 'message' => 'Mesaj daha önce işlendi.', 'scraped_load_id' => $existing->id]);
+        }
+
         try {
             $provider = (string) config('services.ai.active_provider', 'gemini');
             $parsedData = $parser->parseMessage($validated['raw_message'], $provider);
@@ -62,18 +69,23 @@ class WhatsappWebhookController extends Controller
             return response()->json(['success' => false, 'message' => 'Kaynak yönetici onayı bekliyor.'], 202);
         }
 
-        $scraper->update(['last_scraped_at' => now()]);
+        $scraper->update(['last_scraped_at' => now(), 'last_success_at' => now(), 'last_error' => null]);
         $scrapedLoad = ScrapedLoad::create([
             'scraper_id' => $scraper->id,
+            'content_hash' => $contentHash,
             'raw_message' => $validated['raw_message'],
-            'sender_phone' => $phone,
+            'sender_phone' => null,
+            'encrypted_sender_phone' => Crypt::encryptString($phone),
             'pickup_location' => $parsedData['pickup_location'] ?? null,
             'delivery_location' => $parsedData['delivery_location'] ?? null,
             'goods_type' => $parsedData['goods_type'] ?? null,
             'weight' => $parsedData['weight'] ?? null,
             'price' => $parsedData['price'] ?? null,
+            'currency' => 'TRY',
             'status' => 'parsed_success',
             'parsed_by_llm' => $parsedData['parsed_by_llm'] ?? 'unknown',
+            'visibility' => 'private',
+            'retention_expires_at' => now()->addDays(30),
         ]);
 
         return response()->json([

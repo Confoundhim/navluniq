@@ -1,5 +1,5 @@
-// NavlunIQ Otonom WhatsApp Kazıma ve Mesaj Yakalama Mikro-servisi
-// Dizin: C:\Users\osman\Herd\navluniq\whatsapp-scraper-daemon\index.js (Canlıda: /var/www/navluniq/whatsapp-scraper-daemon/index.js)
+// NavlunIQ WhatsApp ilan toplama servisi.
+// İzin verilen gruplardaki metin mesajlarını Laravel webhook ucuna iletir; kendisi hiçbir ayrıştırma yapmaz.
 
 import { makeWASocket, fetchLatestWaWebVersion, makeCacheableSignalKeyStore, initAuthCreds, BufferJSON, DisconnectReason } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
@@ -36,7 +36,7 @@ process.on('unhandledRejection', (reason) => {
     process.exit(1);
 });
 
-// 🚀 ÖZEL MİMARİ: ATOMİK TEK DOSYA OTURUM YÖNETİCİSİ (50.000 Dosya Yerine Sadece 1 Dosya)
+//  ÖZEL MİMARİ: ATOMİK TEK DOSYA OTURUM YÖNETİCİSİ (50.000 Dosya Yerine Sadece 1 Dosya)
 const useAtomicSingleFileAuthState = (filename) => {
     let creds;
     let keys = {};
@@ -47,7 +47,7 @@ const useAtomicSingleFileAuthState = (filename) => {
             creds = data.creds;
             keys = data.keys;
         } catch (error) {
-            console.error('⚠️ Oturum dosyası bozuk, sıfırlanıyor...');
+            console.error('Oturum dosyası bozuk, sıfırlanıyor...');
             creds = initAuthCreds();
             keys = {};
         }
@@ -60,11 +60,11 @@ const useAtomicSingleFileAuthState = (filename) => {
     const save = () => {
         try {
             const data = JSON.stringify({ creds, keys }, BufferJSON.replacer, 2);
-            // Atomik yazma: Çökme anında dosya bozulmasını %100 engeller
+            // Önce geçici dosyaya yazıp yeniden adlandırarak yarım yazılmış oturum dosyasını önler.
             fs.writeFileSync(filename + '.tmp', data, { mode: 0o600 });
             fs.renameSync(filename + '.tmp', filename);
         } catch (error) {
-            console.error('🔥 Oturum dosyası kaydedilemedi:', error.message);
+            console.error('Oturum dosyası kaydedilemedi:', error.message);
         }
     };
 
@@ -111,7 +111,6 @@ const useAtomicSingleFileAuthState = (filename) => {
 };
 
 async function startScraper() {
-    // 50.000 dosya üreten eski motoru çöpe attık. Yeni Atomik motoru kullanıyoruz.
     const AUTH_FILE = path.resolve(AUTH_FILE_PATH);
     fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true, mode: 0o700 });
     const { state, saveCreds } = useAtomicSingleFileAuthState(AUTH_FILE);
@@ -178,24 +177,24 @@ async function startScraper() {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-            console.log(`⚠️ Bağlantı kesildi. (Durum Kodu: ${statusCode}) Yeniden bağlanılıyor mu?:`, shouldReconnect);
+            console.log(` Bağlantı kesildi. (Durum Kodu: ${statusCode}) Yeniden bağlanılıyor mu?:`, shouldReconnect);
 
             if (shouldReconnect) {
                 setTimeout(() => startScraper(), 3000);
             } else {
-                console.error('❌ Oturum geçersiz veya çıkış yapıldı. Eski oturum verileri temizleniyor...');
+                console.error(' Oturum geçersiz veya çıkış yapıldı. Eski oturum verileri temizleniyor...');
                 try {
                     if (fs.existsSync(AUTH_FILE)) fs.unlinkSync(AUTH_FILE);
                     if (fs.existsSync(AUTH_FILE + '.tmp')) fs.unlinkSync(AUTH_FILE + '.tmp');
-                    console.log('✅ Temizlik tamamlandı. Yeni QR kod için sistem yeniden başlatılıyor...');
+                    console.log(' Temizlik tamamlandı. Yeni QR kod için sistem yeniden başlatılıyor...');
                     setTimeout(() => startScraper(), 2000);
                 } catch (rmErr) {
-                    console.error('❌ Oturum dosyası silinirken hata:', rmErr.message);
+                    console.error(' Oturum dosyası silinirken hata:', rmErr.message);
                 }
             }
         } else if (connection === 'open') {
             console.clear();
-            console.log('✅ NavlunIQ Otonom WhatsApp Kazıma Sunucusu Başarıyla Bağlandı!');
+            console.log(' NavlunIQ Otonom WhatsApp Kazıma Sunucusu Başarıyla Bağlandı!');
             console.log('🤖 Burner numara aktif olarak lojistik gruplarını dinliyor...');
         }
     });
@@ -211,9 +210,11 @@ async function startScraper() {
             if (!fromJid || !rawText) return;
             const senderNumber = msg.key.participantAlt || msg.key.participant || fromJid;
 
-            if (msg.key.fromMe && !fromJid.endsWith('@g.us')) return;
+            if (msg.key.fromMe) return;
+            if (!fromJid.endsWith('@g.us')) return;
+            if (!ALLOWED_GROUP_IDS.has(fromJid)) return;
 
-            if (fromJid.endsWith('@g.us')) {
+            {
                 const groupMetadata = await sock.groupMetadata(fromJid);
                 const groupName = groupMetadata.subject;
 
@@ -231,8 +232,7 @@ async function startScraper() {
                     realPhone = contactMap.get(senderNumber);
                 }
 
-                if (!ALLOWED_GROUP_IDS.has(fromJid)) return;
-                console.log(`📬 Mesaj alındı: ${msg.key.id || 'kimlik-yok'}`);
+                console.log(`Mesaj alındı: ${msg.key.id || 'kimlik-yok'}`);
 
                 const response = await axios.post(LARAVEL_API_URL, {
                     group_name: groupName,
@@ -250,15 +250,12 @@ async function startScraper() {
                 });
 
                 if (response.data && response.data.message) {
-                    console.log('🚀 [YAPAY ZEKA] Yanıtı:', response.data.message);
-                    if (response.data.parsed_data) {
-                        console.log('📌 Çözümlenen Rota:', response.data.parsed_data.pickup_location, '->', response.data.parsed_data.delivery_location);
-                    }
+                    console.log('Webhook yanıtı:', response.data.message);
                 }
             }
         } catch (err) {
             if (!err.message.includes('Bad MAC') && !err.message.includes('Session error')) {
-                console.error('❌ Mesaj işleme hatası:', err.message);
+                console.error('Mesaj işleme hatası:', err.message);
             }
         }
     });

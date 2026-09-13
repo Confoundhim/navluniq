@@ -27,14 +27,7 @@
     <link rel="icon" type="image/png" href="/images/fav-ico.png">
     <link rel="shortcut icon" href="/images/fav-ico.png">
 
-    <!-- Google Fonts Inter Yazı Tipi -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap"
-        rel="stylesheet">
-
-    <!-- Projemizin Stil ve Script Dosyaları -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
 
 
     <style>

@@ -44,7 +44,7 @@ class AiParserService
     {
         $active = (string) config('services.ai.active_provider', 'gemini');
         $providers = array_values(array_unique(array_filter([$preferred, $active, 'gemini', 'claude', 'kimi'])));
-        $paidEnabled = (bool) config('services.ai.paid_enabled', false);
+        $paidEnabled = (bool) config('services.ai.paid_enabled', false) && ! (bool) config('services.ai.free_only', true);
 
         return array_values(array_filter($providers, function (string $provider) use ($paidEnabled): bool {
             if (! $paidEnabled && in_array($provider, ['claude', 'kimi'], true)) {
@@ -65,19 +65,19 @@ class AiParserService
         $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight, price. Eksik alan null olsun. Mesaj:\n".$message;
 
         $response = match ($provider) {
-            'gemini' => Http::timeout(20)->acceptJson()->post(
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='.rawurlencode((string) config('services.ai.gemini_key')),
+            'gemini' => Http::timeout(20)->acceptJson()->withHeaders(['x-goog-api-key' => (string) config('services.ai.gemini_key')])->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/'.config('services.ai.gemini_model').':generateContent',
                 ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0]]
             ),
             'claude' => Http::timeout(20)->withHeaders([
                 'x-api-key' => (string) config('services.ai.claude_key'),
                 'anthropic-version' => '2023-06-01',
             ])->post('https://api.anthropic.com/v1/messages', [
-                'model' => 'claude-3-5-haiku-latest', 'max_tokens' => 500, 'temperature' => 0,
+                'model' => config('services.ai.claude_model'), 'max_tokens' => 500, 'temperature' => 0,
                 'messages' => [['role' => 'user', 'content' => $prompt]],
             ]),
             'kimi' => Http::timeout(20)->withToken((string) config('services.ai.kimi_key'))->post('https://api.moonshot.cn/v1/chat/completions', [
-                'model' => 'moonshot-v1-8k', 'temperature' => 0,
+                'model' => config('services.ai.kimi_model'), 'temperature' => 0,
                 'messages' => [['role' => 'user', 'content' => $prompt]],
             ]),
             default => throw new RuntimeException('unsupported_provider'),

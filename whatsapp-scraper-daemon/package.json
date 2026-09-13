@@ -1,15 +1,19 @@
 {
   "name": "navluniq-whatsapp-scraper",
   "version": "1.0.0",
-  "description": "NavlunIQ Otonom WhatsApp Kazıma Mikro-servisi",
+  "description": "NavlunIQ WhatsApp ilan toplama servisi",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "axios": "^1.7.2",
+    "pino": "^9.0.0",
     "qrcode-terminal": "^0.12.0"
   }
 }

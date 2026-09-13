@@ -20,8 +20,8 @@
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl">⚡</div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">AI Doğrulamalı Şoförler</h4>
-                <p class="text-neutral-500 leading-relaxed">Ehliyet, SRC ve vergi levhası yapay zeka OCR ile taranmış profesyonel taşıyıcılar.</p>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Belgeleri Doğrulanmış Şoförler</h4>
+                <p class="text-neutral-500 leading-relaxed">Ehliyet, SRC ve psikoteknik belgeleri ekibimizce kontrol edilmiş profesyonel taşıyıcılar.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl">📍</div>
