@@ -19,7 +19,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage scrapers', 'manage ai settings',
             'view financials', 'manage payouts',
             'manage disputes', 'manage support tickets',
-            'manage cms', 'manage settings',
+            'manage cms', 'manage marketing', 'manage settings',
             'manage staff',
         ];
 
@@ -35,6 +35,9 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $financialOfficer = Role::firstOrCreate(['name' => 'financial_officer', 'guard_name' => 'web']);
         $financialOfficer->syncPermissions(['view financials', 'manage payouts', 'manage disputes']);
+
+        $supportAgent = Role::firstOrCreate(['name' => 'support_agent', 'guard_name' => 'web']);
+        $supportAgent->syncPermissions(['manage support tickets', 'view users']);
 
         Role::firstOrCreate(['name' => 'cargo_owner', 'guard_name' => 'web']);
         Role::firstOrCreate(['name' => 'driver', 'guard_name' => 'web']);

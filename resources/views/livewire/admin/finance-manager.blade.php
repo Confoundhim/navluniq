@@ -1,302 +1,439 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\User;
-use App\Models\Load;
-use App\Models\Payout;
+use App\Models\ActivityLog;
+use App\Models\BankAccount;
 use App\Models\Invoice;
-use Illuminate\Support\Facades\Cache;
+use App\Models\PaymentOrder;
+use App\Models\Payout;
+use App\Services\BankAccountService;
+use App\Services\LedgerService;
+use App\Services\PayoutService;
+use App\Support\Settings;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
-    // Aktif Sekme Yönetimi
-    public string $activeTab = 'escrow'; // 'escrow' (bloke havuz), 'payouts' (hak edişler), 'invoices' (faturalar)
+    use WithPagination;
 
-    public function mount()
+    public string $activeTab = 'payouts';
+
+    public string $payoutStatus = 'pending';
+
+    public string $orderStatus = 'all';
+
+    /** @var array<int, string> Hakediş kimliğine göre banka referansı */
+    public array $reference = [];
+
+    /** @var array<int, string> Hakediş kimliğine göre başarısızlık nedeni */
+    public array $failReason = [];
+
+    /** @var array<int, string> Banka hesabı kimliğine göre çözülmüş IBAN */
+    public array $revealed = [];
+
+    public string $exportMonth = '';
+
+    public function mount(): void
     {
-        if (!auth()->user()->can('view financials')) {
-            abort(403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
+        abort_unless(auth()->user()->can('view financials'), 403);
+        $this->exportMonth = now()->format('Y-m');
+    }
+
+    public function updatedActiveTab(): void
+    {
+        $this->resetPage();
+        $this->revealed = [];
+    }
+
+    public function updatedPayoutStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedOrderStatus(): void
+    {
+        $this->resetPage();
+    }
+
+    private function requireManage(): bool
+    {
+        if (auth()->user()->can('manage payouts')) {
+            return true;
+        }
+        session()->flash('error_message', 'Bu işlem için "manage payouts" izni gerekir.');
+
+        return false;
+    }
+
+    public function revealIban(int $bankAccountId): void
+    {
+        if (! $this->requireManage()) {
+            return;
+        }
+
+        $account = BankAccount::query()->find($bankAccountId);
+        if (! $account) {
+            session()->flash('error_message', 'Banka hesabı bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $this->revealed[$bankAccountId] = app(BankAccountService::class)->decrypt($account);
+            ActivityLog::record('bank_account.revealed', "IBAN görüntülendi (hesap #{$account->id}, kullanıcı #{$account->user_id})", auth()->id(), $account);
+        } catch (\Throwable) {
+            session()->flash('error_message', 'IBAN çözülemedi; şifreleme anahtarı değişmiş olabilir.');
         }
     }
 
-    
-
-    /**
-     * Mali Müşavirler İçin Excel/Google Sheets Uyumlu Aylık Finans Raporu İndirir (CSV)
-     */
-    public function exportMaliRapor()
+    public function hideIban(int $bankAccountId): void
     {
-        $headers = [
-            "Content-type" => "text/csv; charset=UTF-8",
-            "Content-Disposition" => "attachment; filename=NavlunIQ_Aylik_Mali_Rapor_" . now()->format('Y-m') . ".csv",
-            "Pragma" => "no-cache",
-            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
-            "Expires" => "0"
-        ];
-
-        $invoices = Invoice::with('user')->get();
-
-        $callback = function() use ($invoices) {
-            $file = fopen('php://output', 'w');
-
-            // Excel UTF-8 karakter desteği (BOM ekleme)
-            fputs($file, chr(0xEF) . chr(0xBB) . chr(0xBF));
-
-            // Sütun Başlıkları
-            fputcsv($file, ['Fatura No', 'Fatura Tipi', 'Kullanıcı', 'Tarih', 'Matrah (TL)', 'KDV Tutar (TL)', 'KDV Dahil Toplam (TL)', 'Fatura Durumu']);
-
-            foreach ($invoices as $inv) {
-                fputcsv($file, [
-                    $inv->invoice_no,
-                    $inv->invoice_type === 'commission' ? 'Platform Komisyonu' : 'Aylık Premium Üyelik',
-                    $inv->user->full_name ?? 'Bilinmeyen Kullanıcı',
-                    $inv->issued_at->format('Y-m-d H:i'),
-                    number_format($inv->base_amount, 2, ',', ''),
-                    number_format($inv->tax_amount, 2, ',', ''),
-                    number_format($inv->total_amount, 2, ',', ''),
-                    $inv->status === 'issued' ? 'Kesildi / Aktif' : 'İptal'
-                ]);
-            }
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        unset($this->revealed[$bankAccountId]);
     }
 
-    /**
-     * Üst mali metrik kart hesaplamaları
-     */
-    private function getMaliKartlar()
+    public function markPaid(int $payoutId): void
     {
-        return [
-            'escrow_pending' => Load::where('escrow_status', 'paid_in_escrow')->sum('price'),
-            'total_commission' => Invoice::where('invoice_type', 'commission')->sum('total_amount'),
-            'total_subscription' => Invoice::where('invoice_type', 'subscription')->sum('total_amount'),
+        if (! $this->requireManage()) {
+            return;
+        }
+
+        $reference = trim((string) ($this->reference[$payoutId] ?? ''));
+        if (mb_strlen($reference) < 3) {
+            $this->addError('reference.'.$payoutId, 'Banka transfer referansı zorunludur.');
+
+            return;
+        }
+
+        $payout = Payout::query()->find($payoutId);
+        if (! $payout) {
+            session()->flash('error_message', 'Hakediş bulunamadı.');
+
+            return;
+        }
+
+        try {
+            app(PayoutService::class)->markPaid($payout, auth()->user(), $reference);
+            unset($this->reference[$payoutId]);
+            session()->flash('success_message', "Hakediş #{$payoutId} ödendi olarak işaretlendi.");
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
+    }
+
+    public function markFailed(int $payoutId): void
+    {
+        if (! $this->requireManage()) {
+            return;
+        }
+
+        $reason = trim((string) ($this->failReason[$payoutId] ?? ''));
+        if (mb_strlen($reason) < 5) {
+            $this->addError('failReason.'.$payoutId, 'Başarısızlık nedeni en az 5 karakter olmalıdır.');
+
+            return;
+        }
+
+        $payout = Payout::query()->find($payoutId);
+        if (! $payout || ! in_array($payout->status, ['pending', 'processing'], true)) {
+            session()->flash('error_message', 'Yalnız bekleyen hakedişler başarısız olarak işaretlenebilir.');
+
+            return;
+        }
+
+        app(PayoutService::class)->markFailed($payout, auth()->user(), $reason);
+        unset($this->failReason[$payoutId]);
+        session()->flash('success_message', "Hakediş #{$payoutId} başarısız olarak işaretlendi.");
+    }
+
+    public function exportCsv()
+    {
+        $this->validate(['exportMonth' => 'required|date_format:Y-m']);
+
+        $start = \Carbon\Carbon::createFromFormat('Y-m', $this->exportMonth)->startOfMonth();
+        $end = $start->copy()->endOfMonth();
+
+        $rows = Payout::query()->with(['user', 'bankAccount', 'cargoLoad'])
+            ->whereBetween('created_at', [$start, $end])
+            ->orderBy('id')
+            ->get();
+
+        ActivityLog::record('payout.exported', "Hakediş CSV dışa aktarıldı ({$this->exportMonth}, {$rows->count()} satır)", auth()->id());
+
+        $filename = 'hakedisler-'.$this->exportMonth.'.csv';
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, ['Hakediş No', 'İlan No', 'Şoför', 'E-posta', 'IBAN (maskeli)', 'Brüt', 'Komisyon', 'Net', 'Durum', 'Referans', 'Oluşturma', 'Ödeme'], ';');
+            foreach ($rows as $payout) {
+                fputcsv($out, [
+                    $payout->id,
+                    $payout->load_id,
+                    $payout->user?->full_name,
+                    $payout->user?->email,
+                    $payout->bankAccount?->maskedIban() ?? '',
+                    number_format((float) $payout->total_amount, 2, ',', ''),
+                    number_format((float) $payout->commission_amount, 2, ',', ''),
+                    number_format((float) $payout->net_amount, 2, ',', ''),
+                    Payout::STATUS_LABELS[$payout->status] ?? $payout->status,
+                    $payout->reference_no,
+                    $payout->created_at?->format('d.m.Y H:i'),
+                    $payout->paid_at?->format('d.m.Y H:i'),
+                ], ';');
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    public function with(): array
+    {
+        $data = [
+            'canManage' => auth()->user()->can('manage payouts'),
+            'rates' => [
+                'Standart şoför komisyonu' => Settings::float('commission_standard_driver'),
+                'Premium şoför komisyonu' => Settings::float('commission_discounted_premium'),
+                'Yük sahibi hizmet bedeli' => Settings::float('commission_cargo_owner'),
+            ],
+            'payouts' => null,
+            'orders' => null,
+            'invoices' => null,
+            'ledger' => [],
         ];
+
+        if ($this->activeTab === 'payouts') {
+            $query = Payout::query()->with(['user', 'bankAccount', 'cargoLoad']);
+            if ($this->payoutStatus !== 'all') {
+                $query->where('status', $this->payoutStatus);
+            }
+            $data['payouts'] = $query->orderBy('id')->paginate(15);
+        } elseif ($this->activeTab === 'orders') {
+            $query = PaymentOrder::query()->with(['user', 'cargoLoad']);
+            if ($this->orderStatus !== 'all') {
+                $query->where('status', $this->orderStatus);
+            }
+            $data['orders'] = $query->latest('id')->paginate(15);
+        } elseif ($this->activeTab === 'ledger') {
+            $ledger = app(LedgerService::class);
+            foreach (LedgerService::ACCOUNTS as $code => [$name, $type]) {
+                $balance = $ledger->balance($code);
+                $data['ledger'][] = [
+                    'code' => $code,
+                    'name' => $name,
+                    'type' => $type,
+                    'balance' => in_array($type, ['liability', 'revenue'], true) ? -$balance : $balance,
+                ];
+            }
+        } elseif ($this->activeTab === 'invoices') {
+            $data['invoices'] = Invoice::query()->with('user')->latest('id')->paginate(15);
+        }
+
+        return $data;
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in" wire:poll.3s>
-    <!-- Bildirim Banner'ları -->
-    @if (session()->has('success'))
-        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{{ session('success') }}</span>
-        </div>
+<div class="max-w-7xl mx-auto space-y-6">
+    @php
+        $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
+        $tabs = ['payouts' => 'Hakedişler', 'orders' => 'Ödeme emirleri', 'ledger' => 'Muhasebe bakiyeleri', 'invoices' => 'Faturalar'];
+    @endphp
+
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
     @endif
-    @if (session()->has('error'))
-        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <span>{{ session('error') }}</span>
-        </div>
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık ve Aksiyon Butonları -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Finans ve Muhasebe Yöneticisi</h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Sistem üzerindeki bloke havuz bakiyelerini, hak ediş transferlerini ve faturaları yönetin.</p>
+            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Finans ve Muhasebe</h1>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Hakediş ödemeleri banka transferi sonrasında elle işaretlenir; havuz bakiyesi yalnız ödeme bildirimi ve uyuşmazlık kararıyla değişir.</p>
         </div>
-
-        <div class="flex items-center space-x-3 w-full md:w-auto">
-            <!-- Mali Müşavir Rapor Butonu -->
-            @if(\App\Models\Invoice::count() > 0)
-                <button wire:click="exportMaliRapor" class="btn-apple-secondary py-2.5 px-4 text-xs font-semibold flex items-center space-x-2 w-full md:w-auto justify-center">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <span>Mali Müşavir Raporu İndir (Excel/CSV)</span>
-                </button>
-            @endif
-
-            <!-- Test Verisi Üretici -->
-            @if(\App\Models\Invoice::count() === 0)
-@endif
+        <div class="flex flex-wrap gap-2 text-[11px]">
+            @foreach($rates as $label => $rate)
+                <span class="px-3 py-1.5 rounded-full bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $label }}: %{{ number_format($rate, 2, ',', '.') }}</span>
+            @endforeach
         </div>
     </div>
 
-    <!-- Üst Mali Metrik Kartları (Apple Tarzı) -->
-    @php $kartlar = $this->getMaliKartlar(); @endphp
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Kart 1: Havuzda Bekleyen Bloke Tutar (Escrow) -->
-        <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
-            <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">HAVUZDA BEKLEYEN BAKİYE (ESCROW)</span>
-            <div class="text-2xl font-bold text-neutral-900 dark:text-white">
-                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
-                &#8378;{{ number_format($kartlar['escrow_pending'], 2) }}
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+        @foreach($tabs as $key => $label)
+            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}</button>
+        @endforeach
+    </div>
+
+    @if($activeTab === 'payouts')
+        <div class="flex flex-col sm:flex-row gap-3 apple-glass p-3 rounded-2xl">
+            <select wire:model.live="payoutStatus" class="{{ $input }} sm:w-56">
+                <option value="pending">Ödeme sırasında</option>
+                <option value="processing">Transfer yapılıyor</option>
+                <option value="failed">Başarısız</option>
+                <option value="paid">Ödendi</option>
+                <option value="all">Tümü</option>
+            </select>
+            <form wire:submit="exportCsv" class="flex gap-2 sm:ml-auto">
+                <input type="month" wire:model="exportMonth" class="{{ $input }} sm:w-44">
+                <button type="submit" class="btn-apple-secondary py-2 px-4 text-[11px] whitespace-nowrap">CSV indir</button>
+            </form>
+        </div>
+        @error('exportMonth') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+
+        <div class="apple-glass rounded-3xl overflow-hidden">
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                            <th class="p-4">Hakediş</th>
+                            <th class="p-4">Şoför</th>
+                            <th class="p-4">IBAN</th>
+                            <th class="p-4">Tutar</th>
+                            <th class="p-4">Durum</th>
+                            <th class="p-4">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($payouts as $payout)
+                            <tr class="align-top">
+                                <td class="p-4 font-bold">#{{ $payout->id }}<div class="text-[11px] font-normal text-neutral-400">İlan #{{ $payout->load_id }} · {{ $payout->created_at?->format('d.m.Y H:i') }}</div></td>
+                                <td class="p-4">{{ $payout->user?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $payout->user?->email }}</div></td>
+                                <td class="p-4 whitespace-nowrap">
+                                    @if($payout->bankAccount)
+                                        <span class="font-mono">{{ $revealed[$payout->bank_account_id] ?? $payout->bankAccount->maskedIban() }}</span>
+                                        <div class="text-[11px] text-neutral-400">{{ $payout->bankAccount->account_holder }}</div>
+                                        @if($canManage)
+                                            @if(isset($revealed[$payout->bank_account_id]))
+                                                <button type="button" wire:click="hideIban({{ $payout->bank_account_id }})" class="text-[11px] text-brand-500 font-semibold">Gizle</button>
+                                            @else
+                                                <button type="button" wire:click="revealIban({{ $payout->bank_account_id }})" class="text-[11px] text-brand-500 font-semibold">IBAN'ı göster</button>
+                                            @endif
+                                        @endif
+                                    @else
+                                        <span class="text-amber-600">Banka hesabı tanımlı değil</span>
+                                    @endif
+                                </td>
+                                <td class="p-4 whitespace-nowrap">
+                                    <div class="font-semibold">{{ number_format((float) $payout->net_amount, 2, ',', '.') }} ₺</div>
+                                    <div class="text-[11px] text-neutral-400">Brüt {{ number_format((float) $payout->total_amount, 2, ',', '.') }} ₺ · Kom. {{ number_format((float) $payout->commission_amount, 2, ',', '.') }} ₺</div>
+                                </td>
+                                <td class="p-4">
+                                    <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $payout->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : ($payout->status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}</span>
+                                    @if($payout->reference_no)<div class="text-[11px] text-neutral-400 mt-1">{{ $payout->reference_no }}</div>@endif
+                                    @if($payout->paid_at)<div class="text-[11px] text-neutral-400">{{ $payout->paid_at->format('d.m.Y H:i') }}</div>@endif
+                                </td>
+                                <td class="p-4 min-w-[14rem]">
+                                    @if($canManage && in_array($payout->status, ['pending', 'processing', 'failed'], true))
+                                        <div class="space-y-2">
+                                            <input type="text" wire:model="reference.{{ $payout->id }}" placeholder="Banka referans no" class="{{ $input }}">
+                                            @error('reference.'.$payout->id) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                                            <button type="button" wire:click="markPaid({{ $payout->id }})" wire:confirm="Hakediş ödendi olarak işaretlenecek. Banka transferi tamamlandı mı?" wire:loading.attr="disabled" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold">Ödendi olarak işaretle</button>
+                                            @if($payout->status !== 'failed')
+                                                <input type="text" wire:model="failReason.{{ $payout->id }}" placeholder="Başarısızlık nedeni" class="{{ $input }}">
+                                                @error('failReason.'.$payout->id) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                                                <button type="button" wire:click="markFailed({{ $payout->id }})" wire:loading.attr="disabled" class="w-full py-2 rounded-xl border border-red-300 text-red-600 text-[11px] font-semibold">Başarısız</button>
+                                            @endif
+                                        </div>
+                                    @elseif(! $canManage)
+                                        <span class="text-[11px] text-neutral-400">Yalnız görüntüleme</span>
+                                    @else
+                                        <span class="text-[11px] text-neutral-400">Sonuçlandı</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="p-10 text-center text-neutral-500">Bu durumda hakediş yok.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-            <p class="text-[11px] text-neutral-400">Sevkiyatı süren ve güvence altında tutulan bloke navlun bedelleri.</p>
+            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $payouts->links() }}</div>
         </div>
+    @endif
 
-        <!-- Kart 2: Kazanılan Toplam Platform Komisyonu (%5 Platform Fee) -->
-        <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
-            <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">KAZANILAN NET KOMİSYON (%5)</span>
-            <div class="text-2xl font-bold text-brand-500">
-                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
-                &#8378;{{ number_format($kartlar['total_commission'], 2) }}
+    @if($activeTab === 'orders')
+        <div class="apple-glass p-3 rounded-2xl">
+            <select wire:model.live="orderStatus" class="{{ $input }} sm:w-56">
+                <option value="all">Tüm durumlar</option>
+                @foreach(['created' => 'Oluşturuldu', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => 'Başarısız', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi'] as $value => $label)
+                    <option value="{{ $value }}">{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="apple-glass rounded-3xl overflow-hidden">
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                            <th class="p-4">Sipariş</th>
+                            <th class="p-4">İlan</th>
+                            <th class="p-4">Ödeyen</th>
+                            <th class="p-4">Tutar</th>
+                            <th class="p-4">Durum</th>
+                            <th class="p-4">Tarih</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($orders as $order)
+                            <tr>
+                                <td class="p-4 font-mono">{{ $order->merchant_oid }}<div class="text-[11px] text-neutral-400 font-sans">{{ $order->provider }} · {{ $order->purpose }}</div></td>
+                                <td class="p-4">#{{ $order->load_id }}<div class="text-[11px] text-neutral-400">{{ $order->cargoLoad?->pickup_location }} → {{ $order->cargoLoad?->delivery_location }}</div></td>
+                                <td class="p-4">{{ $order->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">Hizmet bedeli {{ number_format((float) $order->service_fee_amount, 2, ',', '.') }} ₺</div></td>
+                                <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->status }}</span></td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="p-10 text-center text-neutral-500">Ödeme emri yok.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-            <p class="text-[11px] text-neutral-400">Başarıyla biten sevkiyatların kesilen komisyon faturaları toplamı.</p>
+            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $orders->links() }}</div>
         </div>
+    @endif
 
-        <!-- Kart 3: Aylık Toplam Premium Üyelik Gelirleri (900 TL) -->
-        <div class="apple-glass rounded-3xl p-6 space-y-2 relative overflow-hidden">
-            <span class="text-xs text-neutral-400 font-semibold uppercase tracking-wider block">PREMİUM ABONELİK GELİRLERİ</span>
-            <div class="text-2xl font-bold text-emerald-500">
-                <!-- KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ediyoruz -->
-                &#8378;{{ number_format($kartlar['total_subscription'], 2) }}
+    @if($activeTab === 'ledger')
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            @foreach($ledger as $account)
+                <div class="apple-glass rounded-2xl p-5">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{{ $account['name'] }}</span>
+                    <p class="mt-2 text-xl font-bold text-neutral-900 dark:text-white">{{ number_format($account['balance'], 2, ',', '.') }} ₺</p>
+                    <p class="text-[11px] text-neutral-400 mt-1 font-mono">{{ $account['code'] }} · {{ $account['type'] }}</p>
+                </div>
+            @endforeach
+        </div>
+        <p class="text-[11px] text-neutral-400">Varlık ve gider hesapları borç bakiyesi, borç ve gelir hesapları alacak bakiyesi olarak gösterilir. Kayıt bulunmayan hesaplar 0,00 ₺ görünür.</p>
+    @endif
+
+    @if($activeTab === 'invoices')
+        <div class="apple-glass rounded-3xl overflow-hidden">
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                            <th class="p-4">Fatura no</th>
+                            <th class="p-4">Tür</th>
+                            <th class="p-4">Kullanıcı</th>
+                            <th class="p-4">Tutar</th>
+                            <th class="p-4">Durum</th>
+                            <th class="p-4">Tarih</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($invoices as $invoice)
+                            <tr>
+                                <td class="p-4 font-mono">{{ $invoice->invoice_no ?: '—' }}</td>
+                                <td class="p-4">{{ $invoice->invoice_type }}</td>
+                                <td class="p-4">{{ $invoice->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">KDV {{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</div></td>
+                                <td class="p-4">{{ $invoice->status }}</td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="p-10 text-center text-neutral-500">Henüz fatura kaydı yok; e-fatura entegrasyonu bu sürümde etkin değil.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
-            <p class="text-[11px] text-neutral-400">Şoförler tarafından satın alınan aylık Premium üyelik faturaları toplamı.</p>
+            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $invoices->links() }}</div>
         </div>
-    </div>
-
-    <!-- Filtre ve Seçim Segmentleri -->
-    <div class="flex p-0.5 bg-neutral-200/50 dark:bg-neutral-900 rounded-2xl w-full md:w-max border border-neutral-200/10 shadow-apple-sm">
-        <button wire:click="$set('activeTab', 'escrow')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'escrow' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Bloke Havuz Ödemeleri (Escrow)
-        </button>
-        <button wire:click="$set('activeTab', 'payouts')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'payouts' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Şoför Hak Edişleri (Payouts)
-        </button>
-        <button wire:click="$set('activeTab', 'invoices')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'invoices' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Düzenlenen E-Arşiv Faturalar
-        </button>
-    </div>
-
-    <!-- Listeleme Tabloları -->
-    <div class="apple-glass rounded-3xl overflow-hidden">
-
-        @if($activeTab === 'escrow')
-            <!-- TABLO 1: BLOKE HAVUZ ÖDEMELERİ (ESCROW) -->
-            <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                    <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] font-bold text-neutral-400 dark:text-neutral-500 tracking-wider">
-                        <th class="p-5">Yük Sahibi (Gönderici)</th>
-                        <th class="p-5">Güzergah</th>
-                        <th class="p-5">Fatura Tutarı (KDV Dahil)</th>
-                        <th class="p-5">Sevkiyat Durumu</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                    @forelse(\App\Models\Load::with('cargoOwnerProfile.user')->whereIn('escrow_status', ['paid_in_escrow', 'pending_payment'])->latest()->get() as $load)
-                        <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200">
-                            <td class="p-5">
-                                <div class="font-bold text-neutral-900 dark:text-white">{{ $load->cargoOwnerProfile->user->full_name ?? 'Bilinmeyen Kullanıcı' }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">VKN/TC: {{ $load->cargoOwnerProfile->tax_no ?? $load->cargoOwnerProfile->tc_no }}</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="font-semibold">{{ $load->pickup_location }} -> {{ $load->delivery_location }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">{{ $load->goods_type }}</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="font-bold">&#8378;{{ number_format($load->price, 2) }}</div>
-                                <div class="text-[10px] font-semibold text-emerald-500 mt-0.5">PayTR Güvencesinde Bloke</div>
-                            </td>
-                            <td class="p-5">
-                                <span class="px-2.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600">
-                                    {{ $load->status === 'on_the_way' ? 'Yolda' : 'Sürücü Atandı' }}
-                                </span>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="p-12 text-center text-neutral-400">Havuzda aktif bloke bakiye içeren bir yükleme bulunmuyor.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-
-        @elseif($activeTab === 'payouts')
-            <!-- TABLO 2: ŞOFÖR HAK EDİŞLERİ (PAYOUTS) -->
-            <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                    <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] font-bold text-neutral-400 dark:text-neutral-500 tracking-wider">
-                        <th class="p-5">Hak Sahibi Şoför</th>
-                        <th class="p-5">IBAN / Banka Bilgisi</th>
-                        <th class="p-5">Mali Dağılım (%5 Komisyon Kesintili)</th>
-                        <th class="p-5 text-right">İşlem / Dekont</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                    @forelse(\App\Models\Payout::with('user')->latest()->get() as $pay)
-                        <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200">
-                            <td class="p-5">
-                                <div class="font-bold text-neutral-900 dark:text-white">{{ $pay->user->full_name ?? 'Şoför' }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">Tel: {{ $pay->user->phone }}</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="font-semibold font-mono tracking-wider">{{ $pay->iban }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">{{ $pay->bank_name }}</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="grid grid-cols-1 gap-0.5">
-                                    <div>Navlun: <strong>&#8378;{{ number_format($pay->total_amount, 2) }}</strong></div>
-                                    <div class="text-red-500">Komisyon (%5): -&#8378;{{ number_format($pay->commission_amount, 2) }}</div>
-                                    <div class="text-emerald-500 font-bold">Net EFT: &#8378;{{ number_format($pay->net_amount, 2) }}</div>
-                                </div>
-                            </td>
-                            <td class="p-5 text-right">
-                                @if($pay->status === 'pending')
-@else
-                                    <div class="inline-flex flex-col items-end">
-                                        <span class="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold px-2.5 py-1 rounded-full">EFT ÖDENDİ</span>
-                                        <span class="text-[9px] text-neutral-400 font-mono mt-1 select-all">Ref: {{ $pay->reference_no }}</span>
-                                    </div>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="p-12 text-center text-neutral-400">Şoförler için bekleyen veya ödenmiş hak ediş kaydı bulunamadı.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-
-        @elseif($activeTab === 'invoices')
-            <!-- TABLO 3: DÜZENLENEN E-ARŞİV FATURALAR -->
-            <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                    <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] font-bold text-neutral-400 dark:text-neutral-500 tracking-wider">
-                        <th class="p-5">Fatura No / Tarih</th>
-                        <th class="p-5">Fatura Tipi</th>
-                        <th class="p-5">Müşteri Detayı</th>
-                        <th class="p-5">Maliye Dağılımı (%20 KDV)</th>
-                        <th class="p-5">Fatura Durumu</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                    @forelse(\App\Models\Invoice::with('user')->latest()->get() as $inv)
-                        <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200">
-                            <td class="p-5">
-                                <div class="font-bold font-mono tracking-wider text-neutral-900 dark:text-white">{{ $inv->invoice_no }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">{{ $inv->issued_at->format('Y-m-d H:i') }}</div>
-                            </td>
-                            <td class="p-5">
-                                <span class="px-2.5 py-1 rounded-full font-bold text-[10px] {{ $inv->invoice_type === 'commission' ? 'bg-brand-500/10 text-brand-600' : 'bg-emerald-500/10 text-emerald-600' }}">
-                                    {{ $inv->invoice_type === 'commission' ? 'Platform Komisyonu' : 'Aylık Premium Üyelik' }}
-                                </span>
-                            </td>
-                            <td class="p-5">
-                                <div class="font-bold">{{ $inv->user->full_name ?? 'Müşteri' }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-0.5">E-posta: {{ $inv->user->email }}</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="grid grid-cols-1 gap-0.5">
-                                    <div>Matrah: <strong>&#8378;{{ number_format($inv->base_amount, 2) }}</strong></div>
-                                    <div>KDV (%20): <strong>&#8378;{{ number_format($inv->tax_amount, 2) }}</strong></div>
-                                    <div class="font-bold text-neutral-950 dark:text-white">Toplam: &#8378;{{ number_format($inv->total_amount, 2) }}</div>
-                                </div>
-                            </td>
-                            <td class="p-5">
-                                <span class="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600">Resmileştirildi (E-Arşiv)</span>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="p-12 text-center text-neutral-400">Sistem üzerinde henüz kesilmiş bir e-arşiv fatura kaydı bulunmuyor.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        @endif
-
-    </div>
+    @endif
 </div>

@@ -1,112 +1,127 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\User;
+use App\Models\ActivityLog;
 use App\Models\Load;
-use App\Models\CargoOwnerProfile;
-use App\Models\DriverProfile;
+use App\Models\Shipment;
+use App\Services\NotificationService;
+use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Locked;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
-    // Filtreleme
-    public string $statusFilter = 'all'; // 'all', 'active_seeking', 'on_the_way', 'delivered', 'cancelled'
+    use WithPagination;
+
+    public string $statusFilter = 'all';
+
     public string $search = '';
 
-    // Detay Paneli Durumları
-    public ?int $selectedLoadId = null;
-    public $selectedLoad = null;
+    #[Locked]
+    public ?int $selectedId = null;
 
-    // Fiyat Müdahale Modal Durumları
-    public bool $showEditModal = false;
-    public float $newPrice = 0;
+    public string $suspendReason = '';
 
-    public function mount()
+    public function mount(): void
     {
-        if (!auth()->user()->can('view operations')) {
-            abort(403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
-        }
+        abort_unless(auth()->user()->can('view operations'), 403);
     }
 
-    
-
-    /**
-     * Tıklanan İlanın Detaylarını Panelde Açar
-     */
-    public function selectLoad(int $loadId)
+    public function updatedStatusFilter(): void
     {
-        $this->selectedLoadId = $loadId;
-        $this->selectedLoad = Load::with(['cargoOwnerProfile.user', 'driverProfile.user'])->find($loadId);
+        $this->resetPage();
     }
 
-    /**
-     * Paneli Kapatır
-     */
-    public function closePanel()
+    public function updatedSearch(): void
     {
-        $this->selectedLoadId = null;
-        $this->selectedLoad = null;
+        $this->resetPage();
     }
 
-    /**
-     * Fiyat Güncelleme Modalı Aç
-     */
-    public function openEditModal()
+    public function select(int $loadId): void
     {
-        $this->newPrice = $this->selectedLoad->price;
-        $this->showEditModal = true;
+        $this->selectedId = $loadId;
+        $this->suspendReason = '';
+        $this->resetErrorBag();
     }
 
-    /**
-     * İlan Fiyatına Müdahale (Admin Yetkisi)
-     */
-    public function updatePrice()
+    public function closePanel(): void
     {
-        if (!auth()->user()->can('manage operations')) {
-            abort(403);
-        }
-
-        $this->validate([
-            'newPrice' => 'required|numeric|min:500'
-        ]);
-
-        $this->selectedLoad->update([
-            'price' => $this->newPrice
-        ]);
-
-        $this->showEditModal = false;
-        $this->selectedLoad->refresh();
-        session()->flash('success', 'Yük navlun bedeli başarıyla güncellendi.');
+        $this->selectedId = null;
+        $this->suspendReason = '';
     }
 
-    /**
-     * İlanı Askıya Alma / Geri Yayına Alma
-     */
-    public function toggleSuspend()
+    /** Ödemesi alınmamış bir ilanı yönetici kararıyla iptal eder; havuz bakiyesine dokunmaz. */
+    public function suspend(): void
     {
-        if (!auth()->user()->can('manage operations')) {
-            abort(403);
-        }
+        if (! auth()->user()->can('manage operations')) {
+            session()->flash('error_message', 'İlan askıya almak için "manage operations" izni gerekir.');
 
-        // Eğer sevkiyat yoldaysa askıya alınamaz
-        if (in_array($this->selectedLoad->status, ['on_the_way', 'delivered'])) {
-            session()->flash('error', 'Yolda olan veya teslim edilmiş sevkiyatlar askıya alınamaz.');
             return;
         }
 
-        $newStatus = $this->selectedLoad->status === 'cancelled' ? 'active_seeking' : 'cancelled';
-
-        $this->selectedLoad->update([
-            'status' => $newStatus,
-            'escrow_status' => $newStatus === 'cancelled' ? 'refunded_to_owner' : 'pending_payment'
+        $this->validate(['suspendReason' => 'required|string|min:5|max:1000'], [
+            'suspendReason.required' => 'Askıya alma gerekçesi zorunludur.',
+            'suspendReason.min' => 'Gerekçe en az 5 karakter olmalıdır.',
         ]);
 
-        $this->selectedLoad->refresh();
-        session()->flash('success', $newStatus === 'cancelled' ? 'İlan askıya alındı ve yayından kaldırıldı.' : 'İlan başarıyla geri yayına alındı.');
+        try {
+            $load = DB::transaction(function (): Load {
+                $locked = Load::query()->lockForUpdate()->find($this->selectedId);
+                if (! $locked) {
+                    throw new RuntimeException('İlan bulunamadı.');
+                }
+                if ($locked->escrow_status !== Load::ESCROW_PENDING || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
+                    throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
+                }
+
+                $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
+                $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
+                $locked->update([
+                    'status' => Load::STATUS_CANCELLED,
+                    'rejection_reason' => 'Yönetici kararı: '.mb_substr($this->suspendReason, 0, 900),
+                    'cancelled_at' => now(),
+                    'visibility' => 'private',
+                ]);
+
+                ActivityLog::record('load.suspended', "İlan #{$locked->id} yönetici tarafından iptal edildi: {$this->suspendReason}", auth()->id(), $locked);
+
+                return $locked;
+            });
+
+            if ($owner = $load->cargoOwnerProfile?->user) {
+                app(NotificationService::class)->notify($owner, 'İlanınız yönetici tarafından kaldırıldı',
+                    ["#{$load->id} numaralı ilanınız platform kuralları gereği yayından kaldırıldı.", 'Gerekçe: '.$this->suspendReason],
+                    route('cargo-owner.loads.index'), 'İlanlarımı gör');
+            }
+
+            $this->suspendReason = '';
+            session()->flash('success_message', 'İlan iptal edildi, bekleyen teklifler reddedildi.');
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
     }
 
-    /**
-     * İlan Filtreleme Sorgusu
-     */
-    private function getLoadsQuery()
+    /** Gizlenmiş bir ilanı yeniden şoför havuzuna açar. */
+    public function relist(): void
+    {
+        if (! auth()->user()->can('manage operations')) {
+            session()->flash('error_message', 'İlanı yeniden yayınlamak için "manage operations" izni gerekir.');
+
+            return;
+        }
+
+        $load = Load::query()->find($this->selectedId);
+        if (! $load || $load->status !== Load::STATUS_ACTIVE) {
+            session()->flash('error_message', 'Yalnız teklif bekleyen ilanlar yeniden yayınlanabilir.');
+
+            return;
+        }
+
+        $load->update(['visibility' => 'public']);
+        ActivityLog::record('load.relisted', "İlan #{$load->id} yeniden havuza açıldı", auth()->id(), $load);
+        session()->flash('success_message', 'İlan şoför havuzunda yeniden görünür.');
+    }
+
+    public function with(): array
     {
         $query = Load::query()->with(['cargoOwnerProfile.user', 'driverProfile.user']);
 
@@ -114,309 +129,234 @@ new class extends Component {
             $query->where('status', $this->statusFilter);
         }
 
-        if ($this->search) {
-            $query->where(function($q) {
-                $q->where('pickup_location', 'like', "%{$this->search}%")
-                  ->orWhere('delivery_location', 'like', "%{$this->search}%")
-                  ->orWhere('goods_type', 'like', "%{$this->search}%");
+        $search = trim($this->search);
+        if ($search !== '') {
+            $query->where(function ($q) use ($search): void {
+                $q->where('pickup_location', 'like', "%{$search}%")
+                    ->orWhere('delivery_location', 'like', "%{$search}%")
+                    ->orWhere('goods_type', 'like', "%{$search}%");
+                if (ctype_digit($search)) {
+                    $q->orWhere('id', (int) $search);
+                }
             });
         }
 
-        return $query->latest()->get();
+        $selected = $this->selectedId
+            ? Load::query()->with([
+                'cargoOwnerProfile.user', 'driverProfile.user',
+                'offers.driverProfile.user', 'shipment.vehicle', 'shipment.latestLocation',
+                'paymentOrders', 'disputes',
+            ])->find($this->selectedId)
+            : null;
+
+        $transit = Shipment::query()->where('status', Shipment::STATUS_IN_TRANSIT)
+            ->with(['latestLocation', 'driverProfile.user', 'cargoLoad'])
+            ->get()
+            ->filter(fn (Shipment $s) => $s->latestLocation !== null)
+            ->map(fn (Shipment $s) => [
+                'lat' => (float) $s->latestLocation->latitude,
+                'lng' => (float) $s->latestLocation->longitude,
+                'label' => 'İlan #'.$s->load_id.' · '.($s->driverProfile?->user?->full_name ?? 'Şoför').' · '.($s->cargoLoad ? $s->cargoLoad->pickup_location.' - '.$s->cargoLoad->delivery_location : ''),
+                'time' => $s->latestLocation->recorded_at?->format('d.m.Y H:i'),
+                'speed' => (float) $s->latestLocation->speed,
+            ])->values()->all();
+
+        return [
+            'loads' => $query->latest('id')->paginate(15),
+            'selected' => $selected,
+            'mapPoints' => $transit,
+            'canManage' => auth()->user()->can('manage operations'),
+        ];
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in" x-data="{
-    map: null,
-    markers: [],
+<div class="max-w-7xl mx-auto space-y-6">
+    @php
+        $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
+    @endphp
 
-    initMap() {
-        // Harita Koyu Tema Katmanı (CartoDB Dark Matter)
-        const darkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap, © CartoDB'
-        });
-
-        this.map = L.map('operations-map', {
-            center: [39.0, 35.2], // Türkiye Coğrafi Merkezi
-            zoom: 6,
-            layers: [darkLayer]
-        });
-
-        this.loadMarkers();
-    },
-
-    loadMarkers() {
-        // Eski işaretçileri temizle
-        this.markers.forEach(m => this.map.removeLayer(m));
-        this.markers = [];
-
-        // Simüle Canlı Araç ve Sevkiyat Noktaları Verileri
-        const locations = [
-            { lat: 39.9208, lng: 32.8541, name: 'Çankaya, Ankara (Yükleme Noktası)', iconColor: '#f97316' },
-            { lat: 40.9818, lng: 29.0318, name: 'Kadıköy, İstanbul (Teslimat Noktası)', iconColor: '#10b981' },
-            
-        ];
-
-        locations.forEach(loc => {
-            const marker = L.circleMarker([loc.lat, loc.lng], {
-                radius: loc.isTruck ? 10 : 8,
-                fillColor: loc.iconColor,
-                color: '#ffffff',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.9
-            }).addTo(this.map).bindPopup(`<div class='text-xs font-semibold text-neutral-900'>${loc.name}</div>`);
-
-            this.markers.push(marker);
-        });
-
-        // Tır rotasını simüle eden mavi çizgi çiz (Ankara -> İstanbul Otobanı)
-        const routeLine = L.polyline([
-            [39.9208, 32.8541],
-            [40.3500, 30.8000],
-        ], { color: '#3b82f6', weight: 3, dashArray: '5, 10' }).addTo(this.map);
-        this.markers.push(routeLine);
-    }
-}" x-init="initMap()" @refreshMap.window="loadMarkers()">
-
-    <!-- Bildirim Banner'ları -->
-    @if (session()->has('success'))
-        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{{ session('success') }}</span>
-        </div>
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
     @endif
-    @if (session()->has('error'))
-        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-            <span>{{ session('error') }}</span>
-        </div>
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Harita (Canlı Radar) Bölümü -->
-    <div class="space-y-3">
-        <div class="flex justify-between items-center">
-            <h2 class="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider">CANLI RADAR EKRANI</h2>
-            <!-- Simüle İlan Üretme -->
-            @if(\App\Models\Load::count() === 0)
-@endif
-        </div>
-        <div class="w-full h-80 rounded-3xl overflow-hidden border border-neutral-200/40 dark:border-neutral-800/50 shadow-apple-lg relative" id="operations-map" wire:ignore></div>
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Operasyonlar</h1>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">İlanlar, teklifler, sevkiyatlar ve yoldaki araçların son bildirilen konumları.</p>
     </div>
 
-    <!-- Filtreler ve Seçim Barları -->
-    <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white/70 dark:bg-neutral-800/70 backdrop-blur-apple p-3 rounded-2xl border border-neutral-100 dark:border-neutral-800/50 shadow-apple-sm">
+    <section wire:poll.30s class="apple-glass rounded-3xl p-6 space-y-4">
+        <div class="flex items-center justify-between">
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yoldaki sevkiyatlar</h2>
+            <span class="text-[11px] text-neutral-400">{{ count($mapPoints) }} araç · 30 saniyede bir yenilenir</span>
+        </div>
+        @if($mapPoints === [])
+            <p class="text-xs text-neutral-500">Şu anda konum bildiren yolda sevkiyat yok.</p>
+        @else
+            <div wire:key="ops-map-{{ md5(json_encode($mapPoints)) }}"
+                 data-points='@json($mapPoints)'
+                 x-data="{
+                    init() {
+                        const points = JSON.parse(this.$el.dataset.points || '[]');
+                        if (typeof window.L === 'undefined' || points.length === 0) { this.$refs.fallback.hidden = false; return; }
+                        const map = L.map(this.$refs.canvas, { zoomControl: true });
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
+                        const bounds = [];
+                        points.forEach(p => { L.marker([p.lat, p.lng]).addTo(map).bindPopup(p.label + '<br>' + (p.time || '') + ' · ' + p.speed + ' km/s'); bounds.push([p.lat, p.lng]); });
+                        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 });
+                    }
+                 }">
+                <div x-ref="canvas" class="h-80 w-full rounded-2xl overflow-hidden border border-neutral-200/60 dark:border-neutral-700/40" wire:ignore></div>
+                <p x-ref="fallback" hidden class="text-xs text-amber-600 mt-2">Harita kütüphanesi yüklenemedi; konumlar aşağıda liste olarak gösterilir.</p>
+            </div>
+            <ul class="text-xs space-y-1">
+                @foreach($mapPoints as $p)
+                    <li class="flex flex-col sm:flex-row sm:justify-between gap-1 border-b border-neutral-100 dark:border-neutral-800/60 pb-1">
+                        <span>{{ $p['label'] }}</span>
+                        <span class="text-neutral-400">{{ $p['time'] }} · {{ number_format($p['speed'], 0) }} km/s · {{ $p['lat'] }}, {{ $p['lng'] }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </section>
 
-        <!-- Durum Filtreleri (Sıralı Segmentler) -->
-        <div class="flex items-center space-x-2 w-full md:w-auto overflow-x-auto">
-            @foreach([
-                'all' => 'Tüm Yükler',
-                'active_seeking' => 'Yük Bekleyenler',
-                'driver_assigned' => 'Sürücü Atananlar',
-                'on_the_way' => 'Yolda Olanlar',
-                'delivered' => 'Teslim Edilenler',
-                'cancelled' => 'Askıdakiler'
-            ] as $status => $label)
-                <button wire:click="$set('statusFilter', '{{ $status }}')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 border {{ $statusFilter === $status ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900' : 'border-neutral-200/50 dark:border-neutral-700/30 text-neutral-500 hover:bg-neutral-100' }}">
-                    {{ $label }}
-                </button>
+    <div class="flex flex-col lg:flex-row gap-3 apple-glass p-3 rounded-2xl">
+        <select wire:model.live="statusFilter" class="{{ $input }} lg:w-56">
+            <option value="all">Tüm durumlar</option>
+            @foreach(\App\Models\Load::STATUS_LABELS as $value => $label)
+                <option value="{{ $value }}">{{ $label }}</option>
             @endforeach
-        </div>
-
-        <!-- Arama Kutusu -->
-        <div class="relative w-full md:w-64">
-            <input type="text" wire:model.live="search" placeholder="Güzergah veya yük cinsi ara..." class="w-full pl-9 pr-4 py-2 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300">
-            <svg class="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-        </div>
+        </select>
+        <input type="text" wire:model.live.debounce.400ms="search" placeholder="İlan no, güzergah veya yük türü" class="{{ $input }} lg:flex-1">
     </div>
 
-    <!-- İlan Listesi ve Detay Split-Screen Gridi -->
-    <div class="grid grid-cols-1 {{ $selectedLoadId ? 'lg:grid-cols-2' : '' }} gap-8 items-start">
-
-        <!-- Sol Bölüm: İlan Listesi -->
+    <div class="grid grid-cols-1 {{ $selected ? 'xl:grid-cols-2' : '' }} gap-6 items-start">
         <div class="apple-glass rounded-3xl overflow-hidden">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] font-bold text-neutral-400 dark:text-neutral-500 tracking-wider">
-                        <th class="p-5">Rota / Güzergah</th>
-                        <th class="p-5">Yük Cinsi / Araç</th>
-                        <th class="p-5">Fiyat / Escrow</th>
-                        <th class="p-5">Durum</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30 text-xs">
-                    @forelse($this->getLoadsQuery() as $load)
-                        <tr wire:click="selectLoad({{ $load->id }})" class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200 cursor-pointer {{ $selectedLoadId === $load->id ? 'bg-brand-500/5 dark:bg-brand-500/10' : '' }}">
-                            <td class="p-5">
-                                <div class="font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }}</div>
-                                <div class="text-[11px] text-neutral-400 mt-1">→ {{ $load->delivery_location }}</div>
-                            </td>
-                            <td class="p-5 text-neutral-500 dark:text-neutral-400">
-                                <div class="font-semibold">{{ $load->goods_type }}</div>
-                                <div class="text-[11px] mt-0.5 capitalize">{{ $load->vehicle_type }} ({{ $load->weight }} kg)</div>
-                            </td>
-                            <td class="p-5">
-                                <div class="font-bold text-neutral-950 dark:text-white">₺{{ number_format($load->price, 2) }}</div>
-                                @php
-                                    $escrowClasses = [
-                                        'pending_payment' => 'text-amber-500',
-                                        'paid_in_escrow' => 'text-emerald-500',
-                                        'released_to_driver' => 'text-blue-500',
-                                        'refunded_to_owner' => 'text-red-500',
-                                    ];
-                                    $escrowLabels = [
-                                        'pending_payment' => 'Ödeme Bekliyor',
-                                        'paid_in_escrow' => 'Blokeli Güvende',
-                                        'released_to_driver' => 'Sürücüye Aktarıldı',
-                                        'refunded_to_owner' => 'İade Edildi',
-                                    ];
-                                @endphp
-                                <div class="text-[10px] font-semibold mt-0.5 {{ $escrowClasses[$load->escrow_status] ?? '' }}">
-                                    {{ $escrowLabels[$load->escrow_status] ?? '' }}
-                                </div>
-                            </td>
-                            <td class="p-5">
-                                @php
-                                    $statusClasses = [
-                                        'active_seeking' => 'bg-amber-500/10 text-amber-600',
-                                        'driver_assigned' => 'bg-blue-500/10 text-blue-600',
-                                        'on_the_way' => 'bg-emerald-500/10 text-emerald-600',
-                                        'delivered' => 'bg-neutral-500/10 text-neutral-600',
-                                        'cancelled' => 'bg-red-500/10 text-red-600',
-                                    ];
-                                    $statusLabels = [
-                                        'active_seeking' => 'Aranıyor',
-                                        'driver_assigned' => 'Atandı',
-                                        'on_the_way' => 'Yolda',
-                                        'delivered' => 'Teslim Edildi',
-                                        'cancelled' => 'Askıda',
-                                    ];
-                                @endphp
-                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold {{ $statusClasses[$load->status] ?? '' }}">
-                                    {{ $statusLabels[$load->status] ?? '' }}
-                                </span>
-                            </td>
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                            <th class="p-4">İlan</th>
+                            <th class="p-4">Güzergah</th>
+                            <th class="p-4">Yük sahibi</th>
+                            <th class="p-4">Şoför</th>
+                            <th class="p-4">Navlun</th>
+                            <th class="p-4">Durum</th>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4" class="p-12 text-center text-neutral-400 dark:text-neutral-500">
-                                <svg class="w-8 h-8 mx-auto mb-3 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                <span class="font-medium">Filtrelere uygun yük sevkiyat kaydı bulunamadı.</span>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($loads as $load)
+                            <tr wire:click="select({{ $load->id }})" class="cursor-pointer hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 {{ $selectedId === $load->id ? 'bg-brand-500/5' : '' }}">
+                                <td class="p-4 font-bold">#{{ $load->id }}<div class="text-[11px] font-normal text-neutral-400">{{ $load->pickup_date?->format('d.m.Y') }}</div></td>
+                                <td class="p-4">{{ $load->pickup_location }} <span class="text-neutral-400">→</span> {{ $load->delivery_location }}</td>
+                                <td class="p-4 text-neutral-500">{{ $load->cargoOwnerProfile?->displayName() ?: '—' }}</td>
+                                <td class="p-4 text-neutral-500">{{ $load->driverProfile?->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $load->price, 2, ',', '.') }} ₺</td>
+                                <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $load->statusLabel() }}</span><div class="text-[10px] text-neutral-400 mt-1">{{ $load->escrowLabel() }}</div></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="p-10 text-center text-neutral-500">Bu filtreye uyan ilan yok.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $loads->links() }}</div>
         </div>
 
-        <!-- Sağ Bölüm: Çift Taraflı (Split-screen) Detay Paneli -->
-        @if($selectedLoad)
-            <div class="apple-glass rounded-3xl p-6 space-y-6 animate-slide-up sticky top-28">
-                <!-- Üst Kontrol Butonları -->
-                <div class="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-800/50 pb-4">
-                    <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Operasyonel Detay Paneli</h2>
-                    <button wire:click="closePanel" class="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+        @if($selected)
+            <div class="apple-glass rounded-3xl p-6 space-y-5 text-xs">
+                <div class="flex justify-between items-start border-b border-neutral-100 dark:border-neutral-800/50 pb-4">
+                    <div>
+                        <h2 class="text-sm font-bold text-neutral-900 dark:text-white">İlan #{{ $selected->id }}</h2>
+                        <p class="text-[11px] text-neutral-400">{{ $selected->statusLabel() }} · {{ $selected->escrowLabel() }} · Görünürlük: {{ $selected->visibility === 'public' ? 'Herkese açık' : 'Gizli' }}</p>
+                    </div>
+                    <button type="button" wire:click="closePanel" class="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
 
-                <!-- Detay Kartı ve Güzergah -->
-                <div class="space-y-4">
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40 dark:border-neutral-700/40 text-xs space-y-3">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <span class="text-neutral-400 block">Yük Sahibi (Gönderici)</span>
-                                <span class="font-bold text-neutral-900 dark:text-white">{{ $selectedLoad->cargoOwnerProfile->user->full_name ?? 'Bilinmiyor' }}</span>
-                            </div>
-                            <div>
-                                <span class="text-neutral-400 block">Taşıyıcı (Şoför)</span>
-                                <span class="font-bold text-neutral-900 dark:text-white">{{ $selectedLoad->driverProfile->user->full_name ?? 'Atanmadı' }}</span>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <span class="text-neutral-400 block">Güzergah Mesafe/Yük</span>
-                                <span class="font-bold text-neutral-900 dark:text-white">{{ $selectedLoad->goods_type }} ({{ $selectedLoad->weight }} kg)</span>
-                            </div>
-                            <div>
-                                <span class="text-neutral-400 block">e-İrsaliye No</span>
-                                <span class="font-bold font-mono tracking-wider text-neutral-900 dark:text-white">{{ $selectedLoad->e_irsaliye_no ?? 'Yasal Belge Eksik' }}</span>
-                            </div>
-                        </div>
-                    </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-neutral-50 dark:bg-neutral-900 p-4 rounded-2xl border border-neutral-200/40 dark:border-neutral-700/40">
+                    <div><span class="text-neutral-400 block">Güzergah</span><span class="font-semibold">{{ $selected->pickup_location }} → {{ $selected->delivery_location }}</span></div>
+                    <div><span class="text-neutral-400 block">Tarih</span><span class="font-semibold">{{ $selected->pickup_date?->format('d.m.Y') }}@if($selected->delivery_date) – {{ $selected->delivery_date->format('d.m.Y') }}@endif</span></div>
+                    <div><span class="text-neutral-400 block">Yük</span><span class="font-semibold">{{ $selected->goods_type }}@if($selected->weight) · {{ number_format((int) $selected->weight, 0, ',', '.') }} kg @endif</span></div>
+                    <div><span class="text-neutral-400 block">Araç</span><span class="font-semibold">{{ \App\Models\DriverVehicle::getVehicleTypes()[$selected->vehicle_type] ?? $selected->vehicle_type }}</span></div>
+                    <div><span class="text-neutral-400 block">Navlun</span><span class="font-semibold">{{ number_format((float) $selected->price, 2, ',', '.') }} ₺</span></div>
+                    <div><span class="text-neutral-400 block">Yük sahibi</span><span class="font-semibold">{{ $selected->cargoOwnerProfile?->displayName() ?: '—' }}</span><span class="block text-[11px] text-neutral-400">{{ $selected->cargoOwnerProfile?->user?->email }}</span></div>
+                    <div><span class="text-neutral-400 block">Şoför</span><span class="font-semibold">{{ $selected->driverProfile?->user?->full_name ?? 'Atanmadı' }}</span><span class="block text-[11px] text-neutral-400">{{ $selected->driverProfile?->user?->email }}</span></div>
+                    @if($selected->rejection_reason)
+                        <div class="sm:col-span-2"><span class="text-neutral-400 block">İptal gerekçesi</span>{{ $selected->rejection_reason }}</div>
+                    @endif
                 </div>
 
-                <!-- Escrow (PayTR Güvenli Havuz) Durum Kartı -->
-                <div class="p-4 bg-brand-500/5 rounded-2xl border border-brand-500/10 text-xs flex justify-between items-center">
+                <div>
+                    <h3 class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Teklifler ({{ $selected->offers->count() }})</h3>
+                    @forelse($selected->offers->sortByDesc('id') as $offer)
+                        <div class="flex flex-col sm:flex-row sm:justify-between gap-1 border-b border-neutral-100 dark:border-neutral-800/60 py-2">
+                            <span>{{ $offer->driverProfile?->user?->full_name ?? 'Şoför' }} · {{ number_format((float) $offer->amount, 2, ',', '.') }} ₺@if($offer->estimated_days) · {{ $offer->estimated_days }} gün @endif</span>
+                            <span class="text-neutral-400">{{ \App\Models\Offer::STATUS_LABELS[$offer->status] ?? $offer->status }} · {{ $offer->created_at?->format('d.m.Y H:i') }}</span>
+                        </div>
+                    @empty
+                        <p class="text-neutral-500">Henüz teklif yok.</p>
+                    @endforelse
+                </div>
+
+                <div>
+                    <h3 class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Sevkiyat</h3>
+                    @if($selected->shipment)
+                        @php $s = $selected->shipment; @endphp
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div><span class="text-neutral-400 block">Durum</span>{{ $s->status }}</div>
+                            <div><span class="text-neutral-400 block">Araç</span>{{ $s->vehicle?->plate ?? '—' }}</div>
+                            <div><span class="text-neutral-400 block">Yola çıkış</span>{{ $s->in_transit_at?->format('d.m.Y H:i') ?? '—' }}</div>
+                            <div><span class="text-neutral-400 block">Teslim</span>{{ $s->delivered_at?->format('d.m.Y H:i') ?? '—' }}</div>
+                            <div class="sm:col-span-2"><span class="text-neutral-400 block">Son konum</span>{{ $s->latestLocation ? $s->latestLocation->latitude.', '.$s->latestLocation->longitude.' · '.$s->latestLocation->recorded_at?->format('d.m.Y H:i') : 'Konum bildirilmedi' }}</div>
+                        </div>
+                    @else
+                        <p class="text-neutral-500">Sevkiyat oluşturulmadı.</p>
+                    @endif
+                </div>
+
+                <div>
+                    <h3 class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Ödeme emirleri</h3>
+                    @forelse($selected->paymentOrders->sortByDesc('id') as $order)
+                        <div class="flex flex-col sm:flex-row sm:justify-between gap-1 border-b border-neutral-100 dark:border-neutral-800/60 py-2">
+                            <span class="font-mono">{{ $order->merchant_oid }}</span>
+                            <span class="text-neutral-400">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺ · {{ $order->status }} · {{ $order->paid_at?->format('d.m.Y H:i') ?? $order->created_at?->format('d.m.Y H:i') }}</span>
+                        </div>
+                    @empty
+                        <p class="text-neutral-500">Ödeme emri yok.</p>
+                    @endforelse
+                </div>
+
+                @if($selected->disputes->isNotEmpty())
                     <div>
-                        <span class="font-semibold text-brand-500 block">PayTR Güvenli Havuz (Escrow) Durumu</span>
-                        <span class="text-[11px] text-neutral-500 mt-1 block">Yük sahibi ödemeyi yaptıktan sonra bedel blokelenir.</span>
+                        <h3 class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Uyuşmazlıklar</h3>
+                        @foreach($selected->disputes as $dispute)
+                            <div class="border-b border-neutral-100 dark:border-neutral-800/60 py-2">#{{ $dispute->id }} · {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }} · {{ $dispute->created_at?->format('d.m.Y H:i') }}</div>
+                        @endforeach
                     </div>
-                    @php
-                        $escrowBadges = [
-                            'pending_payment' => 'bg-amber-500/10 text-amber-600',
-                            'paid_in_escrow' => 'bg-emerald-500/10 text-emerald-600',
-                            'released_to_driver' => 'bg-blue-500/10 text-blue-600',
-                            'refunded_to_owner' => 'bg-red-500/10 text-red-600',
-                        ];
-                    @endphp
-                    <span class="px-3 py-1 rounded-full font-bold text-[10px] {{ $escrowBadges[$selectedLoad->escrow_status] ?? '' }}">
-                        {{ $escrowLabels[$selectedLoad->escrow_status] ?? '' }}
-                    </span>
-                </div>
+                @endif
 
-                <!-- Manuel Yönetici Müdahale Paneli -->
-                <div class="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
-                    <label class="text-[11px] font-bold text-neutral-400 dark:text-neutral-500 tracking-wider">MANUEL ADMİN MÜDAHALE İSTASYONU</label>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <!-- Navlun Bedeli Düzenleme -->
-                        <button wire:click="openEditModal" class="btn-apple-secondary py-2.5 text-xs">
-                            Fiyatı Düzenle (₺)
-                        </button>
-
-                        <!-- Askıya Alma / Geri Çekme Butonu -->
-                        @if($selectedLoad->status === 'cancelled')
-                            <button wire:click="toggleSuspend" class="btn-apple-primary py-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white">
-                                Yayına Geri Al
-                            </button>
+                @if($canManage)
+                    <div class="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
+                        @if($selected->status === \App\Models\Load::STATUS_ACTIVE && $selected->visibility !== 'public')
+                            <button type="button" wire:click="relist" wire:loading.attr="disabled" class="btn-apple-secondary py-2 px-4 text-[11px]">Havuzda yeniden yayınla</button>
+                        @endif
+                        @if($selected->escrow_status === \App\Models\Load::ESCROW_PENDING && in_array($selected->status, [\App\Models\Load::STATUS_ACTIVE, \App\Models\Load::STATUS_ASSIGNED], true))
+                            <div class="space-y-2">
+                                <label class="text-[11px] font-semibold text-neutral-500">İlanı askıya al (iptal eder, bekleyen teklifleri reddeder)</label>
+                                <textarea wire:model="suspendReason" rows="2" placeholder="Gerekçe (yük sahibine iletilir)" class="{{ $input }}"></textarea>
+                                @error('suspendReason') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                                <button type="button" wire:click="suspend" wire:confirm="İlan iptal edilecek ve bekleyen teklifler reddedilecek. Devam edilsin mi?" wire:loading.attr="disabled" class="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold">Askıya al</button>
+                            </div>
                         @else
-                            <button wire:click="toggleSuspend" class="btn-apple-secondary py-2.5 text-xs text-red-600 hover:bg-red-50 hover:border-red-200">
-                                Askıya Al / İptal Et
-                            </button>
+                            <p class="text-[11px] text-neutral-400">Ödemesi alınmış veya yola çıkmış ilanlar buradan iptal edilemez; havuz bakiyesi yalnız uyuşmazlık kararıyla değişir.</p>
                         @endif
                     </div>
-                </div>
+                @endif
             </div>
         @endif
     </div>
-
-    <!-- FİYAT DÜZENLEME MODAL (Apple Tarzı) -->
-    @if($showEditModal)
-        <div class="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-            <div class="bg-white dark:bg-neutral-800 p-6 rounded-3xl w-full max-w-sm mx-4 border border-neutral-100 dark:border-neutral-700/50 shadow-apple-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Navlun Fiyatına Müdahale</h3>
-                    <button wire:click="$set('showEditModal', false)" class="p-1.5 rounded-full hover:bg-neutral-100 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <div class="space-y-4">
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400">Sevkiyatın navlun bedeline yönetici sıfatıyla manuel müdahale etmektesiniz. Lütfen yeni fiyatı giriniz.</p>
-
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-neutral-500">Yeni Navlun Bedeli (₺)</label>
-                        <input type="number" wire:model="newPrice" class="w-full p-4 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all duration-300">
-                        @error('newPrice') <span class="text-red-500 text-[11px] block font-medium pl-1">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-2">
-                        <button wire:click="$set('showEditModal', false)" class="px-4 py-2 bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-white text-xs rounded-xl hover:bg-neutral-200">Vazgeç</button>
-                        <button wire:click="updatePrice" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs rounded-xl font-semibold">Fiyatı Güncelle</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @endif
 </div>

@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\Phone;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
 
 class ScrapedLoad extends Model
 {
@@ -51,20 +52,20 @@ class ScrapedLoad extends Model
     {
         if ($this->encrypted_sender_phone) {
             try {
-                return \App\Support\Phone::normalize(Crypt::decryptString($this->encrypted_sender_phone));
+                return Phone::normalize(Crypt::decryptString($this->encrypted_sender_phone));
             } catch (\Throwable) {
                 return null;
             }
         }
 
-        return \App\Support\Phone::normalize($this->sender_phone);
+        return Phone::normalize($this->sender_phone);
     }
 
     public function getFormattedPhoneAttribute(): string
     {
         $phone = $this->plainPhone();
 
-        return $phone ? \App\Support\Phone::format($phone) : 'Bilinmiyor';
+        return $phone ? Phone::format($phone) : 'Bilinmiyor';
     }
 
     /**

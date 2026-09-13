@@ -1,348 +1,286 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\User;
 use App\Models\ActivityLog;
-use Spatie\Permission\Models\Role;
+use App\Models\User;
+use App\Support\Phone;
+use Illuminate\Validation\Rule;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 use Spatie\Permission\Models\Permission;
-use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 new class extends Component {
-    // Sekme Yönetimi
-    public string $activeTab = 'staff'; // 'staff', 'roles', 'audit_logs'
+    use WithPagination;
 
-    // Yeni Personel Form Verileri
-    public string $newFirstName = '';
-    public string $newLastName = '';
-    public string $newEmail = '';
-    public string $newPhone = '';
-    public string $newPassword = '';
-    public string $selectedRole = 'kyc_validator';
+    public const ROLE_LABELS = [
+        'super_admin' => 'Süper yönetici',
+        'kyc_validator' => 'KYC doğrulayıcı',
+        'financial_officer' => 'Finans sorumlusu',
+        'support_agent' => 'Destek temsilcisi',
+    ];
 
-    // Yeni Rol Form Verileri
-    public string $newRoleName = '';
-    public array $selectedPermissions = [];
+    public string $activeTab = 'staff';
 
-    public function mount()
+    public string $firstName = '';
+
+    public string $lastName = '';
+
+    public string $email = '';
+
+    public string $phone = '';
+
+    public string $password = '';
+
+    public string $role = 'support_agent';
+
+    /** @var array<string, array<int, string>> Rol adına göre seçili izinler */
+    public array $rolePermissions = [];
+
+    public function mount(): void
     {
-        if (!auth()->user()->can('manage staff')) {
-            abort(403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
+        abort_unless(auth()->user()->can('manage staff'), 403);
+        $this->loadRolePermissions();
+    }
+
+    public function updatedActiveTab(): void
+    {
+        $this->resetPage();
+    }
+
+    private function assignableRoles(): array
+    {
+        $roles = User::ADMIN_PANEL_ROLES;
+        if (! auth()->user()->hasRole('super_admin')) {
+            $roles = array_values(array_diff($roles, ['super_admin']));
+        }
+
+        return $roles;
+    }
+
+    private function loadRolePermissions(): void
+    {
+        $this->rolePermissions = [];
+        foreach (Role::query()->whereIn('name', User::ADMIN_PANEL_ROLES)->with('permissions')->get() as $role) {
+            $this->rolePermissions[$role->name] = $role->permissions->pluck('name')->all();
         }
     }
 
-    
-
-    /**
-     * Yeni Alt Personel Hesabı Tanımlama
-     */
-    public function addStaff()
+    public function createStaff(): void
     {
+        $phone = Phone::normalize($this->phone);
+
         $this->validate([
-            'newFirstName' => 'required|string|min:2',
-            'newLastName' => 'required|string|min:2',
-            'newEmail' => 'required|email|unique:users,email',
-            'newPhone' => 'required|string|unique:users,phone',
-            'newPassword' => 'required|string|min:6',
+            'firstName' => 'required|string|min:2|max:60',
+            'lastName' => 'required|string|min:2|max:60',
+            'email' => 'required|email|max:255|unique:users,email',
+            'phone' => ['required', Phone::RULE],
+            'password' => 'required|string|min:12|max:255',
+            'role' => ['required', Rule::in($this->assignableRoles())],
         ], [
-            'newEmail.unique' => 'Bu e-posta adresiyle kayıtlı bir personel zaten var.',
-            'newPhone.unique' => 'Bu telefon numarası zaten kayıtlı.'
+            'email.unique' => 'Bu e-posta ile kayıtlı bir kullanıcı zaten var.',
+            'phone.regex' => 'Geçerli bir Türkiye cep telefonu numarası girin.',
+            'password.min' => 'Şifre en az 12 karakter olmalıdır.',
+            'role.in' => 'Bu rolü atama yetkiniz yok.',
         ]);
+
+        if (! $phone || User::query()->whereIn('phone', Phone::variants($phone))->exists()) {
+            $this->addError('phone', 'Bu telefon numarası zaten kayıtlı.');
+
+            return;
+        }
 
         $user = User::create([
-            'first_name' => $this->newFirstName,
-            'last_name' => $this->newLastName,
-            'email' => $this->newEmail,
-            'phone' => $this->newPhone,
-            'password' => Hash::make($this->newPassword),
+            'first_name' => trim($this->firstName),
+            'last_name' => trim($this->lastName),
+            'email' => mb_strtolower(trim($this->email)),
+            'phone' => $phone,
+            'password' => $this->password,
             'current_role' => 'admin',
-            'is_active' => true
+            'is_active' => true,
+            'email_verified_at' => now(),
         ]);
+        $user->assignRole($this->role);
 
-        // Rol ataması yap
-        $user->assignRole($this->selectedRole);
-
-        // Sicil Kütüğüne Kaydet
-        ActivityLog::record('Personel Hesabı Oluşturuldu', "{$user->full_name} isimli personele {$this->selectedRole} rolü atandı.");
-
-        $this->reset(['newFirstName', 'newLastName', 'newEmail', 'newPhone', 'newPassword']);
-        session()->flash('success', 'Yeni alt personel hesabı başarıyla oluşturuldu ve yetkilendirildi!');
+        ActivityLog::record('staff.created', "Personel hesabı oluşturuldu: {$user->full_name} ({$this->role})", auth()->id(), $user);
+        $this->reset(['firstName', 'lastName', 'email', 'phone', 'password']);
+        session()->flash('success_message', 'Personel hesabı oluşturuldu. Girişte e-posta doğrulama kodu istenir.');
     }
 
-    /**
-     * Modüler Yeni Rol ve İzin Matrisi Oluşturma
-     */
-    public function addRole()
+    public function toggleActive(int $userId): void
     {
-        $this->validate([
-            'newRoleName' => 'required|string|min:3|unique:roles,name',
-            'selectedPermissions' => 'required|array|min:1'
-        ], [
-            'selectedPermissions.required' => 'Lütfen bu role atamak için en az bir izin kutucuğu seçiniz.'
-        ]);
+        if ($userId === auth()->id()) {
+            session()->flash('error_message', 'Kendi hesabınızı pasife alamazsınız.');
 
-        $role = Role::create(['name' => $this->newRoleName]);
-        $role->givePermissionTo($this->selectedPermissions);
+            return;
+        }
 
-        // Sicil Kütüğüne Kaydet
-        ActivityLog::record('Yeni Rol Oluşturuldu', "{$this->newRoleName} adında modüler izinli yeni rol tanımlandı.");
+        $user = User::query()->where('current_role', 'admin')->find($userId);
+        if (! $user) {
+            session()->flash('error_message', 'Personel bulunamadı.');
 
-        $this->reset(['newRoleName', 'selectedPermissions']);
-        session()->flash('success', 'Yeni modüler rol ve izin matrisi başarıyla aktif edildi!');
+            return;
+        }
+        if ($user->hasRole('super_admin') && ! auth()->user()->hasRole('super_admin')) {
+            session()->flash('error_message', 'Süper yönetici hesabını yalnız başka bir süper yönetici değiştirebilir.');
+
+            return;
+        }
+
+        $user->update(['is_active' => ! $user->is_active]);
+        ActivityLog::record('staff.toggled', "Personel {$user->full_name} ".($user->is_active ? 'aktif edildi' : 'pasife alındı'), auth()->id(), $user);
+        session()->flash('success_message', 'Hesap durumu güncellendi.');
     }
 
-    /**
-     * Tüm izinlerin listesi
-     */
-    private function getPermissions()
+    public function savePermissions(string $roleName): void
     {
-        return Permission::all();
+        if (! in_array($roleName, User::ADMIN_PANEL_ROLES, true) || $roleName === 'super_admin') {
+            session()->flash('error_message', 'Bu rolün izinleri düzenlenemez.');
+
+            return;
+        }
+        if (! auth()->user()->hasRole('super_admin')) {
+            session()->flash('error_message', 'Rol izinlerini yalnız süper yönetici düzenleyebilir.');
+
+            return;
+        }
+
+        $role = Role::query()->where('name', $roleName)->first();
+        if (! $role) {
+            return;
+        }
+
+        $valid = Permission::query()->pluck('name')->all();
+        $selected = array_values(array_intersect($valid, $this->rolePermissions[$roleName] ?? []));
+        $role->syncPermissions($selected);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        ActivityLog::record('role.permissions_updated', "{$roleName} rolü izinleri güncellendi: ".implode(', ', $selected), auth()->id(), $role);
+        $this->loadRolePermissions();
+        session()->flash('success_message', (self::ROLE_LABELS[$roleName] ?? $roleName).' izinleri kaydedildi.');
     }
 
-    /**
-     * Tanımlı roller
-     */
-    private function getRoles()
+    public function with(): array
     {
-        return Role::all();
-    }
-
-    /**
-     * Admin personellerin listesi
-     */
-    private function getStaffUsers()
-    {
-        return User::where('current_role', 'admin')->latest()->get();
-    }
-
-    /**
-     * Sicil kütüğü kayıtları
-     */
-    private function getAuditLogs()
-    {
-        return ActivityLog::with('user')->latest()->take(20)->get();
+        return [
+            'roleLabels' => self::ROLE_LABELS,
+            'assignable' => $this->assignableRoles(),
+            'staff' => $this->activeTab === 'staff' ? User::query()->where('current_role', 'admin')->with('roles')->orderBy('id')->paginate(15) : null,
+            'permissions' => $this->activeTab === 'roles' ? Permission::query()->orderBy('name')->pluck('name')->all() : [],
+            'isSuperAdmin' => auth()->user()->hasRole('super_admin'),
+        ];
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in">
-    <!-- Bildirim Banner'ları -->
-    @if (session()->has('success'))
-        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{{ session('success') }}</span>
-        </div>
+<div class="max-w-7xl mx-auto space-y-6">
+    @php
+        $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
+    @endphp
+
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık ve Akıllı Tohumlayıcı -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Personel ve Rol Yetkilendirme</h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Alt personelleri yetkilendirin, modüler izin matrisleri atayın ve sicil kütüğünü izleyin.</p>
-        </div>
-
-        @if(\App\Models\ActivityLog::count() === 0)
-@endif
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Personel ve İzinler</h1>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Panele yalnız tanımlı personel rolleri girebilir; yeni rol türü eklemek kod değişikliği gerektirir.</p>
     </div>
 
-    <!-- Filtre Segment Kontrolleri -->
-    <div class="flex p-0.5 bg-neutral-200/50 dark:bg-neutral-900 rounded-2xl w-full md:w-max border border-neutral-200/10 shadow-apple-sm">
-        <button wire:click="$set('activeTab', 'staff')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'staff' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Personel Kadrosu
-        </button>
-        <button wire:click="$set('activeTab', 'roles')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'roles' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Modüler Rol & İzin Matrisi
-        </button>
-        <button wire:click="$set('activeTab', 'audit_logs')" class="flex-1 md:flex-none px-6 py-2.5 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'audit_logs' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Personel Sicil Kütüğü (Audit Logs)
-        </button>
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
+        <button type="button" wire:click="$set('activeTab', 'staff')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'staff' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Personel</button>
+        <button type="button" wire:click="$set('activeTab', 'roles')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'roles' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Rol izinleri</button>
     </div>
 
     @if($activeTab === 'staff')
-        <!-- SEKME 1: PERSONEL KADROSU VE HESAP OLUŞTURUCU -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <!-- Personel Ekleme Form Kartı -->
-            <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
-                <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YENİ PERSONEL TANIMLA</h3>
-
-                <form wire:submit.prevent="addStaff" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Ad</label>
-                            <input type="text" wire:model="newFirstName" placeholder="Örn: Canan" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Soyad</label>
-                            <input type="text" wire:model="newLastName" placeholder="Örn: Öztürk" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">E-Posta Adresi</label>
-                        <input type="email" wire:model="newEmail" placeholder="canan@navluniq.com" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        @error('newEmail') <span class="text-red-500 text-[10px] block mt-1 font-semibold">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Telefon</label>
-                            <input type="text" wire:model="newPhone" placeholder="+90555..." class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Giriş Şifresi</label>
-                            <input type="password" wire:model="newPassword" placeholder="••••••••" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Atanacak Rol</label>
-                        <select wire:model="selectedRole" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-bold">
-                            @foreach($this->getRoles() as $r)
-                                <option value="{{ $r->name }}">{{ strtoupper($r->name) }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-semibold">
-                        Personeli Yetkilendir ve Kaydet
-                    </button>
-                </form>
-            </div>
-
-            <!-- Kayıtlı Personel Listesi -->
-            <div class="lg:col-span-2 apple-glass rounded-3xl p-6 space-y-4">
-                <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YETKİLİ PERSONEL KADROSU</h3>
-
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                        <tr class="text-neutral-400 font-bold border-b border-neutral-100 dark:border-neutral-800/50">
-                            <th class="pb-3">Personel Adı</th>
-                            <th class="pb-3">İletişim</th>
-                            <th class="pb-3">Atanan Rol</th>
-                            <th class="pb-3 text-right">Durum</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                        @forelse($this->getStaffUsers() as $stf)
-                            <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200">
-                                <td class="py-3.5 font-bold text-neutral-900 dark:text-white">
-                                    {{ $stf->full_name }}
-                                </td>
-                                <td class="py-3.5 text-neutral-400">
-                                    <div>{{ $stf->email }}</div>
-                                    <div class="text-[10px] font-mono mt-0.5">{{ $stf->phone }}</div>
-                                </td>
-                                <td class="py-3.5">
-                                    @foreach($stf->getRoleNames() as $rn)
-                                        <span class="px-2.5 py-1 rounded-full font-bold text-[10px] bg-brand-500/10 text-brand-600 uppercase">
-                                            {{ $rn }}
-                                        </span>
-                                    @endforeach
-                                </td>
-                                <td class="py-3.5 text-right">
-                                    <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/10 text-emerald-600">AKTİF</span>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="py-6 text-center text-neutral-400">Herhangi bir kayıtlı personel bulunmuyor.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-    @elseif($activeTab === 'roles')
-        <!-- SEKME 2: MODÜLER ROL VE İZİN MATRİSİ (CHECKBOX MATRIX) -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start text-xs">
-            <!-- Rol Tanımlama Form Kartı -->
-            <div class="apple-glass rounded-3xl p-6 space-y-4">
-                <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YENİ MODÜLER ROL TANIMLA</h3>
-
-                <form wire:submit.prevent="addRole" class="space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Rol Adı (Örn: 'evrak_onaycisi', 'operasyon_amiri')</label>
-                        <input type="text" wire:model="newRoleName" placeholder="evrak_onaycisi" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        @error('newRoleName') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
-                    </div>
-
-                    <!-- Modüler İzin Kutucukları (Checkboxes) -->
-                    <div class="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/50">
-                        <label class="font-bold text-brand-500 block uppercase tracking-wider text-[10px]">Atanacak Modüler İzinler</label>
-
-                        <div class="space-y-2 max-h-60 overflow-y-auto p-2 bg-neutral-50 dark:bg-neutral-900 rounded-xl border border-neutral-200/40">
-                            @foreach($this->getPermissions() as $p)
-                                <label class="flex items-center space-x-2 p-1.5 hover:bg-neutral-200/40 dark:hover:bg-neutral-800 rounded-lg cursor-pointer transition-colors">
-                                    <input type="checkbox" wire:model="selectedPermissions" value="{{ $p->name }}" class="w-4 h-4 accent-brand-500 rounded">
-                                    <span class="font-medium text-neutral-800 dark:text-neutral-200">{{ $p->name }}</span>
-                                </label>
-                            @endforeach
-                        </div>
-                        @error('selectedPermissions') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
-                    </div>
-
-                    <button type="submit" class="w-full btn-apple-brand py-3 text-xs">
-                        Modüler Rolü Aktifleştir
-                    </button>
-                </form>
-            </div>
-
-            <!-- Mevcut Roller ve Bağlı Yetki Listesi -->
-            <div class="lg:col-span-2 apple-glass rounded-3xl p-6 space-y-4">
-                <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">SİSTEMDEKİ MODÜLER ROLLER VE YETKİLERİ</h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    @foreach($this->getRoles() as $rl)
-                        <div class="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40 space-y-2">
-                            <div class="flex justify-between items-center">
-                                <span class="font-extrabold uppercase text-neutral-900 dark:text-white">{{ $rl->name }}</span>
-                                <span class="text-[10px] text-neutral-400 font-mono">{{ $rl->permissions->count() }} İzin Atandı</span>
-                            </div>
-                            <div class="flex flex-wrap gap-1 pt-2 border-t border-neutral-200/30 dark:border-neutral-800/50">
-                                @forelse($rl->permissions as $p)
-                                    <span class="px-2 py-0.5 rounded bg-neutral-200/60 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 text-[9px] font-semibold">
-                                        {{ $p->name }}
-                                    </span>
-                                @empty
-                                    <span class="text-[10px] text-neutral-400 italic">Süper Admin (Sınırsız Tüm İzinler)</span>
-                                @endforelse
-                            </div>
-                        </div>
-                    @endforeach
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            <form wire:submit="createStaff" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yeni personel</h2>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="text-[11px] font-semibold text-neutral-500">Ad</label><input type="text" wire:model="firstName" class="{{ $input }}">@error('firstName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                    <div><label class="text-[11px] font-semibold text-neutral-500">Soyad</label><input type="text" wire:model="lastName" class="{{ $input }}">@error('lastName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 </div>
+                <div><label class="text-[11px] font-semibold text-neutral-500">E-posta</label><input type="email" wire:model="email" class="{{ $input }}">@error('email') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div><label class="text-[11px] font-semibold text-neutral-500">Telefon</label><input type="text" wire:model="phone" placeholder="05XX XXX XX XX" class="{{ $input }}">@error('phone') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div><label class="text-[11px] font-semibold text-neutral-500">Şifre (en az 12 karakter)</label><input type="password" wire:model="password" autocomplete="new-password" class="{{ $input }}">@error('password') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div>
+                    <label class="text-[11px] font-semibold text-neutral-500">Rol</label>
+                    <select wire:model="role" class="{{ $input }}">
+                        @foreach($assignable as $name)
+                            <option value="{{ $name }}">{{ $roleLabels[$name] ?? $name }}</option>
+                        @endforeach
+                    </select>
+                    @error('role') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                </div>
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Hesabı oluştur</button>
+            </form>
+
+            <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
+                <div class="responsive-scroll">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                                <th class="p-4">Personel</th>
+                                <th class="p-4">Roller</th>
+                                <th class="p-4">Son giriş</th>
+                                <th class="p-4">Durum</th>
+                                <th class="p-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                            @forelse($staff as $member)
+                                <tr>
+                                    <td class="p-4"><div class="font-bold">{{ $member->full_name }}</div><div class="text-[11px] text-neutral-400">{{ $member->email }} · {{ \App\Support\Phone::format($member->phone) }}</div></td>
+                                    <td class="p-4">{{ $member->getRoleNames()->map(fn ($r) => $roleLabels[$r] ?? $r)->join(', ') ?: 'Rol atanmadı' }}</td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $member->last_login_at?->format('d.m.Y H:i') ?? 'Henüz giriş yapmadı' }}</td>
+                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $member->is_active && ! $member->banned_at ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}">{{ $member->banned_at ? 'Yasaklı' : ($member->is_active ? 'Aktif' : 'Pasif') }}</span></td>
+                                    <td class="p-4 whitespace-nowrap">
+                                        @if($member->id !== auth()->id())
+                                            <button type="button" wire:click="toggleActive({{ $member->id }})" wire:confirm="Hesap durumu değiştirilecek. Devam edilsin mi?" class="text-brand-500 font-semibold">{{ $member->is_active ? 'Pasife al' : 'Aktif et' }}</button>
+                                        @else
+                                            <span class="text-[11px] text-neutral-400">Siz</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="p-10 text-center text-neutral-500">Personel kaydı yok.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $staff->links() }}</div>
             </div>
         </div>
+    @endif
 
-    @elseif($activeTab === 'audit_logs')
-        <!-- SEKME 3: PERSONEL SİCİL KÜTÜĞÜ (AUDIT LOGS) -->
-        <div class="apple-glass rounded-3xl p-6 space-y-4">
-            <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">PERSONEL İŞLEM VE SİCİL LOG KAYITLARI</h3>
-
-            <table class="w-full text-left border-collapse text-xs">
-                <thead>
-                    <tr class="text-neutral-400 font-bold border-b border-neutral-100 dark:border-neutral-800/50">
-                        <th class="p-4">Tarih / Saat</th>
-                        <th class="p-4">Personel</th>
-                        <th class="p-4">İşlem Başlığı</th>
-                        <th class="p-4">Sicil Detayı (Audit Log)</th>
-                        <th class="p-4 text-right">IP Adresi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                    @forelse($this->getAuditLogs() as $log)
-                        <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200 font-mono text-[11px]">
-                            <td class="p-4 text-neutral-400">{{ $log->created_at->format('Y-m-d H:i:s') }}</td>
-                            <td class="p-4 font-bold font-sans text-neutral-900 dark:text-white">{{ $log->user->full_name ?? 'Sistem' }}</td>
-                            <td class="p-4 font-sans font-bold text-brand-500">{{ $log->action }}</td>
-                            <td class="p-4 font-sans text-neutral-600 dark:text-neutral-300 leading-relaxed">{{ $log->description }}</td>
-                            <td class="p-4 text-right text-neutral-400">{{ $log->ip_address }}</td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="p-12 text-center text-neutral-400 font-sans">Henüz kaydedilmiş bir personel sicil kaydı bulunmuyor.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+    @if($activeTab === 'roles')
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            @foreach($rolePermissions as $roleName => $selected)
+                <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $roleLabels[$roleName] ?? $roleName }} <span class="font-mono text-neutral-400 text-[11px]">{{ $roleName }}</span></h2>
+                        @if($roleName === 'super_admin')
+                            <span class="text-[11px] text-neutral-400">Tüm izinler; düzenlenemez</span>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        @foreach($permissions as $permission)
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-neutral-200/40 dark:border-neutral-700/40">
+                                <input type="checkbox" wire:model="rolePermissions.{{ $roleName }}" value="{{ $permission }}" @disabled($roleName === 'super_admin' || ! $isSuperAdmin)>
+                                <span class="font-mono">{{ $permission }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    @if($roleName !== 'super_admin' && $isSuperAdmin)
+                        <button type="button" wire:click="savePermissions('{{ $roleName }}')" wire:loading.attr="disabled" class="btn-apple-brand py-2 px-4 text-xs">İzinleri kaydet</button>
+                    @endif
+                </div>
+            @endforeach
         </div>
+        @if(! $isSuperAdmin)
+            <p class="text-[11px] text-neutral-400">Rol izinlerini yalnız süper yönetici değiştirebilir.</p>
+        @endif
     @endif
 </div>
