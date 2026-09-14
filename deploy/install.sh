@@ -30,15 +30,29 @@ ok()   { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
 fail() { printf '\033[1;31m✘ %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || fail "Bu betik root olarak çalıştırılmalı."
+# Veritabanı bilgileri verilmemişse mevcut .env dosyasından okunur.
+if [[ -f /var/www/navluniq/.env ]]; then
+    env_get() { sed -nE "s/^$1=\"?([^\"]*)\"?$/\1/p" /var/www/navluniq/.env | head -n1; }
+    DB_DATABASE="${DB_DATABASE:-$(env_get DB_DATABASE)}"
+    DB_USERNAME="${DB_USERNAME:-$(env_get DB_USERNAME)}"
+    DB_PASSWORD="${DB_PASSWORD:-$(env_get DB_PASSWORD)}"
+    [[ -n "${DOMAIN:-}" ]] || DOMAIN="$(env_get APP_URL | sed -E 's|^https?://||')"
+fi
 [[ -n "${DB_DATABASE:-}" && -n "${DB_USERNAME:-}" && -n "${DB_PASSWORD:-}" ]] \
     || fail "DB_DATABASE, DB_USERNAME ve DB_PASSWORD ortam değişkenleri zorunlu."
 
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 DOMAIN="${DOMAIN:-$SERVER_IP}"
+DOMAIN="${DOMAIN#www.}"
 IS_DOMAIN=0
 [[ "$DOMAIN" =~ ^[0-9.]+$ ]] || IS_DOMAIN=1
+# www alt alanı bu sunucuya yönlendirilmişse nginx ve SSL'e dahil edilir.
+SERVER_NAMES="$DOMAIN"; CERT_DOMAINS=(-d "$DOMAIN")
+if [[ $IS_DOMAIN -eq 1 ]] && getent hosts "www.${DOMAIN}" 2>/dev/null | grep -q "$SERVER_IP"; then
+    SERVER_NAMES="$DOMAIN www.${DOMAIN}"; CERT_DOMAINS+=(-d "www.${DOMAIN}")
+fi
 
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
 # -----------------------------------------------------------------------------
 log "Sistem paketleri"
@@ -180,7 +194,7 @@ ok "config/route/view önbellekleri oluşturuldu"
 # -----------------------------------------------------------------------------
 log "nginx"
 PHP_SOCK="$(ls /run/php/php${PHP_VERSION}-fpm.sock 2>/dev/null || ls /run/php/php*-fpm.sock | head -n1)"
-sed -e "s|__DOMAIN__|${DOMAIN}|g" -e "s|__PHP_SOCK__|${PHP_SOCK}|g" deploy/nginx.conf > /etc/nginx/sites-available/navluniq
+sed -e "s|__DOMAIN__|${SERVER_NAMES}|g" -e "s|__PHP_SOCK__|${PHP_SOCK}|g" deploy/nginx.conf > /etc/nginx/sites-available/navluniq
 ln -sf /etc/nginx/sites-available/navluniq /etc/nginx/sites-enabled/navluniq
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
@@ -191,7 +205,7 @@ ok "site yayında: http://${DOMAIN}"
 if [[ $IS_DOMAIN -eq 1 && -n "${LETSENCRYPT_EMAIL:-}" ]]; then
     log "SSL sertifikası (Let's Encrypt)"
     apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
+    certbot --nginx "${CERT_DOMAINS[@]}" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
         && ok "https://${DOMAIN} aktif" \
         || echo "Sertifika alınamadı; alan adının bu sunucuya yönlendiğinden emin olup betiği tekrar çalıştırın."
 fi
@@ -199,7 +213,7 @@ fi
 # -----------------------------------------------------------------------------
 log "Zamanlanmış görevler"
 CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-( crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" ; echo "$CRON_LINE" ) | crontab -u www-data -
+{ crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$CRON_LINE"; } | crontab -u www-data -
 ok "her dakika schedule:run (www-data)"
 
 # -----------------------------------------------------------------------------
