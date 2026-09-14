@@ -207,7 +207,7 @@ fi
 # -----------------------------------------------------------------------------
 log "Zamanlanmış görevler"
 CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-( crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" ; echo "$CRON_LINE" ) | crontab -u www-data -
+{ crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$CRON_LINE"; } | crontab -u www-data -
 ok "her dakika schedule:run (www-data)"
 
 # -----------------------------------------------------------------------------
