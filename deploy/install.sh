@@ -79,6 +79,22 @@ ok "nginx ve PHP ${PHP_VERSION} hazır"
 
 update-alternatives --set php "/usr/bin/php${PHP_VERSION}" >/dev/null 2>&1 || true
 
+# PHP sınırları: KYC belgeleri 10 MB'a kadar kabul edilir; PHP'nin varsayılan 2 MB
+# yükleme sınırı bu yüzden yükseltilir (FPM ve CLI için ortak ayar dosyası).
+for sapi in fpm cli; do
+    [[ -d "/etc/php/${PHP_VERSION}/${sapi}/conf.d" ]] || continue
+    cat > "/etc/php/${PHP_VERSION}/${sapi}/conf.d/99-navluniq.ini" <<'INI'
+; NavlunIQ (deploy/install.sh tarafından yazılır)
+upload_max_filesize = 12M
+post_max_size = 32M
+memory_limit = 256M
+max_execution_time = 120
+max_input_time = 120
+INI
+done
+systemctl restart "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
+ok "PHP yükleme sınırı 12 MB"
+
 if ! command -v composer >/dev/null; then
     log "Composer kuruluyor"
     curl -sS https://getcomposer.org/installer | php -- --quiet --install-dir=/usr/local/bin --filename=composer

@@ -39,6 +39,21 @@ php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder -
 # SSS ve sözleşme metinleri panelden düzenlenebildiği için otomatik yenilenmez.
 # Koddaki güncel metinleri yüklemek için: php artisan db:seed --class=FaqSeeder --force
 
+log "PHP sınırları"
+PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+for sapi in fpm cli; do
+    [[ -d "/etc/php/${PHP_VER}/${sapi}/conf.d" ]] || continue
+    cat > "/etc/php/${PHP_VER}/${sapi}/conf.d/99-navluniq.ini" <<'INI'
+; NavlunIQ (deploy/update.sh tarafından yazılır)
+upload_max_filesize = 12M
+post_max_size = 32M
+memory_limit = 256M
+max_execution_time = 120
+max_input_time = 120
+INI
+done
+ok "upload_max_filesize 12M, post_max_size 32M"
+
 log "İzinler ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private
 chown -R www-data:www-data "$APP_DIR"
@@ -48,6 +63,6 @@ runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
 
 PHP_FPM="$(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}' | head -n1)"
-[[ -n "$PHP_FPM" ]] && systemctl reload "$PHP_FPM"
+[[ -n "$PHP_FPM" ]] && systemctl restart "$PHP_FPM"
 
 ok "Güncelleme tamamlandı (${AFTER})"

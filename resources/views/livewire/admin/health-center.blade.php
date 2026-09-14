@@ -77,6 +77,29 @@ new class extends Component {
             });
         }
 
+        $this->checks[] = $this->probe('PHP yükleme sınırı', function (): string {
+            $toBytes = static function (string $value): int {
+                $unit = strtolower(substr(trim($value), -1));
+                $number = (int) $value;
+
+                return match ($unit) {
+                    'g' => $number * 1024 ** 3,
+                    'm' => $number * 1024 ** 2,
+                    'k' => $number * 1024,
+                    default => (int) $value,
+                };
+            };
+            $upload = (string) ini_get('upload_max_filesize');
+            $post = (string) ini_get('post_max_size');
+            $required = 10 * 1024 ** 2; // KYC belgeleri için 10 MB kabul edilir
+
+            if ($toBytes($upload) < $required || $toBytes($post) < $required) {
+                throw new \RuntimeException("upload_max_filesize={$upload}, post_max_size={$post}; belge yüklemeleri için en az 10M gerekir. Sunucuda deploy/update.sh çalıştırın.");
+            }
+
+            return "upload_max_filesize {$upload} · post_max_size {$post}";
+        });
+
         $this->checks[] = ['name' => 'Uygulama', 'ok' => true, 'detail' => app()->environment().' · Laravel '.app()->version().' · PHP '.PHP_VERSION.' · hata ayıklama '.(config('app.debug') ? 'AÇIK' : 'kapalı')];
 
         $this->logLines = [];
