@@ -223,7 +223,7 @@ new class extends Component {
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div class="apple-glass rounded-3xl p-8 space-y-4 relative overflow-hidden shadow-apple-sm">
-                <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-black text-lg flex items-center justify-center">1</div>
+                <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h8m-8-4h8m-8 8h5M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/></svg></div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">Akıllı Eşleşme & Teklif</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                     Akıllı lojistik ağımız yük sahiplerinin ilanlarını tarar, uygun onaylı araçlarla eşleştirir. Şoförler teklif verir ve fiyatta anlaşırlar.
@@ -231,7 +231,7 @@ new class extends Component {
             </div>
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 relative overflow-hidden shadow-apple-sm border-t-2 border-brand-500">
-                <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white font-black text-lg flex items-center justify-center">2</div>
+                <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg></div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">Güvenli Havuz & Canlı Takip</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                     Yük sahibi navlun bedelini PayTR ile güvenli havuza yatırır, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
@@ -239,7 +239,7 @@ new class extends Component {
             </div>
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 relative overflow-hidden shadow-apple-sm">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 font-black text-lg flex items-center justify-center">3</div>
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 14h4"/></svg></div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">POD Onay & Hak Ediş</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                     Şoför teslimat kanıtını yükler, yük sahibi onaylar. Onayın ardından şoförün hak edişi finans ekibimizce banka hesabına aktarılır.
@@ -335,51 +335,67 @@ new class extends Component {
     <!-- 7. BÖLÜM: ABONELİK SİSTEMİ -->
     <!-- ========================================================= -->
     <section id="abonelik" class="max-w-7xl mx-auto px-6 md:px-12 space-y-12 scroll-mt-24">
+        @php
+            $premiumPrice = number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.');
+            $standardRate = \App\Support\Settings::float('commission_standard_driver');
+            $premiumRate = \App\Support\Settings::float('commission_discounted_premium');
+            $pct = fn (float $v) => rtrim(rtrim(number_format($v, 1, ',', '.'), '0'), ',');
+            $checkIcon = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
+        @endphp
         <div class="text-center space-y-3 max-w-2xl mx-auto">
-            <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ABONELİK PAKETLERİ</span>
-            <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yük Bulma Hızınızı Zirveye Taşıyın</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Dış kaynaklardan derlenen tüm ilanlara tek panelden erişin.</p>
+            <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
+            <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Daha fazla yük, daha az kesinti.</h2>
+            <p class="text-xs sm:text-sm text-neutral-400">Platform ilanlarına teklif vermek her zaman ücretsiz. Premium, erken erişim ve düşük komisyon sağlar.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div class="apple-glass rounded-3xl p-8 space-y-6 shadow-apple-sm flex flex-col justify-between">
-                <div class="space-y-4">
-                    <div class="space-y-1">
-                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">BAŞLANGIÇ</span>
-                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h3>
-                        <div class="text-3xl font-black text-neutral-900 dark:text-white pt-2">0 &#8378; <span class="text-xs text-neutral-400 font-normal">/ Süresiz</span></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto items-stretch">
+            <div class="apple-glass rounded-3xl p-8 shadow-apple-sm flex flex-col gap-6">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">STANDART</span>
+                        <span class="w-9 h-9 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-300 flex items-center justify-center">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        </span>
                     </div>
-                    <ul class="space-y-2.5 text-xs text-neutral-500 dark:text-neutral-400 pt-4 border-t border-neutral-100 dark:border-neutral-800">
-                        <li class="flex items-center space-x-2"><span></span><span>Web siteleri ve gruplardan derlenen ilanlar</span></li>
-                        <li class="flex items-center space-x-2"><span></span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
-                        <li class="flex items-center space-x-2"><span></span><span>Platform ilanlarına ücretsiz teklif hakkı</span></li>
-                    </ul>
+                    <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h3>
+                    <div class="pt-1 flex items-baseline gap-1.5">
+                        <span class="text-4xl font-black text-neutral-900 dark:text-white tabular-nums">0 ₺</span>
+                        <span class="text-xs text-neutral-400">/ süresiz</span>
+                    </div>
                 </div>
-                <a href="{{ route('register.driver') }}" class="w-full btn-apple-secondary py-3 text-center text-xs font-bold block">
-                    Ücretsiz Kaydol
-                </a>
+                <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Platform içi tüm ilanları anında görün, sınırsız teklif verin</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Güvenli havuz ödemesi, cüzdan ve teslimat kayıtları</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Standart komisyon: hak edişin %{{ $pct($standardRate) }}'i</span></li>
+                </ul>
+                <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
             </div>
 
-            <div class="apple-glass rounded-3xl p-8 space-y-6 shadow-apple-lg border-2 border-brand-500 flex flex-col justify-between relative overflow-hidden">
-                <div class="absolute top-4 right-4 bg-brand-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">
-                    ÖNERİLEN
-                </div>
-                <div class="space-y-4">
-                    <div class="space-y-1">
-                        <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PROFESYONEL</span>
-                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">NavlunIQ Premium Sürücü</h3>
-                        <div class="text-3xl font-black text-brand-500 pt-2">{{ number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.') }} &#8378; <span class="text-xs text-neutral-400 font-normal">/ Ay (KDV Dahil)</span></div>
+            <div class="relative rounded-3xl p-[2px] bg-gradient-to-b from-brand-500 via-brand-500/60 to-brand-500/20 shadow-apple-lg">
+                <div class="h-full rounded-[22px] bg-white dark:bg-neutral-900 p-8 flex flex-col gap-6">
+                    <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-md shadow-brand-500/30">ÖNERİLEN</div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PREMIUM</span>
+                            <span class="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            </span>
+                        </div>
+                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Premium Şoför Üyeliği</h3>
+                        <div class="pt-1 flex items-baseline gap-1.5">
+                            <span class="text-4xl font-black text-brand-500 tabular-nums">{{ $premiumPrice }} ₺</span>
+                            <span class="text-xs text-neutral-400">/ ay, KDV dahil</span>
+                        </div>
                     </div>
-                    <ul class="space-y-2.5 text-xs text-neutral-600 dark:text-neutral-300 pt-4 border-t border-neutral-100 dark:border-neutral-800 font-semibold">
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Tüm web ve platform ilanlarını ANINDA görün</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Daha düşük komisyon oranı</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Onaylı dış kaynak ilanlarına 20 dakika erken erişim</span></li>
-                        <li class="flex items-center space-x-2"><span class="text-emerald-500"></span><span>Sürücü kontrol paneline tam erişim</span></li>
+                    <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarını herkesten 20 dakika önce görün</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Dış kaynak ilanlarda iletişim bilgisinin tamamına erişin</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Düşük komisyon: %{{ $pct($standardRate) }} yerine %{{ $pct($premiumRate) }}</span></li>
                     </ul>
+                    <a href="{{ route('subscription') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Planları Karşılaştır</a>
                 </div>
-                <a href="{{ route('subscription') }}" class="w-full btn-apple-brand py-3.5 text-center text-xs font-bold block shadow-apple-sm">
-                    Premium Detayları
-                </a>
             </div>
         </div>
     </section>
@@ -408,13 +424,49 @@ new class extends Component {
         }
     }">
         <div class="text-center space-y-2 max-w-2xl mx-auto">
-            <span class="text-xs font-black text-brand-500 uppercase tracking-widest">HER TONAJDA NAKLİYE</span>
+            <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">HER TONAJDA NAKLİYE</span>
             <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-neutral-950 dark:text-white">
                 Desteklenen Araç Türleri
             </h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Motosiklet dışındaki hafif ticariden ağır tonaja kadar tüm ticari araç sınıfları desteklenmektedir.
+            <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+                Hafif ticariden ağır tonaja kadar tüm ticari araç sınıfları için ilan verebilir, teklif alabilirsiniz.
             </p>
+        </div>
+
+        @php
+            $aracIkonlari = [
+                'tir' => '<path stroke-linecap="round" stroke-linejoin="round" d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="18" r="1.6"/><circle cx="10" cy="18" r="1.6"/><circle cx="17.5" cy="18" r="1.6"/>',
+                'kamyon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 7h10v9H3zM13 11h4l3 3v2h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/>',
+                'kamyonet' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 9h9v7H3zM12 12h4l2 2v2h-6z"/><circle cx="6.5" cy="18" r="1.5"/><circle cx="15.5" cy="18" r="1.5"/>',
+                'panelvan' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 9a1 1 0 011-1h11l4 4v4H3z"/><path stroke-linecap="round" d="M15 8v4h4"/><circle cx="7" cy="17" r="1.5"/><circle cx="16" cy="17" r="1.5"/>',
+                'minivan' => '<path stroke-linecap="round" stroke-linejoin="round" d="M4 10l2-3h9l4 3v5H4z"/><path stroke-linecap="round" d="M9 7v3M14 7v3"/><circle cx="8" cy="16" r="1.5"/><circle cx="16" cy="16" r="1.5"/>',
+                'otomobil' => '<path stroke-linecap="round" stroke-linejoin="round" d="M5 11l1.5-4h11L19 11M4 11h16v4H4z"/><circle cx="7.5" cy="16" r="1.5"/><circle cx="16.5" cy="16" r="1.5"/>',
+            ];
+            $aracListesi = [
+                ['name' => 'Tır (Çekici + Dorse)', 'cat' => 'Ağır Vasıta', 'cap' => '28 ton', 'vol' => '90 m³', 'tag' => 'Mega / Standart', 'icon' => 'tir', 'color' => 'brand'],
+                ['name' => 'Kırkayak (4 Dingil)', 'cat' => 'Ağır Vasıta', 'cap' => '24 ton', 'vol' => '65 m³', 'tag' => 'Ağır Sanayi', 'icon' => 'tir', 'color' => 'brand'],
+                ['name' => '10 Teker Kamyon', 'cat' => 'Ağır Ticari', 'cap' => '16 ton', 'vol' => '50 m³', 'tag' => 'Fabrika & Palet', 'icon' => 'kamyon', 'color' => 'amber'],
+                ['name' => '8 Teker Kamyon', 'cat' => 'Ağır Ticari', 'cap' => '12 ton', 'vol' => '40 m³', 'tag' => 'Şehirler Arası', 'icon' => 'kamyon', 'color' => 'amber'],
+                ['name' => '6 Teker Kamyon', 'cat' => 'Orta Ticari', 'cap' => '8 ton', 'vol' => '30 m³', 'tag' => 'Bölgesel Dağıtım', 'icon' => 'kamyon', 'color' => 'amber'],
+                ['name' => 'Kamyonet', 'cat' => 'Hafif Ticari', 'cap' => '3,5 ton', 'vol' => '20 m³', 'tag' => 'Açık / Kapalı Kasa', 'icon' => 'kamyonet', 'color' => 'emerald'],
+                ['name' => 'Uzun Panelvan (Maxi)', 'cat' => 'Hafif Ticari', 'cap' => '2,5 ton', 'vol' => '14 m³', 'tag' => 'Hacimli Koli', 'icon' => 'panelvan', 'color' => 'emerald'],
+                ['name' => 'Orta Panelvan', 'cat' => 'Hafif Ticari', 'cap' => '1,5 ton', 'vol' => '8 m³', 'tag' => 'Şehir İçi Dağıtım', 'icon' => 'panelvan', 'color' => 'emerald'],
+                ['name' => 'Minivan', 'cat' => 'Hızlı Teslimat', 'cap' => '800 kg', 'vol' => '3,5 m³', 'tag' => 'Acil Parsiyel', 'icon' => 'minivan', 'color' => 'sky'],
+                ['name' => 'Otomobil / Ticari', 'cat' => 'Hızlı Teslimat', 'cap' => '400 kg', 'vol' => '1,5 m³', 'tag' => 'Hafif Paket', 'icon' => 'otomobil', 'color' => 'sky'],
+            ];
+            $aracRenkleri = [
+                'brand' => ['badge' => 'bg-brand-500/10 text-brand-600 dark:text-brand-400', 'icon' => 'bg-brand-500/10 text-brand-500 group-hover:bg-brand-500 group-hover:text-white'],
+                'amber' => ['badge' => 'bg-amber-500/10 text-amber-700 dark:text-amber-400', 'icon' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500 group-hover:text-white'],
+                'emerald' => ['badge' => 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400', 'icon' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white'],
+                'sky' => ['badge' => 'bg-sky-500/10 text-sky-700 dark:text-sky-400', 'icon' => 'bg-sky-500/10 text-sky-600 dark:text-sky-400 group-hover:bg-sky-500 group-hover:text-white'],
+            ];
+            $ciftListe = array_merge($aracListesi, $aracListesi);
+        @endphp
+
+        <div class="flex flex-wrap items-center justify-center gap-2">
+            @foreach(['brand' => 'Ağır Vasıta', 'amber' => 'Ağır & Orta Ticari', 'emerald' => 'Hafif Ticari', 'sky' => 'Hızlı Teslimat'] as $renk => $etiket)
+                <span class="badge {{ $aracRenkleri[$renk]['badge'] }}">{{ $etiket }}</span>
+            @endforeach
         </div>
 
         <div class="relative w-full overflow-hidden marquee-container py-3 edge-fade-mask"
@@ -427,53 +479,32 @@ new class extends Component {
              @mousemove="onDrag($event)"
              @touchmove="onDrag($event)">
 
-            <div class="animate-marquee-smooth flex items-center gap-5 cursor-grab active:cursor-grabbing select-none">
-
-                @php
-                    $aracListesi = [
-                        ['name' => 'Tır (Çekici + Dorse)', 'cat' => 'Ağır Vasıta', 'cap' => '28 Ton', 'vol' => '90 m³', 'tag' => 'Mega / Standart'],
-                        ['name' => 'Kırkayak (4 Dingil)', 'cat' => 'Ağır Vasıta', 'cap' => '24 Ton', 'vol' => '65 m³', 'tag' => 'Ağır Sanayi'],
-                        ['name' => '10 Teker Kamyon', 'cat' => 'Ağır Ticari', 'cap' => '16 Ton', 'vol' => '50 m³', 'tag' => 'Fabrika & Palet'],
-                        ['name' => '8 Teker Kamyon', 'cat' => 'Ağır Ticari', 'cap' => '12 Ton', 'vol' => '40 m³', 'tag' => 'Şehirler Arası'],
-                        ['name' => '6 Teker Kamyon', 'cat' => 'Orta Ticari', 'cap' => '8 Ton', 'vol' => '30 m³', 'tag' => 'Bölgesel Dağıtım'],
-                        ['name' => 'Kamyonet', 'cat' => 'Hafif Ticari', 'cap' => '3.5 Ton', 'vol' => '20 m³', 'tag' => 'Açık / Kapalı'],
-                        ['name' => 'Uzun Panelvan (Maxi)', 'cat' => 'Hafif Ticari', 'cap' => '2.5 Ton', 'vol' => '14 m³', 'tag' => 'Hacimli Koli'],
-                        ['name' => 'Orta Panelvan', 'cat' => 'Hafif Ticari', 'cap' => '1.5 Ton', 'vol' => '8 m³', 'tag' => 'Şehir İçi Dağıtım'],
-                        ['name' => 'Minivan', 'cat' => 'Hızlı Kurye', 'cap' => '800 Kg', 'vol' => '3.5 m³', 'tag' => 'Acil Parsiyel'],
-                        ['name' => 'Otomobil / Ticari', 'cat' => 'Hızlı Kurye', 'cap' => '400 Kg', 'vol' => '1.5 m³', 'tag' => 'Hafif Paket'],
-                    ];
-                    $ciftListe = array_merge($aracListesi, $aracListesi);
-                @endphp
-
+            <div class="animate-marquee-smooth flex items-stretch gap-4 cursor-grab active:cursor-grabbing select-none">
                 @foreach($ciftListe as $index => $arac)
-                    <div class="w-60 sm:w-64 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-3xl p-5 border border-neutral-200/80 dark:border-neutral-800 shadow-apple-sm hover:shadow-apple-md hover:border-brand-500/40 transition-all duration-300 flex flex-col justify-between space-y-4 group">
-                        <div class="flex items-center justify-between">
-                            <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-500 text-[10px] font-black uppercase tracking-wider">
-                                {{ $arac['cat'] }}
+                    @php $renk = $aracRenkleri[$arac['color']]; @endphp
+                    <div class="w-56 sm:w-60 flex-shrink-0 bg-white dark:bg-neutral-900 rounded-3xl p-5 border border-neutral-200/80 dark:border-neutral-800 shadow-apple-sm hover:shadow-apple-md hover:border-brand-500/40 hover:-translate-y-0.5 transition-all duration-300 flex flex-col gap-4 group">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors duration-300 {{ $renk['icon'] }}">
+                                <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! $aracIkonlari[$arac['icon']] !!}</svg>
                             </span>
-                            <span class="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
-                                {{ $arac['tag'] }}
-                            </span>
+                            <span class="badge {{ $renk['badge'] }}">{{ $arac['cat'] }}</span>
                         </div>
-
-                        <div class="h-20 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800/70 flex items-center justify-center p-3 group-hover:scale-105 transition-transform duration-300">
-                            <svg class="w-10 h-10 text-neutral-700 dark:text-neutral-300 group-hover:text-brand-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                            </svg>
+                        <div class="space-y-1 flex-1">
+                            <h4 class="text-sm font-bold text-neutral-900 dark:text-white truncate group-hover:text-brand-500 transition-colors">{{ $arac['name'] }}</h4>
+                            <p class="text-[11px] text-neutral-500 dark:text-neutral-400">{{ $arac['tag'] }}</p>
                         </div>
-
-                        <div class="space-y-1.5">
-                            <h4 class="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-brand-500 transition-colors">
-                                {{ $arac['name'] }}
-                            </h4>
-                            <div class="flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400 pt-1.5 border-t border-neutral-100 dark:border-neutral-800/60">
-                                <span>Kapasite:</span>
-                                <span class="font-bold text-neutral-900 dark:text-white font-mono">{{ $arac['cap'] }} • {{ $arac['vol'] }}</span>
+                        <div class="grid grid-cols-2 gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-800/60">
+                            <div>
+                                <div class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Kapasite</div>
+                                <div class="text-xs font-bold text-neutral-900 dark:text-white tabular-nums">{{ $arac['cap'] }}</div>
+                            </div>
+                            <div>
+                                <div class="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Hacim</div>
+                                <div class="text-xs font-bold text-neutral-900 dark:text-white tabular-nums">{{ $arac['vol'] }}</div>
                             </div>
                         </div>
                     </div>
                 @endforeach
-
             </div>
         </div>
     </section>

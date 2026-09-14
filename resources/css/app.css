@@ -57,15 +57,15 @@
 
     /* Premium minimalist buton tasarımları */
     .btn-apple-primary {
-        @apply px-4 py-2 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 rounded-lg text-sm font-medium hover:bg-neutral-800 dark:hover:bg-neutral-200 transition-all duration-300 ease-apple-ease shadow-apple-sm active:scale-[0.98];
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-md shadow-neutral-900/15 dark:shadow-white/10 transition-all duration-300 ease-apple-ease hover:bg-neutral-800 dark:hover:bg-neutral-100 hover:-translate-y-px hover:shadow-lg hover:shadow-neutral-900/20 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/40 dark:focus-visible:ring-white/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none;
     }
 
     .btn-apple-secondary {
-        @apply px-4 py-2 bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100 rounded-lg text-sm font-medium hover:bg-neutral-200 dark:hover:bg-neutral-700/50 border border-neutral-200/50 dark:border-neutral-700/30 transition-all duration-300 ease-apple-ease active:scale-[0.98];
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white/80 text-neutral-900 dark:bg-neutral-800/80 dark:text-neutral-100 backdrop-blur-sm border border-neutral-200 dark:border-neutral-700 shadow-sm transition-all duration-300 ease-apple-ease hover:bg-white dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none;
     }
 
     .btn-apple-brand {
-        @apply px-4 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 transition-all duration-300 ease-apple-ease shadow-apple-sm active:scale-[0.98];
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-b from-brand-500 to-brand-600 shadow-md shadow-brand-500/25 transition-all duration-300 ease-apple-ease hover:from-brand-400 hover:to-brand-600 hover:-translate-y-px hover:shadow-lg hover:shadow-brand-500/30 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none;
     }
 }
 
@@ -167,9 +167,9 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .form-input { @apply w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-3.5 py-2.5 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 transition-colors focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20; }
     .form-error { @apply block mt-1 text-xs text-rose-500; }
     .form-help { @apply block mt-1 text-xs text-neutral-500; }
-    .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-500/20 transition-all hover:bg-brand-600 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none; }
-    .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-700 active:scale-[0.98]; }
-    .btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 px-4 py-2.5 text-sm font-semibold text-rose-600 dark:text-rose-300 transition-colors hover:bg-rose-500/10; }
+    .btn-primary { @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-brand-500 to-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-500/25 transition-all duration-200 hover:from-brand-400 hover:to-brand-600 hover:-translate-y-px hover:shadow-lg hover:shadow-brand-500/30 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none; }
+    .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-neutral-800 dark:text-neutral-100 shadow-sm transition-all duration-200 hover:bg-neutral-50 dark:hover:bg-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:-translate-y-px hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none; }
+    .btn-danger { @apply inline-flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-sm font-semibold text-rose-600 dark:text-rose-300 transition-all duration-200 hover:bg-rose-500/10 hover:border-rose-500/50 hover:-translate-y-px hover:shadow-md hover:shadow-rose-500/10 active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-60 disabled:pointer-events-none; }
     .card { @apply rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 shadow-apple-sm; }
     .page-title { @apply text-xl font-bold tracking-tight text-neutral-900 dark:text-white; }
     .page-subtitle { @apply mt-1 text-sm text-neutral-500 dark:text-neutral-400; }

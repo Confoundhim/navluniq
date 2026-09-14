@@ -50,7 +50,7 @@
             :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'">
 
             <!-- Üst Kısım: Logo ve Kategori Menüleri -->
-            <div class="flex flex-col h-full overflow-y-auto scrollbar-thin">
+            <div class="flex flex-col h-full min-h-0">
 
                 <!-- Marka Logosu (Açık/Koyu Tema Uyumlu) -->
                 <div
@@ -120,7 +120,7 @@
                 @endphp
 
                 <!-- Menü: her bağlantı ilgili bileşenin mount() kontrolüyle aynı izne bağlıdır -->
-                <div class="p-4 space-y-6 flex-1 text-xs">
+                <div class="p-4 space-y-6 flex-1 min-h-0 overflow-y-auto scrollbar-thin text-xs">
                     @foreach($navGroups as $groupTitle => $items)
                         @php
                             $visibleItems = array_values(array_filter($items, fn ($item) => $item['can'] === [] || $panelUser?->canAny($item['can'])));
@@ -143,16 +143,22 @@
                 </div>
 
                 <!-- Alt Kısım: Giriş Yapan Personel Bilgisi -->
-                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/60 bg-neutral-50/50 dark:bg-neutral-900/50">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-2.5 overflow-hidden">
-                            <div class="w-8 h-8 rounded-full bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xs flex-shrink-0">
+                <div class="p-3 shrink-0 border-t border-neutral-100 dark:border-neutral-800/60">
+                    <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 shrink-0 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-sm">
                                 {{ mb_strtoupper(mb_substr($panelUser?->first_name ?? 'P', 0, 1)) }}
                             </div>
-                            <div class="overflow-hidden">
-                                <p class="text-xs font-bold text-neutral-900 dark:text-white truncate">{{ $panelUser?->full_name ?? 'Personel' }}</p>
-                                <span class="text-[10px] text-neutral-400 block truncate" title="{{ $roleText }}">{{ $roleText }}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-semibold text-neutral-900 dark:text-white truncate">{{ $panelUser?->full_name ?? 'Personel' }}</div>
+                                <div class="text-xs text-neutral-500 truncate" title="{{ $roleText }}">{{ $roleText }}</div>
                             </div>
+                            <form action="{{ route('admin.logout') }}" method="POST" class="shrink-0">
+                                @csrf
+                                <button type="submit" title="Çıkış yap" class="p-2 rounded-lg text-neutral-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" aria-label="Çıkış yap">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -186,7 +192,7 @@
                     </div>
                 </div>
 
-                <!-- Sağ Taraf Kontrolleri (Tema Değiştirici ve Çıkış) -->
+                <!-- Sağ Taraf Kontrolleri (Tema Değiştirici ve Siteye Git) -->
                 <div class="flex items-center space-x-3">
                     <button @click="$store.darkMode.toggle()"
                         class="p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Temayı değiştir" aria-label="Temayı değiştir">
@@ -202,17 +208,10 @@
                         </svg>
                     </button>
 
-                    <form action="{{ route('admin.logout') }}" method="POST">
-                        @csrf
-                        <button type="submit"
-                            class="btn-secondary py-2 px-3 text-xs">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                            <span class="hidden sm:inline">Çıkış</span>
-                        </button>
-                    </form>
+                    <a href="{{ route('home') }}" target="_blank" rel="noopener" class="hidden sm:inline-flex btn-secondary py-2 px-3 text-xs">
+                        <span>Siteye git</span>
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                    </a>
                 </div>
             </header>
 

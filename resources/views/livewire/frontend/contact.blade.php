@@ -174,7 +174,27 @@ new class extends Component {
                 </div>
             </div>
 
-            <!-- Google Maps Entegrasyonu -->
+            @php $mapAddress = trim((string) config('company.address')); @endphp
+            @if($mapAddress !== '')
+                <div class="apple-glass rounded-3xl p-2 shadow-apple-md overflow-hidden">
+                    <div class="relative rounded-2xl overflow-hidden bg-neutral-100 dark:bg-neutral-800" style="aspect-ratio: 4 / 3;">
+                        <iframe
+                            src="https://www.google.com/maps?q={{ urlencode($mapAddress) }}&z=15&output=embed"
+                            class="absolute inset-0 w-full h-full border-0 dark:grayscale dark:opacity-90"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen
+                            title="NavlunIQ merkez ofis konumu"></iframe>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <svg class="w-4 h-4 text-brand-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span class="text-xs text-neutral-600 dark:text-neutral-300 truncate">{{ $mapAddress }}</span>
+                        </div>
+                        <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($mapAddress) }}" target="_blank" rel="noopener" class="btn-secondary py-1.5 px-3 text-[11px] shrink-0">Yol tarifi</a>
+                    </div>
+                </div>
+            @endif
         </div>
 
     </div>
