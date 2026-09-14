@@ -49,20 +49,31 @@ PayTR, NetGSM, NVİ ve yapay zekâ ayrıştırma anahtarları `.env` içinde bo�
 
 ## Sunucuya kurulum
 
+`deploy/` klasöründe iki betik vardır; ikisi de sunucuda root ile çalıştırılır.
+
+**İlk kurulum** (`deploy/install.sh`): nginx, PHP 8.3, Composer ve Node.js'i kurar, depoyu
+`/var/www/navluniq` altına klonlar, `.env` dosyasını üretir, bağımlılıkları ve ön yüzü derler,
+migration ve ilk seed'leri çalıştırır, nginx sitesini ve `schedule:run` cron'unu tanımlar.
+Alan adı ve `LETSENCRYPT_EMAIL` verilirse ücretsiz SSL de alır.
+
 ```bash
-git pull
-composer install --no-dev --optimize-autoloader
-php artisan migrate --force
-npm ci && npm run build
-php artisan storage:link
-php artisan optimize
+curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/install.sh -o /root/install.sh
+DB_DATABASE=navluniq_live DB_USERNAME=navluniq_user DB_PASSWORD='...' \
+ADMIN_INIT_EMAIL=admin@site.com ADMIN_INIT_PASSWORD='...' ADMIN_INIT_PHONE=05xxxxxxxxx \
+DOMAIN=navluniq.com LETSENCRYPT_EMAIL=info@site.com \
+bash /root/install.sh
 ```
 
-Zamanlanmış görevler için crontab'a tek satır eklenir (teklif süresi, otomatik teslimat onayı, taslak hesap temizliği):
+**Güncelleme** (`deploy/update.sh`): bakım moduna alır, `main` dalını çeker, bağımlılıkları ve
+derlemeyi yeniler, migration'ları uygular, önbellekleri tazeler.
 
+```bash
+bash /var/www/navluniq/deploy/update.sh
 ```
-* * * * * cd /var/www/navluniq && php artisan schedule:run >> /dev/null 2>&1
-```
+
+Kurulumdan sonra `.env` içinde `MAIL_*` (OTP e-postaları için şart) ve `COMPANY_*` alanları
+doldurulup `php artisan config:cache` çalıştırılır. PayTR, NetGSM ve yapay zeka anahtarları
+hazır olduğunda aynı dosyaya eklenir.
 
 Kuyruk kullanılmaz; e-postalar eşzamanlı gönderilir. Uygulama bir yük dengeleyici veya CDN arkasındaysa `bootstrap/app.php` içinde `trustProxies` tanımlanmalıdır; aksi halde güvenlik duvarı ve hız sınırlayıcı proxy IP'sini görür.
 
