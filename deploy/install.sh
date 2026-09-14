@@ -30,6 +30,14 @@ ok()   { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
 fail() { printf '\033[1;31m✘ %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || fail "Bu betik root olarak çalıştırılmalı."
+# Veritabanı bilgileri verilmemişse mevcut .env dosyasından okunur.
+if [[ -f /var/www/navluniq/.env ]]; then
+    env_get() { sed -nE "s/^$1=\"?([^\"]*)\"?$/\1/p" /var/www/navluniq/.env | head -n1; }
+    DB_DATABASE="${DB_DATABASE:-$(env_get DB_DATABASE)}"
+    DB_USERNAME="${DB_USERNAME:-$(env_get DB_USERNAME)}"
+    DB_PASSWORD="${DB_PASSWORD:-$(env_get DB_PASSWORD)}"
+    [[ -n "${DOMAIN:-}" ]] || DOMAIN="$(env_get APP_URL | sed -E 's|^https?://||')"
+fi
 [[ -n "${DB_DATABASE:-}" && -n "${DB_USERNAME:-}" && -n "${DB_PASSWORD:-}" ]] \
     || fail "DB_DATABASE, DB_USERNAME ve DB_PASSWORD ortam değişkenleri zorunlu."
 
@@ -38,7 +46,7 @@ DOMAIN="${DOMAIN:-$SERVER_IP}"
 IS_DOMAIN=0
 [[ "$DOMAIN" =~ ^[0-9.]+$ ]] || IS_DOMAIN=1
 
-export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
 # -----------------------------------------------------------------------------
 log "Sistem paketleri"
