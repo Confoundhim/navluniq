@@ -14,7 +14,7 @@
         <!-- 1. Bölüm: Şoförler İçin İşleyiş -->
         <div class="space-y-8">
             <div class="flex items-center space-x-3 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-                <span class="text-2xl">🚛</span>
+                <span class="text-2xl"></span>
                 <div>
                     <h2 class="text-lg font-black text-neutral-900 dark:text-white">Şoförler İçin Süreç</h2>
                     <p class="text-neutral-400">Boş kilometre kaybı olmadan yük bulun.</p>
@@ -25,17 +25,17 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">1</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Dakikalar İçinde Kaydolun</h3>
-                    <p class="text-neutral-500 leading-relaxed">Kişisel bilgileriniz ve gerekli belgeler ile hızlıca kayıt olun. Belgeleriniz AI OCR ile taranır ve sürücü hesabınız aktif olur.</p>
+                    <p class="text-neutral-500 leading-relaxed">Kişisel bilgileriniz ve araç bilgileriyle kayıt olun; belgelerinizi yükleyin. Ekibimiz belgeleri kontrol ettikten sonra teklif vermeye başlayabilirsiniz.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">2</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Filtre Ayarlarınızı Yapın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Web ilanlarından, WhatsApp entegrasyonunuzdan ve sistemde açılan ilanlardan bildirim almak için rota filtrelerinizi tamamlayın.</p>
+                    <p class="text-neutral-500 leading-relaxed">Platform ilanları ve onaylı dış kaynak ilanları arasından size uygun olanları rota ve araç türüne göre filtreleyin.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">3</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklif Verin ve Yola Çıkın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Konumunuza en uygun yüklere teklif verin. PayTR havuz sistemiyle navlun bedeli garantilensin, teslimatta paranız 1 gün içinde hesabınıza yatsın.</p>
+                    <p class="text-neutral-500 leading-relaxed">Konumunuza en uygun yüklere teklif verin. PayTR havuz sistemiyle navlun bedeli garantilensin, teslimat onayından sonra hakedişiniz hesabınıza aktarılsın.</p>
                 </div>
             </div>
         </div>
@@ -43,7 +43,7 @@
         <!-- 2. Bölüm: Yük Sahipleri İçin İşleyiş -->
         <div class="space-y-8">
             <div class="flex items-center space-x-3 pb-4 border-b border-neutral-200 dark:border-neutral-800">
-                <span class="text-2xl">📦</span>
+                <span class="text-2xl"></span>
                 <div>
                     <h2 class="text-lg font-black text-neutral-900 dark:text-white">Yük Sahipleri İçin Süreç</h2>
                     <p class="text-neutral-400">Güvenilir sürücülerle yüklerinizi yönetin.</p>

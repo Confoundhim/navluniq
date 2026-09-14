@@ -1,538 +1,526 @@
 <?php
 
-use Livewire\Volt\Component;
+use App\Models\ActivityLog;
 use App\Models\CmsContent;
-use App\Models\Page;
 use App\Models\Faq;
+use App\Models\Page;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Locked;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
-    // Sekme Kontrolü
-    public string $activeTab = 'slider'; // 'slider', 'footer', 'faqs', 'pages', 'contracts'
+    use WithPagination;
 
-    // Form Değişkenleri (Slider & Sabit Bloklar)
-    public string $sliderOwnerTitle = '';
-    public string $sliderOwnerDesc = '';
-    public string $sliderDriverTitle = '';
-    public string $sliderDriverDesc = '';
-    public string $hakkimizdaOzet = '';
-    public string $scrollSpeed = '25';
+    public const TEXT_KEYS = [
+        'slider_owner_title' => 'Ana sayfa: yük sahibi başlığı',
+        'slider_owner_desc' => 'Ana sayfa: yük sahibi açıklaması',
+        'slider_driver_title' => 'Ana sayfa: şoför başlığı',
+        'slider_driver_desc' => 'Ana sayfa: şoför açıklaması',
+        'hakkimizda_ozet' => 'Hakkımızda özeti',
+        'footer_slogan' => 'Alt bilgi sloganı',
+        'etbis_code' => 'ETBİS kodu',
+        'contact_whatsapp' => 'İletişim WhatsApp numarası',
+        'social_instagram' => 'Instagram bağlantısı',
+        'social_whatsapp' => 'WhatsApp bağlantısı',
+        'social_telegram' => 'Telegram bağlantısı',
+    ];
 
-    // Footer ve Sosyal Medya Form Değişkenleri
-    public string $footerSlogan = '';
-    public string $etbisCode = '';
-    public string $socialInstagram = '';
-    public string $socialWhatsapp = '';
-    public string $socialTelegram = '';
+    public const CONTRACT_KEYS = [
+        'contract_kvkk' => 'KVKK aydınlatma metni',
+        'contract_terms' => 'Kullanıcı sözleşmesi',
+        'contract_privacy' => 'Gizlilik politikası',
+        'contract_distance_sale' => 'Mesafeli satış sözleşmesi',
+        'contract_cancellation' => 'İptal ve iade politikası',
+    ];
 
-    // SSS Form Verileri
+    public string $activeTab = 'texts';
+
+    /** @var array<string, string> */
+    public array $texts = [];
+
+    /** @var array<string, string> */
+    public array $contracts = [];
+
+    #[Locked]
+    public ?int $faqId = null;
+
     public string $faqQuestion = '';
-    public string $faqAnswer = '';
-    public int $faqLimit = 5;
 
-    // Dinamik Sayfa Form Verileri
+    public string $faqAnswer = '';
+
+    public string $faqOrder = '0';
+
+    public bool $faqActive = true;
+
+    #[Locked]
+    public ?int $pageId = null;
+
     public string $pageTitle = '';
+
+    public string $pageSlug = '';
+
     public string $pageContent = '';
 
-    // 5 Yasal Sözleşme Form Verileri
-    public string $contractKvkk = '';
-    public string $contractTerms = '';
-    public string $contractPrivacy = '';
-    public string $contractDistanceSale = '';
-    public string $contractCancellation = '';
+    public string $pageStatus = 'draft';
+
+    public bool $pageActive = false;
 
     public function mount(): void
     {
-        if (auth()->check() && !auth()->user()->can('manage cms') && auth()->user()->current_role !== 'admin') {
-            abort(403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
+        abort_unless(auth()->user()->can('manage cms'), 403);
+        $this->loadValues();
+    }
+
+    public function updatedActiveTab(): void
+    {
+        $this->resetPage();
+    }
+
+    private function loadValues(): void
+    {
+        foreach (array_keys(self::TEXT_KEYS) as $key) {
+            $this->texts[$key] = (string) CmsContent::getVal($key, '');
+        }
+        foreach (array_keys(self::CONTRACT_KEYS) as $key) {
+            $this->contracts[$key] = (string) CmsContent::getVal($key, '');
+        }
+    }
+
+    /** İzin listesi tabanlı HTML temizliği (HTMLPurifier). */
+    private function sanitizeHtml(string $html): string
+    {
+        return \App\Support\HtmlSanitizer::clean($html);
+    }
+
+    private function storeKeys(array $values, array $labels, string $group): int
+    {
+        $changed = 0;
+        foreach ($labels as $key => $label) {
+            $new = trim((string) ($values[$key] ?? ''));
+            $old = (string) CmsContent::getVal($key, '');
+            if ($new === $old) {
+                continue;
+            }
+            CmsContent::setVal($key, $new === '' ? null : $new, auth()->id());
+            $changed++;
+        }
+        if ($changed > 0) {
+            ActivityLog::record('cms.updated', "{$group}: {$changed} alan güncellendi", auth()->id());
         }
 
-        $this->loadCmsFields();
+        return $changed;
     }
 
-    
-
-    /**
-     * Veritabanındaki düzenlenebilir CMS alanlarını forma yükler.
-     */
-    public function loadCmsFields(): void
+    public function saveTexts(): void
     {
-        $this->sliderOwnerTitle = (string) CmsContent::getVal('slider_owner_title', 'Ödemeler Kontrollü Ödeme Süreciyle Korunur');
-        $this->sliderOwnerDesc = (string) CmsContent::getVal('slider_owner_desc', 'İlanlarınıza gelen teklifleri anlık olarak değerlendirebilirsiniz.');
-        $this->sliderDriverTitle = (string) CmsContent::getVal('slider_driver_title', 'İlanları Tek Panelden Takip Edin');
-        $this->sliderDriverDesc = (string) CmsContent::getVal('slider_driver_desc', 'Onaylı iç ve dış kaynak ilanlarını panelinizden takip edin.');
-        $this->hakkimizdaOzet = (string) CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ve doğrulanmış taşıyıcıları dijital ortamda buluşturan lojistik platformudur.');
-        $this->scrollSpeed = (string) CmsContent::getVal('scroll_speed', '25');
-        $this->footerSlogan = (string) CmsContent::getVal('footer_slogan', 'Akıllı ve kontrollü taşımacılık ekosistemi.');
-        $this->etbisCode = (string) CmsContent::getVal('etbis_code', '');
-        $this->socialInstagram = (string) CmsContent::getVal('social_instagram', '');
-        $this->socialWhatsapp = (string) CmsContent::getVal('social_whatsapp', '');
-        $this->socialTelegram = (string) CmsContent::getVal('social_telegram', '');
-        $this->faqLimit = (int) CmsContent::getVal('faq_limit', 5);
-        $this->contractKvkk = (string) CmsContent::getVal('contract_kvkk', '');
-        $this->contractTerms = (string) CmsContent::getVal('contract_terms', '');
-        $this->contractPrivacy = (string) CmsContent::getVal('contract_privacy', '');
-        $this->contractDistanceSale = (string) CmsContent::getVal('contract_distance_sale', '');
-        $this->contractCancellation = (string) CmsContent::getVal('contract_cancellation', '');
-    }
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
 
-    /**
-     * Slider ve Sabit Blok Güncellemelerini Kaydet
-     */
-    public function saveSliderAndBlocks(): void
-    {
-        CmsContent::updateOrCreate(['key' => 'slider_owner_title'], ['value' => $this->sliderOwnerTitle]);
-        CmsContent::updateOrCreate(['key' => 'slider_owner_desc'], ['value' => $this->sliderOwnerDesc]);
-        CmsContent::updateOrCreate(['key' => 'slider_driver_title'], ['value' => $this->sliderDriverTitle]);
-        CmsContent::updateOrCreate(['key' => 'slider_driver_desc'], ['value' => $this->sliderDriverDesc]);
-        CmsContent::updateOrCreate(['key' => 'hakkimizda_ozet'], ['value' => $this->hakkimizdaOzet]);
-        CmsContent::updateOrCreate(['key' => 'scroll_speed'], ['value' => $this->scrollSpeed]);
+            return;
+        }
 
-        session()->flash('success', 'Slider metinleri ve genel blok ayarları başarıyla güncellendi.');
-    }
-
-    /**
-     * Footer ve Sosyal Medya Ayarlarını Kaydet
-     */
-    public function saveFooterSettings(): void
-    {
-        CmsContent::updateOrCreate(['key' => 'footer_slogan'], ['value' => $this->footerSlogan]);
-        CmsContent::updateOrCreate(['key' => 'etbis_code'], ['value' => $this->etbisCode]);
-        CmsContent::updateOrCreate(['key' => 'social_instagram'], ['value' => $this->socialInstagram]);
-        CmsContent::updateOrCreate(['key' => 'social_whatsapp'], ['value' => $this->socialWhatsapp]);
-        CmsContent::updateOrCreate(['key' => 'social_telegram'], ['value' => $this->socialTelegram]);
-
-        session()->flash('success', 'Footer ve Sosyal Medya bağlantı ayarları başarıyla güncellendi.');
-    }
-
-    /**
-     * Yeni SSS Ekleme
-     */
-    public function addFaq(): void
-    {
         $this->validate([
-            'faqQuestion' => 'required|string|min:5',
-            'faqAnswer' => 'required|string|min:10'
-        ]);
+            'texts.*' => 'nullable|string|max:2000',
+            'texts.social_instagram' => 'nullable|url|max:255',
+            'texts.social_whatsapp' => 'nullable|url|max:255',
+            'texts.social_telegram' => 'nullable|url|max:255',
+        ], ['texts.*.url' => 'Bağlantı https:// ile başlayan tam bir adres olmalıdır.']);
 
-        Faq::create([
-            'question' => $this->faqQuestion,
-            'answer' => $this->faqAnswer,
-            'order_num' => Faq::count() + 1
-        ]);
-
-        $this->reset(['faqQuestion', 'faqAnswer']);
-        session()->flash('success', 'Yeni Sıkça Sorulan Soru başarıyla arayüze eklendi.');
+        $changed = $this->storeKeys($this->texts, self::TEXT_KEYS, 'Site metinleri');
+        $this->loadValues();
+        session()->flash('success_message', $changed > 0 ? "{$changed} alan güncellendi." : 'Değişiklik yok.');
     }
 
-    /**
-     * SSS Limit Güncelleme
-     */
-    public function saveFaqLimit(): void
-    {
-        CmsContent::updateOrCreate(['key' => 'faq_limit'], ['value' => $this->faqLimit]);
-        session()->flash('success', 'Anasayfa SSS limit ayarı güncellendi.');
-    }
-
-    /**
-     * Sınırsız Dinamik Sayfa Oluşturucu
-     */
-    public function createPage(): void
-    {
-        $this->validate([
-            'pageTitle' => 'required|string|min:5',
-            'pageContent' => 'required|string|min:15'
-        ]);
-
-        Page::create([
-            'title' => $this->pageTitle,
-            'slug' => Str::slug($this->pageTitle),
-            'content' => $this->pageContent
-        ]);
-
-        $this->reset(['pageTitle', 'pageContent']);
-        session()->flash('success', 'Yeni statik HTML sayfa başarıyla oluşturuldu ve yayına alındı.');
-    }
-
-    /**
-     * 5 Yasal Sözleşmenin Tamamını Kaydet
-     */
     public function saveContracts(): void
     {
-        CmsContent::updateOrCreate(['key' => 'contract_kvkk'], ['value' => $this->contractKvkk]);
-        CmsContent::updateOrCreate(['key' => 'contract_terms'], ['value' => $this->contractTerms]);
-        CmsContent::updateOrCreate(['key' => 'contract_privacy'], ['value' => $this->contractPrivacy]);
-        CmsContent::updateOrCreate(['key' => 'contract_distance_sale'], ['value' => $this->contractDistanceSale]);
-        CmsContent::updateOrCreate(['key' => 'contract_cancellation'], ['value' => $this->contractCancellation]);
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
 
-        session()->flash('success', '5 yasal sözleşmenin tamamı güncellendi ve sitede anında yayına alındı!');
+            return;
+        }
+
+        $this->validate(['contracts.*' => 'nullable|string|max:200000']);
+
+        $clean = [];
+        foreach ($this->contracts as $key => $html) {
+            $clean[$key] = $this->sanitizeHtml((string) $html);
+        }
+
+        $changed = $this->storeKeys($clean, self::CONTRACT_KEYS, 'Sözleşmeler');
+        $this->loadValues();
+        session()->flash('success_message', $changed > 0 ? "{$changed} sözleşme güncellendi. Betik ve olay öznitelikleri kaydedilmeden temizlendi." : 'Değişiklik yok.');
+    }
+
+    public function editFaq(int $id): void
+    {
+        $faq = Faq::query()->find($id);
+        if (! $faq) {
+            return;
+        }
+        $this->faqId = $faq->id;
+        $this->faqQuestion = $faq->question;
+        $this->faqAnswer = $faq->answer;
+        $this->faqOrder = (string) $faq->order_num;
+        $this->faqActive = (bool) $faq->is_active;
+        $this->resetErrorBag();
+    }
+
+    public function resetFaq(): void
+    {
+        $this->reset(['faqId', 'faqQuestion', 'faqAnswer']);
+        $this->faqOrder = (string) ((int) Faq::query()->max('order_num') + 1);
+        $this->faqActive = true;
+        $this->resetErrorBag();
+    }
+
+    public function saveFaq(): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $this->validate([
+            'faqQuestion' => 'required|string|min:5|max:255',
+            'faqAnswer' => 'required|string|min:10|max:5000',
+            'faqOrder' => 'required|integer|min:0|max:9999',
+        ]);
+
+        $payload = ['question' => trim($this->faqQuestion), 'answer' => trim($this->faqAnswer), 'order_num' => (int) $this->faqOrder, 'is_active' => $this->faqActive, 'updated_by' => auth()->id()];
+
+        if ($this->faqId) {
+            Faq::query()->whereKey($this->faqId)->update($payload);
+            ActivityLog::record('faq.updated', "SSS #{$this->faqId} güncellendi", auth()->id());
+            session()->flash('success_message', 'Soru güncellendi.');
+        } else {
+            $faq = Faq::create($payload);
+            ActivityLog::record('faq.created', "SSS #{$faq->id} eklendi", auth()->id(), $faq);
+            session()->flash('success_message', 'Soru eklendi.');
+        }
+
+        $this->resetFaq();
+    }
+
+    public function toggleFaq(int $id): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $faq = Faq::query()->find($id);
+        if ($faq) {
+            $faq->update(['is_active' => ! $faq->is_active, 'updated_by' => auth()->id()]);
+        }
+    }
+
+    public function deleteFaq(int $id): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        Faq::query()->whereKey($id)->delete();
+        ActivityLog::record('faq.deleted', "SSS #{$id} silindi", auth()->id());
+        if ($this->faqId === $id) {
+            $this->resetFaq();
+        }
+        session()->flash('success_message', 'Soru silindi.');
+    }
+
+    public function editPage(int $id): void
+    {
+        $page = Page::query()->find($id);
+        if (! $page) {
+            return;
+        }
+        $this->pageId = $page->id;
+        $this->pageTitle = $page->title;
+        $this->pageSlug = $page->slug;
+        $this->pageContent = (string) $page->content;
+        $this->pageStatus = $page->status;
+        $this->pageActive = (bool) $page->is_active;
+        $this->resetErrorBag();
+    }
+
+    public function resetPageForm(): void
+    {
+        $this->reset(['pageId', 'pageTitle', 'pageSlug', 'pageContent', 'pageStatus', 'pageActive']);
+        $this->resetErrorBag();
+    }
+
+    public function savePage(): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $slug = Str::slug($this->pageSlug !== '' ? $this->pageSlug : $this->pageTitle);
+        $this->pageSlug = $slug;
+
+        $this->validate([
+            'pageTitle' => 'required|string|min:3|max:255',
+            'pageSlug' => ['required', 'string', 'max:255', Rule::unique('pages', 'slug')->ignore($this->pageId)->whereNull('deleted_at')],
+            'pageContent' => 'required|string|min:10|max:200000',
+            'pageStatus' => 'required|in:draft,published',
+        ], ['pageSlug.unique' => 'Bu kısa ad başka bir sayfada kullanılıyor.']);
+
+        $payload = [
+            'title' => trim($this->pageTitle),
+            'slug' => $slug,
+            'content' => $this->sanitizeHtml($this->pageContent),
+            'status' => $this->pageStatus,
+            'is_active' => $this->pageActive,
+            'updated_by' => auth()->id(),
+        ];
+
+        if ($this->pageId) {
+            $page = Page::query()->find($this->pageId);
+            if (! $page) {
+                session()->flash('error_message', 'Sayfa bulunamadı.');
+
+                return;
+            }
+            $payload['published_at'] = $this->pageStatus === 'published' ? ($page->published_at ?? now()) : null;
+            $page->update($payload);
+            ActivityLog::record('page.updated', "Sayfa #{$page->id} ({$slug}) güncellendi", auth()->id(), $page);
+            session()->flash('success_message', 'Sayfa güncellendi.');
+        } else {
+            $payload['published_at'] = $this->pageStatus === 'published' ? now() : null;
+            $page = Page::create($payload);
+            ActivityLog::record('page.created', "Sayfa #{$page->id} ({$slug}) oluşturuldu", auth()->id(), $page);
+            session()->flash('success_message', 'Sayfa kaydedildi.');
+        }
+
+        $this->resetPageForm();
+    }
+
+    public function deletePage(int $id): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        Page::query()->whereKey($id)->delete();
+        ActivityLog::record('page.deleted', "Sayfa #{$id} silindi", auth()->id());
+        if ($this->pageId === $id) {
+            $this->resetPageForm();
+        }
+        session()->flash('success_message', 'Sayfa silindi.');
+    }
+
+    public function with(): array
+    {
+        return [
+            'textKeys' => self::TEXT_KEYS,
+            'contractKeys' => self::CONTRACT_KEYS,
+            'faqs' => $this->activeTab === 'faqs' ? Faq::query()->orderBy('order_num')->orderBy('id')->paginate(15) : null,
+            'pages' => $this->activeTab === 'pages' ? Page::query()->latest('id')->paginate(15) : null,
+        ];
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in">
+<div class="max-w-7xl mx-auto space-y-6">
+    @php
+        $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
+        $tabs = ['texts' => 'Site metinleri', 'contracts' => 'Sözleşmeler', 'faqs' => 'Sıkça sorulan sorular', 'pages' => 'Sayfalar'];
+    @endphp
 
-    <!-- Bildirim Banner'ı -->
-    @if (session()->has('success'))
-        <div
-            class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>{{ session('success') }}</span>
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
+    @endif
+
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">İçerik ve CMS</h1>
+        <p class="page-subtitle">Kaydedilen değerler ön yüzde en geç 5 dakika içinde (önbellek tazelenince) görünür.</p>
+    </div>
+
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+        @foreach($tabs as $key => $label)
+            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}</button>
+        @endforeach
+    </div>
+
+    @if($activeTab === 'texts')
+        <form wire:submit="saveTexts" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @foreach($textKeys as $key => $label)
+                    <div class="{{ in_array($key, ['slider_owner_desc', 'slider_driver_desc', 'hakkimizda_ozet'], true) ? 'md:col-span-2' : '' }}">
+                        <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                        @if(in_array($key, ['slider_owner_desc', 'slider_driver_desc', 'hakkimizda_ozet'], true))
+                            <textarea wire:model="texts.{{ $key }}" rows="3" class="{{ $input }}"></textarea>
+                        @else
+                            <input type="text" wire:model="texts.{{ $key }}" class="{{ $input }}">
+                        @endif
+                        @error('texts.'.$key) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+                @endforeach
+            </div>
+            <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Metinleri kaydet</button>
+        </form>
+    @endif
+
+    @if($activeTab === 'contracts')
+        <form wire:submit="saveContracts" class="apple-glass rounded-3xl p-6 space-y-5 text-xs">
+            <p class="text-[11px] text-neutral-400">HTML olarak saklanır ve ön yüzde olduğu gibi basılır. Kaydederken script, iframe, object, embed, style etiketleri, on* öznitelikleri ve javascript: adresleri kaldırılır.</p>
+            @foreach($contractKeys as $key => $label)
+                <div>
+                    <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                    <textarea wire:model="contracts.{{ $key }}" rows="10" class="{{ $input }} font-mono"></textarea>
+                    @error('contracts.'.$key) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                </div>
+            @endforeach
+            <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Sözleşmeleri kaydet</button>
+        </form>
+    @endif
+
+    @if($activeTab === 'faqs')
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            <form wire:submit="saveFaq" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $faqId ? 'Soruyu düzenle' : 'Yeni soru' }}</h2>
+                <div>
+                    <label class="form-label">Soru</label>
+                    <input type="text" wire:model="faqQuestion" class="{{ $input }}">
+                    @error('faqQuestion') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="form-label">Yanıt</label>
+                    <textarea wire:model="faqAnswer" rows="5" class="{{ $input }}"></textarea>
+                    @error('faqAnswer') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="form-label">Sıra</label>
+                        <input type="number" min="0" wire:model="faqOrder" class="{{ $input }}">
+                        @error('faqOrder') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+                    <label class="flex items-center gap-2 mt-5"><input type="checkbox" wire:model="faqActive"> Yayında</label>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                    <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">{{ $faqId ? 'Kaydet' : 'Ekle' }}</button>
+                    @if($faqId)
+                        <button type="button" wire:click="resetFaq" class="btn-apple-secondary py-2.5 px-5 text-xs">Vazgeç</button>
+                    @endif
+                </div>
+            </form>
+
+            <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
+                <div class="responsive-scroll">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                                <th class="p-4">Sıra</th>
+                                <th class="p-4">Soru</th>
+                                <th class="p-4">Durum</th>
+                                <th class="p-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                            @forelse($faqs as $faq)
+                                <tr>
+                                    <td class="p-4">{{ $faq->order_num }}</td>
+                                    <td class="p-4"><div class="font-semibold">{{ $faq->question }}</div><div class="text-[11px] text-neutral-400">{{ \Illuminate\Support\Str::limit($faq->answer, 100) }}</div></td>
+                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $faq->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $faq->is_active ? 'Yayında' : 'Gizli' }}</span></td>
+                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                        <button type="button" wire:click="editFaq({{ $faq->id }})" class="text-brand-500 font-semibold">Düzenle</button>
+                                        <button type="button" wire:click="toggleFaq({{ $faq->id }})" class="text-neutral-500 font-semibold">{{ $faq->is_active ? 'Gizle' : 'Yayınla' }}</button>
+                                        <button type="button" wire:click="deleteFaq({{ $faq->id }})" wire:confirm="Soru silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="p-10 text-center text-neutral-500">Henüz soru eklenmedi.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $faqs->links() }}</div>
+            </div>
         </div>
     @endif
 
-    <!-- Üst Başlık ve Akıllı Tohumlayıcı -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">İçerik ve Arayüz Yönetimi
-                (CMS)</h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Sitenin ön yüzündeki tüm metinleri, footer ve
-                5 yasal sözleşmeyi kod bilmeden yönetin.</p>
-        </div>
-
-</div>
-
-    <!-- Segment Kontrolleri -->
-    <div
-        class="flex flex-wrap p-1 bg-neutral-200/50 dark:bg-neutral-900 rounded-2xl w-full md:w-max border border-neutral-200/10 shadow-apple-sm gap-1">
-        <button wire:click="$set('activeTab', 'slider')"
-            class="px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'slider' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Slider & Sabit Bloklar
-        </button>
-        <button wire:click="$set('activeTab', 'footer')"
-            class="px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'footer' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Footer & Sosyal Medya
-        </button>
-        <button wire:click="$set('activeTab', 'faqs')"
-            class="px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'faqs' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Sıkça Sorulan Sorular (SSS)
-        </button>
-        <button wire:click="$set('activeTab', 'pages')"
-            class="px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'pages' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            Dinamik Sayfalar (HTML)
-        </button>
-        <button wire:click="$set('activeTab', 'contracts')"
-            class="px-5 py-2 text-xs font-semibold rounded-xl transition-all duration-300 {{ $activeTab === 'contracts' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">
-            📜 5 Yasal Sözleşme Masası
-        </button>
-    </div>
-
-    <!-- 1. SEKME: SLIDER VE SABİT BLOKLAR -->
-    @if($activeTab === 'slider')
-        <div class="apple-glass rounded-3xl p-6 space-y-6">
-            <h3
-                class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                DİNAMİK SLIDER & BLOK METİNLERİ
-            </h3>
-
-            <form wire:submit.prevent="saveSliderAndBlocks" class="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-                <!-- Yük Sahibi Slider -->
-                <div class="space-y-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                    <span class="font-bold text-brand-500 block">YÜK SAHİBİ SLIDER ALANI</span>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Slider Ana Başlığı</label>
-                        <input type="text" wire:model.defer="sliderOwnerTitle"
-                            class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Slider Açıklama Metni</label>
-                        <textarea wire:model.defer="sliderOwnerDesc" rows="3"
-                            class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
-                    </div>
-                </div>
-
-                <!-- Şoför Slider -->
-                <div class="space-y-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                    <span class="font-bold text-brand-500 block">ŞOFÖR SLIDER ALANI</span>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Slider Ana Başlığı</label>
-                        <input type="text" wire:model.defer="sliderDriverTitle"
-                            class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Slider Açıklama Metni</label>
-                        <textarea wire:model.defer="sliderDriverDesc" rows="3"
-                            class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
-                    </div>
-                </div>
-
-                <!-- Hakkımızda Özet ve Araç Galerisi Hızı -->
-                <div
-                    class="md:col-span-2 space-y-4 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                    <span class="font-bold text-brand-500 block">GENEL BLOKLAR & GALERİ AYARLARI</span>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="md:col-span-2 space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Hakkımızda Özet Metni (Anasayfa İçin)</label>
-                            <textarea wire:model.defer="hakkimizdaOzet" rows="3"
-                                class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Araç Galerisi Kayma Hızı (px/sn)</label>
-                            <input type="number" wire:model.defer="scrollSpeed"
-                                class="w-full p-3 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-2 flex justify-end">
-                    <button type="submit" class="btn-apple-brand py-3 px-6 text-xs font-semibold">
-                        Arayüz Metinlerini Güncelle
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- 2. SEKME: FOOTER VE SOSYAL MEDYA -->
-    @elseif($activeTab === 'footer')
-        <div class="apple-glass rounded-3xl p-6 space-y-6">
-            <h3
-                class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                FOOTER & SOSYAL MEDYA YÖNETİMİ
-            </h3>
-
-            <form wire:submit.prevent="saveFooterSettings" class="space-y-6 text-xs">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Footer Sloganı</label>
-                        <input type="text" wire:model.defer="footerSlogan"
-                            class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">ETBİS Kayıt Numarası</label>
-                        <input type="text" wire:model.defer="etbisCode"
-                            class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                </div>
-
-                <div class="space-y-4 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
-                    <span class="font-bold text-brand-500 block">RESMİ SOSYAL MEDYA KANAL KÖPRÜLERİ</span>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Instagram Hesabı URL</label>
-                            <input type="url" wire:model.defer="socialInstagram"
-                                class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">WhatsApp Kanalı URL</label>
-                            <input type="url" wire:model.defer="socialWhatsapp"
-                                class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Telegram Kanalı URL</label>
-                            <input type="url" wire:model.defer="socialTelegram"
-                                class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex justify-end pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
-                    <button type="submit" class="btn-apple-brand py-3.5 px-6 text-xs font-semibold">
-                        Footer ve Sosyal Bağlantıları Kaydet
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- 3. SEKME: SSS -->
-    @elseif($activeTab === 'faqs')
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
-                <h3
-                    class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                    YENİ SORU EKLE
-                </h3>
-
-                <form wire:submit.prevent="addFaq" class="space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Soru Metni</label>
-                        <input type="text" wire:model.defer="faqQuestion"
-                            placeholder="Örn: NavlunIQ komisyon oranları nedir?"
-                            class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Gerekçeli Cevap</label>
-                        <textarea wire:model.defer="faqAnswer" rows="5" placeholder="Soruya verilecek resmi cevabı yazın..."
-                            class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
-                    </div>
-
-                    <button type="submit" class="w-full btn-apple-primary py-3 text-xs">
-                        Soruyu Yayına Al
-                    </button>
-                </form>
-            </div>
-
-            <div class="lg:col-span-2 apple-glass rounded-3xl p-6 space-y-6">
-                <div class="flex justify-between items-center pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                    <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">KAYITLI
-                        SORULAR & GÖSTERİM LİMİTİ</h3>
-                    <div class="flex items-center space-x-2 text-xs">
-                        <label class="font-semibold text-neutral-500">Gösterim Limiti:</label>
-                        <input type="number" wire:model.defer="faqLimit"
-                            class="w-16 p-1.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 rounded-lg text-center font-bold">
-                        <button wire:click="saveFaqLimit"
-                            class="bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 px-2 py-1.5 rounded-lg font-bold">Kaydet</button>
-                    </div>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    @forelse(\App\Models\Faq::latest()->get() as $faq)
-                        <div class="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40 space-y-1.5">
-                            <span class="font-bold text-brand-500 block">Soru: {{ $faq->question }}</span>
-                            <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Cevap: {{ $faq->answer }}</p>
-                        </div>
-                    @empty
-                        <p class="text-center text-neutral-400">Henüz kayıtlı sıkça sorulan soru bulunmuyor.</p>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. SEKME: DİNAMİK SAYFALAR -->
-    @elseif($activeTab === 'pages')
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
-                <h3
-                    class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                    DİNAMİK SAYFA OLUŞTURUCU
-                </h3>
-
-                <form wire:submit.prevent="createPage" class="space-y-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Sayfa Başlığı</label>
-                        <input type="text" wire:model.defer="pageTitle" placeholder="Örn: Yaz Sezonu İndirim Kampanyası"
-                            class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">HTML / Metin Sayfa İçeriği</label>
-                        <textarea wire:model.defer="pageContent" rows="6"
-                            placeholder="Sayfanın içeriğini HTML formatında veya düz metin olarak buraya yazın..."
-                            class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none"></textarea>
-                    </div>
-
-                    <button type="submit" class="w-full btn-apple-brand py-3 text-xs">
-                        Sayfayı Yayına Al (Slug Üret)
-                    </button>
-                </form>
-            </div>
-
-            <div class="lg:col-span-2 apple-glass rounded-3xl p-6 space-y-4">
-                <h3
-                    class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                    YAYINDAKİ DİNAMİK SAYFALAR
-                </h3>
-
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                        <tr class="text-neutral-400 font-bold border-b border-neutral-100 dark:border-neutral-800/50">
-                            <th class="pb-3">Sayfa Başlığı</th>
-                            <th class="pb-3">URL Takısı (Slug)</th>
-                            <th class="pb-3">Oluşturulma Tarihi</th>
-                            <th class="pb-3 text-right">Durum</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                        @forelse(\App\Models\Page::latest()->get() as $page)
-                            <tr>
-                                <td class="py-3 font-bold text-neutral-900 dark:text-white">{{ $page->title }}</td>
-                                <td class="py-3 font-mono text-[11px] text-neutral-400">/sayfa/{{ $page->slug }}</td>
-                                <td class="py-3 text-neutral-400">{{ $page->created_at->format('Y-m-d H:i') }}</td>
-                                <td class="py-3 text-right">
-                                    <span
-                                        class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/10 text-emerald-600">YAYINDA</span>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="4" class="py-6 text-center text-neutral-400">Henüz oluşturulmuş dinamik bir sayfa
-                                    bulunmuyor.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- 5. SEKME: 5 YASAL SÖZLEŞMENİN TAMAMI -->
-    @elseif($activeTab === 'contracts')
-        <div class="apple-glass rounded-3xl p-6 space-y-6">
-            <div class="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
+    @if($activeTab === 'pages')
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            <form wire:submit="savePage" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $pageId ? 'Sayfayı düzenle' : 'Yeni sayfa' }}</h2>
                 <div>
-                    <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">
-                        5 YASAL SÖZLEŞME VE POLİTİKA EDİTÖRLERİ
-                    </h3>
-                    <p class="text-xs text-neutral-400 mt-0.5">Buradan güncellediğiniz metinler ön yüzde ve kayıt onay
-                        kutularında anında güncellenir.</p>
+                    <label class="form-label">Başlık</label>
+                    <input type="text" wire:model="pageTitle" class="{{ $input }}">
+                    @error('pageTitle') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
-                <a href="/sozlesmeler/kvkk" target="_blank" class="text-xs text-brand-500 font-bold hover:underline">Sitede
-                    Önizle &rarr;</a>
-            </div>
-
-            <form wire:submit.prevent="saveContracts" class="space-y-6 text-xs">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                    <!-- 1. KVKK Aydınlatma Metni -->
-                    <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="font-bold text-neutral-700 dark:text-neutral-200">1. KVKK Aydınlatma Metni</label>
-                            <span class="text-[10px] font-mono text-neutral-400">contract_kvkk</span>
-                        </div>
-                        <textarea wire:model.defer="contractKvkk" rows="10"
-                            class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
-                    </div>
-
-                    <!-- 2. Kullanıcı Sözleşmesi -->
-                    <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="font-bold text-neutral-700 dark:text-neutral-200">2. Kullanıcı Sözleşmesi</label>
-                            <span class="text-[10px] font-mono text-neutral-400">contract_terms</span>
-                        </div>
-                        <textarea wire:model.defer="contractTerms" rows="10"
-                            class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
-                    </div>
-
-                    <!-- 3. Gizlilik Politikası -->
-                    <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="font-bold text-neutral-700 dark:text-neutral-200">3. Gizlilik Politikası</label>
-                            <span class="text-[10px] font-mono text-neutral-400">contract_privacy</span>
-                        </div>
-                        <textarea wire:model.defer="contractPrivacy" rows="10"
-                            class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
-                    </div>
-
-                    <!-- 4. Mesafeli Satış Sözleşmesi -->
-                    <div class="space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="font-bold text-neutral-700 dark:text-neutral-200">4. Mesafeli Satış
-                                Sözleşmesi</label>
-                            <span class="text-[10px] font-mono text-neutral-400">contract_distance_sale</span>
-                        </div>
-                        <textarea wire:model.defer="contractDistanceSale" rows="10"
-                            class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
-                    </div>
-
-                    <!-- 5. İade ve İptal Politikası -->
-                    <div
-                        class="md:col-span-2 space-y-1.5 p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="font-bold text-neutral-700 dark:text-neutral-200">5. İade ve İptal
-                                Politikası</label>
-                            <span class="text-[10px] font-mono text-neutral-400">contract_cancellation</span>
-                        </div>
-                        <textarea wire:model.defer="contractCancellation" rows="8"
-                            class="w-full p-4 bg-white dark:bg-neutral-800 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none font-mono text-[11px] leading-relaxed"></textarea>
-                    </div>
-
+                <div>
+                    <label class="form-label">Kısa ad (slug, boş bırakılırsa başlıktan üretilir)</label>
+                    <input type="text" wire:model="pageSlug" class="{{ $input }} font-mono">
+                    @error('pageSlug') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
-
-                <div class="flex justify-end pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
-                    <button type="submit" class="btn-apple-brand py-3.5 px-8 text-xs font-semibold shadow-apple-sm">
-                        5 Sözleşmenin Tamamını Kaydet & Yayına Al
-                    </button>
+                <div>
+                    <label class="form-label">İçerik (HTML)</label>
+                    <textarea wire:model="pageContent" rows="10" class="{{ $input }} font-mono"></textarea>
+                    @error('pageContent') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="form-label">Durum</label>
+                        <select wire:model="pageStatus" class="{{ $input }}">
+                            <option value="draft">Taslak</option>
+                            <option value="published">Yayınlandı</option>
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-2 mt-5"><input type="checkbox" wire:model="pageActive"> Aktif</label>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 pt-2">
+                    <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">{{ $pageId ? 'Kaydet' : 'Oluştur' }}</button>
+                    @if($pageId)
+                        <button type="button" wire:click="resetPageForm" class="btn-apple-secondary py-2.5 px-5 text-xs">Vazgeç</button>
+                    @endif
+                </div>
+                <p class="text-[11px] text-neutral-400">Sayfalar için herkese açık bir rota bu sürümde tanımlı değildir; içerik saklanır ve yayın rotası eklendiğinde kısa ad ile sunulur.</p>
             </form>
+
+            <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
+                <div class="responsive-scroll">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                                <th class="p-4">Başlık</th>
+                                <th class="p-4">Kısa ad</th>
+                                <th class="p-4">Durum</th>
+                                <th class="p-4">Yayın tarihi</th>
+                                <th class="p-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                            @forelse($pages as $page)
+                                <tr>
+                                    <td class="p-4 font-semibold">{{ $page->title }}</td>
+                                    <td class="p-4 font-mono">{{ $page->slug }}</td>
+                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $page->status === 'published' && $page->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $page->status === 'published' ? 'Yayınlandı' : 'Taslak' }}{{ $page->is_active ? '' : ' · pasif' }}</span></td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $page->published_at ? \Illuminate\Support\Carbon::parse($page->published_at)->format('d.m.Y H:i') : '—' }}</td>
+                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                        <button type="button" wire:click="editPage({{ $page->id }})" class="text-brand-500 font-semibold">Düzenle</button>
+                                        <button type="button" wire:click="deletePage({{ $page->id }})" wire:confirm="Sayfa silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="5" class="p-10 text-center text-neutral-500">Henüz sayfa oluşturulmadı.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $pages->links() }}</div>
+            </div>
         </div>
     @endif
 </div>

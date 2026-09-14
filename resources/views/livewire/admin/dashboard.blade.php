@@ -1,107 +1,171 @@
-<!DOCTYPE html>
-<html lang="tr">
+<?php
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NavlunIQ Admin - Test Dashboard</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
-</head>
+use App\Models\ActivityLog;
+use App\Models\CargoOwnerProfile;
+use App\Models\Dispute;
+use App\Models\DriverProfile;
+use App\Models\Load;
+use App\Models\PaymentOrder;
+use App\Models\Payout;
+use Livewire\Volt\Component;
+use Spatie\Permission\Models\Role;
 
-<body
-    class="min-h-screen bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 transition-colors duration-300"
-    x-data>
+new class extends Component {
+    public function with(): array
+    {
+        $user = auth()->user();
+        $canFinance = $user->can('view financials');
 
-    <!-- Üst Bar / Navbar -->
-    <header class="apple-glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
-        <!-- Sol Taraf - Navigasyon Linkleri -->
-        <div class="flex items-center space-x-6">
-            <div class="flex items-center space-x-2 text-xl font-bold tracking-tight">
-                <span>Navlun</span><span class="text-brand-500">IQ</span>
-                <span class="text-xs bg-brand-500/10 text-brand-500 px-2 py-0.5 rounded-full font-semibold">Admin
-                    Panel</span>
-            </div>
-            <nav
-                class="hidden md:flex items-center space-x-1 text-sm font-medium text-neutral-500 dark:text-neutral-400">
-                <a href="{{ route('admin.dashboard') }}"
-                    class="px-3 py-1.5 rounded-lg bg-neutral-200/70 dark:bg-neutral-800/70 text-neutral-900 dark:text-white transition-colors">Özet</a>
-                <a href="{{ route('admin.kyc') }}"
-                    class="px-3 py-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors">KYC
-                    Evrak Merkezi</a>
-                <a href="{{ route('admin.operations') }}"
-                    class="px-3 py-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors">Operasyonlar
-                    & Radar</a>
-            </nav>
+        $roleLabels = [
+            'super_admin' => 'Süper yönetici',
+            'kyc_validator' => 'KYC doğrulayıcı',
+            'financial_officer' => 'Finans sorumlusu',
+            'support_agent' => 'Destek temsilcisi',
+            'cargo_owner' => 'Yük sahibi',
+            'driver' => 'Şoför',
+        ];
+
+        $usersByRole = Role::query()->withCount('users')->orderBy('name')->get()
+            ->map(fn (Role $role) => ['label' => $roleLabels[$role->name] ?? $role->name, 'count' => (int) $role->users_count])
+            ->all();
+
+        $loadCounts = Load::query()->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $loadsByStatus = collect(Load::STATUS_LABELS)
+            ->map(fn ($label, $status) => ['label' => $label, 'count' => (int) ($loadCounts[$status] ?? 0)])
+            ->values()->all();
+
+        $pendingKyc = DriverProfile::query()->where('kyc_status', 'pending')->count()
+            + CargoOwnerProfile::query()->where('kyc_status', 'pending')->count();
+
+        $finance = null;
+        if ($canFinance) {
+            $paidOrders = PaymentOrder::query()->where('status', 'paid');
+            $finance = [
+                'payouts_pending' => (float) Payout::query()->whereIn('status', ['pending', 'processing'])->sum('net_amount'),
+                'payouts_pending_count' => Payout::query()->whereIn('status', ['pending', 'processing'])->count(),
+                'escrow' => (float) Load::query()->where('escrow_status', Load::ESCROW_PAID)->sum('price'),
+                'escrow_on_hold' => (float) Load::query()->where('escrow_status', Load::ESCROW_ON_HOLD)->sum('price'),
+                'paid_today_count' => (clone $paidOrders)->where('paid_at', '>=', now()->startOfDay())->count(),
+                'paid_today_sum' => (float) (clone $paidOrders)->where('paid_at', '>=', now()->startOfDay())->sum('amount'),
+                'paid_month_count' => (clone $paidOrders)->where('paid_at', '>=', now()->startOfMonth())->count(),
+                'paid_month_sum' => (float) (clone $paidOrders)->where('paid_at', '>=', now()->startOfMonth())->sum('amount'),
+            ];
+        }
+
+        return [
+            'usersByRole' => $usersByRole,
+            'loadsByStatus' => $loadsByStatus,
+            'pendingKyc' => $pendingKyc,
+            'openDisputes' => Dispute::query()->where('status', 'open')->count(),
+            'finance' => $finance,
+            'activities' => ActivityLog::query()->with('user')->latest('id')->limit(10)->get(),
+        ];
+    }
+}; ?>
+
+<div class="max-w-7xl mx-auto space-y-8">
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Genel Özet</h1>
+        <p class="page-subtitle">Veriler sayfa her yüklendiğinde veritabanından okunur.</p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="apple-glass rounded-2xl p-5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Bekleyen KYC başvurusu</span>
+            <p class="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">{{ $pendingKyc }}</p>
+            @can('view users')
+                <a href="{{ route('admin.kyc') }}" wire:navigate class="text-[11px] text-brand-500 font-semibold mt-1 inline-block">KYC merkezine git</a>
+            @endcan
         </div>
-
-        <!-- Sağ Taraf Kontrolleri -->
-        <div class="flex items-center space-x-4">
-            <button @click="$store.darkMode.toggle()"
-                class="p-2 rounded-full hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 transition-colors duration-300 text-neutral-500">
-                <svg x-show="!$store.darkMode.on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                </svg>
-                <svg x-show="$store.darkMode.on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    style="display: none;">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-            </button>
-
-            <form action="{{ route('admin.logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="btn-apple-secondary text-xs py-1.5 px-3">Güvenli Çıkış</button>
-            </form>
+        <div class="apple-glass rounded-2xl p-5">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Açık uyuşmazlık</span>
+            <p class="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">{{ $openDisputes }}</p>
+            @can('manage disputes')
+                <a href="{{ route('admin.disputes') }}" wire:navigate class="text-[11px] text-brand-500 font-semibold mt-1 inline-block">Uyuşmazlıklara git</a>
+            @endcan
         </div>
-    </header>
-
-    <!-- Ana Panel İçeriği -->
-    <main class="max-w-4xl mx-auto py-12 px-6 space-y-6 animate-fade-in">
-
-        <!-- Karşılama Kartı -->
-        <div class="apple-glass p-8 rounded-3xl space-y-4">
-            <div class="flex items-center space-x-3 text-emerald-500">
-                <div class="p-2 bg-emerald-500/10 rounded-full">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                </div>
-                <h1 class="text-xl font-bold">Admin Güvenlik Kapısı Başarıyla Aşıldı</h1>
+        @if($finance)
+            <div class="apple-glass rounded-2xl p-5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Ödeme bekleyen hakediş</span>
+                <p class="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">{{ number_format($finance['payouts_pending'], 2, ',', '.') }} ₺</p>
+                <p class="text-[11px] text-neutral-500 mt-1">{{ $finance['payouts_pending_count'] }} kayıt</p>
             </div>
+            <div class="apple-glass rounded-2xl p-5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Havuzda bloke navlun</span>
+                <p class="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">{{ number_format($finance['escrow'], 2, ',', '.') }} ₺</p>
+                <p class="text-[11px] text-neutral-500 mt-1">Uyuşmazlık nedeniyle askıda: {{ number_format($finance['escrow_on_hold'], 2, ',', '.') }} ₺</p>
+            </div>
+        @endif
+    </div>
 
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                NavlunIQ SaaS projesinin <strong>Admin Yönetici Girişi ve OTP Doğrulama Sistemi</strong> yerel ortamda
-                kusursuz bir şekilde çalışmaktadır.
-                Sistem, giren kullanıcının parolasını doğrulamış, ona özel 5 dakika süreli bir OTP üretmiş ve
-                yetkilendirmesi doğrulanarak bu güvenli test paneline aktarmıştır.
-            </p>
-
-            <!-- Hızlı Geçiş Butonları -->
-            <div
-                class="pt-4 border-t border-neutral-100 dark:border-neutral-800/50 flex justify-between items-center gap-4">
-                <a href="{{ route('admin.kyc') }}" class="btn-apple-secondary py-2 px-4 text-xs font-semibold">
-                    ← KYC Merkezine Git
-                </a>
-                <a href="{{ route('admin.operations') }}" class="btn-apple-brand py-2 px-4 text-xs font-semibold">
-                    Operasyonlar & Canlı Radara Git →
-                </a>
-                <a href="{{ route('admin.finance') }}"
-                    class="px-3 py-1.5 rounded-lg transition-colors {{ request()->routeIs('admin.finance') ? 'bg-neutral-200/70 dark:bg-neutral-800/70 text-neutral-900 dark:text-white' : 'hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50' }}">
-                    Finans & Muhasebe
-                </a>
-                <a href="{{ route('admin.cms') }}"
-                    class="px-3 py-1.5 rounded-lg transition-colors {{ request()->routeIs('admin.cms') ? 'bg-neutral-200/70 dark:bg-neutral-800/70 text-neutral-900 dark:text-white' : 'hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50' }}">
-                    İçerik & CMS
-                </a>
+    @if($finance)
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="apple-glass rounded-2xl p-5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Bugün tahsil edilen ödeme emirleri</span>
+                <p class="mt-2 text-xl font-bold text-neutral-900 dark:text-white">{{ number_format($finance['paid_today_sum'], 2, ',', '.') }} ₺</p>
+                <p class="text-[11px] text-neutral-500 mt-1">{{ $finance['paid_today_count'] }} sipariş</p>
+            </div>
+            <div class="apple-glass rounded-2xl p-5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Bu ay tahsil edilen ödeme emirleri</span>
+                <p class="mt-2 text-xl font-bold text-neutral-900 dark:text-white">{{ number_format($finance['paid_month_sum'], 2, ',', '.') }} ₺</p>
+                <p class="text-[11px] text-neutral-500 mt-1">{{ $finance['paid_month_count'] }} sipariş</p>
             </div>
         </div>
+    @endif
 
-    </main>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <section class="apple-glass rounded-3xl p-6">
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Kullanıcılar (role göre)</h2>
+            <div class="mt-4 space-y-2 text-xs">
+                @forelse($usersByRole as $row)
+                    <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800/60 pb-2">
+                        <span class="text-neutral-600 dark:text-neutral-300">{{ $row['label'] }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ $row['count'] }}</span>
+                    </div>
+                @empty
+                    <p class="text-neutral-500">Henüz rol tanımı yok.</p>
+                @endforelse
+            </div>
+        </section>
 
-    @livewireScripts
-</body>
+        <section class="apple-glass rounded-3xl p-6">
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">İlanlar (duruma göre)</h2>
+            <div class="mt-4 space-y-2 text-xs">
+                @foreach($loadsByStatus as $row)
+                    <div class="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800/60 pb-2">
+                        <span class="text-neutral-600 dark:text-neutral-300">{{ $row['label'] }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ $row['count'] }}</span>
+                    </div>
+                @endforeach
+            </div>
+        </section>
+    </div>
 
-</html>
+    <section class="apple-glass rounded-3xl p-6">
+        <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son işlemler</h2>
+        <div class="responsive-scroll mt-4">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/60">
+                        <th class="py-2 pr-4">Zaman</th>
+                        <th class="py-2 pr-4">Personel</th>
+                        <th class="py-2 pr-4">İşlem</th>
+                        <th class="py-2">Açıklama</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                    @forelse($activities as $log)
+                        <tr>
+                            <td class="py-2 pr-4 whitespace-nowrap text-neutral-500">{{ $log->created_at?->format('d.m.Y H:i') }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap">{{ $log->user?->full_name ?? 'Sistem' }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap font-mono text-[11px]">{{ $log->action }}</td>
+                            <td class="py-2 text-neutral-600 dark:text-neutral-300">{{ $log->description }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="py-6 text-center text-neutral-500">Henüz kayıtlı işlem yok.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

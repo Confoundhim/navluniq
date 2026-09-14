@@ -26,11 +26,11 @@ class Subscription extends Model
     ];
 
     protected $casts = [
-        'amount'=>'decimal:4',
-        'trial_ends_at'=>'datetime',
-        'current_period_starts_at'=>'datetime',
-        'current_period_ends_at'=>'datetime',
-        'cancelled_at'=>'datetime',
-        'ended_at'=>'datetime',
+        'amount' => 'decimal:4',
+        'trial_ends_at' => 'datetime',
+        'current_period_starts_at' => 'datetime',
+        'current_period_ends_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'ended_at' => 'datetime',
     ];
 }

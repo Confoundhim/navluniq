@@ -16,6 +16,6 @@ class ConversationParticipant extends Model
     ];
 
     protected $casts = [
-        'last_read_at'=>'datetime',
+        'last_read_at' => 'datetime',
     ];
 }

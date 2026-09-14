@@ -12,6 +12,7 @@ class BannedIp extends Model
     protected $fillable = [
         'ip_address',
         'reason',
+        'banned_by',
         'banned_until',
     ];
 
@@ -20,7 +21,7 @@ class BannedIp extends Model
     ];
 
     /**
-     * IP adresinin o an aktif olarak yasaklı olup olmadığını denetler [18]
+     * IP adresinin o an aktif olarak yasaklı olup olmadığını denetler
      */
     public function isBanned(): bool
     {

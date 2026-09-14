@@ -44,12 +44,13 @@ class AiParserService
     {
         $active = (string) config('services.ai.active_provider', 'gemini');
         $providers = array_values(array_unique(array_filter([$preferred, $active, 'gemini', 'claude', 'kimi'])));
-        $paidEnabled = (bool) config('services.ai.paid_enabled', false);
+        $paidEnabled = (bool) config('services.ai.paid_enabled', false) && ! (bool) config('services.ai.free_only', true);
 
         return array_values(array_filter($providers, function (string $provider) use ($paidEnabled): bool {
-            if (!$paidEnabled && in_array($provider, ['claude', 'kimi'], true)) {
+            if (! $paidEnabled && in_array($provider, ['claude', 'kimi'], true)) {
                 return false;
             }
+
             return match ($provider) {
                 'gemini' => filled(config('services.ai.gemini_key')),
                 'claude' => filled(config('services.ai.claude_key')),
@@ -64,19 +65,19 @@ class AiParserService
         $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight, price. Eksik alan null olsun. Mesaj:\n".$message;
 
         $response = match ($provider) {
-            'gemini' => Http::timeout(20)->acceptJson()->post(
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key='.rawurlencode((string) config('services.ai.gemini_key')),
+            'gemini' => Http::timeout(20)->acceptJson()->withHeaders(['x-goog-api-key' => (string) config('services.ai.gemini_key')])->post(
+                'https://generativelanguage.googleapis.com/v1beta/models/'.config('services.ai.gemini_model').':generateContent',
                 ['contents' => [['parts' => [['text' => $prompt]]]], 'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0]]
             ),
             'claude' => Http::timeout(20)->withHeaders([
                 'x-api-key' => (string) config('services.ai.claude_key'),
                 'anthropic-version' => '2023-06-01',
             ])->post('https://api.anthropic.com/v1/messages', [
-                'model' => 'claude-3-5-haiku-latest', 'max_tokens' => 500, 'temperature' => 0,
+                'model' => config('services.ai.claude_model'), 'max_tokens' => 500, 'temperature' => 0,
                 'messages' => [['role' => 'user', 'content' => $prompt]],
             ]),
             'kimi' => Http::timeout(20)->withToken((string) config('services.ai.kimi_key'))->post('https://api.moonshot.cn/v1/chat/completions', [
-                'model' => 'moonshot-v1-8k', 'temperature' => 0,
+                'model' => config('services.ai.kimi_model'), 'temperature' => 0,
                 'messages' => [['role' => 'user', 'content' => $prompt]],
             ]),
             default => throw new RuntimeException('unsupported_provider'),
@@ -85,13 +86,13 @@ class AiParserService
         if ($response->status() === 429) {
             throw new RuntimeException('quota_429');
         }
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status());
         }
 
         $text = $this->responseText($provider, $response);
         $decoded = json_decode($this->cleanJsonString($text), true);
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             throw new RuntimeException('invalid_provider_json');
         }
 
@@ -113,7 +114,7 @@ class AiParserService
         $phone = $this->normalizePhone($data['sender_phone'] ?? null);
         $pickup = $this->cleanText($data['pickup_location'] ?? null, 120);
         $delivery = $this->cleanText($data['delivery_location'] ?? null, 120);
-        if (!$phone || !$pickup || !$delivery) {
+        if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('required_fields_missing');
         }
 
@@ -138,7 +139,7 @@ class AiParserService
         preg_match('/('.$city.')\s*(?:->|→|>|-|–|—|den|dan)\s*('.$city.')(?:\s|$|[,.;])/iu', $message.' ', $route);
         $pickup = $this->cleanText($route[1] ?? null, 120);
         $delivery = $this->cleanText($route[2] ?? null, 120);
-        if (!$phone || !$pickup || !$delivery) {
+        if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('regex_required_fields_missing');
         }
 
@@ -160,31 +161,47 @@ class AiParserService
 
     private function normalizePhone(mixed $value): ?string
     {
-        if (!is_scalar($value)) return null;
+        if (! is_scalar($value)) {
+            return null;
+        }
         $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
-        if (str_starts_with($digits, '90') && strlen($digits) === 12) $digits = substr($digits, 2);
-        if (str_starts_with($digits, '0') && strlen($digits) === 11) $digits = substr($digits, 1);
+        if (str_starts_with($digits, '90') && strlen($digits) === 12) {
+            $digits = substr($digits, 2);
+        }
+        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
+            $digits = substr($digits, 1);
+        }
+
         return preg_match('/^5\d{9}$/', $digits) ? $digits : null;
     }
 
     private function cleanText(mixed $value, int $limit): ?string
     {
-        if (!is_scalar($value)) return null;
+        if (! is_scalar($value)) {
+            return null;
+        }
         $text = trim(preg_replace('/\s+/u', ' ', strip_tags((string) $value)) ?? '');
+
         return $text === '' ? null : mb_substr($text, 0, $limit);
     }
 
     private function positiveInteger(mixed $value): ?int
     {
-        if (!is_scalar($value)) return null;
+        if (! is_scalar($value)) {
+            return null;
+        }
         $number = (int) round((float) str_replace(',', '.', preg_replace('/[^0-9,.]/', '', (string) $value) ?? ''));
+
         return $number > 0 ? $number : null;
     }
 
     private function positiveDecimal(mixed $value): ?float
     {
-        if (!is_scalar($value)) return null;
+        if (! is_scalar($value)) {
+            return null;
+        }
         $number = (float) str_replace(',', '.', preg_replace('/[^0-9,.]/', '', (string) $value) ?? '');
+
         return $number > 0 ? round($number, 2) : null;
     }
 
@@ -193,8 +210,12 @@ class AiParserService
         try {
             $usage = AiProviderUsage::firstOrCreate(['provider' => $provider, 'usage_date' => now()->toDateString()]);
             $usage->increment('request_count');
-            if (!$success) $usage->increment('failure_count');
-            if ($quota) $usage->update(['quota_exhausted' => true, 'quota_resets_at' => now()->addDay()->startOfDay()]);
+            if (! $success) {
+                $usage->increment('failure_count');
+            }
+            if ($quota) {
+                $usage->update(['quota_exhausted' => true, 'quota_resets_at' => now()->addDay()->startOfDay()]);
+            }
         } catch (Throwable) {
             // Ayrıştırma sonucunu telemetri arızası nedeniyle bozma.
         }
@@ -209,6 +230,7 @@ class AiParserService
     {
         $string = trim($string);
         $string = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $string) ?? $string;
+
         return trim($string);
     }
 }

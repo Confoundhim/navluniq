@@ -10,14 +10,16 @@ class DriverLocation extends Model
 {
     use HasFactory;
 
-    // MySQL Spatial işlemleri için timestamps kullanımını kapatıyoruz (sadece recorded_at kullanacağız)
     public $timestamps = false;
 
     protected $fillable = [
         'driver_profile_id',
-        'coordinates',
+        'shipment_id',
+        'latitude',
+        'longitude',
         'speed',
         'heading',
+        'accuracy_meters',
         'recorded_at',
     ];
 
@@ -25,6 +27,8 @@ class DriverLocation extends Model
         'recorded_at' => 'datetime',
         'speed' => 'decimal:2',
         'heading' => 'decimal:2',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
     ];
 
     /**
@@ -35,14 +39,13 @@ class DriverLocation extends Model
         return $this->belongsTo(DriverProfile::class);
     }
 
-    /**
-     * Coğrafi Konumu (POINT) Enlem ve Boylam dizisine dönüştüren yardımcı metod.
-     */
-    public function getLatLngAttribute(): array
+    public function shipment(): BelongsTo
     {
-        return [
-            'lat' => $this->attributes['lat'] ?? 0.0,
-            'lng' => $this->attributes['lng'] ?? 0.0
-        ];
+        return $this->belongsTo(Shipment::class);
+    }
+
+    public function getLatLngAttribute(): ?array
+    {
+        return $this->latitude !== null && $this->longitude !== null ? [(float) $this->latitude, (float) $this->longitude] : null;
     }
 }

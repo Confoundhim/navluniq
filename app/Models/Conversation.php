@@ -17,7 +17,7 @@ class Conversation extends Model
     ];
 
     protected $casts = [
-        'opened_at'=>'datetime',
-        'closed_at'=>'datetime',
+        'opened_at' => 'datetime',
+        'closed_at' => 'datetime',
     ];
 }

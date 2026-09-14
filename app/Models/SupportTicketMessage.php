@@ -18,6 +18,6 @@ class SupportTicketMessage extends Model
     ];
 
     protected $casts = [
-        'attachments'=>'array',
+        'attachments' => 'array',
     ];
 }

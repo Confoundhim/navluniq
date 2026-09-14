@@ -2,27 +2,38 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\CmsContent;
+use Illuminate\Database\Seeder;
 
 class CmsContractSeeder extends Seeder
 {
     /**
-     * Güncel şirket künyesiyle 5 yasal sözleşmeyi eksiksiz ve sade/şık HTML yapısıyla veritabanına yükler.
+     * Beş yasal metni şirket künyesi (.env COMPANY_*) ile doldurarak yükler.
+     * Metinler hukuk danışmanı onayından geçirilmelidir; bu seed yalnızca başlangıç içeriğidir.
      */
     public function run(): void
     {
+        $tokens = [
+            '{{COMPANY_NAME}}' => (string) config('company.name'),
+            '{{COMPANY_TAX_OFFICE}}' => (string) (config('company.tax_office') ?: '—'),
+            '{{COMPANY_TAX_NO}}' => (string) (config('company.tax_no') ?: '—'),
+            '{{COMPANY_ADDRESS}}' => (string) (config('company.address') ?: '—'),
+            '{{COMPANY_EMAIL}}' => (string) (config('company.email') ?: '—'),
+            '{{COMPANY_PHONE}}' => (string) (config('company.phone') ?: '—'),
+            '{{LEGAL_DATE}}' => (string) (config('company.legal_effective_date') ?: now()->translatedFormat('d F Y')),
+        ];
+
         // 1. KVKK AYDINLATMA METNİ
-        $kvkk = <<<HTML
+        $kvkk = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve KVKK Uyumu</span>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">6698 Sayılı Kişisel Verilerin Korunması Kanunu Aydınlatma Metni</h2>
-        <span class="text-xs text-neutral-400">Son Güncelleme: 12 Eylül 2026</span>
+        <span class="text-xs text-neutral-400">Son Güncelleme: {{LEGAL_DATE}}</span>
     </div>
 
     <p>
-        <strong>NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ</strong> (“NavlunIQ” veya “Şirket”) olarak, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) ve ilgili mevzuat uyarınca, <strong>"Veri Sorumlusu"</strong> sıfatıyla, kişisel verilerinizin toplanması, işlenmesi, saklanması, aktarılması ve imha edilmesi süreçleri hakkında sizi bilgilendiriyoruz. <strong>navluniq.com</strong> web sitesi, mobil uygulamalar ve lojistik servislerin kullanımı bu metnin erişilebilir olmasını sağlar; sözleşme veya açık rıza gerektiren işlemler ayrıca açık bir onayla kayıt altına alınır.
+        <strong>{{COMPANY_NAME}}</strong> (“NavlunIQ” veya “Şirket”) olarak, 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) ve ilgili mevzuat uyarınca, <strong>"Veri Sorumlusu"</strong> sıfatıyla, kişisel verilerinizin toplanması, işlenmesi, saklanması, aktarılması ve imha edilmesi süreçleri hakkında sizi bilgilendiriyoruz. <strong>navluniq.com</strong> web sitesi, mobil uygulamalar ve lojistik servislerin kullanımı bu metnin erişilebilir olmasını sağlar; sözleşme veya açık rıza gerektiren işlemler ayrıca açık bir onayla kayıt altına alınır.
     </p>
 
     <!-- Madde 1: Veri Sorumlusunun Kimliği -->
@@ -30,11 +41,11 @@ class CmsContractSeeder extends Seeder
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 1: Veri Sorumlusunun Kimliği</h3>
         <p class="text-xs text-neutral-600 dark:text-neutral-400">KVKK kapsamında muhatabınız olan Veri Sorumlusu resmi bilgileri aşağıdadır:</p>
         <ul class="list-disc pl-5 space-y-1 text-xs">
-            <li><strong>Şirket Unvanı:</strong> NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ</li>
-            <li><strong>Vergi Dairesi ve No:</strong> Başkent Vergi Dairesi / 6301481858</li>
-            <li><strong>Adres:</strong> Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara / Türkiye</li>
-            <li><strong>E-Posta:</strong> info@navluniq.com</li>
-            <li><strong>Telefon:</strong> +90 850 304 04 00</li>
+            <li><strong>Şirket Unvanı:</strong> {{COMPANY_NAME}}</li>
+            <li><strong>Vergi Dairesi ve No:</strong> {{COMPANY_TAX_OFFICE}} / {{COMPANY_TAX_NO}}</li>
+            <li><strong>Adres:</strong> {{COMPANY_ADDRESS}}</li>
+            <li><strong>E-Posta:</strong> {{COMPANY_EMAIL}}</li>
+            <li><strong>Telefon:</strong> {{COMPANY_PHONE}}</li>
         </ul>
     </div>
 
@@ -43,12 +54,12 @@ class CmsContractSeeder extends Seeder
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: İşlenen Kişisel Veri Kategorileri ve Veri Türleri</h3>
         <p>Platformumuzdaki akıllı eşleşme, kimlik doğrulama, finansal transfer ve güvenli lojistik operasyonları kapsamında aşağıdaki kişisel verileriniz, ilgili hizmetin gerektirdiği ölçüde işlenebilmektedir:</p>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>Kimlik Bilgileri:</strong> Ad, soyad, doğum tarihi, T.C. Kimlik Numarası (Sürücü ehliyeti, SRC belgesi ve vergi levhasından <strong>AI OCR</strong> ile yardımcı olarak çıkarılan ve gerektiğinde kullanıcı veya yetkili personel tarafından doğrulanan veriler dahil).</li>
+            <li><strong>Kimlik Bilgileri:</strong> Ad, soyad, doğum tarihi, T.C. Kimlik Numarası (Sürücü ehliyeti, SRC belgesi ve vergi levhasından uzman ekibimizce kontrol edilerek doğrulanan ve gerektiğinde kullanıcı veya yetkili personel tarafından doğrulanan veriler dahil).</li>
             <li><strong>İletişim Bilgileri:</strong> Cep telefonu numarası, kurumsal e-posta adresi, şirket açık adresi, teslimat ve varış noktası adresleri.</li>
             <li><strong>Mesleki Belgeler ve Onboarding (KYC) Verileri:</strong> Sürücü ehliyeti, SRC belgesi, psikoteknik raporu, tır ruhsatı, araç tescil belgesi, K Yetki Belgesi, profil fotoğrafları, araç fotoğrafları, Taşıyıcı Mali Mesuliyet Sigortası Poliçesi ve vergi levhası görselleri ile bu görsellerden ayrıştırılan yasal belgeler.</li>
-            <li><strong>Biyometrik Veriler (Özel Nitelikli Veri):</strong> Biyometrik yüz doğrulama özelliği kullanılırsa, araçla birlikte çekilen selfie (özçekim) ve profil fotoğrafından elde edilen veriler yalnız ayrı bilgilendirme, gerekli açık rıza ve uygulanabilir mevzuat şartları sağlanarak işlenir.</li>
+            <li><strong>Fotoğraf Verileri:</strong> Kimlikle birlikte çekilen fotoğraf ve profil fotoğrafı yalnız kimlik doğrulama amacıyla, biyometrik işleme yapılmaksızın saklanan veriler yalnız ayrı bilgilendirme, gerekli açık rıza ve uygulanabilir mevzuat şartları sağlanarak işlenir.</li>
             <li><strong>Finansal ve Muhasebe Verileri:</strong> Banka hesap bilgileri, IBAN numaraları, fatura detayları, komisyon ödeme geçmişleri, PayTR ödeme entegrasyonu işlem günlükleri ve bloke tutarları.</li>
-            <li><strong>Coğrafi Konum Bilgileri (MySQL Spatial POINT / SRID 4326):</strong> Sürücülerin platform üzerinden aktif olarak yük taşıdıkları esnada, kullanıcının cihaz izni verdiği PWA konum servisleri vasıtasıyla toplanan enlem, boylam, hız ve rota koordinat verileri.</li>
+            <li><strong>Coğrafi Konum Bilgileri:</strong> Sürücülerin platform üzerinden aktif olarak yük taşıdıkları esnada, kullanıcının cihaz izni verdiği PWA konum servisleri vasıtasıyla toplanan enlem, boylam, hız ve rota koordinat verileri.</li>
             <li><strong>İşlem Güvenliği Verileri:</strong> IP adresi, port bilgileri, web sitesi giriş-çıkış logları, e-posta doğrulama kodu ve diğer hesap güvenliği günlükleri, cihaz marka/model ve tarayıcı bilgileri.</li>
         </ul>
     </div>
@@ -99,19 +110,19 @@ class CmsContractSeeder extends Seeder
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 7: Veri Sahibi Olarak Haklarınız (KVKK Madde 11)</h3>
         <p>
-            Kanun'un 11. maddesi uyarınca <strong>info@navluniq.com</strong> adresimize veya ilan edilen diğer başvuru kanallarına usulüne uygun şekilde başvurarak; verilerinizin işlenip işlenmediğini öğrenme, işlenme amacına uygun kullanılıp kullanılmadığını sorma, eksik veya yanlış işlenmişse düzeltilmesini isteme ve kanuni şartları oluştu��unda silinmesini veya yok edilmesini (<strong>Unutulma Hakkı</strong>) talep etme haklarına sahipsiniz. Başvurularınız, kimlik doğrulaması ve uygulanabilir mevzuattaki süre ve ücret kuralları çerçevesinde sonuçlandırılır; yasal saklama zorunluluğu bulunan kayıtlar bu süre boyunca korunabilir.
+            Kanun'un 11. maddesi uyarınca <strong>{{COMPANY_EMAIL}}</strong> adresimize veya ilan edilen diğer başvuru kanallarına usulüne uygun şekilde başvurarak; verilerinizin işlenip işlenmediğini öğrenme, işlenme amacına uygun kullanılıp kullanılmadığını sorma, eksik veya yanlış işlenmişse düzeltilmesini isteme ve kanuni şartları oluştu��unda silinmesini veya yok edilmesini (<strong>Unutulma Hakkı</strong>) talep etme haklarına sahipsiniz. Başvurularınız, kimlik doğrulaması ve uygulanabilir mevzuattaki süre ve ücret kuralları çerçevesinde sonuçlandırılır; yasal saklama zorunluluğu bulunan kayıtlar bu süre boyunca korunabilir.
         </p>
     </div>
 </div>
 HTML;
 
         // 2. KULLANICI SÖZLEŞMESİ
-        $terms = <<<HTML
+        $terms = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Taahhüt</span>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">NavlunIQ Kullanıcı Sözleşmesi</h2>
-        <span class="text-xs text-neutral-400">Son Güncelleme: 12 Eylül 2026</span>
+        <span class="text-xs text-neutral-400">Son Güncelleme: {{LEGAL_DATE}}</span>
     </div>
 
     <p>
@@ -122,7 +133,7 @@ HTML;
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 1: Taraflar ve Tanımlar</h3>
         <ul class="space-y-1.5 text-xs">
-            <li><strong>1.1 Hizmet Sağlayıcı:</strong> Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara adresinde mukim <strong>NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ</strong> (“NavlunIQ”).</li>
+            <li><strong>1.1 Hizmet Sağlayıcı:</strong> Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara adresinde mukim <strong>{{COMPANY_NAME}}</strong> (“NavlunIQ”).</li>
             <li><strong>1.2 Sürücü (Şoför):</strong> Ticari taşımacılık yapmaya yetkili olan ve platform aracılığıyla yük taşıma teklifi sunan gerçek kişi kullanıcıyı ifade eder.</li>
             <li><strong>1.3 Gönderici (Yük Sahibi):</strong> Platform üzerinden navlun ilanı yayınlayarak yükünün taşınmasını talep eden gerçek veya tüzel kişi kullanıcıyı ifade eder.</li>
         </ul>
@@ -201,16 +212,16 @@ HTML;
 HTML;
 
         // 3. GİZLİLİK POLİTİKASI
-        $privacy = <<<HTML
+        $privacy = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Güvence</span>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">NavlunIQ Gizlilik Politikası</h2>
-        <span class="text-xs text-neutral-400">Son Güncelleme: 12 Eylül 2026</span>
+        <span class="text-xs text-neutral-400">Son Güncelleme: {{LEGAL_DATE}}</span>
     </div>
 
     <p>
-        <strong>NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ</strong> (“NavlunIQ” veya “Şirket”) olarak, kullanıcılarımızın kişisel verilerinin gizliliğini ve güvenliğini korumaya yönelik idari ve teknik tedbirler uyguluyoruz. Bu Gizlilik Politikası, navluniq.com web sitesi ve platform uygulamaları üzerinden işlenen verilerin saklanma, korunma ve imha edilme kriterlerini ayrıntılı olarak açıklar.
+        <strong>{{COMPANY_NAME}}</strong> (“NavlunIQ” veya “Şirket”) olarak, kullanıcılarımızın kişisel verilerinin gizliliğini ve güvenliğini korumaya yönelik idari ve teknik tedbirler uyguluyoruz. Bu Gizlilik Politikası, navluniq.com web sitesi ve platform uygulamaları üzerinden işlenen verilerin saklanma, korunma ve imha edilme kriterlerini ayrıntılı olarak açıklar.
     </p>
 
     <!-- Madde 1: Veri Toplama Yöntemleri ve Amaçları -->
@@ -243,7 +254,7 @@ HTML;
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 4: Veri Saklama Süresi ve İmha Politikası (Unutulma Hakkı)</h3>
         <p>
-            Kullanıcılarımızın, kişisel verilerinin sistemden tamamen kalıcı olarak silinmesini talep etme hakkı (unutulma hakkı) vardır. Veri silme taleplerinizi dilediğiniz an <strong>info@navluniq.com</strong> adresimize iletebilirsiniz; talebiniz <strong>uygulanabilir mevzuattaki süreler içinde</strong> değerlendirilir. Yasal saklama yükümlülüğü veya devam eden uyuşmazlık bulunmayan veriler silinir, yok edilir ya da anonimleştirilir; yedeklerdeki kopyalar olağan yedek yaşam döngüsü içinde erişilemez hale getirilir.
+            Kullanıcılarımızın, kişisel verilerinin sistemden tamamen kalıcı olarak silinmesini talep etme hakkı (unutulma hakkı) vardır. Veri silme taleplerinizi dilediğiniz an <strong>{{COMPANY_EMAIL}}</strong> adresimize iletebilirsiniz; talebiniz <strong>uygulanabilir mevzuattaki süreler içinde</strong> değerlendirilir. Yasal saklama yükümlülüğü veya devam eden uyuşmazlık bulunmayan veriler silinir, yok edilir ya da anonimleştirilir; yedeklerdeki kopyalar olağan yedek yaşam döngüsü içinde erişilemez hale getirilir.
         </p>
     </div>
 
@@ -266,12 +277,12 @@ HTML;
 HTML;
 
         // 4. MESAFELİ SATIŞ SÖZLEŞMESİ
-        $distanceSale = <<<HTML
+        $distanceSale = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve Ticaret</span>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">NavlunIQ Mesafeli Satış Sözleşmesi</h2>
-        <span class="text-xs text-neutral-400">Son Güncelleme: 12 Eylül 2026</span>
+        <span class="text-xs text-neutral-400">Son Güncelleme: {{LEGAL_DATE}}</span>
     </div>
 
     <p>
@@ -282,9 +293,9 @@ HTML;
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2 text-xs">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 1: Taraflar ve İletişim Bilgileri</h3>
         <ul class="space-y-1">
-            <li><strong>Satıcı / Aracı Hizmet Sağlayıcı:</strong> NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ</li>
-            <li><strong>Adres:</strong> Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara / Türkiye</li>
-            <li><strong>E-Posta:</strong> info@navluniq.com | <strong>Telefon:</strong> +90 850 304 04 00</li>
+            <li><strong>Satıcı / Aracı Hizmet Sağlayıcı:</strong> {{COMPANY_NAME}}</li>
+            <li><strong>Adres:</strong> {{COMPANY_ADDRESS}}</li>
+            <li><strong>E-Posta:</strong> {{COMPANY_EMAIL}} | <strong>Telefon:</strong> {{COMPANY_PHONE}}</li>
             <li><strong>Alıcı (Kullanıcı):</strong> navluniq.com üzerinde kayıtlı olan, dijital hizmet alan şoförler (sürücüler) ve yük sahipleri (göndericiler).</li>
         </ul>
     </div>
@@ -319,12 +330,12 @@ HTML;
 HTML;
 
         // 5. İADE VE İPTAL POLİTİKASI
-        $cancellation = <<<HTML
+        $cancellation = <<<'HTML'
 <div class="space-y-6 text-neutral-800 dark:text-neutral-200 leading-relaxed">
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 block mb-1">Yasal Mevzuat ve İade</span>
         <h2 class="text-xl sm:text-2xl font-bold text-neutral-900 dark:text-white">NavlunIQ İade Politikası</h2>
-        <span class="text-xs text-neutral-400">Son Güncelleme: 12 Eylül 2026</span>
+        <span class="text-xs text-neutral-400">Son Güncelleme: {{LEGAL_DATE}}</span>
     </div>
 
     <p>
@@ -368,10 +379,10 @@ HTML;
 HTML;
 
         // Veritabanına kaydet
-        CmsContent::updateOrCreate(['key' => 'contract_kvkk'], ['value' => $kvkk]);
-        CmsContent::updateOrCreate(['key' => 'contract_terms'], ['value' => $terms]);
-        CmsContent::updateOrCreate(['key' => 'contract_privacy'], ['value' => $privacy]);
-        CmsContent::updateOrCreate(['key' => 'contract_distance_sale'], ['value' => $distanceSale]);
-        CmsContent::updateOrCreate(['key' => 'contract_cancellation'], ['value' => $cancellation]);
+        CmsContent::updateOrCreate(['key' => 'contract_kvkk'], ['value' => strtr($kvkk, $tokens)]);
+        CmsContent::updateOrCreate(['key' => 'contract_terms'], ['value' => strtr($terms, $tokens)]);
+        CmsContent::updateOrCreate(['key' => 'contract_privacy'], ['value' => strtr($privacy, $tokens)]);
+        CmsContent::updateOrCreate(['key' => 'contract_distance_sale'], ['value' => strtr($distanceSale, $tokens)]);
+        CmsContent::updateOrCreate(['key' => 'contract_cancellation'], ['value' => strtr($cancellation, $tokens)]);
     }
 }

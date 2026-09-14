@@ -20,7 +20,7 @@ class SourcePermission extends Model
     ];
 
     protected $casts = [
-        'approved_at'=>'datetime',
-        'expires_at'=>'datetime',
+        'approved_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 }

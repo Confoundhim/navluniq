@@ -14,7 +14,7 @@
         <div class="space-y-2">
             <h1 class="text-xl font-bold tracking-tight text-red-500">Erişiminiz Engellendi (403)</h1>
             <p class="text-xs text-neutral-400 leading-relaxed">
-                IP adresiniz şüpheli aktivite veya güvenlik kuralları ihlali nedeniyle NavlunIQ Güvenlik Duvarı (Firewall) tarafından engellenmiştir [18].
+                IP adresiniz şüpheli aktivite veya güvenlik kuralları ihlali nedeniyle NavlunIQ Güvenlik Duvarı (Firewall) tarafından engellenmiştir
             </p>
         </div>
         <div class="p-4 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs text-left space-y-1.5 font-mono">

@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use App\Support\Phone;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
 
 class ScrapedLoad extends Model
 {
@@ -13,15 +15,24 @@ class ScrapedLoad extends Model
 
     protected $fillable = [
         'scraper_id',
+        'source_permission_id',
+        'content_hash',
         'raw_message',
         'sender_phone',
+        'encrypted_sender_phone',
         'pickup_location',
         'delivery_location',
         'goods_type',
         'weight',
         'price',
+        'currency',
         'status',
         'parsed_by_llm',
+        'parse_confidence',
+        'parse_metadata',
+        'visibility',
+        'available_to_free_at',
+        'retention_expires_at',
     ];
 
     protected $casts = [
@@ -36,53 +47,36 @@ class ScrapedLoad extends Model
         return $this->belongsTo(Scraper::class);
     }
 
-    /**
-     * 🚀 AKILLI TELEFON BİÇİMLENDİRİCİSİ (Accessor)
-     * Telefon numarasını temizler ve tam olarak '533 444 55 66' formatında boşluklu döndürür.
-     */
+    /** Şifreli saklanan gönderen numarasını çözer; eski kayıtlar için düz kolona düşer. */
+    public function plainPhone(): ?string
+    {
+        if ($this->encrypted_sender_phone) {
+            try {
+                return Phone::normalize(Crypt::decryptString($this->encrypted_sender_phone));
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        return Phone::normalize($this->sender_phone);
+    }
+
     public function getFormattedPhoneAttribute(): string
     {
-        $phone = $this->sender_phone;
+        $phone = $this->plainPhone();
 
-        if (!$phone || $phone === 'Bilinmiyor') {
-            return 'Bilinmiyor';
-        }
-
-        // Sadece rakamları ayıkla
-        $clean = preg_replace('/[^0-9]/', '', $phone);
-
-        // Eğer numara başında 90 varsa kaldır
-        if (strlen($clean) === 12 && substr($clean, 0, 2) === '90') {
-            $clean = substr($clean, 2);
-        } elseif (strlen($clean) === 11 && $clean[0] === '0') {
-            $clean = substr($clean, 1);
-        }
-
-        // Eğer tam 10 haneli standart TR cep telefonu ise biçimlendir: "533 444 55 66"
-        if (strlen($clean) === 10) {
-            return substr($clean, 0, 3) . ' ' .
-                   substr($clean, 3, 3) . ' ' .
-                   substr($clean, 6, 2) . ' ' .
-                   substr($clean, 8, 2);
-        }
-
-        return $phone; // Fallback
+        return $phone ? Phone::format($phone) : 'Bilinmiyor';
     }
 
     /**
-     * 🚀 APPLE TARZI MİNİMALİST MASKELEYİCİ (Accessor)
+     * APPLE TARZI MİNİMALİST MASKELEYİCİ (Accessor)
      * "533 444 55 66" formatındaki telefonu "533 444 ** **" olarak kısaltır.
      * Fazla karakter kalabalığını tamamen önler.
      */
     public function getMaskedPhoneAttribute(): string
     {
-        $phone = $this->formatted_phone;
+        $phone = $this->plainPhone();
 
-        if ($phone === 'Bilinmiyor' || strlen(preg_replace('/[^0-9]/', '', $phone)) !== 10) {
-            return 'Bilinmiyor';
-        }
-
-        // "533 444 55 66" -> "533 444 ** **"
-        return substr($phone, 0, 7) . ' ** **';
+        return $phone ? '0'.substr($phone, 0, 3).' *** ** '.substr($phone, -2) : 'Bilinmiyor';
     }
 }

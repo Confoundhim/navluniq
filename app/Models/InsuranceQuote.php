@@ -2,16 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Concerns\HasPublicId;
 
 class InsuranceQuote extends Model
 {
     use HasFactory, HasPublicId;
 
     protected $fillable = [
-        'public_id',
         'load_id',
         'user_id',
         'provider',
@@ -25,9 +24,9 @@ class InsuranceQuote extends Model
     ];
 
     protected $casts = [
-        'insured_value'=>'decimal:4',
-        'premium_amount'=>'decimal:4',
-        'coverage'=>'array',
-        'expires_at'=>'datetime',
+        'insured_value' => 'decimal:4',
+        'premium_amount' => 'decimal:4',
+        'coverage' => 'array',
+        'expires_at' => 'datetime',
     ];
 }

@@ -1,307 +1,323 @@
 <?php
 
-use Livewire\Volt\Component;
-use Livewire\WithFileUploads;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use App\Models\Dispute;
 use App\Models\SupportTicket;
+use App\Services\DisputeService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
+use Livewire\Volt\Component;
+use Livewire\WithFileUploads;
+use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Uyuşmazlık & Savunma Merkezi')]
+#[Title('Uyuşmazlık ve Destek')]
 class extends Component {
-    use WithFileUploads;
+    use WithFileUploads, WithPagination;
 
-    // Savunma Yapma Modalı
-    public bool $defenseModalOpen = false;
-    public ?int $selectedDisputeId = null;
-    public ?Dispute $selectedDispute = null;
-    public string $driver_defense = '';
+    #[Locked]
+    public ?int $defendingId = null;
+
+    public string $defense = '';
+
     public $defense_photo = null;
 
-    // Yeni Destek Talebi
-    public bool $supportModalOpen = false;
-    public string $support_category = 'technical';
-    public string $support_message = '';
+    public bool $ticketFormOpen = false;
 
-    public array $categories = [
-        'technical' => 'Teknik Hata & GPS Sorunları',
-        'billing' => 'Hak Ediş & IBAN Ödemeleri',
-        'kyc' => 'Evrak & Ruhsat Onay Süreçleri',
-        'escrow' => 'PayTR Havuz Güvencesi',
-        'dispute' => 'Yük Sahibi Uyuşmazlıkları',
-        'other' => 'Diğer / Genel Sorular',
-    ];
+    public string $ticket_category = 'other';
 
-    public function openDefenseModal(int $disputeId): void
+    public string $ticket_subject = '';
+
+    public string $ticket_message = '';
+
+    private function disputeQuery(): Builder
     {
-        $this->selectedDisputeId = $disputeId;
-        $this->selectedDispute = Dispute::find($disputeId);
-        $this->driver_defense = $this->selectedDispute?->driver_defense ?? '';
-        $this->defenseModalOpen = true;
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+
+        return Dispute::query()
+            ->with(['cargoLoad.cargoOwnerProfile.user'])
+            ->whereHas('cargoLoad', fn (Builder $q) => $q->where('driver_profile_id', $profileId));
     }
 
-    public function submitDefense(): void
+    public function mount(): void
+    {
+        $this->ticketFormOpen = request()->boolean('ticket');
+    }
+
+    public function openDefense(int $disputeId): void
+    {
+        $dispute = $this->disputeQuery()->whereKey($disputeId)->first();
+        if (! $dispute || $dispute->status !== 'open') {
+            session()->flash('error_message', 'Yalnız incelenmekte olan uyuşmazlıklara savunma eklenebilir.');
+
+            return;
+        }
+
+        $this->defendingId = $dispute->id;
+        $this->defense = (string) ($dispute->driver_defense ?? '');
+        $this->defense_photo = null;
+        $this->resetErrorBag();
+    }
+
+    public function closeDefense(): void
+    {
+        $this->reset(['defendingId', 'defense', 'defense_photo']);
+        $this->resetErrorBag();
+    }
+
+    public function submitDefense(DisputeService $disputes): void
     {
         $this->validate([
-            'driver_defense' => 'required|min:20',
+            'defense' => 'required|string|min:20|max:3000',
             'defense_photo' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:10240',
         ], [
-            'driver_defense.required' => 'Lütfen savunmanızı ve olay anındaki durumu detaylıca yazınız.',
-            'driver_defense.min' => 'Savunma metniniz en az 20 karakter olmalıdır.',
+            'defense.required' => 'Savunma metni zorunludur.',
+            'defense.min' => 'Savunma en az 20 karakter olmalıdır.',
+            'defense_photo.mimes' => 'Kanıt JPG, PNG veya PDF olmalıdır.',
+            'defense_photo.max' => 'Kanıt dosyası en fazla 10 MB olabilir.',
         ]);
 
-        if ($this->selectedDispute) {
-            $path = $this->selectedDispute->driver_proof_photo_path;
-            if ($this->defense_photo) {
-                $path = $this->defense_photo->store('private/defense_evidence', 'local');
-            }
+        $profile = Auth::user()->driverProfile;
+        $dispute = $this->defendingId ? $this->disputeQuery()->whereKey($this->defendingId)->first() : null;
 
-            $this->selectedDispute->update([
-                'driver_defense' => $this->driver_defense,
-                'driver_proof_photo_path' => $path,
-            ]);
+        if (! $profile || ! $dispute) {
+            $this->addError('defense', 'Uyuşmazlık bulunamadı.');
 
-            $this->defenseModalOpen = false;
-            session()->flash('success_message', 'Savunmanız ve kanıtlarınız uyuşmazlık dosyasına eklendi.');
+            return;
         }
+
+        try {
+            $disputes->defend($dispute, $profile, $this->defense, $this->defense_photo);
+        } catch (\RuntimeException $e) {
+            $this->addError('defense', $e->getMessage());
+
+            return;
+        }
+
+        $this->closeDefense();
+        session()->flash('success_message', 'Savunmanız kaydedildi. Hakem incelemesi tamamlandığında bilgilendirileceksiniz.');
     }
 
-    public function createSupportTicket(): void
+    public function submitTicket(): void
     {
         $this->validate([
-            'support_message' => 'required|min:15',
+            'ticket_category' => ['required', Rule::in(array_keys(SupportTicket::CATEGORIES))],
+            'ticket_subject' => 'nullable|string|max:150',
+            'ticket_message' => 'required|string|min:15|max:3000',
+        ], [
+            'ticket_message.required' => 'Mesaj zorunludur.',
+            'ticket_message.min' => 'Mesajınız en az 15 karakter olmalıdır.',
         ]);
 
         $user = Auth::user();
-        if ($user) {
-            SupportTicket::create([
-                'name' => $user->full_name,
-                'email' => $user->email ?? 'sofor@navluniq.test',
-                'phone' => $user->phone ?? '05000000000',
-                'role' => 'driver',
-                'category' => $this->support_category,
-                'message' => $this->support_message,
-                'status' => 'open',
-            ]);
 
-            $this->supportModalOpen = false;
-            $this->reset(['support_message']);
-            session()->flash('success_message', 'Destek talebiniz açıldı. Müşteri temsilcimiz en kısa sürede yanıtlayacaktır.');
-        }
+        SupportTicket::create([
+            'user_id' => $user->id,
+            'name' => $user->full_name,
+            'email' => (string) $user->email,
+            'phone' => $user->phone,
+            'role' => 'driver',
+            'category' => $this->ticket_category,
+            'subject' => trim($this->ticket_subject) ?: null,
+            'message' => trim($this->ticket_message),
+            'status' => 'open',
+        ]);
+
+        $this->reset(['ticketFormOpen', 'ticket_category', 'ticket_subject', 'ticket_message']);
+        session()->flash('success_message', 'Destek talebiniz oluşturuldu. Destek ekibi yanıtladığında burada görünür.');
     }
 
     public function with(): array
     {
-        $user = Auth::user();
-        $disputes = collect();
-        $tickets = collect();
-
-        if ($user && $user->driverProfile) {
-            $driverId = (int) $user->driverProfile->id;
-
-            $disputes = Dispute::whereHas('cargoLoad', function ($q) use ($driverId) {
-                $q->where('driver_profile_id', $driverId);
-            })->with(['cargoLoad.cargoOwnerProfile.user'])->latest()->get();
-
-            $tickets = SupportTicket::where('role', 'driver')
-                ->where(function($q) use ($user) {
-                    $q->where('email', $user->email)->orWhere('phone', $user->phone);
-                })->latest()->get();
-        }
-
         return [
-            'disputes' => $disputes,
-            'tickets' => $tickets,
+            'disputes' => $this->disputeQuery()->latest('id')->paginate(15),
+            'defendingDispute' => $this->defendingId ? $this->disputeQuery()->whereKey($this->defendingId)->first() : null,
+            'tickets' => SupportTicket::query()->where('user_id', Auth::id())->latest('id')->take(20)->get(),
+            'categories' => SupportTicket::CATEGORIES,
         ];
     }
 }; ?>
 
 <div class="space-y-6">
 
-    <!-- Başarı Bildirimi -->
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{{ session('success_message') }}</span>
-            </div>
-        </div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Başlık & Destek Talebi Butonu -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
-        <div>
-            <h2 class="text-xl font-bold text-white tracking-tight">Kriz, Uyuşmazlık & Savunma Merkezi</h2>
-            <p class="text-xs text-neutral-400 mt-1">Yük sahibinin itirazlarına karşı savunma kanıtlarınızı (yükleme fotoğrafları, GPS logları) sunun.</p>
-        </div>
-
-        <button type="button" wire:click="$set('supportModalOpen', true)" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2 active:scale-95">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span>Destek Ekibine Yaz</span>
-        </button>
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+        <h2 class="page-title">Uyuşmazlık ve Destek</h2>
+        <p class="page-subtitle">Sevkiyatlarınız için açılan uyuşmazlıklara savunma ekleyin, destek ekibine talep iletin.</p>
     </div>
 
-    <!-- UYUŞMAZLIK DOSYALARI -->
-    <div class="space-y-4">
-        @forelse($disputes as $dispute)
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-800 pb-3">
-                    <div class="flex items-center gap-3">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 font-mono text-xs font-bold">
-                            Dosya #DIS-{{ str_pad((string)$dispute->id, 5, '0', STR_PAD_LEFT) }}
-                        </span>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                        @if($dispute->status === 'open')
-                            <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                Hakem Heyeti İncelemesinde
+        <div class="lg:col-span-2 space-y-6">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+                <h3 class="section-title">Uyuşmazlıklar</h3>
+
+                @forelse($disputes as $dispute)
+                    @php $dLoad = $dispute->cargoLoad; @endphp
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">
+                                @if($dLoad)
+                                    {{ $dLoad->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $dLoad->delivery_location }}
+                                @else
+                                    İlan kaldırılmış
+                                @endif
+                            </div>
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                                {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($dispute->status === 'resolved_driver_paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400') }}">
+                                {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}
                             </span>
-                        @elseif($dispute->status === 'resolved_driver_paid')
-                            <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase">
-                                ✓ Karar: Hak Edişiniz Onaylandı & Hesaba Aktarıldı
-                            </span>
+                        </div>
+                        <div class="text-neutral-500">
+                            Açılış: {{ $dispute->created_at?->format('d.m.Y H:i') }}
+                            @if($dLoad) · Yük sahibi: {{ $dLoad->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }} @endif
+                        </div>
+
+                        <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                            <div class="text-[11px] uppercase text-neutral-500 font-bold">Yük sahibinin iddiası</div>
+                            <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->cargo_owner_claim }}</div>
+                            @if($dispute->claim_photo_path)
+                                <a href="{{ route('files.dispute', [$dispute->id, 'claim']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">İddia fotoğrafını görüntüle</a>
+                            @endif
+                        </div>
+
+                        @if($dispute->driver_defense)
+                            <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Savunmanız</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->driver_defense }}</div>
+                                @if($dispute->driver_proof_photo_path)
+                                    <a href="{{ route('files.dispute', [$dispute->id, 'defense']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">Kanıtınızı görüntüle</a>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if($dispute->status !== 'open')
+                            <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Hakem kararı</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->arbitration_notes ?: 'Karar notu girilmedi.' }}</div>
+                                @if($dispute->resolved_at)
+                                    <div class="text-[11px] text-neutral-500">{{ $dispute->resolved_at->format('d.m.Y H:i') }}</div>
+                                @endif
+                            </div>
                         @else
-                            <span class="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold uppercase">
-                                Karar: Yük Sahibine İade Edildi
-                            </span>
+                            <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                                <button type="button" wire:click="openDefense({{ $dispute->id }})" class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold">
+                                    {{ $dispute->driver_defense ? 'Savunmayı güncelle' : 'Savunma yap' }}
+                                </button>
+                                @if($dLoad)
+                                    <a href="{{ route('driver.shipments.show', $dLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold text-center">Sevkiyatı aç</a>
+                                @endif
+                            </div>
                         @endif
                     </div>
+                @empty
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Sevkiyatlarınız için açılmış uyuşmazlık yok.</div>
+                @endforelse
 
-                    <span class="text-xs text-neutral-500">{{ $dispute->created_at?->format('d.m.Y H:i') }}</span>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
-                    <!-- Yük Sahibinin İddiası -->
-                    <div class="space-y-2">
-                        <span class="text-neutral-400 block font-semibold">Yük Sahibinin İtirazı:</span>
-                        <div class="p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 text-rose-300 leading-relaxed italic">
-                            "{{ $dispute->cargo_owner_claim }}"
-                        </div>
-                    </div>
-
-                    <!-- Şoförün Savunması -->
-                    <div class="space-y-2">
-                        <span class="text-neutral-400 block font-semibold">Sizin Savunmanız:</span>
-                        <div class="p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 text-neutral-300 leading-relaxed">
-                            {{ $dispute->driver_defense ?: 'Henüz bir savunma metni girmediniz.' }}
-                        </div>
-                    </div>
-                </div>
-
-                @if($dispute->status === 'open')
-                    <div class="pt-2 flex justify-end">
-                        <button type="button" wire:click="openDefenseModal({{ $dispute->id }})" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            <span>{{ $dispute->driver_defense ? 'Savunmayı & Kanıtı Güncelle' : 'Savunma & Kanıt Fotoğrafı Ekle' }}</span>
-                        </button>
-                    </div>
+                @if($disputes->hasPages())
+                    <div class="pt-2">{{ $disputes->links() }}</div>
                 @endif
             </div>
-        @empty
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center space-y-4">
-                <div class="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center mx-auto text-2xl font-bold">
-                    ✓
+        </div>
+
+        <div class="space-y-6">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+                <div class="flex items-center justify-between">
+                    <h3 class="section-title">Destek talepleri</h3>
+                    <button type="button" wire:click="$set('ticketFormOpen', {{ $ticketFormOpen ? 'false' : 'true' }})" class="text-brand-400 font-bold hover:underline">{{ $ticketFormOpen ? 'Kapat' : 'Yeni talep' }}</button>
                 </div>
-                <div class="space-y-1">
-                    <h4 class="text-base font-bold text-white">Adınıza Açılmış Bir Uyuşmazlık Yok</h4>
-                    <p class="text-xs text-neutral-400 max-w-sm mx-auto">Tüm sevkiyatlarınız sorunsuz tamamlanmış olup hak edişleriniz güvendedir.</p>
-                </div>
+
+                @if($ticketFormOpen)
+                    <form wire:submit.prevent="submitTicket" class="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                        <div>
+                            <label class="form-label">Kategori</label>
+                            <select wire:model="ticket_category" class="form-input">
+                                @foreach($categories as $key => $label)
+                                    <option value="{{ $key }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @error('ticket_category') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="form-label">Konu (isteğe bağlı)</label>
+                            <input type="text" wire:model="ticket_subject" maxlength="150" class="form-input">
+                            @error('ticket_subject') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="form-label">Mesaj</label>
+                            <textarea wire:model="ticket_message" rows="4" maxlength="3000" class="form-input"></textarea>
+                            @error('ticket_message') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                        <button type="submit" class="btn-primary w-full" wire:loading.attr="disabled">Talebi gönder</button>
+                    </form>
+                @endif
+
+                @forelse($tickets as $ticket)
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-neutral-900 dark:text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
+                                {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
+                                {{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapatıldı'][$ticket->status] ?? $ticket->status }}
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-neutral-500">{{ $categories[$ticket->category] ?? $ticket->category }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</div>
+                        <div class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $ticket->message }}</div>
+                        @if($ticket->admin_reply)
+                            <div class="mt-2 p-2 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Destek yanıtı @if($ticket->replied_at) · {{ $ticket->replied_at->format('d.m.Y H:i') }} @endif</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $ticket->admin_reply }}</div>
+                            </div>
+                        @endif
+                    </div>
+                @empty
+                    <div class="text-neutral-500">Henüz destek talebiniz yok.</div>
+                @endforelse
             </div>
-        @endforelse
+        </div>
     </div>
 
-    <!-- SAVUNMA MODALI -->
-    @if($defenseModalOpen && $selectedDispute)
+    @if($defendingDispute)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('defenseModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <span class="p-1.5 rounded-lg bg-brand-500/10 text-brand-400">🛡️</span>
-                        <span>Hakem Heyetine Savunma Bildir</span>
-                    </h3>
-                    <button wire:click="$set('defenseModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeDefense"></div>
+            <form wire:submit.prevent="submitDefense" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-3">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Savunma</h3>
+                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">
+                        @if($defendingDispute->cargoLoad)
+                            {{ $defendingDispute->cargoLoad->pickup_location }} &rarr; {{ $defendingDispute->cargoLoad->delivery_location }}
+                        @endif
+                    </p>
                 </div>
-
-                <div class="space-y-4 text-xs">
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Savunma Metniniz <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="driver_defense" rows="5" placeholder="Yükleme anında çekilen fotoğraflar, teslimatta alıcının beyanı veya yol durumu hakkında detaylı açıklama yazınız..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('driver_defense') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Kanıt Fotoğrafı / İrsaliye (Opsiyonel)</label>
-                        <input type="file" wire:model="defense_photo" class="w-full text-xs text-neutral-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white hover:file:bg-neutral-700 cursor-pointer">
-                    </div>
+                <div>
+                    <label class="form-label">Savunma metni (en az 20 karakter)</label>
+                    <textarea wire:model="defense" rows="5" maxlength="3000" class="form-input"></textarea>
+                    @error('defense') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
-
+                <div>
+                    <label class="form-label">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
+                    <input type="file" wire:model="defense_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
+                    @error('defense_photo') <span class="form-error">{{ $message }}</span> @enderror
+                    <div wire:loading wire:target="defense_photo" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                </div>
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('defenseModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                        Vazgeç
-                    </button>
-                    <button type="button" wire:click="submitDefense" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
-                        Savunmayı Gönder
+                    <button type="button" wire:click="closeDefense" class="btn-secondary flex-1">Vazgeç</button>
+                    <button type="submit" class="btn-primary flex-1" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="submitDefense">Savunmayı gönder</span>
+                        <span wire:loading wire:target="submitDefense">Gönderiliyor...</span>
                     </button>
                 </div>
-
-            </div>
+            </form>
         </div>
     @endif
-
-    <!-- DESTEK BİLETİ MODALI -->
-    @if($supportModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('supportModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <h3 class="text-base font-bold text-white">Destek Talebi Aç</h3>
-                    <button wire:click="$set('supportModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Kategori</label>
-                        <select wire:model="support_category" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:border-brand-500 focus:outline-none">
-                            @foreach($categories as $k => $v)
-                                <option value="{{ $k }}">{{ $v }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Mesajınız <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="support_message" rows="4" placeholder="Yaşadığınız durumu açıklayınız..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('support_message') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('supportModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-xs font-semibold">Kapat</button>
-                    <button type="button" wire:click="createSupportTicket" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold">Talebi İlet</button>
-                </div>
-
-            </div>
-        </div>
-    @endif
-
 </div>

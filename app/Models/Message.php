@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Message extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    public $timestamps = false;
 
     protected $fillable = [
         'conversation_id',
@@ -20,9 +23,9 @@ class Message extends Model
     ];
 
     protected $casts = [
-        'attachments'=>'array',
-        'sent_at'=>'datetime',
-        'edited_at'=>'datetime',
-        'deleted_at'=>'datetime',
+        'attachments' => 'array',
+        'sent_at' => 'datetime',
+        'edited_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 }

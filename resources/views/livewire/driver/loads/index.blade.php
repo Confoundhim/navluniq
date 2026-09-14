@@ -1,424 +1,461 @@
 <?php
-use Livewire\Volt\Component;
-use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
+
+use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Offer;
 use App\Models\ScrapedLoad;
+use App\Services\OfferService;
+use App\Support\Settings;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Carbon;
+use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
+use Livewire\Attributes\Title;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('İlan Havuzu & Akıllı Teklif Yönetimi')]
+#[Title('İlan Havuzu ve Tekliflerim')]
 class extends Component {
-    public string $activeTab='all'; public string $searchRoute=''; public string $filterVehicle='';
-    public bool $offerModalOpen=false; public ?int $selectedLoadId=null; public ?Load $selectedLoad=null;
-    public string $offered_price=''; public string $estimated_eta='1 Gün 4 Saat'; public string $offer_note='';
-    public bool $cancelRequestModalOpen=false; public ?int $selectedOfferIdForCancel=null; public string $cancellation_reason='';
-    public array $myOffers=[];
-    public function mount(): void { $this->loadMyOffers(); }
-    public function setTab(string $tab): void { abort_unless(in_array($tab,['all','escrow','scraped','my_offers'],true),422); $this->activeTab=$tab; $this->loadMyOffers(); }
-    public function openOfferModal(int $loadId): void
+    use WithPagination;
+
+    public string $tab = 'pool';
+
+    public string $search = '';
+
+    public string $vehicleType = '';
+
+    public bool $offerModalOpen = false;
+
+    #[Locked]
+    public ?int $selectedLoadId = null;
+
+    public string $amount = '';
+
+    public string $estimated_days = '1';
+
+    public string $message = '';
+
+    public function updatedSearch(): void
     {
-        $this->selectedLoadId=$loadId; $this->selectedLoad=Load::query()->whereKey($loadId)->where('status','active_seeking')->where('visibility','public')->firstOrFail();
-        $this->offered_price=(string)$this->selectedLoad->price; $this->offerModalOpen=true;
+        $this->resetPage();
     }
-    public function submitOffer(): void
+
+    public function updatedVehicleType(): void
     {
-        $this->validate(['offered_price'=>'required|numeric|min:500','estimated_eta'=>'required|string|max:80','offer_note'=>'nullable|string|max:1000']);
-        $profile=Auth::user()?->driverProfile; abort_unless($profile && $profile->kyc_status==='approved',403);
-        DB::transaction(function() use($profile):void {
-            $load=Load::query()->lockForUpdate()->whereKey($this->selectedLoadId)->where('status','active_seeking')->where('visibility','public')->firstOrFail();
-            abort_if(Offer::query()->where('load_id',$load->id)->where('driver_profile_id',$profile->id)->whereIn('status',['pending','accepted'])->exists(),422,'Bu ilana zaten teklif verdiniz.');
-            Offer::create(['load_id'=>$load->id,'driver_profile_id'=>$profile->id,'amount'=>$this->offered_price,'currency'=>'TRY','message'=>trim($this->estimated_eta.' | '.$this->offer_note),'status'=>'pending','expires_at'=>now()->addDays(2)]);
-        },3);
-        $this->offerModalOpen=false; $this->loadMyOffers(); session()->flash('success_message','Teklifiniz kaydedildi.');
+        $this->resetPage();
     }
-    public function isWithinOneHour(string $createdAt): bool { return Carbon::parse($createdAt)->diffInMinutes(now())<=60; }
-    public function withdrawInstantly(int $offerId): void
+
+    public function setTab(string $tab): void
     {
-        $profile=Auth::user()?->driverProfile; abort_unless($profile,403);
-        $offer=Offer::query()->whereKey($offerId)->where('driver_profile_id',$profile->id)->where('status','pending')->firstOrFail();
-        abort_if($offer->created_at->lt(now()->subHour()),422,'Bir saatten eski teklifler için gerekçe gerekir.');
-        $offer->update(['status'=>'withdrawn','responded_at'=>now()]); $this->loadMyOffers();
+        $this->tab = in_array($tab, ['pool', 'offers', 'external'], true) ? $tab : 'pool';
+        $this->resetPage();
     }
-    public function openCancelRequestModal(int $offerId): void { $this->selectedOfferIdForCancel=$offerId; $this->cancellation_reason=''; $this->cancelRequestModalOpen=true; }
-    public function submitCancelRequest(): void
+
+    private function profile()
     {
-        $this->validate(['cancellation_reason'=>'required|string|min:15|max:1000']); $profile=Auth::user()?->driverProfile; abort_unless($profile,403);
-        $offer=Offer::query()->whereKey($this->selectedOfferIdForCancel)->where('driver_profile_id',$profile->id)->where('status','pending')->firstOrFail();
-        $offer->update(['status'=>'cancel_requested','message'=>trim(($offer->message ? $offer->message."\n" : '').'İptal gerekçesi: '.$this->cancellation_reason)]);
-        $this->cancelRequestModalOpen=false; $this->loadMyOffers();
+        return Auth::user()->driverProfile;
     }
-    private function loadMyOffers(): void
+
+    /** Teklif verilebilir açık ilanlar: şoförün aktif teklifi olan ilanlar hariç. */
+    private function poolQuery(): Builder
     {
-        $profile=Auth::user()?->driverProfile; if(!$profile){$this->myOffers=[];return;}
-        $this->myOffers=Offer::query()->with('cargoLoad')->where('driver_profile_id',$profile->id)->latest()->get()->map(fn(Offer $o)=>[
-        'id'=>$o->id,'load_id'=>$o->load_id,'route'=>($o->cargoLoad?->pickup_location ?? '—').' → '.($o->cargoLoad?->delivery_location ?? '—'),'goods'=>$o->cargoLoad?->goods_type ?? '—',
-        'vehicle'=>$o->cargoLoad?->vehicle_type ?? '—','target_price'=>(float)($o->cargoLoad?->price ?? 0),'my_price'=>(float)$o->amount,'status'=>$o->status,'created_at'=>$o->created_at->toDateTimeString(),'cancel_reason'=>$o->status==='cancel_requested'?$o->message:null])->all();
+        $profileId = $this->profile()?->id ?? 0;
+
+        return Load::query()
+            ->with('cargoOwnerProfile.user')
+            ->where('status', Load::STATUS_ACTIVE)
+            ->where('visibility', 'public')
+            ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))
+            ->when(trim($this->search) !== '', function (Builder $q): void {
+                $term = '%'.trim($this->search).'%';
+                $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
+            })
+            ->when($this->vehicleType !== '', fn (Builder $q) => $q->where('vehicle_type', $this->vehicleType))
+            ->latest('published_at')
+            ->latest('id');
     }
+
+    private function externalQuery(): Builder
+    {
+        $premium = $this->profile()?->isPremium() ?? false;
+
+        return ScrapedLoad::query()
+            ->with('scraper')
+            ->where('status', 'parsed_success')
+            ->where('visibility', 'public')
+            ->when(! $premium, fn (Builder $q) => $q->where(fn (Builder $w) => $w->whereNull('available_to_free_at')->orWhere('available_to_free_at', '<=', now())))
+            ->when(trim($this->search) !== '', function (Builder $q): void {
+                $term = '%'.trim($this->search).'%';
+                $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
+            })
+            ->latest('id');
+    }
+
+    public function openOffer(int $loadId): void
+    {
+        $load = $this->poolQuery()->whereKey($loadId)->first();
+
+        if (! $load) {
+            session()->flash('error_message', 'İlan bulunamadı veya artık teklif kabul etmiyor.');
+
+            return;
+        }
+
+        $this->selectedLoadId = $load->id;
+        $this->amount = $load->price !== null ? number_format((float) $load->price, 2, '.', '') : '';
+        $this->estimated_days = '1';
+        $this->message = '';
+        $this->resetErrorBag();
+        $this->offerModalOpen = true;
+    }
+
+    public function closeOffer(): void
+    {
+        $this->offerModalOpen = false;
+        $this->selectedLoadId = null;
+        $this->resetErrorBag();
+    }
+
+    public function submitOffer(OfferService $offers): void
+    {
+        $min = Settings::float('min_load_price');
+
+        $this->validate([
+            'amount' => ['required', 'numeric', 'min:'.$min, 'max:99999999'],
+            'estimated_days' => ['required', 'integer', 'min:1', 'max:30'],
+            'message' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'amount.required' => 'Teklif tutarı zorunludur.',
+            'amount.numeric' => 'Teklif tutarı sayısal olmalıdır.',
+            'amount.min' => 'Teklif tutarı en az '.number_format($min, 2, ',', '.').' ₺ olmalıdır.',
+            'estimated_days.min' => 'Tahmini süre en az 1 gün olmalıdır.',
+            'estimated_days.max' => 'Tahmini süre en fazla 30 gün olabilir.',
+        ]);
+
+        $profile = $this->profile();
+        $load = $this->selectedLoadId ? Load::query()->whereKey($this->selectedLoadId)->first() : null;
+
+        if (! $profile || ! $load) {
+            $this->addError('amount', 'İlan bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $offers->submit($profile, $load, (float) $this->amount, trim($this->message) ?: null, (int) $this->estimated_days);
+        } catch (\RuntimeException $e) {
+            $this->addError('amount', $e->getMessage());
+
+            return;
+        }
+
+        $this->closeOffer();
+        $this->reset(['amount', 'estimated_days', 'message']);
+        $this->tab = 'offers';
+        $this->resetPage();
+        session()->flash('success_message', 'Teklifiniz iletildi. Yük sahibi değerlendirdiğinde bilgilendirileceksiniz.');
+    }
+
+    public function withdrawOffer(OfferService $offers, int $offerId): void
+    {
+        $profile = $this->profile();
+        $offer = Offer::query()->where('driver_profile_id', $profile?->id ?? 0)->whereKey($offerId)->first();
+
+        if (! $profile || ! $offer) {
+            session()->flash('error_message', 'Teklif bulunamadı.');
+
+            return;
+        }
+
+        try {
+            $offers->withdraw($offer, $profile);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+
+        session()->flash('success_message', 'Teklifiniz geri çekildi.');
+    }
+
     public function with(): array
     {
-        $profile=Auth::user()?->driverProfile; $ids=$profile ? Offer::where('driver_profile_id',$profile->id)->pluck('load_id'):collect();
-        $q=Load::query()->where('status','active_seeking')->where('visibility','public')->whereNotIn('id',$ids);
-        if($this->searchRoute!=='')$q->where(fn($x)=>$x->where('pickup_location','like','%'.$this->searchRoute.'%')->orWhere('delivery_location','like','%'.$this->searchRoute.'%'));
-        if($this->filterVehicle!=='')$q->where('vehicle_type',$this->filterVehicle);
-        $external=ScrapedLoad::query()->where('status','parsed_success')->where('visibility','public')->where(fn($x)=>$x->whereNull('available_to_free_at')->orWhere('available_to_free_at','<=',now()))->latest()->take(50)->get()->map(fn($x)=>['id'=>$x->id,'origin'=>$x->pickup_location,'destination'=>$x->delivery_location,'goods'=>$x->goods_type,'vehicle'=>'—','weight'=>$x->weight?number_format($x->weight).' Kg':'—','price'=>(float)$x->price,'phone'=>$x->masked_phone,'raw_phone'=>'','source_channel'=>$x->scraper?->name ?? 'Dış kaynak','time_ago'=>$x->created_at->diffForHumans()])->all();
-        return ['systemLoads'=>$q->latest()->get(),'scrapedLoads'=>$external];
+        $profile = $this->profile();
+        $profileId = $profile?->id ?? 0;
+
+        $data = [
+            'profile' => $profile,
+            'kycApproved' => $profile?->isKycApproved() ?? false,
+            'hasActiveVehicle' => $profile ? $profile->activeVehicle()->exists() : false,
+            'isPremium' => $profile?->isPremium() ?? false,
+            'vehicleTypes' => DriverVehicle::getVehicleTypes(),
+            'minPrice' => Settings::float('min_load_price'),
+            'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
+            'loads' => null,
+            'offers' => null,
+            'externalLoads' => null,
+        ];
+
+        if ($this->tab === 'offers') {
+            $data['offers'] = Offer::query()->with('cargoLoad')->where('driver_profile_id', $profileId)->latest('id')->paginate(15);
+        } elseif ($this->tab === 'external') {
+            $data['externalLoads'] = $this->externalQuery()->paginate(15);
+        } else {
+            $data['loads'] = $this->poolQuery()->paginate(15);
+        }
+
+        return $data;
     }
 }; ?>
 
 <div class="space-y-6">
 
-    <!-- Başarı Bildirimi -->
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{{ session('success_message') }}</span>
-            </div>
-        </div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık & Sekmeler -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
-        <div class="flex flex-wrap items-center gap-2">
-            <button type="button" wire:click="setTab('all')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all {{ $activeTab === 'all' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
-                Tüm Yük İlanları
-            </button>
-            <button type="button" wire:click="setTab('escrow')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all {{ $activeTab === 'escrow' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
-                🛡️ %100 PayTR Havuz Korumalı
-            </button>
-            <button type="button" wire:click="setTab('scraped')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all {{ $activeTab === 'scraped' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
-                ⚡ Sarı Rozetli Onaylı Dış İlanlar
-            </button>
-            <button type="button" wire:click="setTab('my_offers')" class="px-4 py-2 rounded-xl text-xs font-bold transition-all {{ $activeTab === 'my_offers' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
-                Verdiğim Teklifler ({{ count($myOffers) }})
-            </button>
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+            <h2 class="page-title">İlan Havuzu ve Tekliflerim</h2>
+            <p class="page-subtitle">Açık ilanlara teklif verin, tekliflerinizi takip edin ve dış kaynaklı ilanları inceleyin.</p>
         </div>
-
-        @if($activeTab !== 'my_offers')
-            <div class="flex items-center gap-3">
-                <input type="text" wire:model.live.debounce.300ms="searchRoute" placeholder="Şehir / İlçe Ara (Örn: Ankara)..." class="bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-neutral-500 focus:border-brand-500 focus:outline-none w-48 sm:w-60">
-            </div>
-        @endif
-    </div>
-
-    <!-- SEKMELERE GÖRE İÇERİK -->
-
-    <!-- 1. SEKME: SİSTEM İLANLARI (Teklif Verilenler Gizlenir) -->
-    @if($activeTab === 'all' || $activeTab === 'escrow')
-        <div class="space-y-4">
-            @forelse($systemLoads as $load)
-                <div class="bg-neutral-900 border border-neutral-800 hover:border-neutral-700/80 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-
-                    <div class="space-y-3 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 font-mono text-[11px] font-bold">
-                                #NVL-{{ str_pad((string)$load->id, 5, '0', STR_PAD_LEFT) }}
-                            </span>
-                            <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">
-                                ✓ PayTR Escrow Havuz Güvenceli
-                            </span>
-                            <span class="text-xs text-neutral-500">
-                                {{ $load->created_at?->format('d.m.Y H:i') }}
-                            </span>
-                        </div>
-
-                        <div class="flex items-center space-x-3 text-sm font-bold text-white">
-                            <span>{{ $load->pickup_location }}</span>
-                            <span class="text-brand-500">&rarr;</span>
-                            <span>{{ $load->delivery_location }}</span>
-                        </div>
-
-                        <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-400">
-                            <div><span class="text-neutral-500">Araç Tipi:</span> <span class="text-neutral-200 font-medium uppercase">{{ str_replace('_', ' ', $load->vehicle_type) }}</span></div>
-                            <div><span class="text-neutral-500">Yük:</span> <span class="text-neutral-200 font-medium">{{ $load->goods_type }}</span></div>
-                            <div><span class="text-neutral-500">Ağırlık:</span> <span class="text-neutral-200 font-medium">{{ number_format($load->weight) }} Kg</span></div>
-                            @if($load->e_irsaliye_no)
-                                <div><span class="text-neutral-500">e-İrsaliye:</span> <span class="text-neutral-300 font-mono">Hazır</span></div>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-800">
-                        <div class="text-left lg:text-right">
-                            <span class="text-[10px] text-neutral-500 uppercase tracking-wider block">Yük Sahibi Bütçesi</span>
-                            <div class="text-2xl font-black text-white font-mono">
-                                {{ number_format((float)$load->price, 2, ',', '.') }} <span class="text-brand-500 text-lg">₺</span>
-                            </div>
-                        </div>
-
-                        <button type="button" wire:click="openOfferModal({{ $load->id }})" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>Teklif Ver</span>
-                        </button>
-                    </div>
-
-                </div>
-            @empty
-                <div class="p-8 text-center text-xs text-neutral-500 bg-neutral-900 rounded-2xl border border-neutral-800">
-                    Henüz teklif vermediğiniz yeni bir sistem ilanı bulunmuyor veya aramanıza uygun ilan yok.
-                </div>
-            @endforelse
-        </div>
-    @endif
-
-    <!-- 2. SEKME: SARI ROZETLİ DIŞ İLANLAR -->
-    @if($activeTab === 'all' || $activeTab === 'scraped')
-        <div class="space-y-4 pt-4">
-            <div class="flex items-center justify-between pb-2">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                    <h3 class="text-sm font-bold text-white">Onaylı Dış Kaynak İlanları</h3>
-                </div>
-                <span class="text-[11px] text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 rounded-full">
-                    👑 20 Dk Erken Erişim
-                </span>
-            </div>
-
-            @foreach($scrapedLoads as $item)
-                <div class="bg-neutral-900 border border-amber-500/30 hover:border-amber-500/60 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div class="space-y-3 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] font-bold uppercase">
-                                ⚡ {{ $item['source_channel'] }}
-                            </span>
-                            <span class="text-xs text-neutral-500 font-mono">{{ $item['time_ago'] }}</span>
-                        </div>
-
-                        <div class="flex items-center space-x-3 text-sm font-bold text-white">
-                            <span>{{ $item['origin'] }}</span>
-                            <span class="text-amber-400">&rarr;</span>
-                            <span>{{ $item['destination'] }}</span>
-                        </div>
-
-                        <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-400">
-                            <div><span class="text-neutral-500">Araç:</span> <span class="text-neutral-200 font-medium">{{ $item['vehicle'] }}</span></div>
-                            <div><span class="text-neutral-500">Yük:</span> <span class="text-neutral-200 font-medium">{{ $item['goods'] }}</span></div>
-                            <div><span class="text-neutral-500">Tonaj:</span> <span class="text-neutral-200 font-medium">{{ $item['weight'] }}</span></div>
-                        </div>
-
-                        <div class="p-2.5 bg-neutral-950 rounded-xl border border-neutral-800 text-[11px] text-neutral-400 flex items-center justify-between">
-                            <span>İletişim: <b class="text-white font-mono">{{ $item['phone'] }}</b></span>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-800">
-                        <div class="text-left lg:text-right">
-                            <span class="text-[10px] text-neutral-500 uppercase tracking-wider block">Bütçe</span>
-                            <div class="text-2xl font-black text-amber-400 font-mono">
-                                {{ number_format($item['price'], 2, ',', '.') }} ₺
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-2 w-full sm:w-auto">
-                            <a href="tel:{{ $item['raw_phone'] }}" class="p-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white transition-colors" title="Şimdi Ara">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                </svg>
-                            </a>
-                            <a href="https://wa.me/9{{ $item['raw_phone'] }}?text={{ urlencode('Merhaba, NavlunIQ uzerinden ilaniniz icin ulasiyorum.') }}" target="_blank" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all">
-                                WhatsApp
-                            </a>
-                        </div>
-                    </div>
-                </div>
+        <div class="flex flex-wrap gap-2 text-xs">
+            @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanlar'] as $key => $label)
+                <button type="button" wire:click="setTab('{{ $key }}')"
+                    class="px-4 py-2 rounded-xl font-bold border transition-colors {{ $tab === $key ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white' }}">
+                    {{ $label }}
+                </button>
             @endforeach
         </div>
+    </div>
+
+    @if(! $kycApproved)
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span>Teklif verebilmek için sürücü belgelerinizin onaylanmış olması gerekir.</span>
+            <a href="{{ route('driver.profile.index') }}" wire:navigate class="shrink-0 font-bold underline">Belgeleri yükle</a>
+        </div>
+    @elseif(! $hasActiveVehicle)
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span>Teklif verebilmek için en az bir aktif aracınız olmalı.</span>
+            <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="shrink-0 font-bold underline">Araç ekle</a>
+        </div>
     @endif
 
-    <!-- 3. SEKME: VERDİĞİM TEKLİFLER & 1 SAAT KONTROLLÜ GERİ ÇEKME -->
-    @if($activeTab === 'my_offers')
-        <div class="space-y-4">
-            @forelse($myOffers as $offer)
-                @php
-                    $isWithinHour = $this->isWithinOneHour($offer['created_at']);
-                @endphp
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+    @if($tab === 'pool')
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label class="form-label">Rota ara</label>
+                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
+                </div>
+                <div>
+                    <label class="form-label">Araç türü</label>
+                    <select wire:model.live="vehicleType" class="form-input">
+                        <option value="">Tümü</option>
+                        @foreach($vehicleTypes as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
 
-                    <div class="space-y-3 flex-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                            @if($offer['status'] === 'pending')
-                                <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold uppercase flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                    Yük Sahibi Onayı Bekleniyor
-                                </span>
-                            @elseif($offer['status'] === 'cancel_requested')
-                                <span class="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold uppercase">
-                                    ⏳ İptal Talebiniz Yük Sahibine Sunuldu
-                                </span>
-                            @elseif($offer['status'] === 'accepted')
-                                <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold uppercase">
-                                    ✓ Teklif Kabul Edildi (Seferde)
-                                </span>
-                            @endif
-
-                            <span class="text-xs text-neutral-500 font-mono">
-                                Verilme Zamanı: {{ Carbon::parse($offer['created_at'])->format('d.m.Y H:i') }}
-                            </span>
-                        </div>
-
-                        <div class="text-sm font-bold text-white">{{ $offer['route'] }}</div>
-                        <div class="text-xs text-neutral-400">{{ $offer['goods'] }} • {{ $offer['vehicle'] }}</div>
-
-                        @if($offer['cancel_reason'])
-                            <div class="p-3 bg-neutral-950 rounded-xl border border-rose-500/20 text-xs text-rose-300">
-                                <b>İptal Gerekçeniz:</b> "{{ $offer['cancel_reason'] }}"
+            <div class="space-y-3">
+                @forelse($loads as $load)
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 hover:border-brand-500/40 rounded-xl transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                        <div class="space-y-1.5 flex-1">
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                            <div class="text-neutral-500 dark:text-neutral-400">
+                                {{ $load->goods_type }} · {{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}
+                                @if($load->weight) · {{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg @endif
+                                @if($load->volume) · {{ number_format((int) ($load->volume ?? 0), 0, ',', '.') }} m³ @endif
                             </div>
+                            <div class="text-neutral-500">
+                                Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}
+                                @if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }} @endif
+                                · Yük sahibi: {{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}
+                            </div>
+                        </div>
+                        <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
+                            <div class="text-lg font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
+                            <button type="button" wire:click="openOffer({{ $load->id }})" class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold">Teklif ver</button>
+                        </div>
+                    </div>
+                @empty
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Filtrelerinize uyan açık ilan bulunmuyor.</div>
+                @endforelse
+            </div>
+
+            @if($loads && $loads->hasPages())
+                <div class="pt-2">{{ $loads->links() }}</div>
+            @endif
+        </div>
+    @endif
+
+    @if($tab === 'offers')
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+            @forelse($offers as $offer)
+                @php $offerLoad = $offer->cargoLoad; @endphp
+                <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                    <div class="space-y-1.5 flex-1">
+                        <div class="text-sm font-bold text-neutral-900 dark:text-white">
+                            @if($offerLoad)
+                                {{ $offerLoad->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $offerLoad->delivery_location }}
+                            @else
+                                İlan kaldırılmış
+                            @endif
+                        </div>
+                        <div class="text-neutral-500 dark:text-neutral-400">
+                            Teklifim: <span class="text-neutral-900 dark:text-white tabular-nums font-bold">{{ number_format((float) ($offer->amount ?? 0), 2, ',', '.') }} ₺</span>
+                            @if($offer->estimated_days) · {{ (int) $offer->estimated_days }} gün @endif
+                            · Verildi: {{ $offer->created_at?->format('d.m.Y H:i') }}
+                        </div>
+                        <div class="text-neutral-500">
+                            @if($offer->status === 'pending' && $offer->expires_at)
+                                Geçerlilik: {{ $offer->expires_at->format('d.m.Y H:i') }} tarihine kadar
+                            @elseif($offer->responded_at)
+                                Sonuçlandı: {{ $offer->responded_at->format('d.m.Y H:i') }}
+                            @endif
+                            @if($offerLoad) · İlan durumu: {{ $offerLoad->statusLabel() }} @endif
+                        </div>
+                    </div>
+                    <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                            {{ $offer->status === 'accepted' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($offer->status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
+                            {{ \App\Models\Offer::STATUS_LABELS[$offer->status] ?? $offer->status }}
+                        </span>
+                        @if($offer->status === 'pending')
+                            <button type="button" wire:click="withdrawOffer({{ $offer->id }})" wire:confirm="Teklifinizi geri çekmek istediğinize emin misiniz?" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 font-bold">Geri çek</button>
+                        @elseif($offer->status === 'accepted' && $offerLoad)
+                            <a href="{{ route('driver.shipments.show', $offerLoad->id) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Sevkiyata git</a>
                         @endif
                     </div>
+                </div>
+            @empty
+                <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz teklif vermediniz.</div>
+            @endforelse
 
-                    <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-3 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-800">
-                        <div class="text-left lg:text-right">
-                            <span class="text-[10px] text-neutral-500 uppercase block">Verdiğiniz Teklif</span>
-                            <div class="text-2xl font-black text-brand-400 font-mono">
-                                {{ number_format($offer['my_price'], 2, ',', '.') }} ₺
+            @if($offers && $offers->hasPages())
+                <div class="pt-2">{{ $offers->links() }}</div>
+            @endif
+        </div>
+    @endif
+
+    @if($tab === 'external')
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                    <label class="form-label">Rota ara</label>
+                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
+                </div>
+                <div class="text-[11px] text-neutral-500 sm:self-end leading-relaxed">
+                    Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır.
+                    @if(! $isPremium)
+                        Yeni dış kaynak ilanlar önce premium üyelere açılır; telefon numarasının tamamı premium üyelere gösterilir.
+                        <a href="{{ route('driver.premium.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Premium</a>
+                    @endif
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                @forelse($externalLoads as $item)
+                    @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; @endphp
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                        <div class="space-y-1.5 flex-1">
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
+                            <div class="text-neutral-500 dark:text-neutral-400">
+                                {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}
+                                @if($item->weight) · {{ number_format((int) ($item->weight ?? 0), 0, ',', '.') }} kg @endif
+                                @if($item->scraper) · Kaynak: {{ $item->scraper->name }} @endif
                             </div>
+                            <div class="text-neutral-500">Derlendi: {{ $item->created_at?->format('d.m.Y H:i') }}</div>
                         </div>
-
-                        <!-- 1 Saat Kuralı Butonları -->
-                        <div class="w-full sm:w-auto">
-                            @if($offer['status'] === 'pending')
-                                @if($isWithinHour)
-                                    <!-- 1 Saat İçinde: Doğrudan Koşulsuz Geri Çek -->
-                                    <button type="button" wire:click="withdrawInstantly({{ $offer['id'] }})" wire:confirm="Teklifinizi sebepsiz olarak geri çekmek istediğinize emin misiniz?" class="w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-bold border border-neutral-700 transition-colors flex items-center justify-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                        <span>Koşulsuz Geri Çek (1 Saat Dolmadı)</span>
-                                    </button>
+                        <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
+                            <div class="text-neutral-900 dark:text-white tabular-nums font-bold">
+                                @if($item->price !== null)
+                                    {{ number_format((float) $item->price, 2, ',', '.') }} ₺
                                 @else
-                                    <!-- 1 Saat Sonrası: Gerekçeli İptal Talebi Aç -->
-                                    <button type="button" wire:click="openCancelRequestModal({{ $offer['id'] }})" class="w-full px-4 py-2 rounded-xl bg-neutral-800 hover:bg-amber-500/10 text-amber-400 text-xs font-bold border border-neutral-700 transition-colors flex items-center justify-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                        <span>İptal Talebi İlet (Gerekçe Zorunlu)</span>
-                                    </button>
+                                    Fiyat belirtilmemiş
                                 @endif
-                            @elseif($offer['status'] === 'accepted')
-                                <a href="{{ route('driver.disputes.index') }}" class="w-full px-4 py-2 rounded-xl bg-neutral-800 text-neutral-400 hover:text-rose-400 text-xs font-semibold block text-center">
-                                    Sorun mu Var? (Uyuşmazlık Aç)
-                                </a>
+                            </div>
+                            @if($fullPhone)
+                                                                <div class="flex items-center gap-3">
+                                    <a href="tel:+90{{ $plainPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ $fullPhone }}</a>
+                                    <a href="https://wa.me/90{{ $plainPhone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                </div>
+                            @else
+                                <span class="text-neutral-500 dark:text-neutral-400 tabular-nums">{{ $plainPhone ? '0'.substr($plainPhone, 0, 3).' *** ** '.substr($plainPhone, -2) : 'Bilinmiyor' }}</span>
                             @endif
                         </div>
                     </div>
+                @empty
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Şu anda görüntülenebilir dış kaynak ilan yok.</div>
+                @endforelse
+            </div>
 
-                </div>
-            @empty
-                <div class="p-8 text-center text-xs text-neutral-500 bg-neutral-900 rounded-2xl border border-neutral-800">
-                    Henüz aktif bir teklifiniz bulunmuyor.
-                </div>
-            @endforelse
+            @if($externalLoads && $externalLoads->hasPages())
+                <div class="pt-2">{{ $externalLoads->links() }}</div>
+            @endif
         </div>
     @endif
 
-    <!-- Teklif Verme Modalı -->
     @if($offerModalOpen && $selectedLoad)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('offerModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <div>
-                        <h3 class="text-base font-bold text-white">Navlun Fiyat Teklifi Ver</h3>
-                        <p class="text-xs text-neutral-400 mt-0.5">#NVL-{{ $selectedLoad->id }} numaralı ilana teklifinizi iletin.</p>
-                    </div>
-                    <button wire:click="$set('offerModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeOffer"></div>
+            <form wire:submit.prevent="submitOffer" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-3">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Teklif ver</h3>
+                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $selectedLoad->pickup_location }} &rarr; {{ $selectedLoad->delivery_location }} · İlan fiyatı {{ number_format((float) ($selectedLoad->price ?? 0), 2, ',', '.') }} ₺</p>
                 </div>
 
-                <div class="p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 text-xs space-y-1">
-                    <div class="text-white font-bold">{{ $selectedLoad->pickup_location }} &rarr; {{ $selectedLoad->delivery_location }}</div>
-                    <div class="text-neutral-400">Yük Sahibi Bütçesi: <b class="text-brand-400 font-mono">{{ number_format((float)$selectedLoad->price, 2, ',', '.') }} ₺</b></div>
-                </div>
-
-                <div class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Teklif Ettiğiniz Navlun Fiyatı (₺) <span class="text-brand-500">*</span></label>
-                        <input type="number" wire:model="offered_price" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-base font-bold text-white font-mono focus:border-brand-500 focus:outline-none">
-                        @error('offered_price') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Teklif tutarı (₺)</label>
+                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="form-input tabular-nums">
+                        @error('amount') <span class="form-error">{{ $message }}</span> @enderror
+                        <span class="text-[11px] text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
                     </div>
-
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Tahmini Teslimat Süresi (ETA) <span class="text-brand-500">*</span></label>
-                        <input type="text" wire:model="estimated_eta" placeholder="Örn: 1 Gün 4 Saat" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
-                    </div>
-
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Yük Sahibine Not (Opsiyonel)</label>
-                        <textarea wire:model="offer_note" rows="3" placeholder="Aracım hazır, belirtilen saatte yükleme yapabilirim..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
+                        <label class="form-label">Tahmini süre (gün)</label>
+                        <input type="number" min="1" max="30" wire:model="estimated_days" class="form-input tabular-nums">
+                        @error('estimated_days') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
-                <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-400 leading-relaxed">
-                    💡 Teklif verdiğinizde ilan bu listeden kaybolur. İlk 1 saat içinde koşulsuz geri çekebilirsiniz.
+                <div>
+                    <label class="form-label">Mesaj (isteğe bağlı)</label>
+                    <textarea wire:model="message" rows="3" maxlength="1000" class="form-input"></textarea>
+                    @error('message') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
-                <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('offerModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                        Vazgeç
-                    </button>
-                    <button type="button" wire:click="submitOffer" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
-                        Teklifi İlet
-                    </button>
-                </div>
-
-            </div>
+                @if(! $kycApproved)
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
+                        Teklif verebilmek için belgelerinizin onaylanmış olması gerekir.
+                        <a href="{{ route('driver.profile.index') }}" wire:navigate class="font-bold underline">Belgeleri yükle</a>
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" wire:click="closeOffer" class="btn-secondary flex-1">Kapat</button>
+                    </div>
+                @else
+                    @if(! $hasActiveVehicle)
+                        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
+                            Teklif verebilmek için aktif bir aracınız olmalı.
+                            <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="font-bold underline">Araç ekle</a>
+                        </div>
+                    @endif
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" wire:click="closeOffer" class="btn-secondary flex-1">Vazgeç</button>
+                        <button type="submit" class="btn-primary flex-1" wire:loading.attr="disabled">
+                            <span wire:loading.remove wire:target="submitOffer">Teklifi gönder</span>
+                            <span wire:loading wire:target="submitOffer">Gönderiliyor...</span>
+                        </button>
+                    </div>
+                @endif
+            </form>
         </div>
     @endif
-
-    <!-- 1 Saat Sonrası Gerekçeli İptal Talebi Modalı -->
-    @if($cancelRequestModalOpen)
-        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md transition-opacity" wire:click="$set('cancelRequestModalOpen', false)"></div>
-            <div class="relative z-10 w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-6 text-left">
-
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">⏳</span>
-                        <span>Gerekçeli İptal Talebi İlet</span>
-                    </h3>
-                    <button wire:click="$set('cancelRequestModalOpen', false)" class="text-neutral-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <div class="p-3 bg-neutral-950 rounded-xl border border-amber-500/30 text-amber-300 leading-relaxed text-[11px]">
-                        ⚠ Teklif verme anının üzerinden 1 saatten fazla süre geçtiği için teklifi doğrudan silemezsiniz. Lütfen geçerli bir mazeret belirtiniz. Talebiniz yük sahibinin onayına sunulacaktır.
-                    </div>
-
-                    <div>
-                        <label class="block font-medium text-neutral-300 mb-1.5">İptal Gerekçeniz <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="cancellation_reason" rows="4" placeholder="Araçta teknik arıza oluştu, rotam değişti vb. geçerli sebebinizi açıklayınız..." class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('cancellation_reason') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-
-                <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('cancelRequestModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
-                        Vazgeç
-                    </button>
-                    <button type="button" wire:click="submitCancelRequest" class="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black text-xs font-bold shadow-lg shadow-amber-500/20 transition-all">
-                        Talebi Yük Sahibine İlet
-                    </button>
-                </div>
-
-            </div>
-        </div>
-    @endif
-
 </div>

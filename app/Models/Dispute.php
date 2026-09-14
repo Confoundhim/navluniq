@@ -13,11 +13,15 @@ class Dispute extends Model
 
     protected $fillable = [
         'load_id',
+        'opened_by',
         'cargo_owner_claim',
+        'claim_photo_path',
         'driver_proof_photo_path',
         'driver_defense',
         'status',
+        'resolution',
         'arbitration_notes',
+        'resolved_by',
         'resolved_at',
     ];
 
@@ -25,12 +29,25 @@ class Dispute extends Model
         'resolved_at' => 'datetime',
     ];
 
-    /**
-     * Ait Olduğu Yük / Sevkiyat İlişkisi
-     * 🚀 İsim çakışmasını önlemek için 'cargoLoad' yapılmıştır [11.2].
-     */
+    public const STATUS_LABELS = [
+        'open' => 'İnceleniyor',
+        'resolved_driver_paid' => 'Şoför lehine sonuçlandı',
+        'resolved_owner_refunded' => 'Yük sahibi lehine sonuçlandı',
+        'cancelled' => 'Geri çekildi',
+    ];
+
     public function cargoLoad(): BelongsTo
     {
         return $this->belongsTo(Load::class, 'load_id');
+    }
+
+    public function opener(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'opened_by');
+    }
+
+    public function resolver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 }

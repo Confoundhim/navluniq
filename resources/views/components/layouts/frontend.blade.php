@@ -1,49 +1,34 @@
 @props(['title' => 'NavlunIQ - Akıllı Lojistik Ağı'])
+@php
+    $whatsappNumber = preg_replace('/\D/', '', (string) \App\Models\CmsContent::getVal('contact_whatsapp', config('company.phone')));
+    $whatsappNumber = $whatsappNumber !== '' ? (str_starts_with($whatsappNumber, '90') ? $whatsappNumber : '90'.ltrim($whatsappNumber, '0')) : null;
+@endphp
 <!DOCTYPE html>
-<html lang="tr" class="scroll-smooth" :class="{ 'dark': $store.darkMode.on }">
+<html lang="tr" class="scroll-smooth">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#f97316">
     <title>{{ $title }}</title>
+    <script>
+        // Tema tercihini Alpine yüklenmeden uygular; açılışta beyaz yanıp sönmeyi önler.
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
 
     <!-- Tarayıcı Sekme İkonu (Favicon) -->
     <link rel="icon" type="image/png" href="/images/fav-ico.png">
     <link rel="shortcut icon" href="/images/fav-ico.png">
 
-    <!-- Google Fonts Inter Yazı Tipi -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap"
-        rel="stylesheet">
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    <!-- Projemizin Stil ve Script Dosyaları -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-    <!-- Alpine.js Karanlık Mod Store ve Anlık Geçiş Motoru -->
-    <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.store('darkMode', {
-                on: localStorage.getItem('darkMode') === 'true',
-                toggle() {
-                    this.on = !this.on;
-                    localStorage.setItem('darkMode', this.on);
-                    if (this.on) {
-                        document.documentElement.classList.add('dark');
-                    } else {
-                        document.documentElement.classList.remove('dark');
-                    }
-                },
-                init() {
-                    if (this.on) {
-                        document.documentElement.classList.add('dark');
-                    } else {
-                        document.documentElement.classList.remove('dark');
-                    }
-                }
-            });
-        });
-    </script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -202,13 +187,13 @@
         {{ $slot }}
     </main>
 
-    <!-- WHATSAPP CANLI DESTEK WIDGET'I (SAĞ ALT KÖŞE) -->
-    <div class="fixed bottom-6 right-6 z-50 flex items-center group">
+    @if($whatsappNumber)
+    <div class="fixed bottom-6 right-6 z-50 flex items-center group" style="bottom: calc(1.5rem + env(safe-area-inset-bottom));">
         <span
             class="hidden sm:inline-block mr-3 px-3 py-1.5 bg-neutral-900 text-white text-xs font-bold rounded-xl shadow-apple-lg opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
             WhatsApp Destek Hattı
         </span>
-        <a href="https://wa.me/908503054010?text={{ urlencode('Merhaba, NavlunIQ Akıllı Lojistik Ağı hakkında bilgi almak istiyorum.') }}"
+        <a href="https://wa.me/{{ $whatsappNumber }}?text={{ urlencode('Merhaba, NavlunIQ hakkında bilgi almak istiyorum.') }}"
             target="_blank"
             class="w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-apple-dark hover:scale-110 active:scale-95 transition-all duration-300 relative">
             <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
@@ -223,8 +208,9 @@
             </span>
         </a>
     </div>
+    @endif
 
-    <!-- 4 SÜTUNLU RESMİ FOOTER (SADECE NİQ SEMBOL LOGO VE ETBİS) -->
+    <!-- Footer -->
     <footer
         class="bg-white dark:bg-neutral-900 border-t border-neutral-200/80 dark:border-neutral-800/80 pt-16 pb-12 px-6 md:px-12 text-xs transition-colors duration-300">
         <div
@@ -252,6 +238,7 @@
                     {{ \App\Models\CmsContent::getVal('footer_slogan', 'Lojistikte güvenli, akıllı taşımacılık ekosistemi.') }}
                 </p>
 
+                @if($etbis = \App\Models\CmsContent::getVal('etbis_code'))
                 <div class="pt-1">
                     <div
                         class="inline-flex items-center space-x-2 p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 border border-neutral-200/50 dark:border-neutral-700/50 font-mono text-[10px] text-neutral-600 dark:text-neutral-300">
@@ -259,9 +246,10 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        <span>ETBİS Kayıtlı İşletme: {{ \App\Models\CmsContent::getVal('etbis_code', 'ETBİS-2026-NAV-00192') }}</span>
+                        <span>ETBİS Kayıtlı İşletme: {{ $etbis }}</span>
                     </div>
                 </div>
+                @endif
             </div>
 
             <!-- 2. Sütun: Keşfet -->
@@ -283,8 +271,8 @@
                 <ul class="space-y-2 text-neutral-500 dark:text-neutral-400 font-medium">
                     <li><a href="/#sss" class="hover:text-brand-500 transition-colors">Sıkça Sorulan Sorular</a></li>
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">Müşteri Hizmetleri</a></li>
-                    <li><a href="https://wa.me/908503054010" target="_blank" class="hover:text-brand-500 transition-colors">WhatsApp Destek Hattı</a></li>
-                    <li><a href="mailto:info@navluniq.com" class="hover:text-brand-500 transition-colors">info@navluniq.com</a></li>
+                    @if($whatsappNumber)<li><a href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">WhatsApp Destek Hattı</a></li>@endif
+                    @if(config('company.email'))<li><a href="mailto:{{ config('company.email') }}" class="hover:text-brand-500 transition-colors">{{ config('company.email') }}</a></li>@endif
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">İletişim Formu</a></li>
                 </ul>
             </div>
@@ -293,11 +281,11 @@
             <div class="space-y-3">
                 <h4 class="font-bold text-neutral-900 dark:text-white uppercase tracking-wider text-[11px]">Yasal Sözleşmeler</h4>
                 <ul class="space-y-2 text-neutral-500 dark:text-neutral-400 font-medium">
-                    <li><a href="/sozlesmeler/kvkk" class="hover:text-brand-500 transition-colors">KVKK Aydınlatma Metni</a></li>
-                    <li><a href="/sozlesmeler/kullanici-sozlesmesi" class="hover:text-brand-500 transition-colors">Kullanıcı Sözleşmesi</a></li>
-                    <li><a href="/sozlesmeler/gizlilik-politikasi" class="hover:text-brand-500 transition-colors">Gizlilik Politikası</a></li>
-                    <li><a href="/sozlesmeler/mesafeli-satis" class="hover:text-brand-500 transition-colors">Mesafeli Satış Sözleşmesi</a></li>
-                    <li><a href="/sozlesmeler/iade-politikasi" class="hover:text-brand-500 transition-colors">İade Politikası</a></li>
+                    <li><a href="{{ route('contracts', 'kvkk') }}" class="hover:text-brand-500 transition-colors">KVKK Aydınlatma Metni</a></li>
+                    <li><a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" class="hover:text-brand-500 transition-colors">Kullanıcı Sözleşmesi</a></li>
+                    <li><a href="{{ route('contracts', 'gizlilik-politikasi') }}" class="hover:text-brand-500 transition-colors">Gizlilik Politikası</a></li>
+                    <li><a href="{{ route('contracts', 'mesafeli-satis') }}" class="hover:text-brand-500 transition-colors">Mesafeli Satış Sözleşmesi</a></li>
+                    <li><a href="{{ route('contracts', 'iade-politikasi') }}" class="hover:text-brand-500 transition-colors">İade Politikası</a></li>
                 </ul>
             </div>
 
@@ -307,11 +295,11 @@
         <div class="max-w-7xl mx-auto pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-neutral-400 text-[11px]">
             <div>© {{ date('Y') }} NavlunIQ. Tüm Hakları Saklıdır.</div>
             <div class="flex items-center space-x-4">
-                <a href="{{ \App\Models\CmsContent::getVal('social_instagram', 'https://instagram.com/navluniq') }}" target="_blank" class="hover:text-brand-500 transition-colors">Instagram</a>
+                @if($ig = \App\Models\CmsContent::getVal('social_instagram'))<a href="{{ $ig }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">Instagram</a>@endif
                 <span>•</span>
-                <a href="{{ \App\Models\CmsContent::getVal('social_whatsapp', 'https://whatsapp.com/channel/navluniq') }}" target="_blank" class="hover:text-emerald-500 transition-colors">WhatsApp</a>
+                @if($w = \App\Models\CmsContent::getVal('social_whatsapp'))<a href="{{ $w }}" target="_blank" rel="noopener" class="hover:text-emerald-500 transition-colors">WhatsApp</a>@endif
                 <span>•</span>
-                <a href="{{ \App\Models\CmsContent::getVal('social_telegram', 'https://t.me/navluniq') }}" target="_blank" class="hover:text-blue-500 transition-colors">Telegram</a>
+                @if($tg = \App\Models\CmsContent::getVal('social_telegram'))<a href="{{ $tg }}" target="_blank" rel="noopener" class="hover:text-blue-500 transition-colors">Telegram</a>@endif
             </div>
         </div>
     </footer>

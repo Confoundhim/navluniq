@@ -1,138 +1,203 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\Backup;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
+use Livewire\Volt\Component;
 
 new class extends Component {
-    public array $metrics = [];
-    public array $recentLogs = [];
-    public array $backups = [];
+    public array $checks = [];
+
+    public array $logLines = [];
+
+    public ?string $logNote = null;
 
     public function mount(): void
     {
-        abort_unless(auth()->user()?->can('manage settings'), 403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
-        $this->refreshHealth();
+        abort_unless(auth()->user()->can('manage settings'), 403);
+        $this->runChecks();
     }
 
-    public function refreshHealth(): void
+    public function runChecks(): void
     {
-        $database = $this->probe(fn () => DB::selectOne('select 1'));
-        $cache = $this->probe(function (): void {
-            $key = 'health:'.bin2hex(random_bytes(8));
-            Cache::put($key, 'ok', 10);
-            if (Cache::get($key) !== 'ok') {
-                throw new RuntimeException('Önbellek okuma/yazma doğrulaması başarısız.');
-            }
-            Cache::forget($key);
+        $this->checks = [];
+
+        $this->checks[] = $this->probe('Veritabanı', function (): string {
+            DB::selectOne('select 1 as ok');
+
+            return (string) config('database.default');
         });
 
-        $storagePath = storage_path();
-        $freeBytes = @disk_free_space($storagePath);
-        $this->metrics = [
-            ['name' => 'Uygulama', 'ok' => true, 'detail' => app()->environment().' · Laravel '.app()->version()],
-            ['name' => 'PHP', 'ok' => version_compare(PHP_VERSION, '8.3.0', '>='), 'detail' => PHP_VERSION],
-            ['name' => 'Veritabanı', 'ok' => $database['ok'], 'detail' => $database['detail']],
-            ['name' => 'Önbellek', 'ok' => $cache['ok'], 'detail' => $cache['detail']],
-            ['name' => 'Kuyruk', 'ok' => true, 'detail' => (string) config('queue.default')],
-            ['name' => 'Oturum', 'ok' => true, 'detail' => (string) config('session.driver')],
-            ['name' => 'Disk', 'ok' => $freeBytes === false || $freeBytes > 536870912, 'detail' => $freeBytes === false ? 'Ölçülemedi' : number_format($freeBytes / 1073741824, 2, ',', '.').' GB boş'],
-        ];
+        $this->checks[] = $this->probe('Önbellek', function (): string {
+            $key = 'health:'.bin2hex(random_bytes(6));
+            Cache::put($key, 'ok', 10);
+            if (Cache::get($key) !== 'ok') {
+                throw new RuntimeException('Yazılan değer okunamadı.');
+            }
+            Cache::forget($key);
 
-        $this->backups = Backup::query()->latest()->limit(10)->get()
-            ->map(fn (Backup $backup) => [
-                'filename' => $backup->filename,
-                'status' => $backup->status,
-                'size_mb' => (string) $backup->size_mb,
-                'created_at' => optional($backup->created_at)->format('d.m.Y H:i'),
-            ])->all();
-        $this->recentLogs = $this->tailLog(storage_path('logs/laravel.log'), 30);
-    }
+            return (string) config('cache.default');
+        });
 
-    private function probe(callable $callback): array
-    {
-        try {
-            $callback();
-            return ['ok' => true, 'detail' => 'Çalışıyor'];
-        } catch (Throwable $exception) {
-            return ['ok' => false, 'detail' => class_basename($exception)];
+        $this->checks[] = $this->probe('Kuyruk (bekleyen iş)', function (): string {
+            if (! Schema::hasTable('jobs')) {
+                throw new RuntimeException('jobs tablosu yok.');
+            }
+
+            return DB::table('jobs')->count().' iş · sürücü: '.config('queue.default');
+        });
+
+        $this->checks[] = $this->probe('Başarısız işler', function (): string {
+            if (! Schema::hasTable('failed_jobs')) {
+                throw new RuntimeException('failed_jobs tablosu yok.');
+            }
+            $count = DB::table('failed_jobs')->count();
+            if ($count > 0) {
+                throw new RuntimeException($count.' başarısız iş bekliyor.');
+            }
+
+            return '0 başarısız iş';
+        });
+
+        foreach ((array) config('filesystems.disks') as $name => $disk) {
+            if (($disk['driver'] ?? null) !== 'local') {
+                continue;
+            }
+            $root = (string) ($disk['root'] ?? '');
+            $this->checks[] = $this->probe("Disk: {$name}", function () use ($root): string {
+                if ($root === '' || ! is_dir($root)) {
+                    throw new RuntimeException('Dizin yok: '.$root);
+                }
+                if (! is_writable($root)) {
+                    throw new RuntimeException('Yazılamıyor: '.$root);
+                }
+                $free = @disk_free_space($root);
+
+                return $free === false ? 'Yazılabilir' : 'Yazılabilir · '.number_format($free / 1073741824, 2, ',', '.').' GB boş';
+            });
+        }
+
+        $this->checks[] = ['name' => 'Uygulama', 'ok' => true, 'detail' => app()->environment().' · Laravel '.app()->version().' · PHP '.PHP_VERSION.' · hata ayıklama '.(config('app.debug') ? 'AÇIK' : 'kapalı')];
+
+        $this->logLines = [];
+        $this->logNote = null;
+        if (auth()->user()->hasRole('super_admin')) {
+            $this->logLines = $this->tailLog(storage_path('logs/laravel.log'), 50, 65536);
+            if ($this->logLines === []) {
+                $this->logNote = 'Günlük dosyası yok veya boş.';
+            }
+        } else {
+            $this->logNote = 'Uygulama günlükleri yalnız süper yöneticiye gösterilir.';
         }
     }
 
-    private function tailLog(string $path, int $limit): array
+    private function probe(string $name, callable $callback): array
     {
-        if (!File::exists($path) || !File::isReadable($path)) {
+        try {
+            return ['name' => $name, 'ok' => true, 'detail' => $callback()];
+        } catch (\Throwable $e) {
+            return ['name' => $name, 'ok' => false, 'detail' => mb_substr($e->getMessage(), 0, 200)];
+        }
+    }
+
+    /** Dosyanın sonundan en çok $maxBytes okuyarak son $limit satırı döner; e-posta ve anahtar kalıplarını maskeler. */
+    private function tailLog(string $path, int $limit, int $maxBytes): array
+    {
+        if (! is_file($path) || ! is_readable($path)) {
             return [];
         }
 
-        $file = new SplFileObject($path, 'r');
-        $file->seek(PHP_INT_MAX);
-        $last = $file->key();
-        $lines = [];
-        for ($line = max(0, $last - $limit); $line <= $last; $line++) {
-            $file->seek($line);
-            $value = trim((string) $file->current());
-            if ($value !== '') {
-                $value = preg_replace('/(password|token|secret|key|authorization|cookie)([=:\s]+)[^\s,;]+/i', '$1$2[REDACTED]', $value) ?? $value;
-                $lines[] = mb_substr($value, 0, 800);
-            }
+        $handle = @fopen($path, 'rb');
+        if (! $handle) {
+            return [];
         }
-        return $lines;
+
+        try {
+            $size = filesize($path) ?: 0;
+            $start = max(0, $size - $maxBytes);
+            fseek($handle, $start);
+            $chunk = (string) stream_get_contents($handle);
+        } finally {
+            fclose($handle);
+        }
+
+        if ($chunk === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\R/', $chunk) ?: [];
+        if ($start > 0) {
+            array_shift($lines);
+        }
+        $lines = array_values(array_filter(array_map('trim', $lines), fn ($l) => $l !== ''));
+        $lines = array_slice($lines, -$limit);
+
+        return array_map(function (string $line): string {
+            $line = preg_replace('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', '[e-posta]', $line) ?? $line;
+            $line = preg_replace('/(password|passwd|token|secret|key|salt|authorization|cookie|api[_-]?key)(["\']?\s*[=:]\s*["\']?)[^\s,;"\'}]+/i', '$1$2[gizli]', $line) ?? $line;
+
+            return mb_substr($line, 0, 600);
+        }, $lines);
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in">
+<div class="max-w-7xl mx-auto space-y-8">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Sunucu ve Sistem Sağlığı</h1>
-            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Gerçek çalışma zamanı kontrolleri; sahte metrik üretilmez.</p>
+            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Sistem Sağlığı</h1>
+            <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">Kontroller istek anında çalıştırılır; geçmiş ölçüm saklanmaz.</p>
         </div>
-        <button wire:click="refreshHealth" wire:loading.attr="disabled" class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50">
-            <span wire:loading.remove wire:target="refreshHealth">Kontrolleri Yenile</span>
-            <span wire:loading wire:target="refreshHealth">Kontrol ediliyor…</span>
+        <button type="button" wire:click="runChecks" wire:loading.attr="disabled" class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50">
+            <span wire:loading.remove wire:target="runChecks">Kontrolleri yenile</span>
+            <span wire:loading wire:target="runChecks">Kontrol ediliyor</span>
         </button>
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        @foreach($metrics as $metric)
-            <div class="apple-glass rounded-2xl border p-5 {{ $metric['ok'] ? 'border-emerald-500/20' : 'border-red-500/30' }}">
+        @foreach($checks as $check)
+            <div class="apple-glass rounded-2xl border p-5 {{ $check['ok'] ? 'border-emerald-500/20' : 'border-red-500/30' }}">
                 <div class="flex items-center justify-between gap-3">
-                    <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">{{ $metric['name'] }}</span>
-                    <span class="h-2.5 w-2.5 rounded-full {{ $metric['ok'] ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">{{ $check['name'] }}</span>
+                    <span class="h-2.5 w-2.5 rounded-full {{ $check['ok'] ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
                 </div>
-                <p class="mt-3 text-sm font-semibold text-neutral-900 dark:text-white">{{ $metric['detail'] }}</p>
+                <p class="mt-3 text-xs font-semibold text-neutral-900 dark:text-white break-words">{{ $check['detail'] }}</p>
             </div>
         @endforeach
     </div>
 
     <div class="grid gap-6 xl:grid-cols-2">
         <section class="apple-glass rounded-3xl p-6">
-            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son yedek kayıtları</h2>
-            <p class="mt-1 text-xs text-neutral-500">Yedek üretimi web isteğinde yapılmaz; zamanlanmış sunucu görevi kullanılmalıdır.</p>
-            <div class="mt-5 space-y-3">
-                @forelse($backups as $backup)
-                    <div class="flex items-center justify-between gap-4 rounded-xl border border-neutral-200/70 p-3 text-xs dark:border-neutral-800">
-                        <div class="min-w-0"><p class="truncate font-semibold">{{ $backup['filename'] }}</p><p class="text-neutral-500">{{ $backup['created_at'] }} · {{ $backup['size_mb'] }} MB</p></div>
-                        <span class="rounded-full px-2 py-1 font-semibold {{ $backup['status'] === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500' }}">{{ $backup['status'] }}</span>
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Zamanlanmış görevler</h2>
+            <p class="mt-1 text-xs text-neutral-500">Sunucuda her dakika çalışan "schedule:run" tetikleyicisine bağlıdır. Son çalışma zamanı kaydedilmediğinden burada gösterilemez.</p>
+            <div class="mt-4 space-y-2 text-xs">
+                @foreach([
+                    ['offers:expire', 'Saatte bir', 'Süresi dolan teklifleri kapatır'],
+                    ['shipments:auto-approve', 'Saatte bir', 'Onay süresi geçen teslimatları otomatik onaylar'],
+                    ['accounts:purge-drafts', 'Günde bir', 'Tamamlanmamış kayıt taslaklarını temizler'],
+                ] as [$command, $frequency, $description])
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-xl border border-neutral-200/70 p-3 dark:border-neutral-800">
+                        <div><span class="font-mono font-semibold">{{ $command }}</span><div class="text-neutral-500">{{ $description }}</div></div>
+                        <div class="text-neutral-400 whitespace-nowrap">{{ $frequency }} · son çalışma: bilinmiyor</div>
                     </div>
-                @empty
-                    <p class="rounded-xl border border-dashed border-neutral-300 p-4 text-xs text-neutral-500 dark:border-neutral-700">Henüz doğrulanmış yedek kaydı yok.</p>
-                @endforelse
+                @endforeach
             </div>
         </section>
 
         <section class="apple-glass rounded-3xl p-6">
-            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son uygulama günlükleri</h2>
-            <p class="mt-1 text-xs text-neutral-500">Hassas anahtar kalıpları ekranda maskelenir.</p>
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son uygulama günlükleri (son 50 satır)</h2>
+            <p class="mt-1 text-xs text-neutral-500">E-posta adresleri ve anahtar kalıpları ekranda maskelenir.</p>
             <div class="mt-5 max-h-96 space-y-2 overflow-auto rounded-xl bg-neutral-950 p-4 font-mono text-[11px] text-neutral-300">
-                @forelse($recentLogs as $line)
+                @forelse($logLines as $line)
                     <div class="break-all">{{ $line }}</div>
                 @empty
-                    <div class="text-neutral-500">Günlük kaydı bulunamadı.</div>
+                    <div class="text-neutral-500">{{ $logNote ?? 'Günlük kaydı bulunamadı.' }}</div>
                 @endforelse
             </div>
         </section>
     </div>
+
+    <section class="apple-glass rounded-3xl p-6">
+        <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yedekler</h2>
+        <p class="mt-1 text-xs text-neutral-500">Uygulama içinde yedekleme mekanizması yoktur; veritabanı yedekleri sunucu tarafında ayrı bir görevle alınmalıdır.</p>
+    </section>
 </div>

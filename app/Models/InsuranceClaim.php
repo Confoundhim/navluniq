@@ -22,9 +22,9 @@ class InsuranceClaim extends Model
     ];
 
     protected $casts = [
-        'claimed_amount'=>'decimal:4',
-        'approved_amount'=>'decimal:4',
-        'metadata'=>'array',
-        'resolved_at'=>'datetime',
+        'claimed_amount' => 'decimal:4',
+        'approved_amount' => 'decimal:4',
+        'metadata' => 'array',
+        'resolved_at' => 'datetime',
     ];
 }

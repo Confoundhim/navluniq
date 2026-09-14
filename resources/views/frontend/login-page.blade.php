@@ -1,3 +1,3 @@
-<x-layouts.frontend title="NavlunIQ - Kullanıcı Giriş Kapısı (Yük Sahibi & Şoför)">
+<x-layouts.frontend title="Giriş Yap | NavlunIQ">
     <livewire:frontend.login />
 </x-layouts.frontend>

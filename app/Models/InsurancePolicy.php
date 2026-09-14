@@ -22,7 +22,7 @@ class InsurancePolicy extends Model
     ];
 
     protected $casts = [
-        'starts_at'=>'datetime',
-        'ends_at'=>'datetime',
+        'starts_at' => 'datetime',
+        'ends_at' => 'datetime',
     ];
 }

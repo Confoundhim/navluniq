@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -12,11 +14,11 @@ use Spatie\Permission\Traits\HasRoles;
 /**
  * User Model Yapılandırması
  *
- * @mixin \Spatie\Permission\Traits\HasRoles
+ * @mixin HasRoles
  */
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, SoftDeletes, HasRoles;
+    use HasFactory, HasPublicId, HasRoles, Notifiable, SoftDeletes;
 
     /**
      * Toplu atama yapılabilecek alanlar.
@@ -35,7 +37,13 @@ class User extends Authenticatable
         'is_active',
         'banned_at',
         'ban_reason',
+        'email_verified_at',
+        'phone_verified_at',
+        'last_login_at',
     ];
+
+    /** Yönetim paneline girebilen roller. Personel modülü yeni rol eklerse bu listeye de eklenmelidir. */
+    public const ADMIN_PANEL_ROLES = ['super_admin', 'kyc_validator', 'financial_officer', 'support_agent'];
 
     /**
      * Gizlenmesi gereken alanlar.
@@ -57,8 +65,19 @@ class User extends Authenticatable
         'password' => 'hashed',
         'otp_expires_at' => 'datetime',
         'banned_at' => 'datetime',
+        'email_verified_at' => 'datetime',
+        'phone_verified_at' => 'datetime',
+        'last_login_at' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    public function isAdminPanelUser(): bool
+    {
+        return $this->current_role === 'admin'
+            && $this->is_active
+            && $this->banned_at === null
+            && $this->hasAnyRole(self::ADMIN_PANEL_ROLES);
+    }
 
     /**
      * Kullanıcının tam adı ve soyadı birleşimi.
@@ -108,62 +127,62 @@ class User extends Authenticatable
         return $this->cargoOwnerProfile()->exists();
     }
 
-    /**
-     * ŞART: Aynı telefon numarasına kayıtlı bir Şoför hesabı/profili var mı kontrol eder.
-     */
-    public function hasDriverAccountWithSamePhone(): bool
+    public function consents(): HasMany
     {
-        // 1. Kendi kullanıcısına bağlı DriverProfile var mı?
-        if ($this->hasDriverProfile()) {
-            return true;
-        }
-
-        // 2. VEYA aynı telefon numarasına sahip başka bir şoför kullanıcısı var mı?
-        if (!empty($this->phone)) {
-            return self::where('phone', $this->phone)
-                ->where('id', '!=', $this->id)
-                ->where(function ($query) {
-                    $query->where('current_role', 'driver')
-                          ->orWhereHas('driverProfile');
-                })
-                ->exists();
-        }
-
-        return false;
+        return $this->hasMany(UserConsent::class);
     }
 
-    /**
-     * ŞART: Aynı telefon numarasına kayıtlı bir Yük Sahibi hesabı/profili var mı kontrol eder.
-     */
-    public function hasCargoOwnerAccountWithSamePhone(): bool
+    public function kycDocuments(): HasMany
     {
-        if ($this->hasCargoOwnerProfile()) {
-            return true;
-        }
-
-        if (!empty($this->phone)) {
-            return self::where('phone', $this->phone)
-                ->where('id', '!=', $this->id)
-                ->where(function ($query) {
-                    $query->where('current_role', 'cargo_owner')
-                          ->orWhereHas('cargoOwnerProfile');
-                })
-                ->exists();
-        }
-
-        return false;
+        return $this->hasMany(KycDocument::class);
     }
 
-    /**
-     * Rol Değiştirici: Kullanıcının aktif panel arayüzünü günceller.
-     */
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(BankAccount::class);
+    }
+
+    public function defaultBankAccount(): HasOne
+    {
+        return $this->hasOne(BankAccount::class)->where('is_default', true);
+    }
+
+    public function savedAddresses(): HasMany
+    {
+        return $this->hasMany(SavedAddress::class);
+    }
+
+    public function payouts(): HasMany
+    {
+        return $this->hasMany(Payout::class);
+    }
+
+    public function reviewsReceived(): HasMany
+    {
+        return $this->hasMany(Review::class, 'reviewee_id');
+    }
+
+    public function averageRating(): ?float
+    {
+        $avg = $this->reviewsReceived()->avg('rating');
+
+        return $avg === null ? null : round((float) $avg, 1);
+    }
+
+    public function supportTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class);
+    }
+
+    /** Kullanıcının aktif panel rolünü değiştirir. */
     public function switchRole(string $role): bool
     {
-        if (!in_array($role, ['cargo_owner', 'driver'])) {
+        if (! in_array($role, ['cargo_owner', 'driver'], true)) {
             return false;
         }
 
         $this->update(['current_role' => $role]);
+
         return true;
     }
 }

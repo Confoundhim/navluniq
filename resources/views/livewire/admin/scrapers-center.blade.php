@@ -1,413 +1,305 @@
 <?php
 
-use Livewire\Volt\Component;
-use App\Models\Scraper;
+use App\Models\ActivityLog;
 use App\Models\ScrapedLoad;
-use App\Services\AiParserService;
+use App\Models\Scraper;
+use Illuminate\Validation\Rule;
+use Livewire\Volt\Component;
+use Livewire\WithPagination;
 
 new class extends Component {
-    // LLM ve Çalışma Ayarları
-    public string $activeLlm = 'gemini'; // Sizin gerçek Gemini API'niz öncelikli!
-    public string $selectedSourceType = 'whatsapp';
+    use WithPagination;
 
-    // Formlar
-    public string $newSourceName = '';
-    public string $newSourceIdentifier = '';
+    public const FREE_DELAY_MINUTES = 20;
 
-    // AI Test İstasyonu Formu
-    public string $testRawText = 'İzmir Bornovadan acil tır lazım yük rulo saç ağırlık 21 ton fiyat 14000 tl arayın 05325556677 Süleyman Usta';
-    public ?array $parsedResult = null;
+    public string $activeTab = 'queue';
 
-    public function mount()
+    public string $queueFilter = 'pending';
+
+    public string $sourceName = '';
+
+    public string $sourceType = 'whatsapp';
+
+    public string $sourceIdentifier = '';
+
+    public function mount(): void
     {
-        if (!auth()->user()->can('manage scrapers')) {
-            abort(403, 'Bu alana erişim yetkiniz bulunmamaktadır.');
-        }
+        abort_unless(auth()->user()->can('manage scrapers'), 403);
     }
 
-    
-
-    /**
-     * Yeni Kaynak Ekleme
-     */
-    public function addSource()
+    public function updatedActiveTab(): void
     {
+        $this->resetPage();
+    }
+
+    public function updatedQueueFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function addSource(): void
+    {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
         $this->validate([
-            'newSourceName' => 'required|string|min:5',
-            'newSourceIdentifier' => 'required|string',
-        ], [
-            'newSourceName.required' => 'Kaynak adı girmek zorunludur.',
-            'newSourceIdentifier.required' => 'Grup adı veya link girmek zorunludur.'
-        ]);
+            'sourceName' => 'required|string|min:3|max:120',
+            'sourceType' => 'required|in:whatsapp,telegram,web',
+            'sourceIdentifier' => ['required', 'string', 'max:255', Rule::unique('scrapers', 'source_identifier')->where('type', $this->sourceType)->whereNull('deleted_at')],
+        ], ['sourceIdentifier.unique' => 'Bu kaynak tanımlayıcısı aynı türde zaten kayıtlı.']);
 
-        Scraper::create([
-            'name' => $this->newSourceName,
-            'type' => $this->selectedSourceType,
-            'source_identifier' => $this->newSourceIdentifier,
-            'is_active' => true
+        $scraper = Scraper::create([
+            'name' => trim($this->sourceName),
+            'type' => $this->sourceType,
+            'source_identifier' => trim($this->sourceIdentifier),
+            'is_active' => false,
         ]);
-
-        session()->flash('success', 'Yeni kazıma kaynağı başarıyla sisteme kaydedildi.');
-        $this->reset(['newSourceName', 'newSourceIdentifier']);
+        ActivityLog::record('scraper.created', "Kaynak eklendi: {$scraper->name} ({$scraper->type})", auth()->id(), $scraper);
+        $this->reset(['sourceName', 'sourceIdentifier']);
+        session()->flash('success_message', 'Kaynak pasif olarak eklendi; ilan kabul etmesi için aktif edin.');
     }
 
-    /**
-     * Yapay Zeka Test İstasyonu Çözümlemesi
-     */
-    public function runAiParserTest()
+    public function toggleSource(int $scraperId): void
     {
-        $this->validate([
-            'testRawText' => 'required|string|min:10'
-        ]);
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
 
-        $parser = new AiParserService();
-        $this->parsedResult = $parser->parseMessage($this->testRawText, $this->activeLlm);
-
-        // Çözümlenen veriyi veritabanındaki dış kaynak ilanları (scraped_loads) tablosuna kaydet
-        // Sadece geçerli ve telefon numarası olanlar kaydedilir
-        $isSuccess = (isset($this->parsedResult['success']) && $this->parsedResult['success'] === true);
-        $hasPhone = (isset($this->parsedResult['sender_phone']) && $this->parsedResult['sender_phone'] !== 'Bilinmiyor' && !empty($this->parsedResult['sender_phone']));
-
-        if ($isSuccess && $hasPhone) {
-            ScrapedLoad::create([
-                'raw_message' => $this->testRawText,
-                'sender_phone' => $this->parsedResult['sender_phone'],
-                'pickup_location' => $this->parsedResult['pickup_location'],
-                'delivery_location' => $this->parsedResult['delivery_location'],
-                'goods_type' => $this->parsedResult['goods_type'],
-                'weight' => $this->parsedResult['weight'],
-                'price' => $this->parsedResult['price'],
-                'status' => 'parsed_success',
-                'parsed_by_llm' => $this->parsedResult['parsed_by_llm']
-            ]);
-        }
-    }
-
-    /**
-     * REAKTİF TERMINAL LOG YÖNETİCİSİ
-     */
-    public function getTerminalLogsProperty(): array
-    {
-        $logs = [
-            '[' . now()->format('H:i:s') . '] [Sistem] Otonom kazıma motoru dinleme modunda...',
-            '[' . now()->format('H:i:s') . '] [Sistem] WhatsApp burner soket bağlantısı aktif ve kararlı.'
-        ];
-
-        $latestScraped = ScrapedLoad::with('scraper')->latest()->take(5)->get()->reverse();
-
-        foreach ($latestScraped as $load) {
-            $time = $load->created_at->format('H:i:s');
-            $group = $load->scraper->name ?? 'Yapay Zeka Test';
-
-            $logs[] = "[{$time}] [YAKALANDI] \"{$group}\" grubundan ham WhatsApp mesajı alındı.";
-            if ($load->status === 'parsed_success') {
-                // Burada da log çıktısını HTML entegrasyonu yerine terminal uyumlu TL ile güncelledik
-                $logs[] = "[{$time}] [AI-SÜZÜLDÜ] Rota: {$load->pickup_location} -> {$load->delivery_location} | Fiyat: TL " . number_format($load->price, 2) . " | Telefon: {$load->masked_phone} [{$load->parsed_by_llm}]";
-            } else {
-                $logs[] = "[{$time}] [ALAKASIZ/ELENDİ] Ham metin süzme filtrelerine takıldı ve otonom olarak çöpe atıldı.";
-            }
+            return;
         }
 
-        return $logs;
+        $scraper = Scraper::query()->find($scraperId);
+        if (! $scraper) {
+            return;
+        }
+        $scraper->update(['is_active' => ! $scraper->is_active]);
+        ActivityLog::record('scraper.toggled', "Kaynak {$scraper->name} ".($scraper->is_active ? 'aktif edildi' : 'pasife alındı'), auth()->id(), $scraper);
     }
 
-    /**
-     * Kaynakları getirir
-     */
-    private function getScrapers()
+    public function deleteSource(int $scraperId): void
     {
-        return Scraper::latest()->get();
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $scraper = Scraper::query()->find($scraperId);
+        if (! $scraper) {
+            return;
+        }
+        $scraper->delete();
+        ActivityLog::record('scraper.deleted', "Kaynak silindi: {$scraper->name}", auth()->id());
+        session()->flash('success_message', 'Kaynak silindi; mevcut ilan adayları korunur.');
     }
 
-    /**
-     * Süzülen son 10 ilanı getirir
-     * 🚀 Sadece yapay zekanın "success: true" döndüğü gerçek ilanları çeker!
-     */
-    private function getScrapedLoads()
+    public function approve(int $loadId): void
     {
-        return ScrapedLoad::with('scraper')
-            ->where('status', 'parsed_success')
-            ->latest()
-            ->take(10)
-            ->get();
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $load = ScrapedLoad::query()->find($loadId);
+        if (! $load || $load->visibility === 'public') {
+            session()->flash('error_message', 'İlan adayı bulunamadı veya zaten yayında.');
+
+            return;
+        }
+        if (! $load->pickup_location || ! $load->delivery_location) {
+            session()->flash('error_message', 'Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
+
+            return;
+        }
+
+        $load->update([
+            'status' => 'parsed_success',
+            'visibility' => 'public',
+            'available_to_free_at' => now()->addMinutes(self::FREE_DELAY_MINUTES),
+        ]);
+        ActivityLog::record('scraped_load.approved', "Dış kaynak ilanı #{$load->id} yayınlandı", auth()->id(), $load);
+        session()->flash('success_message', 'İlan havuza alındı; premium olmayan şoförlere '.self::FREE_DELAY_MINUTES.' dakika sonra açılır.');
+    }
+
+    public function reject(int $loadId): void
+    {
+        if (! auth()->user()?->can('manage scrapers')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        $load = ScrapedLoad::query()->find($loadId);
+        if (! $load) {
+            return;
+        }
+        $load->update(['status' => 'rejected', 'visibility' => 'private']);
+        ActivityLog::record('scraped_load.rejected', "Dış kaynak ilanı #{$load->id} reddedildi", auth()->id(), $load);
+        session()->flash('success_message', 'İlan adayı reddedildi.');
+    }
+
+    public function with(): array
+    {
+        $data = ['sources' => null, 'queue' => null, 'freeDelay' => self::FREE_DELAY_MINUTES];
+
+        if ($this->activeTab === 'sources') {
+            $data['sources'] = Scraper::query()->withCount('scrapedLoads')->latest('id')->paginate(15);
+        } else {
+            $query = ScrapedLoad::query()->with('scraper');
+            match ($this->queueFilter) {
+                'published' => $query->where('visibility', 'public'),
+                'rejected' => $query->where('status', 'rejected'),
+                default => $query->where('visibility', 'private')->where('status', '!=', 'rejected'),
+            };
+            $data['queue'] = $query->latest('id')->paginate(15);
+        }
+
+        return $data;
     }
 }; ?>
 
-<!-- wire:poll.3s direktifi ile tüm sayfa 3 saniyede bir arka planda sessizce kendini günceller! -->
-<div class="max-w-7xl mx-auto space-y-8 animate-fade-in" wire:poll.3s>
-    <!-- Bildirim Banner'ları -->
-    @if (session()->has('success'))
-        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-sm rounded-2xl flex items-center space-x-2 animate-fade-in shadow-apple-sm">
-            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>{{ session('success') }}</span>
-        </div>
+<div class="max-w-7xl mx-auto space-y-6">
+    @php
+        $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
+    @endphp
+
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    <!-- Üst Başlık -->
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Yapay Zeka ve Otonom Kazıma Merkezi</h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Lojistik gruplarından derlenen ham verileri yapay zeka modelleriyle ilanlara dönüştürün.</p>
-        </div>
+    <div>
+        <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Dış Kaynak İlanları</h1>
+        <p class="page-subtitle">Dış kaynaklardan gelen ilan adayları burada incelenir; yalnız onaylananlar şoför havuzunda görünür.</p>
     </div>
 
-    <!-- Üst Grid: Kaynak Ekleme ve QR Entegrasyon Simülatörü -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
+        <button type="button" wire:click="$set('activeTab', 'queue')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'queue' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">İnceleme kuyruğu</button>
+        <button type="button" wire:click="$set('activeTab', 'sources')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'sources' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Kaynaklar</button>
+    </div>
 
-        <!-- Kart 1: Yeni Kazıma Kaynağı Ekle -->
-        <div class="apple-glass rounded-3xl p-6 space-y-4">
-            <div class="flex justify-between items-center pb-3 border-b border-neutral-100 dark:border-neutral-800/50">
-                <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider">KAYNAK YÖNETİMİ</h3>
-                @if(\App\Models\Scraper::count() === 0)
-@endif
+    @if($activeTab === 'queue')
+        <div class="apple-glass p-3 rounded-2xl">
+            <select wire:model.live="queueFilter" class="{{ $input }} sm:w-56">
+                <option value="pending">Onay bekleyenler</option>
+                <option value="published">Yayındakiler</option>
+                <option value="rejected">Reddedilenler</option>
+            </select>
+        </div>
+        <div class="apple-glass rounded-3xl overflow-hidden">
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                            <th class="p-4">Aday</th>
+                            <th class="p-4">Güzergah / yük</th>
+                            <th class="p-4">Fiyat</th>
+                            <th class="p-4">Ham mesaj</th>
+                            <th class="p-4">Durum</th>
+                            <th class="p-4"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($queue as $load)
+                            <tr class="align-top">
+                                <td class="p-4"><span class="font-bold">#{{ $load->id }}</span><div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }} · {{ $load->created_at?->format('d.m.Y H:i') }}</div><div class="text-[11px] text-neutral-400">Telefon: {{ $load->masked_phone }}</div></td>
+                                <td class="p-4">{{ $load->pickup_location ?: '—' }} <span class="text-neutral-400">→</span> {{ $load->delivery_location ?: '—' }}<div class="text-[11px] text-neutral-400">{{ $load->goods_type ?: 'Yük türü belirsiz' }}@if($load->weight) · {{ number_format((int) $load->weight, 0, ',', '.') }} kg @endif</div></td>
+                                <td class="p-4 whitespace-nowrap font-semibold">{{ $load->price !== null ? number_format((float) $load->price, 2, ',', '.').' ₺' : '—' }}</td>
+                                <td class="p-4 max-w-xs text-neutral-500">{{ \Illuminate\Support\Str::limit($load->raw_message, 160) }}</td>
+                                <td class="p-4">
+                                    <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : ($load->status === 'parsed_partial' ? 'Eksik ayrıştırma' : 'Onay bekliyor')) }}</span>
+                                    @if($load->available_to_free_at)
+                                        <div class="text-[11px] text-neutral-400 mt-1">Herkese açılış: {{ \Illuminate\Support\Carbon::parse($load->available_to_free_at)->format('d.m.Y H:i') }}</div>
+                                    @endif
+                                    @if($load->parse_confidence !== null)
+                                        <div class="text-[11px] text-neutral-400">Çözümleme güveni: %{{ number_format((float) $load->parse_confidence * 100, 0) }}</div>
+                                    @endif
+                                </td>
+                                <td class="p-4 whitespace-nowrap space-x-2">
+                                    @if($load->visibility !== 'public')
+                                        <button type="button" wire:click="approve({{ $load->id }})" class="text-emerald-600 font-semibold">Yayınla</button>
+                                    @endif
+                                    @if($load->status !== 'rejected')
+                                        <button type="button" wire:click="reject({{ $load->id }})" wire:confirm="İlan adayı reddedilecek ve havuzdan kaldırılacak. Devam edilsin mi?" class="text-red-500 font-semibold">Reddet</button>
+                                    @endif
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="p-10 text-center text-neutral-500">Bu filtrede ilan adayı yok.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
+            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $queue->links() }}</div>
+        </div>
+        <p class="text-[11px] text-neutral-400">Yayınlanan aday, premium şoförlere hemen; diğer şoförlere {{ $freeDelay }} dakika sonra görünür.</p>
+    @endif
 
-            <form wire:submit.prevent="addSource" class="space-y-4 text-xs">
-                <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Kaynak Sınıfı</label>
-                    <select wire:model.defer="selectedSourceType" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                        <option value="whatsapp">WhatsApp Grubu</option>
-                        <option value="telegram">Telegram Kanalı</option>
-                        <option value="facebook">Facebook Nakliye Grubu</option>
-                        <option value="web_url">Özel Lojistik Web Sayfası</option>
+    @if($activeTab === 'sources')
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            <form wire:submit="addSource" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yeni kaynak</h2>
+                <div>
+                    <label class="form-label">Ad</label>
+                    <input type="text" wire:model="sourceName" class="{{ $input }}">
+                    @error('sourceName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="form-label">Tür</label>
+                    <select wire:model="sourceType" class="{{ $input }}">
+                        <option value="whatsapp">WhatsApp grubu</option>
+                        <option value="telegram">Telegram kanalı</option>
+                        <option value="web">Web sayfası</option>
                     </select>
                 </div>
-
-                <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Grup / Kanal Adı</label>
-                    <input type="text" wire:model.defer="newSourceName" placeholder="Örn: Marmara Nakliyeciler WhatsApp" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                    @error('newSourceName') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
+                <div>
+                    <label class="form-label">Tanımlayıcı (grup kimliği veya adres)</label>
+                    <input type="text" wire:model="sourceIdentifier" class="{{ $input }} font-mono">
+                    @error('sourceIdentifier') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
-
-                <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Kaynak Bağlantı Tanımlayıcı (Link / Grup Başlığı)</label>
-                    <input type="text" wire:model.defer="newSourceIdentifier" placeholder="Örn: t.me/nakliyegrubu veya WhatsApp Başlığı" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                    @error('newSourceIdentifier') <span class="text-red-500 text-[10px] block mt-1 pl-1 font-semibold">{{ $message }}</span> @enderror
-                </div>
-
-                <button type="submit" class="w-full btn-apple-primary py-3 text-xs">
-                    Kaynağı Sisteme Bağla
-                </button>
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaynağı ekle</button>
+                <p class="text-[11px] text-neutral-400">Kaynak, ilgili toplayıcı servisi bu tanımlayıcıyla mesaj gönderdiğinde ilan adayı üretir; pasif kaynaklardan gelen mesajlar kabul edilmez.</p>
             </form>
-        </div>
 
-        <!-- Kart 2: Yapay Zeka Model Ayarları -->
-        <div class="apple-glass rounded-3xl p-6 space-y-4">
-            <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YAPAY ZEKA API YÖNETİCİSİ</h3>
-
-            <div class="space-y-4 text-xs">
-                <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Aktif Dil Modeli (LLM Provider)</label>
-                    <select wire:model.live="activeLlm" class="w-full p-3 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20">
-                        <option value="gemini">Google Gemini-1.5-Flash (Hızlı, Güvenli ve Sizin Anahtarınız!)</option>
-                        <option value="kimi">Moonshot AI (Kimi-v1-8k)</option>
-                        <option value="claude">Anthropic Claude-3.5-Sonnet (Güçlü Müşteri Asistanı)</option>
-                    </select>
+            <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
+                <div class="responsive-scroll">
+                    <table class="w-full text-left text-xs">
+                        <thead>
+                            <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
+                                <th class="p-4">Kaynak</th>
+                                <th class="p-4">Aday</th>
+                                <th class="p-4">Son başarı</th>
+                                <th class="p-4">Son hata</th>
+                                <th class="p-4">Durum</th>
+                                <th class="p-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                            @forelse($sources as $source)
+                                <tr class="align-top">
+                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->type }} · {{ $source->source_identifier }}</div></td>
+                                    <td class="p-4">{{ $source->scraped_loads_count }}</td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->format('d.m.Y H:i') : 'Henüz yok' }}</td>
+                                    <td class="p-4 max-w-xs text-red-500">{{ $source->last_error ? \Illuminate\Support\Str::limit($source->last_error, 100) : '—' }}</td>
+                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $source->is_active ? 'Aktif' : 'Pasif' }}</span></td>
+                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                        <button type="button" wire:click="toggleSource({{ $source->id }})" class="text-brand-500 font-semibold">{{ $source->is_active ? 'Pasife al' : 'Aktif et' }}</button>
+                                        <button type="button" wire:click="deleteSource({{ $source->id }})" wire:confirm="Kaynak silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="p-10 text-center text-neutral-500">Henüz kaynak tanımlanmadı.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
-
-                <div class="p-4 bg-brand-500/5 border border-brand-500/10 rounded-2xl space-y-2">
-                    <span class="font-bold text-brand-500 block">Akıllı Fallback / Kota Yönetimi</span>
-                    <p class="text-[11px] text-neutral-500 leading-relaxed">
-                        Sistem, aktif seçtiğiniz modelin günlük kotaları bittiğinde veya sunucu hatası aldığında, arka planda otomatik olarak en ekonomik olan yedek modele geçiş gerçekleştirir.
-                    </p>
-                </div>
+                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $sources->links() }}</div>
             </div>
         </div>
-
-        <!-- Kart 3: WhatsApp QR Entegrasyon Simülatörü -->
-        <div class="apple-glass rounded-3xl p-6 space-y-4">
-            <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">OTONOM SÜRÜCÜ WHATSAPP BAĞLANTISI</h3>
-
-            <div class="flex flex-col items-center justify-center space-y-3 text-center">
-                <div class="w-32 h-32 bg-white p-2.5 rounded-2xl border border-neutral-200/60 flex items-center justify-center relative overflow-hidden shadow-apple-sm">
-                    <svg class="w-full h-full text-neutral-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 4v1m-3 3h3m-3 3h3m-3 3h3m-3 3h3m6-12v1m-3 3h3m-3 3h3m-3 3h3m-3 3h3M4 6V4a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2zm0 14v-2a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2zM14 6V4a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-                    <div class="absolute inset-0 bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-600 text-[10px] tracking-wider uppercase">BAĞLANTI AKTİF</div>
-                </div>
-                <div class="text-xs">
-                    <span class="font-bold text-emerald-500 block">Sanal Hat Durumu: AKTİF</span>
-                    <span class="text-[11px] text-neutral-400 mt-1 block">Burner test numaramız sisteme QR kod ile bağlıdır, lojistik grupları dinleniyor.</span>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- Orta Bölüm: Canlı Akan Çözümleme Terminali ve Yapay Zeka Test Alanı -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-
-        <!-- Sol: Yapay Zeka Test İstasyonu -->
-        <div class="apple-glass rounded-3xl p-6 space-y-5">
-            <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YAPAY ZEKA TEST İSTASYONU</h3>
-
-            <p class="text-xs text-neutral-500">WhatsApp'tan gelen karmaşık, bozuk Türkçe lojistik mesajını buraya yazıp yapay zekanın bunu saniyeler içinde nasıl temiz bir ilana dönüştürdüğünü test edin!</p>
-
-            <div class="space-y-4 text-xs">
-                <textarea wire:model.defer="testRawText" rows="4" class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 text-neutral-900 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20"></textarea>
-
-                <button wire:click="runAiParserTest" class="w-full btn-apple-brand py-3 text-xs flex items-center justify-center space-x-2">
-                    <span wire:loading.remove wire:target="runAiParserTest">Yapay Zekaya Gönder ve Çözümle</span>
-                    <span wire:loading wire:target="runAiParserTest" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                </button>
-            </div>
-
-            <!-- Çözümleme Rapor Paneli (Sonuç) -->
-            @if($parsedResult)
-                <div class="p-5 bg-neutral-900 text-white dark:bg-neutral-950 rounded-2xl font-mono leading-relaxed space-y-2 animate-slide-up text-xs">
-                    <span class="text-brand-400 block font-sans font-bold">🎯 YAPAY ZEKA ÇIKTI RAPORU:</span>
-                    <p class="text-neutral-200 font-semibold">{{ isset($parsedResult['success']) && $parsedResult['success'] === true ? 'Çözümleme Başarılı!' : 'Mesaj Elendi (Yük İlanı Değil veya Eksik Bilgi)' }}</p>
-                    @if(isset($parsedResult['success']) && $parsedResult['success'] === true)
-                        <div class="space-y-1 text-neutral-300">
-                            <div>[Başlangıç]: {{ $parsedResult['pickup_location'] }}</div>
-                            <div>[Varış]: {{ $parsedResult['delivery_location'] }}</div>
-                            <div>[Yük Cinsi]: {{ $parsedResult['goods_type'] }}</div>
-                            <div>[Ağırlık]: {{ number_format($parsedResult['weight'] ?? 0) }} kg</div>
-                            <div>[Navlun Fiyatı]: &#8378;{{ number_format($parsedResult['price'] ?? 0, 2) }}</div>
-                            <div>[Telefon]: {{ $parsedResult['sender_phone'] }}</div>
-                            <div>[Çözümleyen Model]: {{ $parsedResult['parsed_by_llm'] }}</div>
-                        </div>
-                    @else
-                        <p class="text-red-400 text-[11px] mt-1">Bu mesaj güvenlik filtrelerini aşamadığı için sisteme ilan olarak kaydedilmeyecektir.</p>
-                    @endif
-                </div>
-            @endif
-        </div>
-
-        <!-- Sağ: Canlı Otonom Kazıma Terminali (Linux Terminal UI) -->
-        <div class="bg-neutral-950 text-emerald-400 p-6 rounded-3xl font-mono text-[11px] leading-relaxed shadow-apple-lg border border-neutral-800 h-[380px] flex flex-col justify-between relative overflow-hidden">
-            <!-- Üst Başlık -->
-            <div class="flex justify-between items-center border-b border-neutral-800 pb-2.5 mb-3">
-                <div class="flex items-center space-x-1.5">
-                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
-                    <span class="w-3 h-3 rounded-full bg-amber-500"></span>
-                    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-                    <span class="text-[10px] text-neutral-500 font-sans font-bold uppercase tracking-wider pl-2">OTONOM TERMINAL STREAM (CANLI AKIŞ)</span>
-                </div>
-            </div>
-
-            <!-- Log Akışı -->
-            <div class="flex-1 overflow-y-auto space-y-1.5 scrollbar-thin">
-                @foreach($this->terminalLogs as $log)
-                    <div class="animate-fade-in">{{ $log }}</div>
-                @endforeach
-            </div>
-
-            <!-- Alt Durum Barı -->
-            <div class="border-t border-neutral-800 pt-2.5 mt-3 text-neutral-500 flex justify-between items-center text-[10px]">
-                <span>Status: LISTENING (WhatsApp API active)</span>
-                <span>Active Model: {{ strtoupper($activeLlm) }}</span>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- YAPAY ZEKA İLAN HAVUZU (CANLI AKIŞ) -->
-    <div class="apple-glass rounded-3xl p-6 space-y-4">
-        <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">YAPAY ZEKA İLAN HAVUZU (CANLI AKIŞ)</h3>
-
-        <table class="w-full text-left border-collapse text-xs">
-            <thead>
-                <tr class="text-neutral-400 font-bold border-b border-neutral-100 dark:border-neutral-800/50">
-                    <th class="pb-3">Kaynak Grup</th>
-                    <th class="pb-3">Çözümlenen Rota</th>
-                    <th class="pb-3 font-mono">Yük / Tonaj</th>
-                    <th class="pb-3">İletişim / Tel</th>
-                    <th class="pb-3">Önerilen Fiyat</th>
-                    <th class="pb-3">Süzme Durumu</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                @forelse($this->getScrapedLoads() as $load)
-                    <tr class="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/20 transition-all duration-200">
-                        <td class="py-3 font-bold text-neutral-900 dark:text-white">{{ $load->scraper->name ?? 'Yapay Zeka Test' }}</td>
-                        <td class="py-3">
-                            @if($load->status === 'parsed_success')
-                                <span class="font-semibold text-neutral-950 dark:text-white">
-                                    {{ $load->pickup_location }} -> {{ $load->delivery_location }}
-                                </span>
-                            @else
-                                <span class="text-neutral-400 italic">Grup Metni Süzülemedi (Yetersiz Veri / Alakasız)</span>
-                            @endif
-                        </td>
-                        <td class="py-3 font-mono text-[11px] text-neutral-500">
-                            @if($load->status === 'parsed_success')
-                                {{ $load->goods_type }} ({{ number_format($load->weight) }} kg)
-                            @else
-                                -
-                            @endif
-                        </td>
-                        <td class="py-3 font-semibold text-brand-500">
-                            @if($load->formatted_phone && $load->formatted_phone !== 'Bilinmiyor')
-                                @if($load->formatted_phone === 'LID')
-                                    <!-- 🛡️ KUSURSUZ GİZLİLİK VE VERİ KALİTESİ KORUMASI -->
-                                    <span class="text-neutral-400 font-medium text-xs italic" title="Bu kullanıcı rehberinizde kayıtlı olmadığı için numarası gizlenmiştir.">Gizli Numara (LID)</span>
-                                @else
-                                    <!-- 🚀 TIKLANABİLİR MASKE LİNKİ (533 444 ** ** formatında) -->
-                                    <div class="flex items-center space-x-2">
-                                        <a href="tel:{{ preg_replace('/[^0-9+]/', '', $load->sender_phone) }}" class="hover:underline text-brand-500 hover:text-brand-600 transition-colors font-bold text-xs">
-                                            {{ substr($load->formatted_phone, 0, 7) . ' ** **' }}
-                                        </a>
-                                        <!-- WhatsApp üzerinden mesaj şablonu butonu -->
-                                        @php
-                                            $msgTemplate = "Merhaba, NavlunIQ platformundan ulaşıyorum. Profili doğrulanmış bir şoför olarak, yayınlamış olduğunuz " . $load->pickup_location . " -> " . $load->delivery_location . " (" . $load->goods_type . " - " . number_format($load->weight) . " kg) ilanınızla ilgili bilgi almak istiyorum.";
-                                            $encodedMsg = urlencode($msgTemplate);
-                                        @endphp
-                                        <a href="https://wa.me/{{ preg_replace('/[^0-9]/', '', $load->sender_phone) }}?text={{ $encodedMsg }}" target="_blank" class="p-1 rounded-md bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 transition-all duration-300">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                                        </a>
-                                    </div>
-                                @endif
-                            @else
-                                <span class="text-neutral-400 font-medium">Bilinmiyor</span>
-                            @endif
-                        </td>
-                        <td class="py-3 font-bold">
-                            <!-- 🚀 KESİN ÇÖZÜM: TL Simgesi yerine W3C HTML Entity kodunu enjekte ederek uyuşmazlığı çözüyoruz -->
-                            &#8378;{{ number_format($load->price, 2) }}
-                        </td>
-                        <td class="py-3">
-                            <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-500/10 text-emerald-600">
-                                İlan Çözümlendi
-                            </span>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="py-8 text-center text-neutral-400">Yapay zeka tarafından süzülmüş otonom bir ilan henüz bulunmuyor. Gruptan test mesajı göndererek canlı akışı izleyebilirsiniz!</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Bağlı Olan Kaynakların Listesi -->
-    <div class="apple-glass rounded-3xl p-6 space-y-4">
-        <h3 class="text-sm font-bold text-neutral-800 dark:text-neutral-200 uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800/50">BAĞLI KAZIMA KAYNAKLARI</h3>
-
-        <table class="w-full text-left border-collapse text-xs">
-            <thead>
-                <tr class="text-neutral-400 font-bold border-b border-neutral-100 dark:border-neutral-800/50">
-                    <th class="pb-3">Kaynak Adı</th>
-                    <th class="pb-3">Platform</th>
-                    <th class="pb-3">Grup / Adres</th>
-                    <th class="pb-3">Durum</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/30">
-                @forelse($this->getScrapers() as $src)
-                    <tr>
-                        <td class="py-3 font-bold text-neutral-900 dark:text-white">{{ $src->name }}</td>
-                        <td class="py-3 capitalize text-neutral-500">{{ $src->type }}</td>
-                        <td class="py-3 font-mono text-[11px] text-neutral-400">{{ $src->source_identifier }}</td>
-                        <td class="py-3">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600">Aktif Dinleniyor</span>
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="4" class="py-6 text-center text-neutral-400">Herhangi bir kayıtlı grup kaynağı bulunamadı.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+    @endif
 </div>

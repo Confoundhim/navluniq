@@ -1,45 +1,82 @@
 <?php
 
-use Livewire\Volt\Component;
 use App\Models\SupportTicket;
+use App\Support\Phone;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
+use Livewire\Volt\Component;
 
 new class extends Component {
     public string $name = '';
+
     public string $email = '';
+
     public string $phone = '';
+
     public string $role = 'guest';
+
     public string $category = 'other';
+
     public string $message = '';
 
-    public function submitTicket()
+    public function mount(): void
+    {
+        if ($user = Auth::user()) {
+            $this->name = $user->full_name;
+            $this->email = $user->email;
+            $this->phone = Phone::format($user->phone);
+            $this->role = in_array($user->current_role, ['cargo_owner', 'driver'], true) ? $user->current_role : 'guest';
+        }
+    }
+
+    public function submitTicket(): void
     {
         $this->validate([
-            'name' => 'required|string|min:3',
-            'email' => 'required|email',
-            'phone' => 'required|string|min:10',
-            'message' => 'required|string|min:15'
+            'name' => 'required|string|min:3|max:120',
+            'email' => 'required|email|max:255',
+            'phone' => ['required', 'string', Phone::RULE],
+            'role' => ['required', Rule::in(['cargo_owner', 'driver', 'guest'])],
+            'category' => ['required', Rule::in(array_keys(SupportTicket::CATEGORIES))],
+            'message' => 'required|string|min:15|max:4000',
         ], [
             'name.required' => 'Ad Soyad alanı boş bırakılamaz.',
             'email.required' => 'E-posta adresi boş bırakılamaz.',
             'phone.required' => 'Telefon numarası boş bırakılamaz.',
+            'phone.regex' => 'Geçerli bir cep telefonu numarası girin.',
             'message.required' => 'Lütfen mesajınızı yazınız.',
-            'message.min' => 'Mesajınız en az 15 karakter olmalıdır.'
+            'message.min' => 'Mesajınız en az 15 karakter olmalıdır.',
         ]);
+
+        $key = 'contact-form:'.request()->ip();
+        if (RateLimiter::tooManyAttempts($key, 3)) {
+            $this->addError('message', 'Kısa sürede çok fazla talep gönderildi. Lütfen birkaç dakika sonra tekrar deneyin.');
+
+            return;
+        }
+        RateLimiter::hit($key, 600);
 
         SupportTicket::create([
-            'name' => $this->name,
-            'email' => $this->email,
-            'phone' => $this->phone,
+            'user_id' => Auth::id(),
+            'name' => trim($this->name),
+            'email' => mb_strtolower(trim($this->email)),
+            'phone' => Phone::normalize($this->phone),
             'role' => $this->role,
             'category' => $this->category,
-            'message' => $this->message,
-            'status' => 'open'
+            'subject' => SupportTicket::CATEGORIES[$this->category],
+            'message' => trim($this->message),
+            'status' => 'open',
         ]);
 
-        $this->reset(['name', 'email', 'phone', 'message']);
-        session()->flash('success', 'Destek talebiniz başarıyla alındı! Ekibimiz en kısa sürede e-posta adresinize yanıt iletecektir.');
+        $this->reset(['message']);
+        if (! Auth::check()) {
+            $this->reset(['name', 'email', 'phone']);
+        }
+
+        session()->flash('success', 'Destek talebiniz alındı. Ekibimiz en kısa sürede e-posta ile yanıt verecektir.');
     }
 }; ?>
+
 
 <div class="max-w-6xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in text-xs">
 
@@ -62,33 +99,33 @@ new class extends Component {
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
 
-        <!-- Sol: 12 Konu Kategorili Bilet Formu -->
+        
         <div class="lg:col-span-2 apple-glass rounded-3xl p-8 md:p-10 space-y-6 shadow-apple-md">
             <h3 class="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800">BİZİMLE İLETİŞİME GEÇİN</h3>
 
             <form wire:submit.prevent="submitTicket" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Adınız Soyadınız</label>
-                        <input type="text" wire:model.defer="name" placeholder="Ad Soyad" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('name') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Adınız Soyadınız</label>
+                        <input type="text" wire:model="name" placeholder="Ad Soyad" class="form-input">
+                        @error('name') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Telefon Numaranız</label>
-                        <input type="text" wire:model.defer="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('phone') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Telefon Numaranız</label>
+                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="form-input">
+                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">E-Posta Adresiniz</label>
-                        <input type="email" wire:model.defer="email" placeholder="ornek@mail.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">E-Posta Adresiniz</label>
+                        <input type="email" wire:model="email" placeholder="ornek@mail.com" class="form-input">
+                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Platform Rolünüz</label>
-                        <select wire:model.defer="role" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
+                    <div class="space-y-1">
+                        <label class="form-label">Platform Rolünüz</label>
+                        <select wire:model="role" class="form-input">
                             <option value="cargo_owner">Yük Sahibi (Gönderici)</option>
                             <option value="driver">Şoför (Taşıyıcı)</option>
                             <option value="guest">Ziyaretçi / Misafir</option>
@@ -96,28 +133,19 @@ new class extends Component {
                     </div>
                 </div>
 
-                <!-- 12 Konu Kategorisi Seçici -->
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Konu Kategorisi</label>
-                    <select wire:model.defer="category" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
-                        <option value="technical">Teknik Hata, Bug ve Çökme</option>
-                        <option value="billing">Abonelik & Fiyatlandırma</option>
-                        <option value="kyc">Evrak Analizi (KYC)</option>
-                        <option value="escrow">PayTR Ödeme & Escrow</option>
-                        <option value="other">İlan & Rota Sorunları</option>
-                        <option value="technical">PWA & GPS Sinyal Hataları</option>
-                        <option value="technical">WhatsApp Entegrasyonları / Telegram</option>
-                        <option value="dispute">Uyuşmazlık (Dispute) Yönetimi</option>
-                        <option value="billing">Fatura & Muhasebe</option>
-                        <option value="technical">Hesap Güvenliği</option>
-                        <option value="other">Diğer / Genel Sorular</option>
+                    <label class="form-label">Konu Kategorisi</label>
+                    <select wire:model="category" class="form-input">
+                        @foreach(\App\Models\SupportTicket::CATEGORIES as $value => $label)
+                            <option value="{{ $value }}">{{ $label }}</option>
+                        @endforeach
                     </select>
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Mesajınız</label>
-                    <textarea wire:model.defer="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white"></textarea>
-                    @error('message') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <label class="form-label">Mesajınız</label>
+                    <textarea wire:model="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="form-input"></textarea>
+                    @error('message') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md">
@@ -133,27 +161,40 @@ new class extends Component {
                 <div class="space-y-3 text-neutral-600 dark:text-neutral-300">
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Müşteri Hizmetleri / Telefon</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">+90 850 304 04 00</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.phone') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">E-Posta Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">info@navluniq.com</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.email') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Merkez Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.address') ?: 'Yakında' }}</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Google Maps Entegrasyonu -->
-            <div class="apple-glass rounded-3xl overflow-hidden border border-neutral-200/50 shadow-apple-md h-64 relative">
-                <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3061.6517120578505!2d32.81019417650525!3d39.882038788008295!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14d345e0df8e262b%3A0x62c27832d6a96e13!2sCevizlidere%2C%20Mevlana%20Blv.%20No%3A221%2C%2006520%20%C3%87ankaya%2FAnkara!5e0!3m2!1str!2str!4v1788433898346!5m2!1str!2str"
-                        class="w-full h-full border-0"
-                        allowfullscreen=""
-                        loading="lazy"
-                        referrerpolicy="no-referrer-when-downgrade"></iframe>
-            </div>
+            @php $mapAddress = trim((string) config('company.address')); @endphp
+            @if($mapAddress !== '')
+                <div class="apple-glass rounded-3xl p-2 shadow-apple-md overflow-hidden">
+                    <div class="relative rounded-2xl overflow-hidden bg-neutral-100 dark:bg-neutral-800" style="aspect-ratio: 4 / 3;">
+                        <iframe
+                            src="https://www.google.com/maps?q={{ urlencode($mapAddress) }}&z=15&output=embed"
+                            class="absolute inset-0 w-full h-full border-0 dark:grayscale dark:opacity-90"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen
+                            title="NavlunIQ merkez ofis konumu"></iframe>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <svg class="w-4 h-4 text-brand-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <span class="text-xs text-neutral-600 dark:text-neutral-300 truncate">{{ $mapAddress }}</span>
+                        </div>
+                        <a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($mapAddress) }}" target="_blank" rel="noopener" class="btn-secondary py-1.5 px-3 text-[11px] shrink-0">Yol tarifi</a>
+                    </div>
+                </div>
+            @endif
         </div>
 
     </div>
