@@ -110,7 +110,7 @@ class CmsContractSeeder extends Seeder
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 7: Veri Sahibi Olarak Haklarınız (KVKK Madde 11)</h3>
         <p>
-            Kanun'un 11. maddesi uyarınca <strong>{{COMPANY_EMAIL}}</strong> adresimize veya ilan edilen diğer başvuru kanallarına usulüne uygun şekilde başvurarak; verilerinizin işlenip işlenmediğini öğrenme, işlenme amacına uygun kullanılıp kullanılmadığını sorma, eksik veya yanlış işlenmişse düzeltilmesini isteme ve kanuni şartları oluştu��unda silinmesini veya yok edilmesini (<strong>Unutulma Hakkı</strong>) talep etme haklarına sahipsiniz. Başvurularınız, kimlik doğrulaması ve uygulanabilir mevzuattaki süre ve ücret kuralları çerçevesinde sonuçlandırılır; yasal saklama zorunluluğu bulunan kayıtlar bu süre boyunca korunabilir.
+            Kanun'un 11. maddesi uyarınca <strong>{{COMPANY_EMAIL}}</strong> adresimize veya ilan edilen diğer başvuru kanallarına usulüne uygun şekilde başvurarak; verilerinizin işlenip işlenmediğini öğrenme, işlenme amacına uygun kullanılıp kullanılmadığını sorma, eksik veya yanlış işlenmişse düzeltilmesini isteme ve kanuni şartları oluştuğunda silinmesini veya yok edilmesini (<strong>Unutulma Hakkı</strong>) talep etme haklarına sahipsiniz. Başvurularınız, kimlik doğrulaması ve uygulanabilir mevzuattaki süre ve ücret kuralları çerçevesinde sonuçlandırılır; yasal saklama zorunluluğu bulunan kayıtlar bu süre boyunca korunabilir.
         </p>
     </div>
 </div>
