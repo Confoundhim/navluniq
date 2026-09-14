@@ -108,7 +108,10 @@ class extends Component {
             'upload_type' => ['required', Rule::in(array_keys($this->allowedTypes()))],
             'upload_file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:10240',
         ], [
-            'upload_file.mimes' => 'Belge JPG, PNG veya PDF olmalıdır.',
+            'upload_file.required' => 'Lütfen bir dosya seçin. Dosya seçildikten sonra yükleme çubuğunun dolmasını bekleyin.',
+            'upload_file.file' => 'Dosya sunucuya ulaşmadı. Lütfen tekrar seçip deneyin.',
+            'upload_file.uploaded' => 'Dosya sunucuya yüklenemedi. Boyut 10 MB sınırını aşıyor olabilir; fotoğrafı daha düşük çözünürlükte çekip tekrar deneyin.',
+            'upload_file.mimes' => 'Belge JPG, PNG veya PDF olmalıdır. iPhone kullanıyorsanız Ayarlar > Kamera > Formatlar bölümünden "En Uyumlu" seçeneğini işaretleyin.',
             'upload_file.max' => 'Belge en fazla 10 MB olabilir.',
         ]);
 
@@ -286,7 +289,13 @@ class extends Component {
                 </div>
 
                 @if($kycStatus !== 'approved')
-                    <form wire:submit.prevent="uploadDocument" class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                    <form wire:submit.prevent="uploadDocument" class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-neutral-200 dark:border-neutral-800"
+                          x-data="{ uploading: false, progress: 0, clientError: '' }"
+                          x-on:livewire-upload-start="uploading = true; progress = 0; clientError = ''"
+                          x-on:livewire-upload-progress="progress = $event.detail.progress"
+                          x-on:livewire-upload-finish="uploading = false; progress = 100"
+                          x-on:livewire-upload-cancel="uploading = false"
+                          x-on:livewire-upload-error="uploading = false; clientError = 'Dosya sunucuya yüklenemedi. Boyutu 10 MB sınırını aşıyor olabilir; fotoğrafı daha düşük çözünürlükte çekip tekrar deneyin.'">
                         <div>
                             <label class="form-label">Belge türü</label>
                             <select wire:model="upload_type" class="form-input">
@@ -296,15 +305,24 @@ class extends Component {
                             </select>
                         </div>
                         <div>
-                            <label class="form-label">Dosya (JPG, PNG, PDF)</label>
-                            <input type="file" wire:model="upload_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
+                            <label class="form-label">Dosya (JPG, PNG, PDF · en fazla 10 MB)</label>
+                            <input type="file" wire:model="upload_file" accept="image/jpeg,image/png,application/pdf"
+                                   x-on:change="clientError = ''; const f = $event.target.files[0]; if (f && f.size > 10 * 1024 * 1024) { clientError = 'Dosya ' + (f.size / 1048576).toFixed(1) + ' MB; sınır 10 MB. Lütfen daha küçük bir dosya seçin.'; } else if (f && /\.(heic|heif)$/i.test(f.name)) { clientError = 'HEIC formatı desteklenmiyor. iPhone\'da Ayarlar > Kamera > Formatlar > En Uyumlu seçeneğini işaretleyip fotoğrafı yeniden çekin.'; }"
+                                   class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
+                            <div x-show="uploading" x-cloak class="mt-2 space-y-1">
+                                <div class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                                    <div class="h-full rounded-full bg-brand-500 transition-all duration-200" :style="'width: ' + progress + '%'"></div>
+                                </div>
+                                <div class="text-[11px] text-neutral-500">Dosya yükleniyor: <span x-text="progress"></span>%</div>
+                            </div>
+                            <span x-show="clientError" x-cloak x-text="clientError" class="form-error"></span>
                             @error('upload_file') <span class="form-error">{{ $message }}</span> @enderror
-                            <div wire:loading wire:target="upload_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                         </div>
                         <div class="flex items-end">
-                            <button type="submit" class="btn-primary w-full py-2 text-xs" wire:loading.attr="disabled">
-                                <span wire:loading.remove wire:target="uploadDocument">Belgeyi yükle</span>
-                                <span wire:loading wire:target="uploadDocument">Yükleniyor...</span>
+                            <button type="submit" class="btn-primary w-full py-2 text-xs" wire:loading.attr="disabled" x-bind:disabled="uploading">
+                                <span x-show="uploading" x-cloak>Dosya yükleniyor...</span>
+                                <span x-show="!uploading" wire:loading.remove wire:target="uploadDocument">Belgeyi yükle</span>
+                                <span wire:loading wire:target="uploadDocument">Kaydediliyor...</span>
                             </button>
                         </div>
                     </form>
