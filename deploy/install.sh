@@ -43,8 +43,14 @@ fi
 
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 DOMAIN="${DOMAIN:-$SERVER_IP}"
+DOMAIN="${DOMAIN#www.}"
 IS_DOMAIN=0
 [[ "$DOMAIN" =~ ^[0-9.]+$ ]] || IS_DOMAIN=1
+# www alt alanı bu sunucuya yönlendirilmişse nginx ve SSL'e dahil edilir.
+SERVER_NAMES="$DOMAIN"; CERT_DOMAINS=(-d "$DOMAIN")
+if [[ $IS_DOMAIN -eq 1 ]] && getent hosts "www.${DOMAIN}" 2>/dev/null | grep -q "$SERVER_IP"; then
+    SERVER_NAMES="$DOMAIN www.${DOMAIN}"; CERT_DOMAINS+=(-d "www.${DOMAIN}")
+fi
 
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
@@ -188,7 +194,7 @@ ok "config/route/view önbellekleri oluşturuldu"
 # -----------------------------------------------------------------------------
 log "nginx"
 PHP_SOCK="$(ls /run/php/php${PHP_VERSION}-fpm.sock 2>/dev/null || ls /run/php/php*-fpm.sock | head -n1)"
-sed -e "s|__DOMAIN__|${DOMAIN}|g" -e "s|__PHP_SOCK__|${PHP_SOCK}|g" deploy/nginx.conf > /etc/nginx/sites-available/navluniq
+sed -e "s|__DOMAIN__|${SERVER_NAMES}|g" -e "s|__PHP_SOCK__|${PHP_SOCK}|g" deploy/nginx.conf > /etc/nginx/sites-available/navluniq
 ln -sf /etc/nginx/sites-available/navluniq /etc/nginx/sites-enabled/navluniq
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
@@ -199,7 +205,7 @@ ok "site yayında: http://${DOMAIN}"
 if [[ $IS_DOMAIN -eq 1 && -n "${LETSENCRYPT_EMAIL:-}" ]]; then
     log "SSL sertifikası (Let's Encrypt)"
     apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
-    certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
+    certbot --nginx "${CERT_DOMAINS[@]}" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
         && ok "https://${DOMAIN} aktif" \
         || echo "Sertifika alınamadı; alan adının bu sunucuya yönlendiğinden emin olup betiği tekrar çalıştırın."
 fi
