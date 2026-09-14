@@ -1,11 +1,9 @@
 @php
     $monthlyPrice = \App\Support\Settings::float('premium_monthly_price');
     $standardRate = \App\Support\Settings::float('commission_standard_driver');
-    $premiumRate = \App\Support\Settings::float('commission_discounted_premium');
     $paymentReady = app(\App\Services\PaymentService::class)->isConfigured();
     $pct = fn (float $v) => rtrim(rtrim(number_format($v, 1, ',', '.'), '0'), ',');
     $priceText = number_format($monthlyPrice, 0, ',', '.');
-    $savingOnTenThousand = number_format(10000 * max(0, $standardRate - $premiumRate) / 100, 0, ',', '.');
 
     $check = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
@@ -15,7 +13,6 @@
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         ['Onaylı dış kaynak ilanları', '20 dakika gecikmeli', 'Yayınlandığı anda'],
         ['Dış kaynak ilanlarda iletişim bilgisi', 'Kısmen gizli', 'Tamamı görünür'],
-        ['Hak edişten kesilen platform komisyonu', '%'.$pct($standardRate), '%'.$pct($premiumRate)],
         ['Güvenli havuz ve banka havalesiyle ödeme', 'Dahil', 'Dahil'],
         ['Cüzdan, fatura ve destek talepleri', 'Dahil', 'Dahil'],
     ];
@@ -28,10 +25,10 @@
         <section class="text-center space-y-5 max-w-3xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
             <h1 class="text-3xl sm:text-5xl font-black text-neutral-950 dark:text-white tracking-tight leading-tight">
-                Daha fazla yük, daha az kesinti.
+                Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                NavlunIQ'da platform ilanlarına teklif vermek her zaman ücretsizdir. Premium üyelik, dış kaynaklardan derlenen onaylı ilanları herkesten önce görmenizi ve tamamladığınız her sevkiyatta daha düşük komisyon ödemenizi sağlar.
+                NavlunIQ'da platform ilanlarına teklif vermek her zaman ücretsizdir. Premium üyelik, dış kaynaklardan derlenen onaylı ilanları herkesten 20 dakika önce görmenizi ve ilan sahibine doğrudan ulaşmanızı sağlar.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
@@ -61,7 +58,7 @@
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Platform içi tüm yük ilanlarını anında görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Güvenli havuz ödemesi, cüzdan ve teslimat kayıtları</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Standart platform komisyonu: hak edişin %{{ $pct($standardRate) }}'i</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
             </div>
@@ -87,7 +84,7 @@
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarını yayınlandığı anda, herkesten 20 dakika önce görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Dış kaynak ilanlarda ilan sahibinin iletişim bilgisinin tamamına erişin</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Düşük komisyon: hak edişin %{{ $pct($standardRate) }}'i yerine %{{ $pct($premiumRate) }}'i</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
                     </ul>
                     <div class="space-y-2">
                         @auth
@@ -107,23 +104,25 @@
             </div>
         </section>
 
-        <!-- Kazanç örneği -->
+        <!-- Erken erişim ne demek -->
         <section class="max-w-4xl mx-auto">
             <div class="apple-glass rounded-3xl p-6 md:p-8 shadow-apple-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                 <div class="md:col-span-2 space-y-2">
-                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Premium kendini ne zaman amorti eder?</h3>
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">20 dakika neden fark yaratır?</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Komisyon farkı her sevkiyatta hak edişinize yansır. Örneğin ay içinde platform üzerinden toplam 10.000 ₺ navlun tamamlayan bir şoför, premium üyelikle standart plana göre {{ $savingOnTenThousand }} ₺ daha az kesinti öder. Erken erişim sayesinde dış kaynak ilanlarında ilk arayan siz olursunuz.
+                        Dış kaynaklardan gelen bir yük ilanı çoğu zaman ilk arayan şoförde kalır. Premium üyeler onaylanan ilanı yayınlandığı anda, ilan sahibinin numarasıyla birlikte görür; standart üyelere aynı ilan 20 dakika sonra ve numarası kısmen gizli açılır. Platform hizmet bedeli iki planda da aynıdır, premium ücretin karşılığı yalnız bu öncelik ve doğrudan iletişimdir.
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">
                     <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-4">
                         <div class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Standart</div>
-                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">%{{ $pct($standardRate) }}</div>
+                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">+20 dk</div>
+                        <div class="text-[10px] text-neutral-400 mt-0.5">gecikmeli</div>
                     </div>
                     <div class="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4">
                         <div class="text-[10px] font-bold text-brand-500 uppercase tracking-wider">Premium</div>
-                        <div class="text-xl font-black text-brand-500 tabular-nums mt-1">%{{ $pct($premiumRate) }}</div>
+                        <div class="text-xl font-black text-brand-500 tabular-nums mt-1">Anında</div>
+                        <div class="text-[10px] text-brand-500/80 mt-0.5">numarayla</div>
                     </div>
                 </div>
             </div>
@@ -156,6 +155,7 @@
                         </tbody>
                     </table>
                 </div>
+                <p class="px-6 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 dark:border-neutral-800">Tamamlanan sevkiyatlarda uygulanan %{{ $pct($standardRate) }} platform hizmet bedeli her iki planda aynıdır.</p>
             </div>
         </section>
 
@@ -184,8 +184,8 @@
                     <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" d="M7 14h4"/></svg>
                     </div>
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. Daha düşük kesintiyle çalışın</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Üyeliğiniz süresince tamamladığınız her sevkiyatta %{{ $pct($premiumRate) }} komisyon uygulanır. Dönem bittiğinde oranınız kendiliğinden standarda döner.</p>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. İlanları ilk siz görün</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Üyeliğiniz süresince onaylanan dış kaynak ilanları panelinize anında, ilan sahibinin numarasıyla düşer. Dönem bittiğinde hesabınız kendiliğinden standarda döner.</p>
                 </div>
             </div>
         </section>

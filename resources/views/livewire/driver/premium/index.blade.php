@@ -23,7 +23,6 @@ class extends Component {
             'premiumUntil' => $profile?->premium_until,
             'monthlyPrice' => Settings::float('premium_monthly_price'),
             'standardRate' => Settings::float('commission_standard_driver'),
-            'premiumRate' => Settings::float('commission_discounted_premium'),
             'paymentReady' => app(PaymentService::class)->isConfigured(),
             'invoices' => Invoice::query()->where('user_id', $user->id)->where('invoice_type', 'subscription')->latest('id')->take(20)->get(),
         ];
@@ -34,7 +33,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyelik, dış kaynak ilanlara erken erişim ve düşürülmüş komisyon oranı sağlar.</p>
+        <p class="page-subtitle">Premium üyelik, onaylı dış kaynak ilanlarını herkesten önce görmenizi ve ilan sahibine doğrudan ulaşmanızı sağlar.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -79,15 +78,15 @@ class extends Component {
                 <h3 class="section-title">Premium avantajları</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">Düşük komisyon</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Hakedişlerinizden standart %{{ number_format($standardRate, 1, ',', '.') }} yerine %{{ number_format($premiumRate, 1, ',', '.') }} komisyon kesilir.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">20 dakika erken erişim</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">İzinli kaynaklardan derlenen ve ekibimizce onaylanan ilanlar, standart üyelere açılmadan 20 dakika önce premium üyelere gösterilir.</div>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">Dış kaynak ilanlara erken erişim</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">İzinli kaynaklardan derlenen ilanlar, standart üyelere açılmadan önce premium üyelere gösterilir; ilan sahibinin telefon numarasının tamamı görünür.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">İletişim bilgisinin tamamı</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı görünür; standart üyelerde numara kısmen gizlenir.</div>
                     </div>
                 </div>
-                <p class="text-[11px] text-neutral-500">Mevcut komisyon oranınız: %{{ number_format($profile?->commissionRate() ?? $standardRate, 1, ',', '.') }}</p>
+                <p class="text-[11px] text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
             </div>
         </div>
 
@@ -110,7 +109,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <h3 class="section-title">Nasıl çalışır</h3>
                 <p>Premium hakkı yalnız doğrulanmış bir ödeme sonrasında tanımlanır; kart bilgileri NavlunIQ'da saklanmaz.</p>
-                <p>Üyelik süresi dolduğunda komisyon oranınız otomatik olarak standart orana döner.</p>
+                <p>Üyelik süresi dolduğunda hesabınız kendiliğinden standart üyeliğe döner; ilanlarınız ve geçmişiniz aynen kalır.</p>
             </div>
         </div>
     </div>

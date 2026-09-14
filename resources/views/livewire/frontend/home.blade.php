@@ -337,15 +337,12 @@ new class extends Component {
     <section id="abonelik" class="max-w-7xl mx-auto px-6 md:px-12 space-y-12 scroll-mt-24">
         @php
             $premiumPrice = number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.');
-            $standardRate = \App\Support\Settings::float('commission_standard_driver');
-            $premiumRate = \App\Support\Settings::float('commission_discounted_premium');
-            $pct = fn (float $v) => rtrim(rtrim(number_format($v, 1, ',', '.'), '0'), ',');
             $checkIcon = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
         @endphp
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
-            <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Daha fazla yük, daha az kesinti.</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Platform ilanlarına teklif vermek her zaman ücretsiz. Premium, erken erişim ve düşük komisyon sağlar.</p>
+            <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yükleri herkesten önce görün.</h2>
+            <p class="text-xs sm:text-sm text-neutral-400">Platform ilanlarına teklif vermek her zaman ücretsiz. Premium, dış kaynak ilanlara erken erişim ve doğrudan iletişim sağlar.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto items-stretch">
@@ -367,7 +364,7 @@ new class extends Component {
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Platform içi tüm ilanları anında görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Güvenli havuz ödemesi, cüzdan ve teslimat kayıtları</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Standart komisyon: hak edişin %{{ $pct($standardRate) }}'i</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
             </div>
@@ -392,7 +389,7 @@ new class extends Component {
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarını herkesten 20 dakika önce görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Dış kaynak ilanlarda iletişim bilgisinin tamamına erişin</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Düşük komisyon: %{{ $pct($standardRate) }} yerine %{{ $pct($premiumRate) }}</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
                     </ul>
                     <a href="{{ route('subscription') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Planları Karşılaştır</a>
                 </div>
