@@ -94,6 +94,7 @@ ok "node $(node -v)"
 
 # -----------------------------------------------------------------------------
 log "Uygulama kodu (${APP_BRANCH})"
+git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
 if [[ -d "$APP_DIR/.git" ]]; then
     git -C "$APP_DIR" fetch --quiet origin "$APP_BRANCH"
     git -C "$APP_DIR" checkout --quiet "$APP_BRANCH"

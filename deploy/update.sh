@@ -11,6 +11,7 @@ APP_BRANCH="${APP_BRANCH:-main}"
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 ok()  { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
 
+git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
 cd "$APP_DIR"
 BEFORE="$(git rev-parse --short HEAD)"
 trap 'php artisan up --quiet >/dev/null 2>&1 || true' EXIT
