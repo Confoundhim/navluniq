@@ -4,7 +4,7 @@ Yük sahipleri ile şoförleri buluşturan lojistik pazaryeri. Laravel 13, Livew
 
 ## Gereksinimler
 
-- PHP 8.3+ (Herd)
+- PHP 8.4+ (Herd)
 - MySQL 8 / MariaDB 10.11+
 - Node.js 20+
 - Composer
@@ -51,7 +51,7 @@ PayTR, NetGSM, NVİ ve yapay zekâ ayrıştırma anahtarları `.env` içinde bo�
 
 `deploy/` klasöründe iki betik vardır; ikisi de sunucuda root ile çalıştırılır.
 
-**İlk kurulum** (`deploy/install.sh`): nginx, PHP 8.3, Composer ve Node.js'i kurar, depoyu
+**İlk kurulum** (`deploy/install.sh`): nginx, PHP 8.4, Composer ve Node.js'i kurar, depoyu
 `/var/www/navluniq` altına klonlar, `.env` dosyasını üretir, bağımlılıkları ve ön yüzü derler,
 migration ve ilk seed'leri çalıştırır, nginx sitesini ve `schedule:run` cron'unu tanımlar.
 Alan adı ve `LETSENCRYPT_EMAIL` verilirse ücretsiz SSL de alır.
