@@ -13,7 +13,7 @@ use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Uyuşmazlık Merkezi')]
+#[Title('Uyuşmazlıklar')]
 class extends Component {
     use WithFileUploads, WithPagination;
 

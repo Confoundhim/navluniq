@@ -10,7 +10,7 @@ use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Şoför Paneli')]
+#[Title('Genel Bakış')]
 class extends Component {
     /** Tercih edilen rota metnini şehir/kelime parçalarına ayırır. */
     private function routeTokens(?string $routes): array

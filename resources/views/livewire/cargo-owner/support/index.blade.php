@@ -11,7 +11,7 @@ use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Müşteri Hizmetleri & Destek Biletleri')]
+#[Title('Destek')]
 class extends Component {
     use WithPagination;
 

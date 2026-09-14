@@ -15,7 +15,7 @@ use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Sevkiyat Takibi & Teslimat Onayı')]
+#[Title('Sevkiyat Takibi')]
 class extends Component {
     #[Locked]
     public int $loadId = 0;

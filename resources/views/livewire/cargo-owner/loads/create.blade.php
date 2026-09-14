@@ -15,7 +15,7 @@ use Livewire\WithFileUploads;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Yeni Yük İlanı Oluştur')]
+#[Title('Yeni İlan Oluştur')]
 class extends Component {
     use WithFileUploads;
 

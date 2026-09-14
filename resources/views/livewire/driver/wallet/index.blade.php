@@ -13,7 +13,7 @@ use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Cüzdan ve Hakedişlerim')]
+#[Title('Cüzdan ve Hakedişler')]
 class extends Component {
     use WithPagination;
 

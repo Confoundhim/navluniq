@@ -11,7 +11,7 @@ use Livewire\Volt\Component;
 
 new
 #[Layout('components.layouts.cargo-owner')]
-#[Title('Kayıtlı Adres Defterim')]
+#[Title('Adres Defteri')]
 class extends Component {
     public bool $modalOpen = false;
 
