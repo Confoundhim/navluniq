@@ -10,6 +10,7 @@
 #   LETSENCRYPT_EMAIL alan adı verildiyse ücretsiz SSL için e-posta
 #   ADMIN_INIT_EMAIL, ADMIN_INIT_PASSWORD, ADMIN_INIT_PHONE  ilk yönetici
 #   APP_BRANCH        çekilecek dal (varsayılan: main)
+#   PHP_VERSION       kurulacak PHP sürümü (varsayılan: 8.4, composer.lock ile uyumlu)
 #
 # Örnek:
 #   DB_DATABASE=navluniq_live DB_USERNAME=navluniq_user DB_PASSWORD='...' \
@@ -21,7 +22,7 @@ set -euo pipefail
 APP_DIR="/var/www/navluniq"
 REPO_URL="https://github.com/Confoundhim/navluniq.git"
 APP_BRANCH="${APP_BRANCH:-main}"
-PHP_VERSION="8.3"
+PHP_VERSION="${PHP_VERSION:-8.4}"
 NODE_MAJOR="20"
 
 log()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
