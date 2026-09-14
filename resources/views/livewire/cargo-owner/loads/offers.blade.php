@@ -127,13 +127,13 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
 
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             {{ session('error_message') }}
         </div>
     @endif
@@ -145,7 +145,7 @@ class extends Component {
             </a>
             <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span>İlana gelen teklifler</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 tabular-nums text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
         </div>
 
@@ -208,12 +208,12 @@ class extends Component {
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="text-sm font-bold text-neutral-900 dark:text-white">{{ $name }}</span>
                                     @if($driver?->isKycApproved())
-                                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-bold">Belgeleri doğrulandı</span>
+                                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">Belgeleri doğrulandı</span>
                                     @endif
                                 </div>
                                 <div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                                     @if($row['rating'] !== null)
-                                        <span class="text-amber-400 font-semibold">{{ number_format($row['rating'], 1, ',', '.') }} / 5</span>
+                                        <span class="text-amber-600 dark:text-amber-400 font-semibold">{{ number_format($row['rating'], 1, ',', '.') }} / 5</span>
                                         <span class="text-neutral-600">·</span>
                                         <span>{{ $row['reviews_count'] }} değerlendirme</span>
                                     @else
@@ -256,7 +256,7 @@ class extends Component {
                     <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-200 dark:border-neutral-800">
                         <div class="text-left lg:text-right">
                             <span class="text-[11px] text-neutral-500 uppercase tracking-wider block">Teklif tutarı</span>
-                            <div class="text-3xl font-black text-neutral-900 dark:text-white font-mono">
+                            <div class="text-3xl font-black text-neutral-900 dark:text-white tabular-nums">
                                 {{ number_format((float) $offer->amount, 2, ',', '.') }} <span class="text-brand-500 text-xl">₺</span>
                             </div>
                         </div>

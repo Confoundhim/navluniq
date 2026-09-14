@@ -145,10 +145,10 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -174,7 +174,7 @@ class extends Component {
                                 @endif
                             </div>
                             <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
-                                {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($dispute->status === 'resolved_driver_paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400') }}">
+                                {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($dispute->status === 'resolved_driver_paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400') }}">
                                 {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}
                             </span>
                         </div>
@@ -267,7 +267,7 @@ class extends Component {
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-neutral-900 dark:text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
                             <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
-                                {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-400') }}">
+                                {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
                                 {{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapatıldı'][$ticket->status] ?? $ticket->status }}
                             </span>
                         </div>

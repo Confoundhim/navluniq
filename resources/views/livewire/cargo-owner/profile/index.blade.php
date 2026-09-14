@@ -169,7 +169,7 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
@@ -204,7 +204,7 @@ class extends Component {
                     </div>
                     <div>
                         <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Cep telefonu</label>
-                        <input type="text" wire:model="phone" inputmode="tel" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <input type="text" wire:model="phone" inputmode="tel" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
                         @error('phone') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
@@ -247,13 +247,13 @@ class extends Component {
                     <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Kimlik doğrulama belgeleri</h3>
                     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
                     <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
-                        {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
+                        {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
                         {{ ['approved' => 'Doğrulandı', 'pending' => 'İnceleniyor', 'rejected' => 'Belge reddedildi', 'unsubmitted' => 'Belge bekleniyor'][$kycStatus] ?? $kycStatus }}
                     </span>
                 </div>
 
                 @if($profile?->kyc_notes)
-                    <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">{{ $profile->kyc_notes }}</div>
+                    <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">{{ $profile->kyc_notes }}</div>
                 @endif
 
                 <div class="space-y-2 text-xs">
@@ -274,7 +274,7 @@ class extends Component {
                             <div class="flex items-center gap-3">
                                 @if($doc)
                                     <a href="{{ route('files.kyc', $doc->id) }}" target="_blank" rel="noopener" class="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white underline">Görüntüle</a>
-                                    <span class="font-bold {{ $doc->status === 'approved' ? 'text-emerald-400' : ($doc->status === 'rejected' ? 'text-rose-400' : 'text-amber-400') }}">
+                                    <span class="font-bold {{ $doc->status === 'approved' ? 'text-emerald-600 dark:text-emerald-400' : ($doc->status === 'rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400') }}">
                                         {{ \App\Models\KycDocument::STATUS_LABELS[$doc->status] ?? $doc->status }}
                                     </span>
                                 @else
@@ -326,7 +326,7 @@ class extends Component {
                         </div>
                         <div>
                             <span class="text-neutral-500 block mb-0.5">Vergi kimlik numarası</span>
-                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-white">{{ $profile->tax_no ?: '—' }}</div>
+                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $profile->tax_no ?: '—' }}</div>
                         </div>
                         <div>
                             <span class="text-neutral-500 block mb-0.5">Vergi dairesi</span>
@@ -334,16 +334,16 @@ class extends Component {
                         </div>
                         <div class="flex items-center justify-between pt-1">
                             <span class="text-neutral-500">GİB doğrulaması</span>
-                            <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
+                            <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
                         </div>
                     @else
                         <div>
                             <span class="text-neutral-500 block mb-0.5">T.C. kimlik numarası</span>
-                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 font-mono font-bold text-neutral-900 dark:text-white">{{ $profile?->tc_no ? substr($profile->tc_no, 0, 3).'******'.substr($profile->tc_no, -2) : '—' }}</div>
+                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $profile?->tc_no ? substr($profile->tc_no, 0, 3).'******'.substr($profile->tc_no, -2) : '—' }}</div>
                         </div>
                         <div class="flex items-center justify-between pt-1">
                             <span class="text-neutral-500">NVİ doğrulaması</span>
-                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
+                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
                         </div>
                     @endif
                 </div>
@@ -351,9 +351,9 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-rose-900/40 rounded-2xl p-6 space-y-3">
-                <h3 class="text-xs font-bold text-rose-400 uppercase tracking-wider">Hesabı kapat</h3>
+                <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Hesabı kapat</h3>
                 <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya ödenmemiş hakediş yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
-                <button type="button" wire:click="$set('deleteModalOpen', true)" class="w-full px-4 py-2.5 rounded-xl border border-rose-500/40 text-rose-300 hover:bg-rose-500/10 text-xs font-bold">Hesabımı kapatmak istiyorum</button>
+                <button type="button" wire:click="$set('deleteModalOpen', true)" class="w-full px-4 py-2.5 rounded-xl border border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 text-xs font-bold">Hesabımı kapatmak istiyorum</button>
             </div>
         </div>
     </div>

@@ -113,7 +113,7 @@ new class extends Component {
                 <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
                     wire:model="otp_input" placeholder="000000"
                     class="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-3 text-center font-mono text-lg tracking-[0.4em] text-neutral-900 dark:text-white">
-                @error('otp_input') <span class="block text-xs text-rose-400">{{ $message }}</span> @enderror
+                @error('otp_input') <span class="block text-xs text-rose-600 dark:text-rose-400">{{ $message }}</span> @enderror
                 <button type="button" wire:click="executeRoleSwitch"
                     class="w-full rounded-xl bg-brand-500 px-4 py-3 text-xs font-bold text-white">
                     <span wire:loading.remove wire:target="executeRoleSwitch">Doğrula ve geç</span>

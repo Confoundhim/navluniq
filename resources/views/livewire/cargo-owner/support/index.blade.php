@@ -75,7 +75,7 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
@@ -100,10 +100,10 @@ class extends Component {
 
                 <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div class="flex flex-wrap items-center gap-3">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-xs font-bold">#{{ $ticket->id }}</span>
+                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 tabular-nums text-xs font-bold">#{{ $ticket->id }}</span>
                         <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 text-[11px] font-bold">{{ $categories[$ticket->category] ?? $ticket->subject ?? $ticket->category }}</span>
                         <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border
-                            {{ $ticket->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400') }}">
+                            {{ $ticket->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400') }}">
                             {{ $statusLabels[$ticket->status] ?? $ticket->status }}
                         </span>
                     </div>

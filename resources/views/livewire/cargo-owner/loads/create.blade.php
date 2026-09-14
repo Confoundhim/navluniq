@@ -338,7 +338,7 @@ class extends Component {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">e-İrsaliye numarası</label>
-                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white font-mono placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
+                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white tabular-nums placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
                             @error('e_irsaliye_no') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
 
@@ -392,7 +392,7 @@ class extends Component {
                         </div>
                         <div>
                             <span class="text-neutral-500 block">e-İrsaliye no</span>
-                            <span class="text-neutral-900 dark:text-white font-mono font-medium">{{ $e_irsaliye_no !== '' ? $e_irsaliye_no : '—' }}</span>
+                            <span class="text-neutral-900 dark:text-white tabular-nums font-medium">{{ $e_irsaliye_no !== '' ? $e_irsaliye_no : '—' }}</span>
                         </div>
                     </div>
                 </div>
@@ -400,7 +400,7 @@ class extends Component {
                 <div class="space-y-2">
                     <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Navlun bedeli (₺) <span class="text-brand-500">*</span></label>
                     <div class="relative max-w-xs">
-                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-4 pr-10 py-3.5 text-lg font-bold text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-4 pr-10 py-3.5 text-lg font-bold text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
                         <span class="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-neutral-500 text-lg">₺</span>
                     </div>
                     @error('price') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror

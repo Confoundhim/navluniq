@@ -46,7 +46,7 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
@@ -82,7 +82,7 @@ class extends Component {
         <a href="{{ route('cargo-owner.loads.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Yayındaki ilanlar</span>
-                <span class="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
+                <span class="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
@@ -95,7 +95,7 @@ class extends Component {
         <a href="{{ route('cargo-owner.loads.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Bekleyen teklifler</span>
-                <span class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 group-hover:scale-110 transition-transform">
+                <span class="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
@@ -108,7 +108,7 @@ class extends Component {
         <a href="{{ route('cargo-owner.shipments.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Yoldaki sevkiyatlar</span>
-                <span class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition-transform">
+                <span class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                     </svg>
@@ -154,9 +154,9 @@ class extends Component {
                         <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                             <div class="space-y-1 min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <span class="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
+                                    <span class="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 tabular-nums text-[11px] font-bold">#{{ $load->id }}</span>
                                     <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
-                                        {{ $load->status === 'active_seeking' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : ($load->status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($load->status === 'cancelled' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400' : ($load->status === 'disputed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-brand-500/10 border-brand-500/20 text-brand-400'))) }}">
+                                        {{ $load->status === 'active_seeking' ? 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400' : ($load->status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($load->status === 'cancelled' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400' : ($load->status === 'disputed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-brand-500/10 border-brand-500/20 text-brand-400'))) }}">
                                         {{ $load->statusLabel() }}
                                     </span>
                                     <span class="text-neutral-500">{{ $load->created_at?->format('d.m.Y H:i') }}</span>

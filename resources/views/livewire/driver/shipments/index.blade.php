@@ -66,7 +66,7 @@ class extends Component {
                     </div>
                     <div class="flex flex-wrap gap-2 pt-1">
                         <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[11px]">{{ $load->statusLabel() }}</span>
-                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400' }}">{{ $load->escrowLabel() }}</span>
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
                     </div>
                 </div>
                 <div class="shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">

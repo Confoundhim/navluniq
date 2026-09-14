@@ -81,7 +81,7 @@ class extends Component {
 
     @if($kycStatus !== 'approved')
         <div class="p-4 rounded-xl border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3
-            {{ $kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-300' }}">
+            {{ $kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300' }}">
             <div>
                 <div class="font-bold">
                     @if($kycStatus === 'pending') Belgeleriniz inceleniyor
@@ -98,7 +98,7 @@ class extends Component {
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Değerlendirilen tekliflerim</div>
-            <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white font-mono">{{ (int) $pendingOffers }}</div>
+            <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ (int) $pendingOffers }}</div>
             <a href="{{ route('driver.loads.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Teklifleri gör</a>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
@@ -113,7 +113,7 @@ class extends Component {
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödenen toplam hakediş</div>
-            <div class="mt-2 text-2xl font-black text-emerald-400 tabular-nums">{{ number_format((float) ($wallet['paid'] ?? 0), 2, ',', '.') }} ₺</div>
+            <div class="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{{ number_format((float) ($wallet['paid'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-2 text-[11px] text-neutral-500">Kesilen komisyon: {{ number_format((float) ($wallet['commission'] ?? 0), 2, ',', '.') }} ₺</div>
         </div>
     </div>
@@ -190,7 +190,7 @@ class extends Component {
                 <div class="flex items-center justify-between">
                     <span class="text-neutral-500 dark:text-neutral-400">KYC</span>
                     <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
-                        {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
+                        {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
                         {{ ['approved' => 'Doğrulandı', 'pending' => 'İnceleniyor', 'rejected' => 'Reddedildi', 'unsubmitted' => 'Belge bekleniyor'][$kycStatus] ?? $kycStatus }}
                     </span>
                 </div>
@@ -200,7 +200,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
                 <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Premium</h3>
                 @if($profile?->isPremium())
-                    <div class="text-emerald-400 font-bold">Aktif</div>
+                    <div class="text-emerald-600 dark:text-emerald-400 font-bold">Aktif</div>
                     <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->premium_until->format('d.m.Y H:i') }} tarihine kadar geçerli.</div>
                 @else
                     <div class="text-neutral-700 dark:text-neutral-300 font-bold">Pasif</div>

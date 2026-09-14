@@ -164,10 +164,10 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -187,7 +187,7 @@ class extends Component {
                         <div class="text-base font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                         <div class="flex flex-wrap gap-2">
                             <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[11px]">{{ $load->statusLabel() }}</span>
-                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400' }}">{{ $load->escrowLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -215,7 +215,7 @@ class extends Component {
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
                                     <div class="text-neutral-500">e-İrsaliye</div>
-                                    <div class="text-neutral-900 dark:text-white font-mono">{{ $load->e_irsaliye_no ?: 'Numara belirtilmemiş' }}</div>
+                                    <div class="text-neutral-900 dark:text-white tabular-nums">{{ $load->e_irsaliye_no ?: 'Numara belirtilmemiş' }}</div>
                                 </div>
                                 @if($load->e_irsaliye_path)
                                     <a href="{{ route('files.e-irsaliye', $load->id) }}" target="_blank" rel="noopener" class="text-brand-400 font-bold hover:underline">Belgeyi görüntüle</a>
@@ -236,7 +236,7 @@ class extends Component {
                                     Yükü aldım, yola çıktım
                                 </button>
                             @else
-                                <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                                <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
                                     Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme havuza yatırıldığında bu sayfada yola çıkma düğmesi görünecektir.
                                 </div>
                             @endif
@@ -260,7 +260,7 @@ class extends Component {
                                 </button>
                             </form>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_DELIVERED)
-                            <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs space-y-1">
+                            <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs space-y-1">
                                 <div class="font-bold">Yük sahibinin onayı bekleniyor.</div>
                                 <div>Teslim: {{ $shipment->delivered_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}.
                                     @if($shipment->auto_approval_due_at)
@@ -269,7 +269,7 @@ class extends Component {
                                 </div>
                             </div>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_COMPLETED)
-                            <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs space-y-2">
+                            <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs space-y-2">
                                 <div class="font-bold">Sevkiyat tamamlandı.</div>
                                 @if($load->payout)
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -284,7 +284,7 @@ class extends Component {
                                 <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Cüzdana git</a>
                             </div>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_DISPUTED)
-                            <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
+                            <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">
                                 Bu sevkiyat için yük sahibi uyuşmazlık açtı. Savunmanızı uyuşmazlık sayfasından iletebilirsiniz.
                                 <a href="{{ route('driver.disputes.index') }}" wire:navigate class="font-bold underline">Uyuşmazlıklar</a>
                             </div>
@@ -377,11 +377,11 @@ class extends Component {
                                     <div class="font-bold text-neutral-900 dark:text-white">Canlı konum paylaşımı</div>
                                     <div class="text-neutral-500 dark:text-neutral-400">
                                         Konum paylaşımı:
-                                        <span class="font-bold" :class="enabled ? 'text-emerald-400' : 'text-neutral-700 dark:text-neutral-300'" x-text="enabled ? 'Açık' : 'Kapalı'"></span>
+                                        <span class="font-bold" :class="enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-700 dark:text-neutral-300'" x-text="enabled ? 'Açık' : 'Kapalı'"></span>
                                         <template x-if="lastSentLabel"><span> · Son gönderim: <span class="font-mono" x-text="lastSentLabel"></span></span></template>
                                         <template x-if="!lastSentLabel"><span> · Bu oturumda henüz konum gönderilmedi</span></template>
                                     </div>
-                                    <div class="text-rose-400" x-show="error" x-text="error" x-cloak></div>
+                                    <div class="text-rose-600 dark:text-rose-400" x-show="error" x-text="error" x-cloak></div>
                                 </div>
                                 <button type="button" @click="toggle()" class="shrink-0 px-4 py-2 rounded-xl font-bold border transition-colors" :class="enabled ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-brand-500 border-brand-500 text-white hover:bg-brand-600'">
                                     <span x-text="enabled ? 'Paylaşımı durdur' : 'Paylaşımı başlat'"></span>
@@ -426,7 +426,7 @@ class extends Component {
                     <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Yük sahibi</h3>
                     <div class="text-neutral-900 dark:text-white font-bold">{{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</div>
                     @if($ownerPhone)
-                        <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
+                        <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
                     @else
                         <div class="text-neutral-500">İletişim numarası, yük sahibi havuz ödemesini yaptıktan sonra görünür.</div>
                     @endif

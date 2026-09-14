@@ -173,13 +173,13 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
 
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             {{ session('error_message') }}
         </div>
     @endif
@@ -213,7 +213,7 @@ class extends Component {
                     <div class="flex items-start justify-between gap-2">
                         <h3 class="text-sm font-bold text-neutral-900 dark:text-white tracking-tight break-words">{{ $addr->title }}</h3>
                         <div class="flex flex-col items-end gap-1 shrink-0">
-                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {{ $addr->type === 'pickup' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ($addr->type === 'delivery' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-brand-500/10 text-brand-400 border border-brand-500/20') }}">
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {{ $addr->type === 'pickup' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20' : ($addr->type === 'delivery' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-brand-500/10 text-brand-400 border border-brand-500/20') }}">
                                 {{ $typeLabels[$addr->type] ?? $addr->type }}
                             </span>
                             @if($addr->is_default)
@@ -231,7 +231,7 @@ class extends Component {
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-neutral-500">Telefon</span>
-                            <span class="text-neutral-800 dark:text-neutral-200 font-mono">{{ Phone::format($addr->contact_phone) }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 tabular-nums">{{ Phone::format($addr->contact_phone) }}</span>
                         </div>
                     </div>
                 </div>
@@ -243,7 +243,7 @@ class extends Component {
                             <button type="button" wire:click="setDefault({{ $addr->id }})" class="text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-medium">Varsayılan yap</button>
                         @endif
                     </div>
-                    <button type="button" wire:click="deleteAddress({{ $addr->id }})" wire:confirm="Bu adresi defterinizden silmek istediğinize emin misiniz?" class="text-rose-400 hover:text-rose-300 font-medium flex items-center gap-1 transition-colors">
+                    <button type="button" wire:click="deleteAddress({{ $addr->id }})" wire:confirm="Bu adresi defterinizden silmek istediğinize emin misiniz?" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 font-medium flex items-center gap-1 transition-colors">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
@@ -297,7 +297,7 @@ class extends Component {
 
                         <div>
                             <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yetkili telefonu <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
+                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
                             @error('contact_phone') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>

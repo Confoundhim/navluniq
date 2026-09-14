@@ -213,10 +213,10 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -235,12 +235,12 @@ class extends Component {
     </div>
 
     @if(! $kycApproved)
-        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>Teklif verebilmek için sürücü belgelerinizin onaylanmış olması gerekir.</span>
             <a href="{{ route('driver.profile.index') }}" wire:navigate class="shrink-0 font-bold underline">Belgeleri yükle</a>
         </div>
     @elseif(! $hasActiveVehicle)
-        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>Teklif verebilmek için en az bir aktif aracınız olmalı.</span>
             <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="shrink-0 font-bold underline">Araç ekle</a>
         </div>
@@ -325,11 +325,11 @@ class extends Component {
                     </div>
                     <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
                         <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
-                            {{ $offer->status === 'accepted' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($offer->status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
+                            {{ $offer->status === 'accepted' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($offer->status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
                             {{ \App\Models\Offer::STATUS_LABELS[$offer->status] ?? $offer->status }}
                         </span>
                         @if($offer->status === 'pending')
-                            <button type="button" wire:click="withdrawOffer({{ $offer->id }})" wire:confirm="Teklifinizi geri çekmek istediğinize emin misiniz?" class="text-rose-400 hover:text-rose-300 font-bold">Geri çek</button>
+                            <button type="button" wire:click="withdrawOffer({{ $offer->id }})" wire:confirm="Teklifinizi geri çekmek istediğinize emin misiniz?" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 font-bold">Geri çek</button>
                         @elseif($offer->status === 'accepted' && $offerLoad)
                             <a href="{{ route('driver.shipments.show', $offerLoad->id) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Sevkiyata git</a>
                         @endif
@@ -366,7 +366,7 @@ class extends Component {
                     @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; @endphp
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                         <div class="space-y-1.5 flex-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
                             <div class="text-neutral-500 dark:text-neutral-400">
                                 {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}
                                 @if($item->weight) · {{ number_format((int) ($item->weight ?? 0), 0, ',', '.') }} kg @endif
@@ -375,7 +375,7 @@ class extends Component {
                             <div class="text-neutral-500">Derlendi: {{ $item->created_at?->format('d.m.Y H:i') }}</div>
                         </div>
                         <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
-                            <div class="text-neutral-900 dark:text-white font-mono font-bold">
+                            <div class="text-neutral-900 dark:text-white tabular-nums font-bold">
                                 @if($item->price !== null)
                                     {{ number_format((float) $item->price, 2, ',', '.') }} ₺
                                 @else
@@ -384,11 +384,11 @@ class extends Component {
                             </div>
                             @if($fullPhone)
                                                                 <div class="flex items-center gap-3">
-                                    <a href="tel:+90{{ $plainPhone }}" class="text-brand-400 font-mono font-bold hover:underline">{{ $fullPhone }}</a>
-                                    <a href="https://wa.me/90{{ $plainPhone }}" target="_blank" rel="noopener" class="text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                    <a href="tel:+90{{ $plainPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ $fullPhone }}</a>
+                                    <a href="https://wa.me/90{{ $plainPhone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
                                 </div>
                             @else
-                                <span class="text-neutral-500 dark:text-neutral-400 font-mono">{{ $plainPhone ? '0'.substr($plainPhone, 0, 3).' *** ** '.substr($plainPhone, -2) : 'Bilinmiyor' }}</span>
+                                <span class="text-neutral-500 dark:text-neutral-400 tabular-nums">{{ $plainPhone ? '0'.substr($plainPhone, 0, 3).' *** ** '.substr($plainPhone, -2) : 'Bilinmiyor' }}</span>
                             @endif
                         </div>
                     </div>
@@ -415,13 +415,13 @@ class extends Component {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Teklif tutarı (₺)</label>
-                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
                         @error('amount') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         <span class="text-[11px] text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
                     </div>
                     <div>
                         <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Tahmini süre (gün)</label>
-                        <input type="number" min="1" max="30" wire:model="estimated_days" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <input type="number" min="1" max="30" wire:model="estimated_days" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
                         @error('estimated_days') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
@@ -433,7 +433,7 @@ class extends Component {
                 </div>
 
                 @if(! $kycApproved)
-                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
                         Teklif verebilmek için belgelerinizin onaylanmış olması gerekir.
                         <a href="{{ route('driver.profile.index') }}" wire:navigate class="font-bold underline">Belgeleri yükle</a>
                     </div>
@@ -442,7 +442,7 @@ class extends Component {
                     </div>
                 @else
                     @if(! $hasActiveVehicle)
-                        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300">
+                        <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
                             Teklif verebilmek için aktif bir aracınız olmalı.
                             <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="font-bold underline">Araç ekle</a>
                         </div>

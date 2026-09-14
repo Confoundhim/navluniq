@@ -65,7 +65,7 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -81,7 +81,7 @@ class extends Component {
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödendi</div>
-            <div class="mt-2 text-2xl font-black text-emerald-400 tabular-nums">{{ number_format((float) ($summary['paid'] ?? 0), 2, ',', '.') }} ₺</div>
+            <div class="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{{ number_format((float) ($summary['paid'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Banka hesabınıza aktarılan toplam</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
@@ -131,7 +131,7 @@ class extends Component {
                                         <td class="py-3 pr-3 tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
                                         <td class="py-3 pr-3">
                                             <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
-                                                {{ $payout->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($payout->status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400') }}">
+                                                {{ $payout->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($payout->status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
                                                 {{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}
                                             </span>
                                         </td>
@@ -177,7 +177,7 @@ class extends Component {
                         <div class="text-[11px] text-neutral-500">{{ $bankAccount->is_verified ? 'Doğrulandı' : 'Finans ekibi ilk transferde doğrular' }}</div>
                     </div>
                 @else
-                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300">Kayıtlı IBAN adresiniz yok. Hakedişlerinizin aktarılabilmesi için IBAN ekleyin.</div>
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kayıtlı IBAN adresiniz yok. Hakedişlerinizin aktarılabilmesi için IBAN ekleyin.</div>
                 @endif
 
                 <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-4">

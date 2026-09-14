@@ -140,7 +140,7 @@ new class extends Component {
                             <div class="p-3.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-apple rounded-2xl border border-neutral-200/50 dark:border-neutral-800 space-y-1 shadow-apple-sm">
                                 <span class="text-[10px] text-neutral-400 font-semibold block">Güzergah & Escrow Durumu</span>
                                 <div class="text-xs sm:text-sm font-black text-neutral-900 dark:text-white">Ankara Ostim → İzmir Aliağa</div>
-                                <div class="text-xs text-brand-500 font-bold font-mono">18.500,00 ₺ • Güvenli havuzda bekliyor</div>
+                                <div class="text-xs text-brand-500 font-bold tabular-nums">18.500,00 ₺ • Güvenli havuzda bekliyor</div>
                             </div>
 
                             <div class="p-3 bg-white/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/40 dark:border-neutral-800/40 flex items-center justify-between text-[11px]">

@@ -100,7 +100,7 @@ class extends Component {
 <div class="max-w-3xl mx-auto space-y-6">
 
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             {{ session('error_message') }}
         </div>
     @endif
@@ -112,11 +112,11 @@ class extends Component {
             </a>
             <h2 class="mt-2 text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span>Güvenli ödeme</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 tabular-nums text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
         </div>
         @if($configured && $sandbox)
-            <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300">Test (sandbox) modu</span>
+            <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Test (sandbox) modu</span>
         @endif
     </div>
 
@@ -166,7 +166,7 @@ class extends Component {
             </div>
         @elseif(! $configured)
             <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-3 text-xs">
-                <h3 class="text-sm font-bold text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
+                <h3 class="text-sm font-bold text-amber-800 dark:text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
                 <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                     Ödeme sağlayıcısı henüz bu ortam için etkinleştirilmedi; bu nedenle şu anda kart ile tahsilat yapılamıyor.
                     Ödeme altyapısı açıldığında bu sayfadan {{ number_format($amounts['total'], 2, ',', '.') }} ₺ tutarındaki bedeli güvenli havuza yatırabileceksiniz.
@@ -175,7 +175,7 @@ class extends Component {
             </div>
         @elseif($tokenError)
             <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">
-                <h3 class="text-sm font-bold text-rose-300">Ödeme sayfası açılamadı</h3>
+                <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Ödeme sayfası açılamadı</h3>
                 <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $tokenError }}</p>
                 <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
             </div>

@@ -80,7 +80,7 @@ class extends Component {
 
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5">
             <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-2">Güvenli havuzda bloke</span>
-            <div class="text-3xl font-extrabold text-brand-400 font-mono">
+            <div class="text-3xl font-extrabold text-brand-400 tabular-nums">
                 {{ number_format($inEscrow, 2, ',', '.') }} <span class="text-lg text-neutral-900 dark:text-white">₺</span>
             </div>
             <div class="text-[11px] text-neutral-500 mt-2">Teslimat onayına kadar tutulan navlun bedelleri</div>
@@ -88,8 +88,8 @@ class extends Component {
 
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5">
             <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-2">Toplam ödenen</span>
-            <div class="text-3xl font-extrabold text-neutral-900 dark:text-white font-mono">
-                {{ number_format($totalPaid, 2, ',', '.') }} <span class="text-lg text-emerald-400">₺</span>
+            <div class="text-3xl font-extrabold text-neutral-900 dark:text-white tabular-nums">
+                {{ number_format($totalPaid, 2, ',', '.') }} <span class="text-lg text-emerald-600 dark:text-emerald-400">₺</span>
             </div>
             <div class="text-[11px] text-neutral-500 mt-2">Sağlayıcı bildirimiyle doğrulanmış ödemeler</div>
         </div>
@@ -140,7 +140,7 @@ class extends Component {
                             <td class="py-4 px-5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
                             <td class="py-4 px-5">
                                 <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
-                                    {{ $order->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : (in_array($order->status, ['failed'], true) ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
+                                    {{ $order->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : (in_array($order->status, ['failed'], true) ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
                                     {{ $orderStatusLabels[$order->status] ?? $order->status }}
                                 </span>
                             </td>
@@ -189,7 +189,7 @@ class extends Component {
                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800 text-neutral-700 dark:text-neutral-300">
                     @forelse($invoices as $invoice)
                         <tr class="hover:bg-neutral-100 dark:hover:bg-neutral-800/40 transition-colors">
-                            <td class="py-4 px-5 font-mono font-bold text-neutral-900 dark:text-white">{{ $invoice->invoice_no ?: '—' }}</td>
+                            <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $invoice->invoice_no ?: '—' }}</td>
                             <td class="py-4 px-5">
                                 <span class="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 text-[11px] font-bold">
                                     {{ ['commission' => 'Hizmet bedeli', 'subscription' => 'Abonelik', 'escrow' => 'Navlun'][$invoice->invoice_type] ?? $invoice->invoice_type }}

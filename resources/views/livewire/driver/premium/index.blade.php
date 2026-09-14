@@ -44,7 +44,7 @@ class extends Component {
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                         <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Üyelik durumu</h3>
-                        <div class="mt-1 text-base font-bold {{ $isPremium ? 'text-amber-300' : 'text-neutral-900 dark:text-white' }}">
+                        <div class="mt-1 text-base font-bold {{ $isPremium ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-900 dark:text-white' }}">
                             {{ $isPremium ? 'Premium aktif' : 'Standart üyelik' }}
                         </div>
                         <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -64,7 +64,7 @@ class extends Component {
                 </div>
 
                 @if(! $paymentReady)
-                    <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs leading-relaxed">
+                    <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
                         Ödeme altyapısı aktivasyon aşamasında; premium satın alma yakında. Altyapı devreye alındığında bu sayfadan abonelik başlatabileceksiniz.
                     </div>
                 @else

@@ -105,7 +105,7 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
@@ -113,7 +113,7 @@ class extends Component {
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
             <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
-                <span class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+                <span class="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
@@ -153,9 +153,9 @@ class extends Component {
 
                 <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div class="flex flex-wrap items-center gap-3">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-xs font-bold">Uyuşmazlık #{{ $dispute->id }}</span>
+                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 tabular-nums text-xs font-bold">Uyuşmazlık #{{ $dispute->id }}</span>
                         <span class="px-2.5 py-0.5 rounded-full border text-[11px] font-bold
-                            {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($dispute->status === 'resolved_owner_refunded' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400') }}">
+                            {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($dispute->status === 'resolved_owner_refunded' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400') }}">
                             {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}
                         </span>
                     </div>
@@ -266,7 +266,7 @@ class extends Component {
                     </div>
                 </div>
 
-                <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-300 leading-relaxed">
+                <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
                     Uyuşmazlık açıldığında havuzdaki navlun bedeli karar verilene kadar askıya alınır ve şoföre aktarılmaz.
                 </div>
 

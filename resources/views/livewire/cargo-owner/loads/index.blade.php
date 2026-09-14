@@ -94,13 +94,13 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
 
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             {{ session('error_message') }}
         </div>
     @endif
@@ -127,11 +127,11 @@ class extends Component {
         @forelse($loads as $load)
             @php
                 $statusTone = match ($load->status) {
-                    'active_seeking' => 'bg-blue-500/10 border-blue-500/20 text-blue-400',
+                    'active_seeking' => 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400',
                     'driver_assigned', 'on_the_way' => 'bg-brand-500/10 border-brand-500/20 text-brand-400',
-                    'delivered' => 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-                    'completed' => 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-                    'disputed' => 'bg-rose-500/10 border-rose-500/20 text-rose-400',
+                    'delivered' => 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400',
+                    'completed' => 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+                    'disputed' => 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400',
                     default => 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400',
                 };
                 $pendingPayment = $load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment';
@@ -140,7 +140,7 @@ class extends Component {
 
                 <div class="space-y-3 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
+                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 tabular-nums text-[11px] font-bold">#{{ $load->id }}</span>
                         <span class="px-2.5 py-1 rounded-full border text-[11px] font-bold {{ $statusTone }}">{{ $load->statusLabel() }}</span>
                         @if($load->status !== 'active_seeking' && $load->status !== 'cancelled')
                             <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->escrowLabel() }}</span>
@@ -175,7 +175,7 @@ class extends Component {
                         @if($load->e_irsaliye_no)
                             <div class="flex items-center gap-1">
                                 <span class="text-neutral-500">e-İrsaliye:</span>
-                                <span class="text-neutral-700 dark:text-neutral-300 font-mono">{{ $load->e_irsaliye_no }}</span>
+                                <span class="text-neutral-700 dark:text-neutral-300 tabular-nums">{{ $load->e_irsaliye_no }}</span>
                             </div>
                         @endif
                     </div>
@@ -184,7 +184,7 @@ class extends Component {
                 <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-200 dark:border-neutral-800">
                     <div class="text-left lg:text-right">
                         <span class="text-[11px] text-neutral-500 uppercase tracking-wider block">{{ $load->status === 'active_seeking' ? 'Navlun bedeli' : 'Anlaşılan bedel' }}</span>
-                        <div class="text-2xl font-black text-neutral-900 dark:text-white font-mono">
+                        <div class="text-2xl font-black text-neutral-900 dark:text-white tabular-nums">
                             {{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} <span class="text-brand-500 text-lg">₺</span>
                         </div>
                     </div>

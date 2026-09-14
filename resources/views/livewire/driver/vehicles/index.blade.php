@@ -193,10 +193,10 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -213,14 +213,14 @@ class extends Component {
                 <div class="flex items-center justify-between gap-2">
                     <div class="text-base font-black text-neutral-900 dark:text-white font-mono">{{ $vehicle->plate }}</div>
                     @if($vehicle->is_active)
-                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[11px]">Aktif</span>
+                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">Aktif</span>
                     @else
                         <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-bold text-[11px]">Pasif</span>
                     @endif
                 </div>
                 <div class="text-neutral-700 dark:text-neutral-300">{{ $vehicle->brand }} {{ $vehicle->model }}</div>
                 <div class="text-neutral-500">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</div>
-                <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-400' : 'text-neutral-500' }}">
+                <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500' }}">
                     {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
                 </div>
                 <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-2">
@@ -228,7 +228,7 @@ class extends Component {
                         <button type="button" wire:click="activate({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-500/30 text-brand-400 font-bold hover:bg-brand-500/20">Aktif yap</button>
                     @endif
                     <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold hover:bg-neutral-200 dark:hover:bg-neutral-700">Düzenle</button>
-                    <button type="button" wire:click="delete({{ $vehicle->id }})" wire:confirm="{{ $vehicle->plate }} plakalı aracı silmek istediğinize emin misiniz?" class="px-3 py-2 rounded-xl border border-rose-500/30 text-rose-300 font-bold hover:bg-rose-500/10">Sil</button>
+                    <button type="button" wire:click="delete({{ $vehicle->id }})" wire:confirm="{{ $vehicle->plate }} plakalı aracı silmek istediğinize emin misiniz?" class="px-3 py-2 rounded-xl border border-rose-500/30 text-rose-700 dark:text-rose-300 font-bold hover:bg-rose-500/10">Sil</button>
                 </div>
             </div>
         @empty

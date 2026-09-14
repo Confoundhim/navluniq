@@ -150,13 +150,13 @@ class extends Component {
 <div class="space-y-6">
 
     @if (session()->has('success_message'))
-        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
             {{ session('success_message') }}
         </div>
     @endif
 
     @if (session()->has('error_message'))
-        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold">
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             {{ session('error_message') }}
         </div>
     @endif
@@ -168,7 +168,7 @@ class extends Component {
             </a>
             <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span>Sevkiyat takibi</span>
-                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
+                <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 tabular-nums text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
         </div>
 
@@ -200,7 +200,7 @@ class extends Component {
         @endif
 
         @if($openDispute)
-            <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Havuz ödemesi karar verilene kadar askıda.</span>
                 <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
             </div>
@@ -282,7 +282,7 @@ class extends Component {
                         @endif
                         <span>Araç tipi: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span></span>
                         @if($load->e_irsaliye_no)
-                            <span>e-İrsaliye: <span class="text-neutral-800 dark:text-neutral-200 font-mono">{{ $load->e_irsaliye_no }}</span></span>
+                            <span>e-İrsaliye: <span class="text-neutral-800 dark:text-neutral-200 tabular-nums">{{ $load->e_irsaliye_no }}</span></span>
                         @endif
                         @if($load->e_irsaliye_path)
                             <a href="{{ route('files.e-irsaliye', $load->id) }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">e-İrsaliye belgesi</a>
@@ -298,7 +298,7 @@ class extends Component {
                             <div class="relative pl-6 text-xs">
                                 <span class="absolute left-0 top-0.5 w-3 h-3 rounded-full border-2 {{ $done ? 'bg-brand-500 border-brand-500' : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700' }}"></span>
                                 <div class="font-semibold {{ $done ? 'text-neutral-900 dark:text-white' : 'text-neutral-500' }}">{{ $step['label'] }}</div>
-                                <div class="text-[11px] text-neutral-500 font-mono">{{ $step['at']?->format('d.m.Y H:i') ?? ($done ? 'Tamamlandı' : 'Bekleniyor') }}</div>
+                                <div class="text-[11px] text-neutral-500 tabular-nums">{{ $step['at']?->format('d.m.Y H:i') ?? ($done ? 'Tamamlandı' : 'Bekleniyor') }}</div>
                             </div>
                         @endforeach
                     </div>
@@ -348,7 +348,7 @@ class extends Component {
                         <div class="flex items-center gap-2">
                             @for($i = 1; $i <= 5; $i++)
                                 <button type="button" wire:click="$set('rating', {{ $i }})" class="p-1 transition-transform hover:scale-110" aria-label="{{ $i }} puan">
-                                    <svg class="w-7 h-7 {{ $i <= $rating ? 'text-amber-400' : 'text-neutral-700' }}" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg class="w-7 h-7 {{ $i <= $rating ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-700' }}" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                     </svg>
                                 </button>
@@ -384,13 +384,13 @@ class extends Component {
                                 <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $driverUser->full_name }}</div>
                                 <div class="text-xs text-neutral-500 dark:text-neutral-400">
                                     @if($load->isPaid() && $driverUser->phone)
-                                        <a href="tel:0{{ Phone::normalize($driverUser->phone) ?? preg_replace('/\D/', '', $driverUser->phone) }}" class="font-mono text-brand-400 hover:underline">{{ Phone::format(Phone::normalize($driverUser->phone) ?? $driverUser->phone) }}</a>
+                                        <a href="tel:0{{ Phone::normalize($driverUser->phone) ?? preg_replace('/\D/', '', $driverUser->phone) }}" class="tabular-nums text-brand-400 hover:underline">{{ Phone::format(Phone::normalize($driverUser->phone) ?? $driverUser->phone) }}</a>
                                     @else
                                         Telefon, ödeme havuza alındıktan sonra görünür.
                                     @endif
                                 </div>
                                 @if($load->driverProfile?->isKycApproved())
-                                    <div class="text-[11px] text-emerald-400 font-semibold mt-0.5">Belgeleri doğrulandı</div>
+                                    <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">Belgeleri doğrulandı</div>
                                 @endif
                             </div>
                         </div>
