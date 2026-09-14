@@ -131,26 +131,26 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Güvenlik Duvarı</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Yasaklı adresler her istekte denetlenir; liste 60 saniye önbellekte tutulur ve her değişiklikte temizlenir.</p>
+        <p class="page-subtitle">Yasaklı adresler her istekte denetlenir; liste 60 saniye önbellekte tutulur ve her değişiklikte temizlenir.</p>
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
         <form wire:submit="ban" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">IP yasakla</h2>
             <div>
-                <label class="text-[11px] font-semibold text-neutral-500">IP adresi</label>
+                <label class="form-label">IP adresi</label>
                 <input type="text" wire:model="ipAddress" placeholder="203.0.113.10" class="{{ $input }} font-mono">
                 @error('ipAddress') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 <span class="text-[11px] text-neutral-400">Bağlı olduğunuz adres: {{ $currentIp }}</span>
             </div>
             <div>
-                <label class="text-[11px] font-semibold text-neutral-500">Gerekçe</label>
+                <label class="form-label">Gerekçe</label>
                 <input type="text" wire:model="reason" class="{{ $input }}">
                 @error('reason') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
             </div>
             <div class="grid grid-cols-2 gap-2">
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Süre</label>
+                    <label class="form-label">Süre</label>
                     <select wire:model.live="banType" class="{{ $input }}">
                         <option value="permanent">Kalıcı</option>
                         <option value="temporary">Geçici</option>
@@ -158,7 +158,7 @@ new class extends Component {
                 </div>
                 @if($banType === 'temporary')
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Gün</label>
+                        <label class="form-label">Gün</label>
                         <input type="number" min="1" max="365" wire:model="banDays" class="{{ $input }}">
                         @error('banDays') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                     </div>

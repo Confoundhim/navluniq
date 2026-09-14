@@ -1,5 +1,5 @@
 @props(['title' => 'Şoför Paneli'])
-<x-layouts.panel :title="$title" role-label="Şoför paneli" role-color="text-emerald-500" dashboard-route="driver.dashboard"
+<x-layouts.panel :title="$title" role-label="Şoför paneli" role-color="text-emerald-500" role-icon="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" dashboard-route="driver.dashboard"
     :primary-action="['label' => 'İlan havuzu', 'route' => 'driver.loads.index']"
     :nav="[
         ['label' => 'Genel bakış', 'route' => 'driver.dashboard', 'match' => 'driver.dashboard', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'],

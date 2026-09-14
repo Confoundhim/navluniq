@@ -120,10 +120,10 @@ class extends Component {
                 </span>
                 <span>Uyuşmazlık merkezi</span>
             </h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; havuzdaki ödeme karar verilene kadar askıya alınır.</p>
+            <p class="page-subtitle">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; havuzdaki ödeme karar verilene kadar askıya alınır.</p>
         </div>
 
-        <button type="button" wire:click="openModal" class="px-5 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 transition-all flex items-center justify-center gap-2 active:scale-95">
+        <button type="button" wire:click="openModal" class="btn-primary bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 py-2 text-xs">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
@@ -239,8 +239,8 @@ class extends Component {
 
                 <div class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Sevkiyat <span class="text-brand-500">*</span></label>
-                        <select wire:model="selected_load_id" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <label class="form-label">Sevkiyat <span class="text-brand-500">*</span></label>
+                        <select wire:model="selected_load_id" class="form-input">
                             <option value="">Sevkiyat seçin</option>
                             @foreach($eligibleLoads as $l)
                                 <option value="{{ $l->id }}">#{{ $l->id }} · {{ $l->pickup_location }} &rarr; {{ $l->delivery_location }} ({{ number_format((float) ($l->price ?? 0), 2, ',', '.') }} ₺)</option>
@@ -249,20 +249,20 @@ class extends Component {
                         @if($eligibleLoads->isEmpty())
                             <p class="text-[11px] text-neutral-500 mt-1">Şu anda uyuşmazlık açılabilecek sevkiyatınız yok. Uyuşmazlık yalnız yolda veya teslim edilmiş ve ödemesi havuzda bekleyen sevkiyatlar için açılabilir.</p>
                         @endif
-                        @error('selected_load_id') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        @error('selected_load_id') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yaşanan sorun <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="claim" rows="4" maxlength="3000" placeholder="Hasar, eksik miktar veya gecikme gibi durumu ayrıntılı yazın." class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('claim') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Yaşanan sorun <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="claim" rows="4" maxlength="3000" placeholder="Hasar, eksik miktar veya gecikme gibi durumu ayrıntılı yazın." class="form-input"></textarea>
+                        @error('claim') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Fotoğraf / belge (isteğe bağlı, JPG, PNG, PDF)</label>
+                        <label class="form-label">Fotoğraf / belge (isteğe bağlı, JPG, PNG, PDF)</label>
                         <input type="file" wire:model="claim_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-xs text-neutral-500 dark:text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-800 dark:file:text-neutral-200 hover:file:bg-neutral-300 dark:hover:file:bg-neutral-700 cursor-pointer">
                         <div wire:loading wire:target="claim_photo" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
-                        @error('claim_photo') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        @error('claim_photo') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
@@ -271,8 +271,8 @@ class extends Component {
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">
-                    <button type="button" wire:click="$set('createModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
-                    <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold shadow-lg shadow-rose-500/20 transition-all">
+                    <button type="button" wire:click="$set('createModalOpen', false)" class="btn-secondary flex-1 py-2 text-xs">Vazgeç</button>
+                    <button type="submit" wire:loading.attr="disabled" class="btn-primary bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 flex-1 py-2 text-xs">
                         <span wire:loading.remove wire:target="submitDispute">Uyuşmazlığı aç</span>
                         <span wire:loading wire:target="submitDispute">Gönderiliyor...</span>
                     </button>

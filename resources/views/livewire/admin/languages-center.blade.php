@@ -22,7 +22,7 @@ new class extends Component {
 <div class="max-w-3xl mx-auto space-y-6">
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Çoklu Dil</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Çoklu dil desteği bu sürümde etkin değil.</p>
+        <p class="page-subtitle">Çoklu dil desteği bu sürümde etkin değil.</p>
     </div>
 
     <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">

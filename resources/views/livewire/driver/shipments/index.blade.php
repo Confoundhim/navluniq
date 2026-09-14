@@ -45,8 +45,8 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Sevkiyatlarım</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Teklifi kabul edilmiş yüklerinizin sevkiyat ve ödeme durumu.</p>
+            <h2 class="page-title">Sevkiyatlarım</h2>
+            <p class="page-subtitle">Teklifi kabul edilmiş yüklerinizin sevkiyat ve ödeme durumu.</p>
         </div>
         <div class="flex gap-2 text-xs">
             <button type="button" wire:click="setTab('active')" class="px-4 py-2 rounded-xl font-bold border transition-colors {{ $tab === 'active' ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white' }}">Aktif</button>

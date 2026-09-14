@@ -69,8 +69,8 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Cüzdan ve Hakedişlerim</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Hakedişleriniz, teslimat onayından sonra finans ekibi tarafından kayıtlı IBAN adresinize banka transferiyle aktarılır.</p>
+        <h2 class="page-title">Cüzdan ve Hakedişlerim</h2>
+        <p class="page-subtitle">Hakedişleriniz, teslimat onayından sonra finans ekibi tarafından kayıtlı IBAN adresinize banka transferiyle aktarılır.</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -100,7 +100,7 @@ class extends Component {
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Hakediş kayıtları</h3>
+                <h3 class="section-title">Hakediş kayıtları</h3>
 
                 @if($payouts->count())
                     <div class="responsive-scroll overflow-x-auto">
@@ -151,7 +151,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Faturalar</h3>
+                <h3 class="section-title">Faturalar</h3>
                 @forelse($invoices as $invoice)
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                         <div>
@@ -168,7 +168,7 @@ class extends Component {
 
         <div class="space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme alacağınız hesap</h3>
+                <h3 class="section-title">Ödeme alacağınız hesap</h3>
 
                 @if($bankAccount)
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
@@ -182,16 +182,16 @@ class extends Component {
 
                 <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-4">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
-                        <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
-                        @error('iban') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
+                        <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="form-input font-mono">
+                        @error('iban') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Hesap sahibi</label>
-                        <input type="text" wire:model="account_holder" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('account_holder') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Hesap sahibi</label>
+                        <input type="text" wire:model="account_holder" class="form-input">
+                        @error('account_holder') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
+                    <button type="submit" class="btn-primary w-full" wire:loading.attr="disabled">
                         <span wire:loading.remove wire:target="saveBankAccount">IBAN kaydet</span>
                         <span wire:loading wire:target="saveBankAccount">Kaydediliyor...</span>
                     </button>
@@ -199,7 +199,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme süreci</h3>
+                <h3 class="section-title">Ödeme süreci</h3>
                 <p>Yük sahibi teslimatı onayladığında hakedişiniz komisyon düşülerek ödeme sırasına alınır.</p>
                 <p>Transfer, finans ekibi tarafından kayıtlı IBAN adresinize yapılır; ödeme tamamlandığında referans numarası bu sayfada görünür.</p>
             </div>

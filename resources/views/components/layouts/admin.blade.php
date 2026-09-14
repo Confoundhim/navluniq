@@ -56,7 +56,7 @@
                 <div
                     class="p-5 border-b border-neutral-100 dark:border-neutral-800/60 flex items-center justify-between">
                     <a href="{{ route('admin.dashboard') }}"
-                        class="flex flex-col items-start group select-none">
+                        class="flex flex-col items-start group select-none transition-transform duration-300 ease-apple-ease hover:scale-[1.03]">
                         <div class="flex items-center space-x-2">
                             <!-- Açık Tema Logosu -->
                             <img src="/images/logo-dark.png"

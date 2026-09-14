@@ -186,7 +186,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Personel ve İzinler</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Panele yalnız tanımlı personel rolleri girebilir; yeni rol türü eklemek kod değişikliği gerektirir.</p>
+        <p class="page-subtitle">Panele yalnız tanımlı personel rolleri girebilir; yeni rol türü eklemek kod değişikliği gerektirir.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
@@ -199,14 +199,14 @@ new class extends Component {
             <form wire:submit="createStaff" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yeni personel</h2>
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="text-[11px] font-semibold text-neutral-500">Ad</label><input type="text" wire:model="firstName" class="{{ $input }}">@error('firstName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
-                    <div><label class="text-[11px] font-semibold text-neutral-500">Soyad</label><input type="text" wire:model="lastName" class="{{ $input }}">@error('lastName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                    <div><label class="form-label">Ad</label><input type="text" wire:model="firstName" class="{{ $input }}">@error('firstName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                    <div><label class="form-label">Soyad</label><input type="text" wire:model="lastName" class="{{ $input }}">@error('lastName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 </div>
-                <div><label class="text-[11px] font-semibold text-neutral-500">E-posta</label><input type="email" wire:model="email" class="{{ $input }}">@error('email') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
-                <div><label class="text-[11px] font-semibold text-neutral-500">Telefon</label><input type="text" wire:model="phone" placeholder="05XX XXX XX XX" class="{{ $input }}">@error('phone') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
-                <div><label class="text-[11px] font-semibold text-neutral-500">Şifre (en az 12 karakter)</label><input type="password" wire:model="password" autocomplete="new-password" class="{{ $input }}">@error('password') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div><label class="form-label">E-posta</label><input type="email" wire:model="email" class="{{ $input }}">@error('email') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div><label class="form-label">Telefon</label><input type="text" wire:model="phone" placeholder="05XX XXX XX XX" class="{{ $input }}">@error('phone') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
+                <div><label class="form-label">Şifre (en az 12 karakter)</label><input type="password" wire:model="password" autocomplete="new-password" class="{{ $input }}">@error('password') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Rol</label>
+                    <label class="form-label">Rol</label>
                     <select wire:model="role" class="{{ $input }}">
                         @foreach($assignable as $name)
                             <option value="{{ $name }}">{{ $roleLabels[$name] ?? $name }}</option>

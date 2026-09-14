@@ -175,7 +175,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Dış Kaynak İlanları</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Dış kaynaklardan gelen ilan adayları burada incelenir; yalnız onaylananlar şoför havuzunda görünür.</p>
+        <p class="page-subtitle">Dış kaynaklardan gelen ilan adayları burada incelenir; yalnız onaylananlar şoför havuzunda görünür.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
@@ -245,12 +245,12 @@ new class extends Component {
             <form wire:submit="addSource" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yeni kaynak</h2>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Ad</label>
+                    <label class="form-label">Ad</label>
                     <input type="text" wire:model="sourceName" class="{{ $input }}">
                     @error('sourceName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Tür</label>
+                    <label class="form-label">Tür</label>
                     <select wire:model="sourceType" class="{{ $input }}">
                         <option value="whatsapp">WhatsApp grubu</option>
                         <option value="telegram">Telegram kanalı</option>
@@ -258,7 +258,7 @@ new class extends Component {
                     </select>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Tanımlayıcı (grup kimliği veya adres)</label>
+                    <label class="form-label">Tanımlayıcı (grup kimliği veya adres)</label>
                     <input type="text" wire:model="sourceIdentifier" class="{{ $input }} font-mono">
                     @error('sourceIdentifier') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>

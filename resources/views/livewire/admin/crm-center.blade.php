@@ -264,7 +264,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Pazarlama ve CRM</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">İndirim kuponları ve kullanıcı segmentlerine e-posta duyurusu.</p>
+        <p class="page-subtitle">İndirim kuponları ve kullanıcı segmentlerine e-posta duyurusu.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
@@ -277,32 +277,32 @@ new class extends Component {
             <form wire:submit="saveCoupon" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $editingId ? 'Kuponu düzenle' : 'Yeni kupon' }}</h2>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Kod</label>
+                    <label class="form-label">Kod</label>
                     <input type="text" wire:model="code" placeholder="ORNEK10" class="{{ $input }} uppercase">
                     @error('code') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Tür</label>
+                        <label class="form-label">Tür</label>
                         <select wire:model.live="type" class="{{ $input }}">
                             <option value="percentage">Yüzde</option>
                             <option value="fixed">Sabit tutar (₺)</option>
                         </select>
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Değer</label>
+                        <label class="form-label">Değer</label>
                         <input type="text" inputmode="decimal" wire:model="value" class="{{ $input }}">
                         @error('value') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Kullanım limiti</label>
+                        <label class="form-label">Kullanım limiti</label>
                         <input type="number" min="1" wire:model="usageLimit" placeholder="Sınırsız" class="{{ $input }}">
                         @error('usageLimit') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Son kullanma</label>
+                        <label class="form-label">Son kullanma</label>
                         <input type="date" wire:model="expiresAt" class="{{ $input }}">
                         @error('expiresAt') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                     </div>
@@ -359,7 +359,7 @@ new class extends Component {
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Segmente e-posta duyurusu</h2>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Rol</label>
+                    <label class="form-label">Rol</label>
                     <select wire:model.live="segmentRole" class="{{ $input }}">
                         <option value="driver">Şoförler</option>
                         <option value="cargo_owner">Yük sahipleri</option>
@@ -367,7 +367,7 @@ new class extends Component {
                     </select>
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">KYC</label>
+                    <label class="form-label">KYC</label>
                     <select wire:model.live="segmentKyc" class="{{ $input }}">
                         <option value="all">Tüm kullanıcılar</option>
                         <option value="approved">Yalnız KYC onaylılar</option>
@@ -378,12 +378,12 @@ new class extends Component {
                 @endif
             </div>
             <div>
-                <label class="text-[11px] font-semibold text-neutral-500">Konu</label>
+                <label class="form-label">Konu</label>
                 <input type="text" wire:model="subject" class="{{ $input }}">
                 @error('subject') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
             </div>
             <div>
-                <label class="text-[11px] font-semibold text-neutral-500">Mesaj (boş satırla paragraf ayırın)</label>
+                <label class="form-label">Mesaj (boş satırla paragraf ayırın)</label>
                 <textarea wire:model="message" rows="6" class="{{ $input }}"></textarea>
                 @error('message') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
             </div>

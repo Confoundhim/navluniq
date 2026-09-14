@@ -194,10 +194,10 @@ class extends Component {
                 </span>
                 <span>Kayıtlı adres defterim</span>
             </h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Sık kullandığınız yükleme ve teslimat noktalarını kaydedin, ilan oluştururken tek tıkla seçin.</p>
+            <p class="page-subtitle">Sık kullandığınız yükleme ve teslimat noktalarını kaydedin, ilan oluştururken tek tıkla seçin.</p>
         </div>
 
-        <button type="button" wire:click="openCreate" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95">
+        <button type="button" wire:click="openCreate" class="btn-primary py-2 text-xs">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
@@ -283,65 +283,65 @@ class extends Component {
 
                 <div class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Adres başlığı <span class="text-brand-500">*</span></label>
-                        <input type="text" wire:model="title" maxlength="120" placeholder="Örn: Merkez depo" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('title') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Adres başlığı <span class="text-brand-500">*</span></label>
+                        <input type="text" wire:model="title" maxlength="120" placeholder="Örn: Merkez depo" class="form-input">
+                        @error('title') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yetkili kişi <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="contact_person" maxlength="120" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                            @error('contact_person') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Yetkili kişi <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="contact_person" maxlength="120" class="form-input">
+                            @error('contact_person') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yetkili telefonu <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
-                            @error('contact_phone') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Yetkili telefonu <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="form-input tabular-nums">
+                            @error('contact_phone') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">İl <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="city" maxlength="96" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                            @error('city') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">İl <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="city" maxlength="96" class="form-input">
+                            @error('city') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">İlçe <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="district" maxlength="96" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                            @error('district') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">İlçe <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="district" maxlength="96" class="form-input">
+                            @error('district') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
 
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Açık adres <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="address_detail" rows="3" maxlength="1000" placeholder="Mahalle, cadde, sokak, kapı numarası" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('address_detail') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Açık adres <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="address_detail" rows="3" maxlength="1000" placeholder="Mahalle, cadde, sokak, kapı numarası" class="form-input"></textarea>
+                        @error('address_detail') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kullanım amacı</label>
-                            <select wire:model="type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+                            <label class="form-label">Kullanım amacı</label>
+                            <select wire:model="type" class="form-input">
                                 <option value="both">Yükleme ve teslimat</option>
                                 <option value="pickup">Yalnız yükleme (çıkış)</option>
                                 <option value="delivery">Yalnız teslimat (varış)</option>
                             </select>
-                            @error('type') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            @error('type') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <label class="flex items-center gap-2 cursor-pointer py-2.5">
-                            <input type="checkbox" wire:model="is_default" class="w-4 h-4 rounded bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-brand-500 focus:ring-brand-500/20">
+                            <input type="checkbox" wire:model="is_default" class="form-input h-4">
                             <span class="text-neutral-700 dark:text-neutral-300">Varsayılan adres olsun</span>
                         </label>
                     </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">
-                    <button type="button" wire:click="$set('modalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
-                    <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
+                    <button type="button" wire:click="$set('modalOpen', false)" class="btn-secondary flex-1 py-2 text-xs">Vazgeç</button>
+                    <button type="submit" wire:loading.attr="disabled" class="btn-primary flex-1 py-2 text-xs">
                         <span wire:loading.remove wire:target="save">{{ $editingId ? 'Değişiklikleri kaydet' : 'Adresi kaydet' }}</span>
                         <span wire:loading wire:target="save">Kaydediliyor...</span>
                     </button>

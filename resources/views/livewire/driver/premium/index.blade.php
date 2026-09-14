@@ -33,8 +33,8 @@ class extends Component {
 <div class="space-y-6">
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Premium Abonelik</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Premium üyelik, dış kaynak ilanlara erken erişim ve düşürülmüş komisyon oranı sağlar.</p>
+        <h2 class="page-title">Premium Abonelik</h2>
+        <p class="page-subtitle">Premium üyelik, dış kaynak ilanlara erken erişim ve düşürülmüş komisyon oranı sağlar.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -43,7 +43,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border {{ $isPremium ? 'border-amber-500/30' : 'border-neutral-200 dark:border-neutral-800' }} rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Üyelik durumu</h3>
+                        <h3 class="section-title">Üyelik durumu</h3>
                         <div class="mt-1 text-base font-bold {{ $isPremium ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-900 dark:text-white' }}">
                             {{ $isPremium ? 'Premium aktif' : 'Standart üyelik' }}
                         </div>
@@ -76,7 +76,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Premium avantajları</h3>
+                <h3 class="section-title">Premium avantajları</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Düşük komisyon</div>
@@ -93,7 +93,7 @@ class extends Component {
 
         <div class="space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Abonelik faturaları</h3>
+                <h3 class="section-title">Abonelik faturaları</h3>
                 @forelse($invoices as $invoice)
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
@@ -108,7 +108,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Nasıl çalışır</h3>
+                <h3 class="section-title">Nasıl çalışır</h3>
                 <p>Premium hakkı yalnız doğrulanmış bir ödeme sonrasında tanımlanır; kart bilgileri NavlunIQ'da saklanmaz.</p>
                 <p>Üyelik süresi dolduğunda komisyon oranınız otomatik olarak standart orana döner.</p>
             </div>

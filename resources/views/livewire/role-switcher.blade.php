@@ -92,12 +92,12 @@ new class extends Component {
 <div>
     @if(auth()->user()?->current_role === 'cargo_owner' && auth()->user()?->driverProfile)
         <button type="button" wire:click="openRoleSwitchModal('driver')"
-            class="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-800 dark:text-neutral-200">
+            class="btn-secondary w-full py-2 text-xs">
             Şoför moduna geç
         </button>
     @elseif(auth()->user()?->current_role === 'driver' && auth()->user()?->cargoOwnerProfile)
         <button type="button" wire:click="openRoleSwitchModal('cargo_owner')"
-            class="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-800 dark:text-neutral-200">
+            class="btn-secondary w-full py-2 text-xs">
             Yük sahibi moduna geç
         </button>
     @endif

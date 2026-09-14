@@ -122,7 +122,7 @@ class extends Component {
 
     @if($load)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
-            <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme özeti</h3>
+            <h3 class="section-title">Ödeme özeti</h3>
             <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
             <div class="flex flex-wrap items-center gap-2">
                 <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->statusLabel() }}</span>

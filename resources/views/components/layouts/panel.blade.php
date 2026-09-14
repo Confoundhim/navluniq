@@ -2,6 +2,7 @@
     'title' => 'Panel',
     'roleLabel' => 'Panel',
     'roleColor' => 'text-brand-500',
+    'roleIcon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
     'dashboardRoute' => 'home',
     'primaryAction' => null,
     'nav' => [],
@@ -44,10 +45,11 @@
         class="-translate-x-full fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 safe-top">
 
         <div class="h-16 shrink-0 flex items-center justify-between px-5 border-b border-neutral-200 dark:border-neutral-800">
-            <a href="{{ route($dashboardRoute) }}" wire:navigate class="flex items-center gap-3 min-w-0 select-none">
-                <img src="/images/dark-symbol-logo.png" alt="" class="h-8 w-8 rounded-xl block dark:hidden">
-                <img src="/images/white-symbol-logo.png" alt="" class="h-8 w-8 rounded-xl hidden dark:block">
-                <div class="min-w-0 leading-tight">
+            <a href="{{ route($dashboardRoute) }}" wire:navigate class="group flex items-center gap-3 min-w-0 select-none">
+                <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-tr from-brand-600 to-amber-500 flex items-center justify-center shadow-lg shadow-brand-500/25 transition-transform duration-300 ease-apple-ease group-hover:scale-105">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $roleIcon }}"/></svg>
+                </div>
+                <div class="min-w-0 leading-tight transition-transform duration-300 ease-apple-ease group-hover:translate-x-0.5">
                     <div class="text-base font-black tracking-tight text-neutral-900 dark:text-white"><span>Navlun</span><span class="text-brand-500">IQ</span></div>
                     <div class="text-[10px] font-bold uppercase tracking-wider {{ $roleColor }}">{{ $roleLabel }}</div>
                 </div>
@@ -80,24 +82,24 @@
             @endforeach
         </nav>
 
-        <div class="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-3 safe-bottom">
-            <livewire:role-switcher />
-            <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-9 h-9 shrink-0 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-sm">
+        <div class="p-4 border-t border-neutral-200 dark:border-neutral-800 safe-bottom">
+            <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-3 space-y-3">
+                <livewire:role-switcher />
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 shrink-0 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-sm">
                         {{ mb_strtoupper(mb_substr($user?->first_name ?? 'N', 0, 1)) }}
                     </div>
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <div class="text-sm font-semibold text-neutral-900 dark:text-white truncate">{{ $user?->full_name }}</div>
                         <div class="text-xs text-neutral-500 truncate">{{ \App\Support\Phone::format($user?->phone) ?: $user?->email }}</div>
                     </div>
+                    <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                        @csrf
+                        <button type="submit" title="Çıkış yap" class="p-2 rounded-lg text-neutral-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" aria-label="Çıkış yap">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        </button>
+                    </form>
                 </div>
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-                    <button type="submit" title="Çıkış yap" class="p-2 rounded-lg text-neutral-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" aria-label="Çıkış yap">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                    </button>
-                </form>
             </div>
         </div>
     </aside>

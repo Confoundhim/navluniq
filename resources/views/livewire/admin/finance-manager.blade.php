@@ -254,7 +254,7 @@ new class extends Component {
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Finans ve Muhasebe</h1>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Hakediş ödemeleri banka transferi sonrasında elle işaretlenir; havuz bakiyesi yalnız ödeme bildirimi ve uyuşmazlık kararıyla değişir.</p>
+            <p class="page-subtitle">Hakediş ödemeleri banka transferi sonrasında elle işaretlenir; havuz bakiyesi yalnız ödeme bildirimi ve uyuşmazlık kararıyla değişir.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-[11px]">
             @foreach($rates as $label => $rate)

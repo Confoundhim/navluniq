@@ -227,7 +227,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">KYC ve Evrak Doğrulama</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Belgeler tek tek incelenir; zorunlu belgelerin tamamı onaylanınca profil otomatik onaylanır.</p>
+        <p class="page-subtitle">Belgeler tek tek incelenir; zorunlu belgelerin tamamı onaylanınca profil otomatik onaylanır.</p>
     </div>
 
     <div class="flex flex-col lg:flex-row lg:items-center gap-3 apple-glass p-3 rounded-2xl">

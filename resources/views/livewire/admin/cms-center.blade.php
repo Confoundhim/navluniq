@@ -345,7 +345,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">İçerik ve CMS</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Kaydedilen değerler ön yüzde en geç 5 dakika içinde (önbellek tazelenince) görünür.</p>
+        <p class="page-subtitle">Kaydedilen değerler ön yüzde en geç 5 dakika içinde (önbellek tazelenince) görünür.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
@@ -359,7 +359,7 @@ new class extends Component {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 @foreach($textKeys as $key => $label)
                     <div class="{{ in_array($key, ['slider_owner_desc', 'slider_driver_desc', 'hakkimizda_ozet'], true) ? 'md:col-span-2' : '' }}">
-                        <label class="text-[11px] font-semibold text-neutral-500">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                        <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
                         @if(in_array($key, ['slider_owner_desc', 'slider_driver_desc', 'hakkimizda_ozet'], true))
                             <textarea wire:model="texts.{{ $key }}" rows="3" class="{{ $input }}"></textarea>
                         @else
@@ -378,7 +378,7 @@ new class extends Component {
             <p class="text-[11px] text-neutral-400">HTML olarak saklanır ve ön yüzde olduğu gibi basılır. Kaydederken script, iframe, object, embed, style etiketleri, on* öznitelikleri ve javascript: adresleri kaldırılır.</p>
             @foreach($contractKeys as $key => $label)
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                    <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
                     <textarea wire:model="contracts.{{ $key }}" rows="10" class="{{ $input }} font-mono"></textarea>
                     @error('contracts.'.$key) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
@@ -392,18 +392,18 @@ new class extends Component {
             <form wire:submit="saveFaq" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $faqId ? 'Soruyu düzenle' : 'Yeni soru' }}</h2>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Soru</label>
+                    <label class="form-label">Soru</label>
                     <input type="text" wire:model="faqQuestion" class="{{ $input }}">
                     @error('faqQuestion') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Yanıt</label>
+                    <label class="form-label">Yanıt</label>
                     <textarea wire:model="faqAnswer" rows="5" class="{{ $input }}"></textarea>
                     @error('faqAnswer') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Sıra</label>
+                        <label class="form-label">Sıra</label>
                         <input type="number" min="0" wire:model="faqOrder" class="{{ $input }}">
                         @error('faqOrder') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                     </div>
@@ -456,23 +456,23 @@ new class extends Component {
             <form wire:submit="savePage" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $pageId ? 'Sayfayı düzenle' : 'Yeni sayfa' }}</h2>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Başlık</label>
+                    <label class="form-label">Başlık</label>
                     <input type="text" wire:model="pageTitle" class="{{ $input }}">
                     @error('pageTitle') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">Kısa ad (slug, boş bırakılırsa başlıktan üretilir)</label>
+                    <label class="form-label">Kısa ad (slug, boş bırakılırsa başlıktan üretilir)</label>
                     <input type="text" wire:model="pageSlug" class="{{ $input }} font-mono">
                     @error('pageSlug') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">İçerik (HTML)</label>
+                    <label class="form-label">İçerik (HTML)</label>
                     <textarea wire:model="pageContent" rows="10" class="{{ $input }} font-mono"></textarea>
                     @error('pageContent') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">Durum</label>
+                        <label class="form-label">Durum</label>
                         <select wire:model="pageStatus" class="{{ $input }}">
                             <option value="draft">Taslak</option>
                             <option value="published">Yayınlandı</option>

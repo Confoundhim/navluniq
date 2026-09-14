@@ -175,8 +175,8 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Profil, Belgeler ve Güvenlik</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">İletişim bilgileriniz, kimlik doğrulama belgeleriniz ve hesap güvenliği.</p>
+        <h2 class="page-title">Profil, Belgeler ve Güvenlik</h2>
+        <p class="page-subtitle">İletişim bilgileriniz, kimlik doğrulama belgeleriniz ve hesap güvenliği.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -184,35 +184,35 @@ class extends Component {
         <div class="lg:col-span-2 space-y-6">
 
             <form wire:submit.prevent="updateProfile" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Hesap bilgileri</h3>
+                <h3 class="section-title">Hesap bilgileri</h3>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ad</label>
-                        <input type="text" wire:model="first_name" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('first_name') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Ad</label>
+                        <input type="text" wire:model="first_name" class="form-input">
+                        @error('first_name') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Soyad</label>
-                        <input type="text" wire:model="last_name" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('last_name') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Soyad</label>
+                        <input type="text" wire:model="last_name" class="form-input">
+                        @error('last_name') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">E-posta adresi</label>
-                        <input type="email" wire:model="email" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('email') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">E-posta adresi</label>
+                        <input type="email" wire:model="email" class="form-input">
+                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Cep telefonu</label>
-                        <input type="text" wire:model="phone" inputmode="tel" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
-                        @error('phone') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Cep telefonu</label>
+                        <input type="text" wire:model="phone" inputmode="tel" class="form-input tabular-nums">
+                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <p class="text-[11px] text-neutral-500">E-posta adresinizi değiştirirseniz bir sonraki girişte yeni adresinize doğrulama kodu gönderilir.</p>
 
                 <div class="pt-2 flex justify-end">
-                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all">
+                    <button type="submit" class="btn-primary py-2 text-xs">
                         <span wire:loading.remove wire:target="updateProfile">Değişiklikleri kaydet</span>
                         <span wire:loading wire:target="updateProfile">Kaydediliyor...</span>
                     </button>
@@ -220,31 +220,31 @@ class extends Component {
             </form>
 
             <form wire:submit.prevent="updatePassword" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Şifre değiştir</h3>
+                <h3 class="section-title">Şifre değiştir</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Mevcut şifre</label>
-                        <input type="password" wire:model="current_password" autocomplete="current-password" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('current_password') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Mevcut şifre</label>
+                        <input type="password" wire:model="current_password" autocomplete="current-password" class="form-input">
+                        @error('current_password') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yeni şifre (en az 12 karakter)</label>
-                        <input type="password" wire:model="new_password" autocomplete="new-password" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('new_password') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Yeni şifre (en az 12 karakter)</label>
+                        <input type="password" wire:model="new_password" autocomplete="new-password" class="form-input">
+                        @error('new_password') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yeni şifre (tekrar)</label>
-                        <input type="password" wire:model="new_password_confirmation" autocomplete="new-password" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                        <label class="form-label">Yeni şifre (tekrar)</label>
+                        <input type="password" wire:model="new_password_confirmation" autocomplete="new-password" class="form-input">
                     </div>
                 </div>
                 <div class="pt-2 flex justify-end">
-                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold text-xs transition-all">Şifreyi güncelle</button>
+                    <button type="submit" class="btn-secondary py-2 text-xs">Şifreyi güncelle</button>
                 </div>
             </form>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Kimlik doğrulama belgeleri</h3>
+                    <h3 class="section-title">Kimlik doğrulama belgeleri</h3>
                     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
                     <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
                         {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
@@ -288,21 +288,21 @@ class extends Component {
                 @if($kycStatus !== 'approved')
                     <form wire:submit.prevent="uploadDocument" class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-neutral-200 dark:border-neutral-800">
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Belge türü</label>
-                            <select wire:model="upload_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                            <label class="form-label">Belge türü</label>
+                            <select wire:model="upload_type" class="form-input">
                                 @foreach($allowedTypes as $type => $label)
                                     <option value="{{ $type }}">{{ $label }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Dosya (JPG, PNG, PDF)</label>
+                            <label class="form-label">Dosya (JPG, PNG, PDF)</label>
                             <input type="file" wire:model="upload_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
-                            @error('upload_file') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            @error('upload_file') <span class="form-error">{{ $message }}</span> @enderror
                             <div wire:loading wire:target="upload_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                         </div>
                         <div class="flex items-end">
-                            <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs" wire:loading.attr="disabled">
+                            <button type="submit" class="btn-primary w-full py-2 text-xs" wire:loading.attr="disabled">
                                 <span wire:loading.remove wire:target="uploadDocument">Belgeyi yükle</span>
                                 <span wire:loading wire:target="uploadDocument">Yükleniyor...</span>
                             </button>
@@ -317,7 +317,7 @@ class extends Component {
 
         <div class="space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">{{ $profile?->type === 'corporate' ? 'Şirket bilgileri' : 'Kimlik bilgileri' }}</h3>
+                <h3 class="section-title">{{ $profile?->type === 'corporate' ? 'Şirket bilgileri' : 'Kimlik bilgileri' }}</h3>
                 <div class="space-y-3 text-xs">
                     @if($profile?->type === 'corporate')
                         <div>
@@ -353,7 +353,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-rose-900/40 rounded-2xl p-6 space-y-3">
                 <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Hesabı kapat</h3>
                 <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya ödenmemiş hakediş yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
-                <button type="button" wire:click="$set('deleteModalOpen', true)" class="w-full px-4 py-2.5 rounded-xl border border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 text-xs font-bold">Hesabımı kapatmak istiyorum</button>
+                <button type="button" wire:click="$set('deleteModalOpen', true)" class="btn-danger w-full py-2 text-xs">Hesabımı kapatmak istiyorum</button>
             </div>
         </div>
     </div>
@@ -365,17 +365,17 @@ class extends Component {
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">Hesabı kalıcı olarak kapat</h3>
                 <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Onaylamak için şifrenizi girin. İsterseniz kapatma nedeninizi de yazabilirsiniz.</p>
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Şifre</label>
-                    <input type="password" wire:model="delete_password" autocomplete="current-password" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-rose-500 focus:outline-none">
-                    @error('delete_password') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    <label class="form-label">Şifre</label>
+                    <input type="password" wire:model="delete_password" autocomplete="current-password" class="form-input">
+                    @error('delete_password') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Neden (isteğe bağlı)</label>
-                    <textarea wire:model="delete_reason" rows="2" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-rose-500 focus:outline-none"></textarea>
+                    <label class="form-label">Neden (isteğe bağlı)</label>
+                    <textarea wire:model="delete_reason" rows="2" class="form-input"></textarea>
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="$set('deleteModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Vazgeç</button>
-                    <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold" wire:loading.attr="disabled">Hesabı kapat</button>
+                    <button type="button" wire:click="$set('deleteModalOpen', false)" class="btn-secondary flex-1">Vazgeç</button>
+                    <button type="submit" class="btn-primary bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 flex-1" wire:loading.attr="disabled">Hesabı kapat</button>
                 </div>
             </form>
         </div>

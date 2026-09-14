@@ -72,8 +72,8 @@ class extends Component {
 <div class="space-y-6">
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Finans, güvenli havuz ve faturalar</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Havuzda bloke tutarlar, ödeme geçmişiniz ve adınıza kesilen faturalar.</p>
+        <h2 class="page-title">Finans, güvenli havuz ve faturalar</h2>
+        <p class="page-subtitle">Havuzda bloke tutarlar, ödeme geçmişiniz ve adınıza kesilen faturalar.</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

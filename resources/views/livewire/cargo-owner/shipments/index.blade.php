@@ -64,8 +64,8 @@ class extends Component {
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Sevkiyatlarım</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoför atanmış ilanlarınızı takip edin, teslimat kanıtlarını inceleyip onaylayın.</p>
+            <h2 class="page-title">Sevkiyatlarım</h2>
+            <p class="page-subtitle">Şoför atanmış ilanlarınızı takip edin, teslimat kanıtlarını inceleyip onaylayın.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">

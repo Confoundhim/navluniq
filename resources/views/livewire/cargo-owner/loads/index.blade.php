@@ -115,7 +115,7 @@ class extends Component {
             </button>
         </div>
 
-        <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs transition-colors shadow-lg shadow-brand-500/20">
+        <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="btn-primary py-2 text-xs">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
@@ -238,7 +238,7 @@ class extends Component {
                     <h4 class="text-base font-bold text-neutral-900 dark:text-white">{{ $activeTab === 'past' ? 'Henüz tamamlanmış veya iptal edilmiş ilanınız yok' : 'Henüz aktif ilanınız yok' }}</h4>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yeni bir ilan oluşturarak belgeleri doğrulanmış şoförlerden teklif toplamaya başlayabilirsiniz.</p>
                 </div>
-                <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all">
+                <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="btn-primary py-2 text-xs">
                     <span>Yeni ilan oluştur</span>
                 </a>
             </div>

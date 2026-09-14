@@ -163,7 +163,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Sistem Ayarları</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Her değişiklik revizyon geçmişine yazılır ve Geri Yükleme sayfasından eski değere döndürülebilir.</p>
+        <p class="page-subtitle">Her değişiklik revizyon geçmişine yazılır ve Geri Yükleme sayfasından eski değere döndürülebilir.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
@@ -176,7 +176,7 @@ new class extends Component {
         <form wire:submit="saveGeneral" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
             @foreach($generalKeys as $key => $label)
                 <div>
-                    <label class="text-[11px] font-semibold text-neutral-500">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                    <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
                     @if($key === 'system_site_title')
                         <input type="text" wire:model="general.{{ $key }}" class="{{ $input }}">
                     @else
@@ -195,7 +195,7 @@ new class extends Component {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 @foreach($limitLabels as $key => $label)
                     <div>
-                        <label class="text-[11px] font-semibold text-neutral-500">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                        <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
                         <input type="text" inputmode="decimal" wire:model="limits.{{ $key }}" class="{{ $input }}">
                         <span class="text-[11px] text-neutral-400">Varsayılan: {{ $defaults[$key] }}</span>
                         @error('limits.'.$key) <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror

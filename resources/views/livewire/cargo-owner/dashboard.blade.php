@@ -66,7 +66,7 @@ class extends Component {
                 </p>
             </div>
             <div class="flex flex-wrap gap-3">
-                <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm shadow-xl shadow-brand-500/20 transition-all duration-200 active:scale-95 flex items-center gap-2">
+                <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="btn-primary py-3">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
@@ -146,7 +146,7 @@ class extends Component {
                 <div class="p-10 text-center space-y-3">
                     <p class="text-sm font-bold text-neutral-900 dark:text-white">Henüz ilanınız yok</p>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">İlk ilanınızı yayınladığınızda şoförlerden gelen teklifler burada görünür.</p>
-                    <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs">İlan oluştur</a>
+                    <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="btn-primary py-2 text-xs">İlan oluştur</a>
                 </div>
             @else
                 <div class="divide-y divide-neutral-200 dark:divide-neutral-800">

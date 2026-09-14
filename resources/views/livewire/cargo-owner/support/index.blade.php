@@ -82,11 +82,11 @@ class extends Component {
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Destek taleplerim</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Teknik, finansal veya operasyonel sorularınız için destek bileti açın; yanıtlar bu sayfada görünür.</p>
+            <h2 class="page-title">Destek taleplerim</h2>
+            <p class="page-subtitle">Teknik, finansal veya operasyonel sorularınız için destek bileti açın; yanıtlar bu sayfada görünür.</p>
         </div>
 
-        <button type="button" wire:click="openModal" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95">
+        <button type="button" wire:click="openModal" class="btn-primary py-2 text-xs">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
             </svg>
@@ -163,27 +163,27 @@ class extends Component {
 
                 <div class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Kategori <span class="text-brand-500">*</span></label>
-                        <select wire:model="category" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <label class="form-label">Kategori <span class="text-brand-500">*</span></label>
+                        <select wire:model="category" class="form-input">
                             @foreach($categories as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
                         </select>
-                        @error('category') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        @error('category') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Mesajınız <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="message" rows="5" maxlength="3000" placeholder="Yaşadığınız durumu veya sorunuzu ayrıntılı açıklayın." class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('message') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Mesajınız <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="message" rows="5" maxlength="3000" placeholder="Yaşadığınız durumu veya sorunuzu ayrıntılı açıklayın." class="form-input"></textarea>
+                        @error('message') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <p class="text-[11px] text-neutral-500">İletişim bilgileriniz ({{ auth()->user()?->email }}) hesabınızdan alınır.</p>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">
-                    <button type="button" wire:click="$set('newTicketModalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Kapat</button>
-                    <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
+                    <button type="button" wire:click="$set('newTicketModalOpen', false)" class="btn-secondary flex-1 py-2 text-xs">Kapat</button>
+                    <button type="submit" wire:loading.attr="disabled" class="btn-primary flex-1 py-2 text-xs">
                         <span wire:loading.remove wire:target="createTicket">Talebi gönder</span>
                         <span wire:loading wire:target="createTicket">Gönderiliyor...</span>
                     </button>

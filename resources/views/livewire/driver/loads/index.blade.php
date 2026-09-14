@@ -221,8 +221,8 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">İlan Havuzu ve Tekliflerim</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Açık ilanlara teklif verin, tekliflerinizi takip edin ve dış kaynaklı ilanları inceleyin.</p>
+            <h2 class="page-title">İlan Havuzu ve Tekliflerim</h2>
+            <p class="page-subtitle">Açık ilanlara teklif verin, tekliflerinizi takip edin ve dış kaynaklı ilanları inceleyin.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs">
             @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanlar'] as $key => $label)
@@ -250,12 +250,12 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Rota ara</label>
-                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                    <label class="form-label">Rota ara</label>
+                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Araç türü</label>
-                    <select wire:model.live="vehicleType" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                    <label class="form-label">Araç türü</label>
+                    <select wire:model.live="vehicleType" class="form-input">
                         <option value="">Tümü</option>
                         @foreach($vehicleTypes as $key => $label)
                             <option value="{{ $key }}">{{ $label }}</option>
@@ -349,8 +349,8 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Rota ara</label>
-                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                    <label class="form-label">Rota ara</label>
+                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
                 </div>
                 <div class="text-[11px] text-neutral-500 sm:self-end leading-relaxed">
                     Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır.
@@ -414,22 +414,22 @@ class extends Component {
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Teklif tutarı (₺)</label>
-                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
-                        @error('amount') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Teklif tutarı (₺)</label>
+                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="form-input tabular-nums">
+                        @error('amount') <span class="form-error">{{ $message }}</span> @enderror
                         <span class="text-[11px] text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Tahmini süre (gün)</label>
-                        <input type="number" min="1" max="30" wire:model="estimated_days" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
-                        @error('estimated_days') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Tahmini süre (gün)</label>
+                        <input type="number" min="1" max="30" wire:model="estimated_days" class="form-input tabular-nums">
+                        @error('estimated_days') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Mesaj (isteğe bağlı)</label>
-                    <textarea wire:model="message" rows="3" maxlength="1000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                    @error('message') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    <label class="form-label">Mesaj (isteğe bağlı)</label>
+                    <textarea wire:model="message" rows="3" maxlength="1000" class="form-input"></textarea>
+                    @error('message') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 @if(! $kycApproved)
@@ -438,7 +438,7 @@ class extends Component {
                         <a href="{{ route('driver.profile.index') }}" wire:navigate class="font-bold underline">Belgeleri yükle</a>
                     </div>
                     <div class="flex gap-3 pt-2">
-                        <button type="button" wire:click="closeOffer" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Kapat</button>
+                        <button type="button" wire:click="closeOffer" class="btn-secondary flex-1">Kapat</button>
                     </div>
                 @else
                     @if(! $hasActiveVehicle)
@@ -448,8 +448,8 @@ class extends Component {
                         </div>
                     @endif
                     <div class="flex gap-3 pt-2">
-                        <button type="button" wire:click="closeOffer" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Vazgeç</button>
-                        <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
+                        <button type="button" wire:click="closeOffer" class="btn-secondary flex-1">Vazgeç</button>
+                        <button type="submit" class="btn-primary flex-1" wire:loading.attr="disabled">
                             <span wire:loading.remove wire:target="submitOffer">Teklifi gönder</span>
                             <span wire:loading wire:target="submitOffer">Gönderiliyor...</span>
                         </button>

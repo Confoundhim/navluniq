@@ -227,12 +227,12 @@ class extends Component {
 
                 @if($shipment)
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sevkiyat aşaması</h3>
+                        <h3 class="section-title">Sevkiyat aşaması</h3>
 
                         @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
                             @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
                                 <p class="text-xs text-neutral-700 dark:text-neutral-300">Navlun bedeli havuzda bloke edildi. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
-                                <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs" wire:loading.attr="disabled">
+                                <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="btn-primary w-full sm:w-auto py-2 text-xs" wire:loading.attr="disabled">
                                     Yükü aldım, yola çıktım
                                 </button>
                             @else
@@ -244,15 +244,15 @@ class extends Component {
                             <p class="text-xs text-neutral-700 dark:text-neutral-300">Yola çıkış: {{ $shipment->in_transit_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}. Teslimatı tamamladığınızda imzalı irsaliye veya teslimat fotoğrafını yükleyin.</p>
                             <form wire:submit.prevent="markDelivered" class="space-y-3 text-xs border-t border-neutral-200 dark:border-neutral-800 pt-4">
                                 <div>
-                                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Teslimat kanıtı (JPG, PNG, PDF; en fazla 10 MB)</label>
+                                    <label class="form-label">Teslimat kanıtı (JPG, PNG, PDF; en fazla 10 MB)</label>
                                     <input type="file" wire:model="pod_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
-                                    @error('pod_file') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                                    @error('pod_file') <span class="form-error">{{ $message }}</span> @enderror
                                     <div wire:loading wire:target="pod_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                                 </div>
                                 <div>
-                                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Not (isteğe bağlı)</label>
-                                    <textarea wire:model="pod_note" rows="2" maxlength="500" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                                    @error('pod_note') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                                    <label class="form-label">Not (isteğe bağlı)</label>
+                                    <textarea wire:model="pod_note" rows="2" maxlength="500" class="form-input"></textarea>
+                                    @error('pod_note') <span class="form-error">{{ $message }}</span> @enderror
                                 </div>
                                 <button type="submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold" wire:loading.attr="disabled">
                                     <span wire:loading.remove wire:target="markDelivered">Teslim ettim, kanıtı yükle</span>
@@ -399,7 +399,7 @@ class extends Component {
                     @endif
 
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Yüklenen kanıtlar</h3>
+                        <h3 class="section-title">Yüklenen kanıtlar</h3>
                         @forelse($shipment->evidence as $evidence)
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                                 <div>
@@ -423,7 +423,7 @@ class extends Component {
 
             <div class="space-y-6">
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Yük sahibi</h3>
+                    <h3 class="section-title">Yük sahibi</h3>
                     <div class="text-neutral-900 dark:text-white font-bold">{{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</div>
                     @if($ownerPhone)
                         <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
@@ -433,7 +433,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme durumu</h3>
+                    <h3 class="section-title">Ödeme durumu</h3>
                     <div class="text-neutral-900 dark:text-white font-bold">{{ $load->escrowLabel() }}</div>
                     <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">
                         @switch($load->escrow_status)
@@ -468,7 +468,7 @@ class extends Component {
 
                 @if($shipment?->vehicle)
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-1 text-xs">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Atanan araç</h3>
+                        <h3 class="section-title">Atanan araç</h3>
                         <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $shipment->vehicle->plate }}</div>
                         <div class="text-neutral-500 dark:text-neutral-400">{{ $shipment->vehicle->brand }} {{ $shipment->vehicle->model }}</div>
                     </div>
@@ -476,22 +476,22 @@ class extends Component {
 
                 @if($canReview)
                     <form wire:submit.prevent="submitReview" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Yük sahibini değerlendir</h3>
+                        <h3 class="section-title">Yük sahibini değerlendir</h3>
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Puan</label>
-                            <select wire:model="rating" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                            <label class="form-label">Puan</label>
+                            <select wire:model="rating" class="form-input">
                                 @for($i = 5; $i >= 1; $i--)
                                     <option value="{{ $i }}">{{ $i }} / 5</option>
                                 @endfor
                             </select>
-                            @error('rating') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            @error('rating') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yorum (isteğe bağlı)</label>
-                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                            @error('review_comment') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Yorum (isteğe bağlı)</label>
+                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="form-input"></textarea>
+                            @error('review_comment') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
-                        <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold">Değerlendirmeyi gönder</button>
+                        <button type="submit" class="btn-primary w-full">Değerlendirmeyi gönder</button>
                     </form>
                 @elseif($hasReviewed && in_array($load->status, [\App\Models\Load::STATUS_DELIVERED, \App\Models\Load::STATUS_COMPLETED], true))
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 text-xs text-neutral-500 dark:text-neutral-400">Bu sevkiyat için değerlendirmenizi gönderdiniz.</div>

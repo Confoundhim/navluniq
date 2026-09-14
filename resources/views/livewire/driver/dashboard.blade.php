@@ -75,8 +75,8 @@ class extends Component {
     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Hoş geldiniz, {{ auth()->user()->first_name }}</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Tekliflerinizin, aktif sevkiyatınızın ve hakedişlerinizin özeti.</p>
+        <h2 class="page-title">Hoş geldiniz, {{ auth()->user()->first_name }}</h2>
+        <p class="page-subtitle">Tekliflerinizin, aktif sevkiyatınızın ve hakedişlerinizin özeti.</p>
     </div>
 
     @if($kycStatus !== 'approved')
@@ -122,7 +122,7 @@ class extends Component {
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Aktif sevkiyat</h3>
+                <h3 class="section-title">Aktif sevkiyat</h3>
 
                 @if($activeLoad)
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs">
@@ -152,7 +152,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Son ilanlar</h3>
+                        <h3 class="section-title">Son ilanlar</h3>
                         <p class="text-[11px] text-neutral-500 mt-1">
                             @if($matchedByPreference)
                                 Tercih ettiğiniz rotalarla eşleşen en yeni açık ilanlar.
@@ -186,7 +186,7 @@ class extends Component {
 
         <div class="space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Belge durumu</h3>
+                <h3 class="section-title">Belge durumu</h3>
                 <div class="flex items-center justify-between">
                     <span class="text-neutral-500 dark:text-neutral-400">KYC</span>
                     <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
@@ -198,7 +198,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Premium</h3>
+                <h3 class="section-title">Premium</h3>
                 @if($profile?->isPremium())
                     <div class="text-emerald-600 dark:text-emerald-400 font-bold">Aktif</div>
                     <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->premium_until->format('d.m.Y H:i') }} tarihine kadar geçerli.</div>
@@ -210,7 +210,7 @@ class extends Component {
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Aktif araç</h3>
+                <h3 class="section-title">Aktif araç</h3>
                 @if($profile?->activeVehicle)
                     <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $profile->activeVehicle->plate }}</div>
                     <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->activeVehicle->brand }} {{ $profile->activeVehicle->model }}</div>

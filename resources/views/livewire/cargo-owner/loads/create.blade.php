@@ -225,13 +225,13 @@ class extends Component {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>1. Adım: Yükleme ve teslimat rotası</span>
                     </h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Yükün alınacağı ve teslim edileceği açık adresleri yazın veya adres defterinizden seçin.</p>
+                    <p class="page-subtitle">Yükün alınacağı ve teslim edileceği açık adresleri yazın veya adres defterinizden seçin.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">Kayıtlı yükleme adresi (isteğe bağlı)</label>
-                        <select wire:model.live="selected_saved_pickup" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <select wire:model.live="selected_saved_pickup" class="form-input">
                             <option value="">Adres defterinden seç</option>
                             @foreach($pickupAddresses as $addr)
                                 <option value="{{ $addr->id }}">{{ $addr->title }} ({{ $addr->district }} / {{ $addr->city }})</option>
@@ -244,7 +244,7 @@ class extends Component {
 
                     <div>
                         <label class="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">Kayıtlı teslimat adresi (isteğe bağlı)</label>
-                        <select wire:model.live="selected_saved_delivery" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <select wire:model.live="selected_saved_delivery" class="form-input">
                             <option value="">Adres defterinden seç</option>
                             @foreach($deliveryAddresses as $addr)
                                 <option value="{{ $addr->id }}">{{ $addr->title }} ({{ $addr->district }} / {{ $addr->city }})</option>
@@ -255,29 +255,29 @@ class extends Component {
 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yükleme (çıkış) açık adresi <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="pickup_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('pickup_location') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Yükleme (çıkış) açık adresi <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="pickup_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="form-input"></textarea>
+                        @error('pickup_location') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Teslimat (varış) açık adresi <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="delivery_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
-                        @error('delivery_location') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Teslimat (varış) açık adresi <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="delivery_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="form-input"></textarea>
+                        @error('delivery_location') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yükleme tarihi <span class="text-brand-500">*</span></label>
+                        <label class="form-label">Yükleme tarihi <span class="text-brand-500">*</span></label>
                         <input type="date" wire:model="pickup_date" min="{{ now()->format('Y-m-d') }}" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('pickup_date') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        @error('pickup_date') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">En geç teslim tarihi (isteğe bağlı)</label>
-                        <input type="date" wire:model="delivery_date" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                        @error('delivery_date') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">En geç teslim tarihi (isteğe bağlı)</label>
+                        <input type="date" wire:model="delivery_date" class="form-input">
+                        @error('delivery_date') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
             </div>
@@ -290,40 +290,40 @@ class extends Component {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>2. Adım: Yük özellikleri ve e-İrsaliye</span>
                     </h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoförlerin doğru teklif verebilmesi için yük tipi, araç tipi ve ağırlık bilgisi gerekir. e-İrsaliye bilgisi varsa ekleyebilirsiniz.</p>
+                    <p class="page-subtitle">Şoförlerin doğru teklif verebilmesi için yük tipi, araç tipi ve ağırlık bilgisi gerekir. e-İrsaliye bilgisi varsa ekleyebilirsiniz.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yük cinsi <span class="text-brand-500">*</span></label>
-                        <select wire:model="goods_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                        <label class="form-label">Yük cinsi <span class="text-brand-500">*</span></label>
+                        <select wire:model="goods_type" class="form-input">
                             @foreach($goodsTypes as $type)
                                 <option value="{{ $type }}">{{ $type }}</option>
                             @endforeach
                         </select>
-                        @error('goods_type') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        @error('goods_type') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Talep edilen araç tipi <span class="text-brand-500">*</span></label>
-                        <select wire:model="vehicle_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                        <label class="form-label">Talep edilen araç tipi <span class="text-brand-500">*</span></label>
+                        <select wire:model="vehicle_type" class="form-input">
                             @foreach($vehicleTypes as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
                         </select>
-                        @error('vehicle_type') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        @error('vehicle_type') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Tahmini ağırlık (kg) <span class="text-brand-500">*</span></label>
-                        <input type="number" wire:model="weight" inputmode="numeric" min="1" placeholder="Örn: 24000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
-                        @error('weight') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Tahmini ağırlık (kg) <span class="text-brand-500">*</span></label>
+                        <input type="number" wire:model="weight" inputmode="numeric" min="1" placeholder="Örn: 24000" class="form-input">
+                        @error('weight') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Hacim (m³, isteğe bağlı)</label>
-                        <input type="number" wire:model="volume" inputmode="numeric" min="0" placeholder="Örn: 80" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
-                        @error('volume') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        <label class="form-label">Hacim (m³, isteğe bağlı)</label>
+                        <input type="number" wire:model="volume" inputmode="numeric" min="0" placeholder="Örn: 80" class="form-input">
+                        @error('volume') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
@@ -337,16 +337,16 @@ class extends Component {
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">e-İrsaliye numarası</label>
-                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white tabular-nums placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
-                            @error('e_irsaliye_no') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">e-İrsaliye numarası</label>
+                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="form-input tabular-nums">
+                            @error('e_irsaliye_no') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">e-İrsaliye belgesi (JPG, PNG, PDF)</label>
+                            <label class="form-label">e-İrsaliye belgesi (JPG, PNG, PDF)</label>
                             <input type="file" wire:model="e_irsaliye_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-xs text-neutral-500 dark:text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-800 dark:file:text-neutral-200 hover:file:bg-neutral-300 dark:hover:file:bg-neutral-700 cursor-pointer">
                             <div wire:loading wire:target="e_irsaliye_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
-                            @error('e_irsaliye_file') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                            @error('e_irsaliye_file') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 </div>
@@ -360,7 +360,7 @@ class extends Component {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>3. Adım: Navlun bedeli ve ilan özeti</span>
                     </h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarı, teslimat onayına kadar güvenli havuzda tutulur.</p>
+                    <p class="page-subtitle">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarı, teslimat onayına kadar güvenli havuzda tutulur.</p>
                 </div>
 
                 <div class="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
@@ -400,28 +400,28 @@ class extends Component {
                 <div class="space-y-2">
                     <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Navlun bedeli (₺) <span class="text-brand-500">*</span></label>
                     <div class="relative max-w-xs">
-                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-4 pr-10 py-3.5 text-lg font-bold text-neutral-900 dark:text-white tabular-nums focus:border-brand-500 focus:outline-none">
+                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="form-input text-lg tabular-nums">
                         <span class="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-neutral-500 text-lg">₺</span>
                     </div>
-                    @error('price') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    @error('price') <span class="form-error">{{ $message }}</span> @enderror
                     <p class="text-[11px] text-neutral-500">Asgari navlun bedeli {{ number_format($minPrice, 0, ',', '.') }} ₺.</p>
                 </div>
 
                 <div class="pt-2">
                     <label class="flex items-start gap-3 cursor-pointer">
-                        <input type="checkbox" wire:model="terms_accepted" class="mt-1 w-4 h-4 rounded bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-brand-500 focus:ring-brand-500/20">
+                        <input type="checkbox" wire:model="terms_accepted" class="form-input h-4">
                         <span class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                             Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. İlan bilgilerinin doğru olduğunu ve <a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">kullanıcı sözleşmesini</a> kabul ediyorum.
                         </span>
                     </label>
-                    @error('terms_accepted') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                    @error('terms_accepted') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
             </div>
         @endif
 
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-neutral-200 dark:border-neutral-800">
             @if($currentStep > 1)
-                <button type="button" wire:click="previousStep" class="px-5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">
+                <button type="button" wire:click="previousStep" class="btn-secondary py-2 text-xs">
                     &larr; Geri
                 </button>
             @else
@@ -429,11 +429,11 @@ class extends Component {
             @endif
 
             @if($currentStep < 3)
-                <button type="button" wire:click="nextStep" wire:loading.attr="disabled" class="px-6 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-lg shadow-brand-500/20 transition-all">
+                <button type="button" wire:click="nextStep" wire:loading.attr="disabled" class="btn-primary py-2 text-xs">
                     Devam et &rarr;
                 </button>
             @else
-                <button type="button" wire:click="submitLoad" wire:loading.attr="disabled" class="px-8 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold shadow-xl shadow-brand-500/30 transition-all active:scale-95 flex items-center justify-center gap-2">
+                <button type="button" wire:click="submitLoad" wire:loading.attr="disabled" class="btn-primary py-3">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>

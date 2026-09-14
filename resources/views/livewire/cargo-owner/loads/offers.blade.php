@@ -151,7 +151,7 @@ class extends Component {
 
         <div class="flex items-center gap-3">
             <span class="text-xs text-neutral-500 dark:text-neutral-400">Sırala:</span>
-            <select wire:model.live="sortBy" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
+            <select wire:model.live="sortBy" class="form-input">
                 <option value="amount">En düşük tutar</option>
                 <option value="rating">En yüksek puan</option>
                 <option value="newest">En yeni</option>

@@ -184,7 +184,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Operasyonlar</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">İlanlar, teklifler, sevkiyatlar ve yoldaki araçların son bildirilen konumları.</p>
+        <p class="page-subtitle">İlanlar, teklifler, sevkiyatlar ve yoldaki araçların son bildirilen konumları.</p>
     </div>
 
     <section wire:poll.30s class="apple-glass rounded-3xl p-6 space-y-4">
@@ -347,7 +347,7 @@ new class extends Component {
                         @endif
                         @if($selected->escrow_status === \App\Models\Load::ESCROW_PENDING && in_array($selected->status, [\App\Models\Load::STATUS_ACTIVE, \App\Models\Load::STATUS_ASSIGNED], true))
                             <div class="space-y-2">
-                                <label class="text-[11px] font-semibold text-neutral-500">İlanı askıya al (iptal eder, bekleyen teklifleri reddeder)</label>
+                                <label class="form-label">İlanı askıya al (iptal eder, bekleyen teklifleri reddeder)</label>
                                 <textarea wire:model="suspendReason" rows="2" placeholder="Gerekçe (yük sahibine iletilir)" class="{{ $input }}"></textarea>
                                 @error('suspendReason') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                                 <button type="button" wire:click="suspend" wire:confirm="İlan iptal edilecek ve bekleyen teklifler reddedilecek. Devam edilsin mi?" wire:loading.attr="disabled" class="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold">Askıya al</button>

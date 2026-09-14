@@ -219,7 +219,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Uyuşmazlık ve Destek</h1>
-        <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">Hakem kararı havuz ödemesini serbest bırakır ya da iade sürecini başlatır; karar geri alınamaz.</p>
+        <p class="page-subtitle">Hakem kararı havuz ödemesini serbest bırakır ya da iade sürecini başlatır; karar geri alınamaz.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">

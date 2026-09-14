@@ -261,7 +261,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Rota ve yük</h3>
+                    <h3 class="section-title">Rota ve yük</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Yükleme adresi</span>
@@ -291,7 +291,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sevkiyat zaman çizelgesi</h3>
+                    <h3 class="section-title">Sevkiyat zaman çizelgesi</h3>
                     <div class="space-y-3">
                         @foreach($timeline as $step)
                             @php $done = $step['done'] ?? ($step['at'] !== null); @endphp
@@ -306,7 +306,7 @@ class extends Component {
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Teslimat kanıtları</h3>
+                        <h3 class="section-title">Teslimat kanıtları</h3>
                         @if($canApprove)
                             <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda havuzdaki navlun bedeli şoförün hakedişi olarak ödeme sırasına alınır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
                                 <span wire:loading.remove wire:target="approveDelivery">Teslimatı onayla</span>
@@ -344,7 +344,7 @@ class extends Component {
 
                 @if($canReview)
                     <form wire:submit.prevent="submitReview" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Şoförü değerlendirin</h3>
+                        <h3 class="section-title">Şoförü değerlendirin</h3>
                         <div class="flex items-center gap-2">
                             @for($i = 1; $i <= 5; $i++)
                                 <button type="button" wire:click="$set('rating', {{ $i }})" class="p-1 transition-transform hover:scale-110" aria-label="{{ $i }} puan">
@@ -357,12 +357,12 @@ class extends Component {
                         </div>
                         @error('rating') <span class="text-rose-500 text-[11px] block">{{ $message }}</span> @enderror
                         <div>
-                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yorumunuz (isteğe bağlı)</label>
-                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-xs text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                            @error('review_comment') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Yorumunuz (isteğe bağlı)</label>
+                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="form-input"></textarea>
+                            @error('review_comment') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div class="flex justify-end">
-                            <button type="submit" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">Değerlendirmeyi gönder</button>
+                            <button type="submit" wire:loading.attr="disabled" class="btn-primary py-2 text-xs">Değerlendirmeyi gönder</button>
                         </div>
                     </form>
                 @elseif($hasReviewed)
@@ -373,7 +373,7 @@ class extends Component {
             <div class="space-y-6">
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Şoför ve araç</h3>
+                    <h3 class="section-title">Şoför ve araç</h3>
 
                     @if($driverUser)
                         <div class="flex items-center gap-3">
@@ -415,7 +415,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Güvenli havuz</h3>
+                    <h3 class="section-title">Güvenli havuz</h3>
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-neutral-500 dark:text-neutral-400">Navlun bedeli</span>
                         <span class="text-brand-400 font-bold tabular-nums text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
@@ -444,7 +444,7 @@ class extends Component {
 
                 @if($canDispute)
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
-                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sorun mu var?</h3>
+                        <h3 class="section-title">Sorun mu var?</h3>
                         <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
                         <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>

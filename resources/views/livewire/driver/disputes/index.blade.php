@@ -152,15 +152,15 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Uyuşmazlık ve Destek</h2>
-        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Sevkiyatlarınız için açılan uyuşmazlıklara savunma ekleyin, destek ekibine talep iletin.</p>
+        <h2 class="page-title">Uyuşmazlık ve Destek</h2>
+        <p class="page-subtitle">Sevkiyatlarınız için açılan uyuşmazlıklara savunma ekleyin, destek ekibine talep iletin.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
-                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Uyuşmazlıklar</h3>
+                <h3 class="section-title">Uyuşmazlıklar</h3>
 
                 @forelse($disputes as $dispute)
                     @php $dLoad = $dispute->cargoLoad; @endphp
@@ -233,32 +233,32 @@ class extends Component {
         <div class="space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Destek talepleri</h3>
+                    <h3 class="section-title">Destek talepleri</h3>
                     <button type="button" wire:click="$set('ticketFormOpen', {{ $ticketFormOpen ? 'false' : 'true' }})" class="text-brand-400 font-bold hover:underline">{{ $ticketFormOpen ? 'Kapat' : 'Yeni talep' }}</button>
                 </div>
 
                 @if($ticketFormOpen)
                     <form wire:submit.prevent="submitTicket" class="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kategori</label>
-                            <select wire:model="ticket_category" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
+                            <label class="form-label">Kategori</label>
+                            <select wire:model="ticket_category" class="form-input">
                                 @foreach($categories as $key => $label)
                                     <option value="{{ $key }}">{{ $label }}</option>
                                 @endforeach
                             </select>
-                            @error('ticket_category') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            @error('ticket_category') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Konu (isteğe bağlı)</label>
-                            <input type="text" wire:model="ticket_subject" maxlength="150" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
-                            @error('ticket_subject') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Konu (isteğe bağlı)</label>
+                            <input type="text" wire:model="ticket_subject" maxlength="150" class="form-input">
+                            @error('ticket_subject') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Mesaj</label>
-                            <textarea wire:model="ticket_message" rows="4" maxlength="3000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                            @error('ticket_message') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                            <label class="form-label">Mesaj</label>
+                            <textarea wire:model="ticket_message" rows="4" maxlength="3000" class="form-input"></textarea>
+                            @error('ticket_message') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
-                        <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">Talebi gönder</button>
+                        <button type="submit" class="btn-primary w-full" wire:loading.attr="disabled">Talebi gönder</button>
                     </form>
                 @endif
 
@@ -300,19 +300,19 @@ class extends Component {
                     </p>
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Savunma metni (en az 20 karakter)</label>
-                    <textarea wire:model="defense" rows="5" maxlength="3000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
-                    @error('defense') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    <label class="form-label">Savunma metni (en az 20 karakter)</label>
+                    <textarea wire:model="defense" rows="5" maxlength="3000" class="form-input"></textarea>
+                    @error('defense') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
+                    <label class="form-label">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
                     <input type="file" wire:model="defense_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
-                    @error('defense_photo') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
+                    @error('defense_photo') <span class="form-error">{{ $message }}</span> @enderror
                     <div wire:loading wire:target="defense_photo" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="closeDefense" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Vazgeç</button>
-                    <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
+                    <button type="button" wire:click="closeDefense" class="btn-secondary flex-1">Vazgeç</button>
+                    <button type="submit" class="btn-primary flex-1" wire:loading.attr="disabled">
                         <span wire:loading.remove wire:target="submitDefense">Savunmayı gönder</span>
                         <span wire:loading wire:target="submitDefense">Gönderiliyor...</span>
                     </button>
