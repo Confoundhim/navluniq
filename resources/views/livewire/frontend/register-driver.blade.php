@@ -250,30 +250,30 @@ new class extends Component {
                 <p class="text-xs text-neutral-400">Kaydolun, belgelerinizi yükleyin, size uygun yüklere teklif verin.</p>
             </div>
 
-            <form wire:submit.prevent="registerDriver" class="space-y-4 text-xs">
+            <form wire:submit.prevent="registerDriver" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Ad</label>
-                        <input type="text" wire:model="firstName" placeholder="Adınız" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('firstName') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Ad</label>
+                        <input type="text" wire:model="firstName" placeholder="Adınız" class="form-input">
+                        @error('firstName') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Soyad</label>
-                        <input type="text" wire:model="lastName" placeholder="Soyadınız" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('lastName') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Soyad</label>
+                        <input type="text" wire:model="lastName" placeholder="Soyadınız" class="form-input">
+                        @error('lastName') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">E-Posta</label>
-                        <input type="email" wire:model="email" placeholder="sofor@hotmail.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">E-Posta</label>
+                        <input type="email" wire:model="email" placeholder="sofor@hotmail.com" class="form-input">
+                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Telefon Numarası</label>
-                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('phone') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Telefon Numarası</label>
+                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="form-input">
+                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
@@ -281,44 +281,44 @@ new class extends Component {
                     <span class="font-bold text-brand-500 block">ARAÇ VE FİLO BİLGİLERİ</span>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="space-y-1">
-                            <label class="font-semibold text-neutral-500">Araç Plakası</label>
-                            <input type="text" wire:model="plate" placeholder="06ANK1920" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 rounded-xl uppercase font-bold text-neutral-900 dark:text-white">
-                            @error('plate') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">Araç Plakası</label>
+                            <input type="text" wire:model="plate" placeholder="06ANK1920" class="form-input uppercase font-bold">
+                            @error('plate') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div class="space-y-1">
-                            <label class="font-semibold text-neutral-500">Araç Türü</label>
-                            <select wire:model="vehicleType" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 rounded-xl text-neutral-900 dark:text-white font-bold appearance-none">
+                            <label class="form-label">Araç Türü</label>
+                            <select wire:model="vehicleType" class="form-input font-bold">
                                 <option value="">Seçiniz...</option>
                                 @foreach($availableVehicleTypes as $key => $label)
                                     <option value="{{ $key }}">{{ $label }}</option>
                                 @endforeach
                             </select>
-                            @error('vehicleType') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            @error('vehicleType') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="space-y-1">
-                            <label class="font-semibold text-neutral-500">Marka</label>
-                            <input type="text" wire:model="brand" placeholder="Mercedes-Benz" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 rounded-xl text-neutral-900 dark:text-white">
-                            @error('brand') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">Marka</label>
+                            <input type="text" wire:model="brand" placeholder="Mercedes-Benz" class="form-input">
+                            @error('brand') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div class="space-y-1">
-                            <label class="font-semibold text-neutral-500">Model</label>
-                            <input type="text" wire:model="model" placeholder="Actros 1845" class="w-full p-2.5 bg-white dark:bg-neutral-800 border border-neutral-200/40 rounded-xl text-neutral-900 dark:text-white">
-                            @error('model') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">Model</label>
+                            <input type="text" wire:model="model" placeholder="Actros 1845" class="form-input">
+                            @error('model') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Giriş Şifresi</label>
-                        <input type="password" wire:model="password" placeholder="••••••••" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('password') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Giriş Şifresi</label>
+                        <input type="password" wire:model="password" placeholder="••••••••" class="form-input">
+                        @error('password') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Şifre Tekrarı</label>
-                        <input type="password" wire:model="password_confirmation" placeholder="••••••••" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
+                    <div class="space-y-1">
+                        <label class="form-label">Şifre Tekrarı</label>
+                        <input type="password" wire:model="password_confirmation" placeholder="••••••••" class="form-input">
                     </div>
                 </div>
 
@@ -330,10 +330,10 @@ new class extends Component {
                             <a href="{{ route('contracts', 'kvkk') }}" target="_blank" class="underline hover:text-black dark:hover:text-white font-semibold">KVKK Metnini</a> okudum ve kabul ediyorum.
                         </span>
                     </label>
-                    @error('acceptTerms') <span class="text-red-500 text-[10px] block mt-1">{{ $message }}</span> @enderror
+                    @error('acceptTerms') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
-                <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md flex justify-center items-center">
+                <button type="submit" class="btn-primary w-full py-3">
                     <span wire:loading.remove wire:target="registerDriver">Şoför Kaydını Başlat (E-Posta OTP Al)</span>
                     <span wire:loading wire:target="registerDriver">Bilgiler Kaydediliyor...</span>
                 </button>
@@ -346,7 +346,7 @@ new class extends Component {
 
         @else
             <!-- 2. ADIM: E-POSTA OTP DOĞRULAMA -->
-            <div class="space-y-5 animate-slide-up text-xs">
+            <div class="space-y-5 animate-slide-up">
                 <div class="text-center space-y-1">
                     <div class="w-12 h-12 bg-brand-500/10 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl font-bold">
                         ✉️
@@ -362,10 +362,10 @@ new class extends Component {
                 @endif
 
                 <form wire:submit.prevent="verifyOtp" class="space-y-4">
-                    <input type="text" wire:model="otp" maxlength="6" placeholder="000000" class="w-full tracking-[0.5em] text-center p-3.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-900 dark:text-white text-xl font-mono font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30">
-                    @error('otp') <span class="text-red-500 text-[10px] text-center block">{{ $message }}</span> @enderror
+                    <input type="text" wire:model="otp" maxlength="6" placeholder="000000" class="form-input tracking-[0.5em] text-center text-xl font-mono font-bold">
+                    @error('otp') <span class="form-error">{{ $message }}</span> @enderror
 
-                    <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold flex justify-center items-center">
+                    <button type="submit" class="btn-primary w-full py-3">
                         <span wire:loading.remove wire:target="verifyOtp">Kodu Doğrula ve Panele Git</span>
                         <span wire:loading wire:target="verifyOtp">Hesap Doğrulanıyor...</span>
                     </button>

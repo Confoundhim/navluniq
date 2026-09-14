@@ -137,7 +137,7 @@ new class extends Component {
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">E-posta veya telefon</label>
                     <input type="text" wire:model="identifier" autocomplete="username" placeholder="ornek@navluniq.com"
-                        class="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
+                        class="form-input">
                     @error('identifier') <span class="text-red-500 text-[11px] block mt-1 font-medium pl-1">{{ $message }}</span> @enderror
                 </div>
 
@@ -147,7 +147,7 @@ new class extends Component {
                         <a href="{{ route('password.request') }}" class="text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-brand-500 transition-colors duration-300">Şifremi unuttum</a>
                     </div>
                     <input type="password" wire:model="password" autocomplete="current-password" placeholder="••••••••"
-                        class="w-full px-4 py-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
+                        class="form-input">
                     @error('password') <span class="text-red-500 text-[11px] block mt-1 font-medium pl-1">{{ $message }}</span> @enderror
                 </div>
 
@@ -166,7 +166,7 @@ new class extends Component {
                 <form wire:submit="verifyOtp" class="space-y-5">
                     <div class="space-y-1.5">
                         <input type="text" wire:model="otp" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"
-                            class="w-full tracking-[0.5em] text-center px-4 py-3.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-lg font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all duration-300">
+                            class="form-input tracking-[0.5em] text-center text-lg font-bold">
                         @error('otp') <span class="text-red-500 text-[11px] block mt-1 text-center font-medium">{{ $message }}</span> @enderror
                         @error('identifier') <span class="text-red-500 text-[11px] block mt-1 text-center font-medium">{{ $message }}</span> @enderror
                     </div>

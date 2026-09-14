@@ -139,32 +139,32 @@ new class extends Component {
             <div class="flex items-center space-x-2 text-2xl font-black text-neutral-900 dark:text-white">
                 <span>Navlun</span><span class="text-brand-500">IQ</span>
             </div>
-            <p class="text-xs text-neutral-400 mt-1 font-medium">Kullanıcı Giriş Kapısı</p>
+            <p class="text-xs text-neutral-400 mt-1 font-medium">Hesabınıza giriş yapın</p>
         </div>
 
         @if($step === 1)
-            <form wire:submit.prevent="submitCredentials" class="space-y-4 text-xs">
+            <form wire:submit.prevent="submitCredentials" class="space-y-4">
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Telefon Numarası veya E-Posta</label>
+                    <label class="form-label">Telefon Numarası veya E-Posta</label>
                     <input type="text" wire:model="identifier" autocomplete="username"
                         placeholder="05XXXXXXXXX veya e-posta"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                    @error('identifier') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                        class="form-input">
+                    @error('identifier') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center">
-                        <label class="font-semibold text-neutral-500">Şifre</label>
+                        <label class="form-label">Şifre</label>
                         <a href="{{ route('password.request') }}" wire:navigate class="text-[11px] text-neutral-400 hover:text-brand-500 transition-colors">Şifremi unuttum</a>
                     </div>
                     <input type="password" wire:model="password" autocomplete="current-password"
                         placeholder="••••••••"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                    @error('password') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                        class="form-input">
+                    @error('password') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <button type="submit"
-                    class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md flex justify-center items-center">
+                    class="btn-primary w-full py-3">
                     <span wire:loading.remove wire:target="submitCredentials">Giriş yap</span>
                     <span wire:loading wire:target="submitCredentials">Kontrol Ediliyor...</span>
                 </button>
@@ -181,7 +181,7 @@ new class extends Component {
                 </div>
             </form>
         @else
-            <div class="space-y-5 animate-slide-up text-xs">
+            <div class="space-y-5 animate-slide-up">
                 <div class="text-center space-y-1">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Doğrulama Kodu (OTP)</h3>
                     <p class="text-[11px] text-neutral-400">E-posta adresinize gönderilen 6 haneli güvenlik kodunu girin.</p>
@@ -196,11 +196,11 @@ new class extends Component {
                     @endif
 
                     <input type="text" inputmode="numeric" autocomplete="one-time-code" wire:model="otp" maxlength="6" placeholder="000000"
-                        class="w-full tracking-[0.5em] text-center p-3.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-900 dark:text-white text-lg font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30">
-                    @error('otp') <span class="text-red-500 text-[10px] text-center block">{{ $message }}</span> @enderror
+                        class="form-input tracking-[0.5em] text-center text-lg font-bold">
+                    @error('otp') <span class="form-error">{{ $message }}</span> @enderror
 
                     <button type="submit"
-                        class="w-full btn-apple-primary py-3.5 text-xs font-bold flex justify-center items-center">
+                        class="btn-primary w-full py-3">
                         <span wire:loading.remove wire:target="verifyOtp">Doğrula ve Oturumu Aç</span>
                         <span wire:loading wire:target="verifyOtp">Doğrulanıyor...</span>
                     </button>

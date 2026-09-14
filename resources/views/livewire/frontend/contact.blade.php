@@ -105,27 +105,27 @@ new class extends Component {
 
             <form wire:submit.prevent="submitTicket" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Adınız Soyadınız</label>
-                        <input type="text" wire:model="name" placeholder="Ad Soyad" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('name') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Adınız Soyadınız</label>
+                        <input type="text" wire:model="name" placeholder="Ad Soyad" class="form-input">
+                        @error('name') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Telefon Numaranız</label>
-                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('phone') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Telefon Numaranız</label>
+                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="form-input">
+                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">E-Posta Adresiniz</label>
-                        <input type="email" wire:model="email" placeholder="ornek@mail.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white">
-                        @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">E-Posta Adresiniz</label>
+                        <input type="email" wire:model="email" placeholder="ornek@mail.com" class="form-input">
+                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Platform Rolünüz</label>
-                        <select wire:model="role" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
+                    <div class="space-y-1">
+                        <label class="form-label">Platform Rolünüz</label>
+                        <select wire:model="role" class="form-input">
                             <option value="cargo_owner">Yük Sahibi (Gönderici)</option>
                             <option value="driver">Şoför (Taşıyıcı)</option>
                             <option value="guest">Ziyaretçi / Misafir</option>
@@ -134,8 +134,8 @@ new class extends Component {
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Konu Kategorisi</label>
-                    <select wire:model="category" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white font-semibold">
+                    <label class="form-label">Konu Kategorisi</label>
+                    <select wire:model="category" class="form-input">
                         @foreach(\App\Models\SupportTicket::CATEGORIES as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>
                         @endforeach
@@ -143,9 +143,9 @@ new class extends Component {
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Mesajınız</label>
-                    <textarea wire:model="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="w-full p-4 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none text-neutral-900 dark:text-white"></textarea>
-                    @error('message') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <label class="form-label">Mesajınız</label>
+                    <textarea wire:model="message" rows="5" placeholder="Talep, soru veya sorununuzu detaylı olarak yazınız..." class="form-input"></textarea>
+                    @error('message') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md">

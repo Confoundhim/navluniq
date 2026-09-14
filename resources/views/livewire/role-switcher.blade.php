@@ -92,27 +92,27 @@ new class extends Component {
 <div>
     @if(auth()->user()?->current_role === 'cargo_owner' && auth()->user()?->driverProfile)
         <button type="button" wire:click="openRoleSwitchModal('driver')"
-            class="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-200">
+            class="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-800 dark:text-neutral-200">
             Şoför moduna geç
         </button>
     @elseif(auth()->user()?->current_role === 'driver' && auth()->user()?->cargoOwnerProfile)
         <button type="button" wire:click="openRoleSwitchModal('cargo_owner')"
-            class="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-200">
+            class="w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 px-3 py-2 text-xs font-medium text-neutral-800 dark:text-neutral-200">
             Yük sahibi moduna geç
         </button>
     @endif
 
     @if($switchModalOpen)
-        <div class="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center overflow-y-auto p-4 bg-neutral-950/85 p-4 backdrop-blur-md">
-            <div class="w-full max-w-md space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 shadow-2xl">
+        <div class="fixed inset-0 z-[99999] flex items-start sm:items-center justify-center overflow-y-auto p-4 bg-neutral-950/70 p-4 backdrop-blur-md">
+            <div class="w-full max-w-md space-y-5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 shadow-2xl">
                 <div class="flex items-center justify-between">
-                    <h3 class="font-bold text-white">E-posta koduyla rol değiştir</h3>
-                    <button type="button" wire:click="closeModal" class="text-neutral-400" aria-label="Kapat">&times;</button>
+                    <h3 class="font-bold text-neutral-900 dark:text-white">E-posta koduyla rol değiştir</h3>
+                    <button type="button" wire:click="closeModal" class="text-neutral-500 dark:text-neutral-400" aria-label="Kapat">&times;</button>
                 </div>
-                <p class="text-xs leading-5 text-neutral-400">Kod {{ auth()->user()?->email }} adresine gönderildi ve beş dakika geçerlidir.</p>
+                <p class="text-xs leading-5 text-neutral-500 dark:text-neutral-400">Kod {{ auth()->user()?->email }} adresine gönderildi ve beş dakika geçerlidir.</p>
                 <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
                     wire:model="otp_input" placeholder="000000"
-                    class="w-full rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-center font-mono text-lg tracking-[0.4em] text-white">
+                    class="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-3 text-center font-mono text-lg tracking-[0.4em] text-neutral-900 dark:text-white">
                 @error('otp_input') <span class="block text-xs text-rose-400">{{ $message }}</span> @enderror
                 <button type="button" wire:click="executeRoleSwitch"
                     class="w-full rounded-xl bg-brand-500 px-4 py-3 text-xs font-bold text-white">

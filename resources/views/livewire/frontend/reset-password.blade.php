@@ -77,27 +77,27 @@ new class extends Component {
             <div class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 p-4 rounded-xl text-xs text-center border border-emerald-500/20 font-medium">
                 Şifreniz güncellendi. Yeni şifrenizle giriş yapabilirsiniz.
             </div>
-            <a href="{{ route('login') }}" wire:navigate class="w-full btn-apple-brand py-3.5 text-xs font-bold flex justify-center items-center">Giriş yap</a>
+            <a href="{{ route('login') }}" wire:navigate class="btn-primary w-full py-3">Giriş yap</a>
         @else
-            <form wire:submit.prevent="resetPassword" class="space-y-4 text-xs">
+            <form wire:submit.prevent="resetPassword" class="space-y-4">
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">E-posta adresi</label>
+                    <label class="form-label">E-posta adresi</label>
                     <input type="email" wire:model="email" autocomplete="email"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                    @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                        class="form-input">
+                    @error('email') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Yeni şifre (en az 12 karakter)</label>
+                    <label class="form-label">Yeni şifre (en az 12 karakter)</label>
                     <input type="password" wire:model="password" autocomplete="new-password"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                    @error('password') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                        class="form-input">
+                    @error('password') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">Yeni şifre (tekrar)</label>
+                    <label class="form-label">Yeni şifre (tekrar)</label>
                     <input type="password" wire:model="password_confirmation" autocomplete="new-password"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
+                        class="form-input">
                 </div>
-                <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md flex justify-center items-center">
+                <button type="submit" class="btn-primary w-full py-3">
                     <span wire:loading.remove wire:target="resetPassword">Şifreyi güncelle</span>
                     <span wire:loading wire:target="resetPassword">Kaydediliyor...</span>
                 </button>

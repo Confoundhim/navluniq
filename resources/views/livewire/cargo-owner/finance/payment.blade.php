@@ -105,12 +105,12 @@ class extends Component {
         </div>
     @endif
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <a href="{{ route('cargo-owner.loads.index') }}" wire:navigate class="text-xs text-neutral-400 hover:text-brand-400 font-semibold">
+            <a href="{{ route('cargo-owner.loads.index') }}" wire:navigate class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-semibold">
                 &larr; İlanlarıma dön
             </a>
-            <h2 class="mt-2 text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 class="mt-2 text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span>Güvenli ödeme</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
@@ -121,35 +121,35 @@ class extends Component {
     </div>
 
     @if($load)
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
-            <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ödeme özeti</h3>
-            <div class="text-sm font-bold text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+            <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme özeti</h3>
+            <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
             <div class="flex flex-wrap items-center gap-2">
-                <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->statusLabel() }}</span>
-                <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->escrowLabel() }}</span>
+                <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->statusLabel() }}</span>
+                <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->escrowLabel() }}</span>
             </div>
-            <div class="divide-y divide-neutral-800 border-t border-neutral-800">
+            <div class="divide-y divide-neutral-200 dark:divide-neutral-800 border-t border-neutral-200 dark:border-neutral-800">
                 <div class="flex items-center justify-between py-3">
-                    <span class="text-neutral-400">Navlun bedeli</span>
-                    <span class="font-mono text-white">{{ number_format($amounts['price'], 2, ',', '.') }} ₺</span>
+                    <span class="text-neutral-500 dark:text-neutral-400">Navlun bedeli</span>
+                    <span class="tabular-nums text-neutral-900 dark:text-white">{{ number_format($amounts['price'], 2, ',', '.') }} ₺</span>
                 </div>
                 <div class="flex items-center justify-between py-3">
-                    <span class="text-neutral-400">Hizmet bedeli</span>
-                    <span class="font-mono text-white">{{ number_format($amounts['service_fee'], 2, ',', '.') }} ₺</span>
+                    <span class="text-neutral-500 dark:text-neutral-400">Hizmet bedeli</span>
+                    <span class="tabular-nums text-neutral-900 dark:text-white">{{ number_format($amounts['service_fee'], 2, ',', '.') }} ₺</span>
                 </div>
                 <div class="flex items-center justify-between py-3">
-                    <span class="text-neutral-200 font-semibold">Ödenecek toplam</span>
-                    <span class="font-mono font-bold text-brand-400 text-base">{{ number_format($amounts['total'], 2, ',', '.') }} ₺</span>
+                    <span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam</span>
+                    <span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($amounts['total'], 2, ',', '.') }} ₺</span>
                 </div>
             </div>
             <p class="text-[11px] text-neutral-500 leading-relaxed">Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. Ödeme yalnız ödeme sağlayıcısının sunucu bildirimi doğrulandığında tamamlanmış sayılır.</p>
         </div>
 
         @if(! $payable)
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                <h3 class="text-sm font-bold text-white">Bu ilan ödeme adımında değil</h3>
-                <p class="text-neutral-400 leading-relaxed">
-                    İlan durumu: <strong class="text-white">{{ $load->statusLabel() }}</strong> · Havuz durumu: <strong class="text-white">{{ $load->escrowLabel() }}</strong>.
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Bu ilan ödeme adımında değil</h3>
+                <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                    İlan durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->statusLabel() }}</strong> · Havuz durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->escrowLabel() }}</strong>.
                     @if($load->status === 'active_seeking')
                         Ödeme, bir teklifi kabul ettikten sonra yapılır.
                     @elseif($load->isPaid())
@@ -167,29 +167,29 @@ class extends Component {
         @elseif(! $configured)
             <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-3 text-xs">
                 <h3 class="text-sm font-bold text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
-                <p class="text-neutral-300 leading-relaxed">
+                <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                     Ödeme sağlayıcısı henüz bu ortam için etkinleştirilmedi; bu nedenle şu anda kart ile tahsilat yapılamıyor.
                     Ödeme altyapısı açıldığında bu sayfadan {{ number_format($amounts['total'], 2, ',', '.') }} ₺ tutarındaki bedeli güvenli havuza yatırabileceksiniz.
                 </p>
-                <p class="text-neutral-400 leading-relaxed">Şoför, ödeme havuza yatırılmadan sevkiyatı başlatamaz. Sorularınız için <a href="{{ route('cargo-owner.support.index') }}" wire:navigate class="text-brand-400 hover:underline">destek bileti</a> açabilirsiniz.</p>
+                <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Şoför, ödeme havuza yatırılmadan sevkiyatı başlatamaz. Sorularınız için <a href="{{ route('cargo-owner.support.index') }}" wire:navigate class="text-brand-400 hover:underline">destek bileti</a> açabilirsiniz.</p>
             </div>
         @elseif($tokenError)
             <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">
                 <h3 class="text-sm font-bold text-rose-300">Ödeme sayfası açılamadı</h3>
-                <p class="text-neutral-300 leading-relaxed">{{ $tokenError }}</p>
-                <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-semibold">Tekrar dene</a>
+                <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $tokenError }}</p>
+                <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
             </div>
         @elseif($iframeUrl)
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
-                <div class="p-4 border-b border-neutral-800 text-xs text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme, sağlayıcının güvenli sayfasında tamamlanır.</div>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme, sağlayıcının güvenli sayfasında tamamlanır.</div>
                 <div class="bg-white" wire:ignore>
                     <iframe src="{{ $iframeUrl }}" id="paytriframe" frameborder="0" scrolling="no" style="width:100%"></iframe>
                 </div>
             </div>
 
-            <div wire:poll.10s="checkStatus" class="p-3 rounded-xl bg-neutral-900 border border-neutral-800 text-[11px] text-neutral-400 flex items-center gap-2">
+            <div wire:poll.10s="checkStatus" class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                <span>Ödeme durumu izleniyor: <span class="text-neutral-200">{{ $load->escrowLabel() }}</span>. Ödeme tamamlandığında sevkiyat sayfasına yönlendirileceksiniz.</span>
+                <span>Ödeme durumu izleniyor: <span class="text-neutral-800 dark:text-neutral-200">{{ $load->escrowLabel() }}</span>. Ödeme tamamlandığında sevkiyat sayfasına yönlendirileceksiniz.</span>
             </div>
 
             @assets
@@ -210,7 +210,7 @@ class extends Component {
             @endscript
         @endif
     @else
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-400">İlan bulunamadı.</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">İlan bulunamadı.</div>
     @endif
 
 </div>

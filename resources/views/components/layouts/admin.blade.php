@@ -4,7 +4,18 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
     <title>{{ $title }}</title>
 
     <!-- Tarayıcı Sekme İkonu (Favicon) -->
@@ -156,31 +167,29 @@
 
             <!-- Üst Header Bar -->
             <header
-                class="bg-white dark:bg-neutral-900 border-b border-neutral-200/80 dark:border-neutral-800/80 px-8 md:px-12 py-5 flex justify-between items-center sticky top-0 z-40 no-print shadow-apple-sm">
+                class="h-16 shrink-0 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 md:px-8 flex justify-between items-center gap-3 sticky top-0 z-40 no-print">
 
                 <!-- Mobil Cihazlar İçin Sidebar Açma Butonu ve Ferah Ekmek Kırıntısı (Breadcrumb) Başlığı -->
                 <div class="flex items-center space-x-4">
                     <button @click="sidebarOpen = !sidebarOpen"
-                        class="md:hidden p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                        class="md:hidden p-2 -ml-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Menüyü aç">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
 
-                    <div class="flex items-center space-x-2 text-xs text-neutral-400 font-medium">
-                        <span>Yönetim</span>
-                        <span class="text-neutral-300 dark:text-neutral-700">/</span>
-                        <h2 class="text-sm font-extrabold text-neutral-900 dark:text-white tracking-tight">
-                            {{ $title }}
-                        </h2>
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="hidden sm:inline text-xs text-neutral-400 font-medium">Yönetim</span>
+                        <span class="hidden sm:inline text-neutral-300 dark:text-neutral-700">/</span>
+                        <h2 class="text-base md:text-lg font-semibold text-neutral-900 dark:text-white truncate">{{ $title }}</h2>
                     </div>
                 </div>
 
                 <!-- Sağ Taraf Kontrolleri (Tema Değiştirici ve Çıkış) -->
                 <div class="flex items-center space-x-3">
                     <button @click="$store.darkMode.toggle()"
-                        class="p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:scale-105 transition-all duration-300">
+                        class="p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Temayı değiştir" aria-label="Temayı değiştir">
                         <svg x-show="!$store.darkMode.on" class="w-4 h-4" fill="none" stroke="currentColor"
                             viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
@@ -196,19 +205,19 @@
                     <form action="{{ route('admin.logout') }}" method="POST">
                         @csrf
                         <button type="submit"
-                            class="btn-apple-secondary text-xs py-2 px-3.5 flex items-center space-x-1.5 font-bold">
+                            class="btn-secondary py-2 px-3 text-xs">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
-                            <span>Güvenli Çıkış</span>
+                            <span class="hidden sm:inline">Çıkış</span>
                         </button>
                     </form>
                 </div>
             </header>
 
             <!-- KUSURSUZ İÇERİK ALANI -->
-            <main class="flex-1 p-8 md:p-12 w-full mx-auto space-y-10">
+            <main class="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto space-y-8">
                 {{ $slot }}
             </main>
 

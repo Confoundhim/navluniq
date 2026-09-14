@@ -62,15 +62,15 @@ class extends Component {
         </div>
     @endif
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <h2 class="text-xl font-bold text-white tracking-tight">Sevkiyatlarım</h2>
-            <p class="text-xs text-neutral-400 mt-1">Şoför atanmış ilanlarınızı takip edin, teslimat kanıtlarını inceleyip onaylayın.</p>
+            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Sevkiyatlarım</h2>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoför atanmış ilanlarınızı takip edin, teslimat kanıtlarını inceleyip onaylayın.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2">
             @foreach(['all' => 'Tümü', 'active' => 'Yolda / bekliyor', 'delivered' => 'Onay bekliyor', 'completed' => 'Tamamlanan'] as $key => $label)
-                <button type="button" wire:click="setFilter('{{ $key }}')" class="px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors {{ $filter === $key ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
+                <button type="button" wire:click="setFilter('{{ $key }}')" class="px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors {{ $filter === $key ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-800' }}">
                     {{ $label }}
                 </button>
             @endforeach
@@ -88,53 +88,53 @@ class extends Component {
                     'delivered' => 'bg-amber-500/10 border-amber-500/20 text-amber-400',
                     'completed' => 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
                     'disputed' => 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-                    default => 'bg-neutral-800 border-neutral-700 text-neutral-300',
+                    default => 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300',
                 };
             @endphp
-            <div class="bg-neutral-900 border border-neutral-800 hover:border-neutral-700/80 rounded-2xl p-6 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-6 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
 
                 <div class="space-y-3 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
-                        <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold {{ $statusTone }}">{{ $load->statusLabel() }}</span>
-                        <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->escrowLabel() }}</span>
+                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
+                        <span class="px-2.5 py-1 rounded-full border text-[11px] font-bold {{ $statusTone }}">{{ $load->statusLabel() }}</span>
+                        <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->escrowLabel() }}</span>
                         <span class="text-xs text-neutral-500 font-medium">{{ $load->updated_at?->format('d.m.Y H:i') }}</span>
                     </div>
 
-                    <div class="text-sm font-bold text-white break-words">
+                    <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">
                         {{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-400">
+                    <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                         <div class="flex items-center gap-1.5">
                             <span class="text-neutral-500">Şoför:</span>
-                            <span class="text-neutral-200 font-semibold">{{ $load->driverProfile?->user?->full_name ?: 'Henüz atanmadı' }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-semibold">{{ $load->driverProfile?->user?->full_name ?: 'Henüz atanmadı' }}</span>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <span class="text-neutral-500">Plaka:</span>
-                            <span class="text-neutral-200 font-mono font-semibold">{{ $vehicle?->plate ?: '—' }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-mono font-semibold">{{ $vehicle?->plate ?: '—' }}</span>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <span class="text-neutral-500">Araç:</span>
-                            <span class="text-neutral-200 font-medium">{{ $vehicleTypes[$vehicle?->vehicle_type ?? $load->vehicle_type] ?? $load->vehicle_type }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $vehicleTypes[$vehicle?->vehicle_type ?? $load->vehicle_type] ?? $load->vehicle_type }}</span>
                         </div>
                         <div class="flex items-center gap-1.5">
                             <span class="text-neutral-500">Yük:</span>
-                            <span class="text-neutral-200 font-medium">{{ $load->goods_type }} ({{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg)</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->goods_type }} ({{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg)</span>
                         </div>
                         @if($shipment?->delivered_at)
                             <div class="flex items-center gap-1.5">
                                 <span class="text-neutral-500">Teslim:</span>
-                                <span class="text-neutral-200">{{ $shipment->delivered_at->format('d.m.Y H:i') }}</span>
+                                <span class="text-neutral-800 dark:text-neutral-200">{{ $shipment->delivered_at->format('d.m.Y H:i') }}</span>
                             </div>
                         @endif
                     </div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-800">
+                <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-200 dark:border-neutral-800">
                     <div class="text-left lg:text-right">
-                        <span class="text-[10px] text-neutral-500 uppercase tracking-wider block">Navlun bedeli</span>
-                        <div class="text-2xl font-black text-white font-mono">
+                        <span class="text-[11px] text-neutral-500 uppercase tracking-wider block">Navlun bedeli</span>
+                        <div class="text-2xl font-black text-neutral-900 dark:text-white font-mono">
                             {{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} <span class="text-brand-500 text-base">₺</span>
                         </div>
                     </div>
@@ -146,15 +146,15 @@ class extends Component {
 
             </div>
         @empty
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center space-y-4">
-                <div class="w-16 h-16 rounded-full bg-neutral-800/80 flex items-center justify-center mx-auto text-neutral-500">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center space-y-4">
+                <div class="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-center mx-auto text-neutral-500">
                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                     </svg>
                 </div>
                 <div class="space-y-1">
-                    <h4 class="text-base font-bold text-white">Henüz sevkiyatınız yok</h4>
-                    <p class="text-xs text-neutral-400 max-w-sm mx-auto">Bir teklifi kabul ettiğinizde sevkiyat kaydı oluşur ve burada listelenir.</p>
+                    <h4 class="text-base font-bold text-neutral-900 dark:text-white">Henüz sevkiyatınız yok</h4>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Bir teklifi kabul ettiğinizde sevkiyat kaydı oluşur ve burada listelenir.</p>
                 </div>
             </div>
         @endforelse

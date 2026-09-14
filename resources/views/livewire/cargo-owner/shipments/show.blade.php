@@ -161,12 +161,12 @@ class extends Component {
         </div>
     @endif
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <a href="{{ route('cargo-owner.shipments.index') }}" wire:navigate class="text-xs text-neutral-400 hover:text-brand-400 font-semibold inline-flex items-center gap-1.5 mb-1 transition-colors">
+            <a href="{{ route('cargo-owner.shipments.index') }}" wire:navigate class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-semibold inline-flex items-center gap-1.5 mb-1 transition-colors">
                 &larr; Sevkiyatlarıma dön
             </a>
-            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span>Sevkiyat takibi</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-mono text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
@@ -174,8 +174,8 @@ class extends Component {
 
         @if($load)
             <div class="flex flex-wrap items-center gap-2">
-                <span class="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-200 text-xs font-bold">{{ $load->statusLabel() }}</span>
-                <span class="px-3 py-1.5 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-400 text-xs font-bold">{{ $load->escrowLabel() }}</span>
+                <span class="px-3 py-1.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs font-bold">{{ $load->statusLabel() }}</span>
+                <span class="px-3 py-1.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 text-xs font-bold">{{ $load->escrowLabel() }}</span>
             </div>
         @endif
     </div>
@@ -191,8 +191,8 @@ class extends Component {
 
         @if($load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment')
             <div class="p-5 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="text-xs text-neutral-200 leading-relaxed">
-                    <span class="font-bold text-white block mb-0.5">Ödeme bekleniyor</span>
+                <div class="text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed">
+                    <span class="font-bold text-neutral-900 dark:text-white block mb-0.5">Ödeme bekleniyor</span>
                     Şoför, navlun bedeli güvenli havuza yatırılmadan sevkiyatı başlatamaz.
                 </div>
                 <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs text-center shadow-lg shadow-brand-500/20">Ödemeye git</a>
@@ -202,7 +202,7 @@ class extends Component {
         @if($openDispute)
             <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Havuz ödemesi karar verilene kadar askıda.</span>
-                <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
+                <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
             </div>
         @endif
 
@@ -210,14 +210,14 @@ class extends Component {
 
             <div class="lg:col-span-2 space-y-6">
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.30s="refreshTrail" @endif>
-                    <div class="p-4 border-b border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.30s="refreshTrail" @endif>
+                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                         <div class="flex items-center gap-2">
                             <span class="w-2.5 h-2.5 rounded-full {{ $isLive && $latest ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600' }}"></span>
-                            <span class="font-bold text-white">Canlı konum</span>
+                            <span class="font-bold text-neutral-900 dark:text-white">Canlı konum</span>
                         </div>
                         @if($latest)
-                            <span class="text-neutral-400" x-data="{ at: @js($latest->recorded_at?->format('d.m.Y H:i')) }" x-on:trail-updated.window="at = $event.detail.recordedAt || at">Son konum: <span class="text-neutral-200" x-text="at"></span></span>
+                            <span class="text-neutral-500 dark:text-neutral-400" x-data="{ at: @js($latest->recorded_at?->format('d.m.Y H:i')) }" x-on:trail-updated.window="at = $event.detail.recordedAt || at">Son konum: <span class="text-neutral-800 dark:text-neutral-200" x-text="at"></span></span>
                         @endif
                     </div>
 
@@ -250,7 +250,7 @@ class extends Component {
                             <div wire:ignore id="ownerTrackMap" class="h-72 rounded-2xl"></div>
                         </div>
                     @else
-                        <div class="p-10 text-center text-xs text-neutral-400">
+                        <div class="p-10 text-center text-xs text-neutral-500 dark:text-neutral-400">
                             @if($shipment && $shipment->status === 'awaiting_pickup')
                                 Şoför yola çıktığında canlı konum burada görünür.
                             @else
@@ -260,29 +260,29 @@ class extends Component {
                     @endif
                 </div>
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Rota ve yük</h3>
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Rota ve yük</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                        <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
+                        <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Yükleme adresi</span>
-                            <span class="text-white font-medium break-words">{{ $load->pickup_location }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->pickup_location }}</span>
                             <span class="text-neutral-500 block mt-1">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
                         </div>
-                        <div class="p-3 rounded-xl bg-neutral-950 border border-neutral-800">
+                        <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Teslimat adresi</span>
-                            <span class="text-white font-medium break-words">{{ $load->delivery_location }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->delivery_location }}</span>
                             <span class="text-neutral-500 block mt-1">{{ $load->delivery_date ? 'En geç '.$load->delivery_date->format('d.m.Y') : 'Teslim tarihi belirtilmedi' }}</span>
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-4 text-xs text-neutral-400">
-                        <span>Yük: <span class="text-neutral-200 font-medium">{{ $load->goods_type }}</span></span>
-                        <span>Ağırlık: <span class="text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span></span>
+                    <div class="flex flex-wrap gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+                        <span>Yük: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->goods_type }}</span></span>
+                        <span>Ağırlık: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span></span>
                         @if($load->volume)
-                            <span>Hacim: <span class="text-neutral-200 font-medium">{{ $load->volume }} m³</span></span>
+                            <span>Hacim: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->volume }} m³</span></span>
                         @endif
-                        <span>Araç tipi: <span class="text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span></span>
+                        <span>Araç tipi: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span></span>
                         @if($load->e_irsaliye_no)
-                            <span>e-İrsaliye: <span class="text-neutral-200 font-mono">{{ $load->e_irsaliye_no }}</span></span>
+                            <span>e-İrsaliye: <span class="text-neutral-800 dark:text-neutral-200 font-mono">{{ $load->e_irsaliye_no }}</span></span>
                         @endif
                         @if($load->e_irsaliye_path)
                             <a href="{{ route('files.e-irsaliye', $load->id) }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">e-İrsaliye belgesi</a>
@@ -290,23 +290,23 @@ class extends Component {
                     </div>
                 </div>
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sevkiyat zaman çizelgesi</h3>
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sevkiyat zaman çizelgesi</h3>
                     <div class="space-y-3">
                         @foreach($timeline as $step)
                             @php $done = $step['done'] ?? ($step['at'] !== null); @endphp
                             <div class="relative pl-6 text-xs">
-                                <span class="absolute left-0 top-0.5 w-3 h-3 rounded-full border-2 {{ $done ? 'bg-brand-500 border-brand-500' : 'bg-neutral-900 border-neutral-700' }}"></span>
-                                <div class="font-semibold {{ $done ? 'text-white' : 'text-neutral-500' }}">{{ $step['label'] }}</div>
+                                <span class="absolute left-0 top-0.5 w-3 h-3 rounded-full border-2 {{ $done ? 'bg-brand-500 border-brand-500' : 'bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700' }}"></span>
+                                <div class="font-semibold {{ $done ? 'text-neutral-900 dark:text-white' : 'text-neutral-500' }}">{{ $step['label'] }}</div>
                                 <div class="text-[11px] text-neutral-500 font-mono">{{ $step['at']?->format('d.m.Y H:i') ?? ($done ? 'Tamamlandı' : 'Bekleniyor') }}</div>
                             </div>
                         @endforeach
                     </div>
                 </div>
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Teslimat kanıtları</h3>
+                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Teslimat kanıtları</h3>
                         @if($canApprove)
                             <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda havuzdaki navlun bedeli şoförün hakedişi olarak ödeme sırasına alınır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
                                 <span wire:loading.remove wire:target="approveDelivery">Teslimatı onayla</span>
@@ -322,15 +322,15 @@ class extends Component {
                     @if($shipment && $shipment->evidence->isNotEmpty())
                         <div class="space-y-2 text-xs">
                             @foreach($shipment->evidence as $evidence)
-                                <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                     <div class="min-w-0">
-                                        <div class="text-white font-semibold">{{ $evidenceTypes[$evidence->type] ?? $evidence->type }}</div>
+                                        <div class="text-neutral-900 dark:text-white font-semibold">{{ $evidenceTypes[$evidence->type] ?? $evidence->type }}</div>
                                         <div class="text-[11px] text-neutral-500">
                                             {{ ($evidence->captured_at ?? $evidence->created_at)?->format('d.m.Y H:i') }}
                                             @if($evidence->uploader) · {{ $evidence->uploader->full_name }} @endif
                                         </div>
                                         @if(! empty($evidence->metadata['note']))
-                                            <div class="text-neutral-300 mt-1 break-words">{{ $evidence->metadata['note'] }}</div>
+                                            <div class="text-neutral-700 dark:text-neutral-300 mt-1 break-words">{{ $evidence->metadata['note'] }}</div>
                                         @endif
                                     </div>
                                     <a href="{{ route('files.evidence', $evidence->id) }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline font-semibold shrink-0">Belgeyi aç</a>
@@ -338,13 +338,13 @@ class extends Component {
                             @endforeach
                         </div>
                     @else
-                        <p class="text-xs text-neutral-400">Henüz teslimat kanıtı yüklenmedi.</p>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">Henüz teslimat kanıtı yüklenmedi.</p>
                     @endif
                 </div>
 
                 @if($canReview)
-                    <form wire:submit.prevent="submitReview" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Şoförü değerlendirin</h3>
+                    <form wire:submit.prevent="submitReview" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Şoförü değerlendirin</h3>
                         <div class="flex items-center gap-2">
                             @for($i = 1; $i <= 5; $i++)
                                 <button type="button" wire:click="$set('rating', {{ $i }})" class="p-1 transition-transform hover:scale-110" aria-label="{{ $i }} puan">
@@ -353,12 +353,12 @@ class extends Component {
                                     </svg>
                                 </button>
                             @endfor
-                            <span class="text-xs text-neutral-400 ml-2">{{ $rating }} / 5</span>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400 ml-2">{{ $rating }} / 5</span>
                         </div>
                         @error('rating') <span class="text-rose-500 text-[11px] block">{{ $message }}</span> @enderror
                         <div>
-                            <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yorumunuz (isteğe bağlı)</label>
-                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:border-brand-500 focus:outline-none"></textarea>
+                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yorumunuz (isteğe bağlı)</label>
+                            <textarea wire:model="review_comment" rows="3" maxlength="1000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-xs text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
                             @error('review_comment') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <div class="flex justify-end">
@@ -366,14 +366,14 @@ class extends Component {
                         </div>
                     </form>
                 @elseif($hasReviewed)
-                    <div class="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 text-xs text-neutral-400">Bu sevkiyat için değerlendirmeniz kaydedildi.</div>
+                    <div class="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400">Bu sevkiyat için değerlendirmeniz kaydedildi.</div>
                 @endif
             </div>
 
             <div class="space-y-6">
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Şoför ve araç</h3>
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Şoför ve araç</h3>
 
                     @if($driverUser)
                         <div class="flex items-center gap-3">
@@ -381,8 +381,8 @@ class extends Component {
                                 {{ mb_strtoupper(mb_substr($driverUser->first_name ?: 'S', 0, 1)) }}
                             </div>
                             <div class="min-w-0">
-                                <div class="text-sm font-bold text-white">{{ $driverUser->full_name }}</div>
-                                <div class="text-xs text-neutral-400">
+                                <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $driverUser->full_name }}</div>
+                                <div class="text-xs text-neutral-500 dark:text-neutral-400">
                                     @if($load->isPaid() && $driverUser->phone)
                                         <a href="tel:0{{ Phone::normalize($driverUser->phone) ?? preg_replace('/\D/', '', $driverUser->phone) }}" class="font-mono text-brand-400 hover:underline">{{ Phone::format(Phone::normalize($driverUser->phone) ?? $driverUser->phone) }}</a>
                                     @else
@@ -395,34 +395,34 @@ class extends Component {
                             </div>
                         </div>
 
-                        <div class="space-y-2 text-xs border-t border-neutral-800 pt-4">
+                        <div class="space-y-2 text-xs border-t border-neutral-200 dark:border-neutral-800 pt-4">
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-neutral-400">Plaka</span>
-                                <span class="text-white font-mono font-bold">{{ $vehicle?->plate ?: '—' }}</span>
+                                <span class="text-neutral-500 dark:text-neutral-400">Plaka</span>
+                                <span class="text-neutral-900 dark:text-white font-mono font-bold">{{ $vehicle?->plate ?: '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-neutral-400">Marka / model</span>
-                                <span class="text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
+                                <span class="text-neutral-500 dark:text-neutral-400">Marka / model</span>
+                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
-                                <span class="text-neutral-400">Araç tipi</span>
-                                <span class="text-neutral-200">{{ $vehicle ? ($vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type) : '—' }}</span>
+                                <span class="text-neutral-500 dark:text-neutral-400">Araç tipi</span>
+                                <span class="text-neutral-800 dark:text-neutral-200">{{ $vehicle ? ($vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type) : '—' }}</span>
                             </div>
                         </div>
                     @else
-                        <p class="text-xs text-neutral-400">Henüz şoför atanmadı.</p>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400">Henüz şoför atanmadı.</p>
                     @endif
                 </div>
 
-                <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Güvenli havuz</h3>
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Güvenli havuz</h3>
                     <div class="flex items-center justify-between gap-3">
-                        <span class="text-neutral-400">Navlun bedeli</span>
-                        <span class="text-brand-400 font-bold font-mono text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
+                        <span class="text-neutral-500 dark:text-neutral-400">Navlun bedeli</span>
+                        <span class="text-brand-400 font-bold tabular-nums text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
                     </div>
                     <div class="flex items-center justify-between gap-3">
-                        <span class="text-neutral-400">Durum</span>
-                        <span class="text-white font-semibold text-right">{{ $load->escrowLabel() }}</span>
+                        <span class="text-neutral-500 dark:text-neutral-400">Durum</span>
+                        <span class="text-neutral-900 dark:text-white font-semibold text-right">{{ $load->escrowLabel() }}</span>
                     </div>
                     <p class="text-[11px] text-neutral-500 leading-relaxed">
                         @if($load->escrow_status === 'pending_payment')
@@ -443,17 +443,17 @@ class extends Component {
                 </div>
 
                 @if($canDispute)
-                    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
-                        <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sorun mu var?</h3>
-                        <p class="text-[11px] text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
-                        <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
+                    <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+                        <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Sorun mu var?</h3>
+                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
+                        <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>
                 @endif
 
             </div>
         </div>
     @else
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-400">Sevkiyat bulunamadı.</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">Sevkiyat bulunamadı.</div>
     @endif
 
 </div>

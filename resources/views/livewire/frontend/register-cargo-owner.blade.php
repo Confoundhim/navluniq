@@ -292,75 +292,75 @@ new class extends Component {
                 </div>
             @endif
 
-            <form wire:submit.prevent="register" class="space-y-4 text-xs">
+            <form wire:submit.prevent="register" class="space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Ad</label>
-                        <input type="text" wire:model="firstName" placeholder="Adınız" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                        @error('firstName') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Ad</label>
+                        <input type="text" wire:model="firstName" placeholder="Adınız" class="form-input">
+                        @error('firstName') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Soyad</label>
-                        <input type="text" wire:model="lastName" placeholder="Soyadınız" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                        @error('lastName') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Soyad</label>
+                        <input type="text" wire:model="lastName" placeholder="Soyadınız" class="form-input">
+                        @error('lastName') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">E-Posta Adresi</label>
-                        <input type="email" wire:model="email" placeholder="ornek@sirket.com" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                        @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">E-Posta Adresi</label>
+                        <input type="email" wire:model="email" placeholder="ornek@sirket.com" class="form-input">
+                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Cep Telefonu</label>
-                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                        @error('phone') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Cep Telefonu</label>
+                        <input type="text" wire:model="phone" placeholder="05XXXXXXXXX" class="form-input">
+                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 @if($type === 'individual')
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div class="sm:col-span-2 space-y-1.5">
-                            <label class="font-semibold text-neutral-500">T.C. Kimlik Numarası</label>
-                            <input type="text" wire:model="tcNo" maxlength="11" placeholder="11 Haneli T.C. Kimlik No" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 font-mono text-neutral-900 dark:text-white">
-                            @error('tcNo') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">T.C. Kimlik Numarası</label>
+                            <input type="text" wire:model="tcNo" maxlength="11" placeholder="11 Haneli T.C. Kimlik No" class="form-input font-mono">
+                            @error('tcNo') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Doğum Yılı</label>
-                            <input type="text" wire:model="birthYear" maxlength="4" placeholder="1990" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 font-mono text-neutral-900 dark:text-white">
-                            @error('birthYear') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">Doğum Yılı</label>
+                            <input type="text" wire:model="birthYear" maxlength="4" placeholder="1990" class="form-input font-mono">
+                            @error('birthYear') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 @else
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Vergi Kimlik Numarası (VKN)</label>
-                        <input type="text" wire:model.live="taxNo" maxlength="10" placeholder="10 haneli VKN" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 font-mono text-neutral-900 dark:text-white">
-                        @error('taxNo') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Vergi Kimlik Numarası (VKN)</label>
+                        <input type="text" wire:model.live="taxNo" maxlength="10" placeholder="10 haneli VKN" class="form-input font-mono">
+                        @error('taxNo') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Firma Resmi Unvanı</label>
-                            <input type="text" wire:model="companyTitle" placeholder="Vergi levhasındaki unvan" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                            @error('companyTitle') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                            <label class="form-label">Firma Resmi Unvanı</label>
+                            <input type="text" wire:model="companyTitle" placeholder="Vergi levhasındaki unvan" class="form-input">
+                            @error('companyTitle') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                         <div class="space-y-1.5">
-                            <label class="font-semibold text-neutral-500">Vergi Dairesi</label>
-                            <input type="text" wire:model="taxOffice" placeholder="Örn. Kızılbey" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
+                            <label class="form-label">Vergi Dairesi</label>
+                            <input type="text" wire:model="taxOffice" placeholder="Örn. Kızılbey" class="form-input">
                         </div>
                     </div>
                 @endif
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Giriş Şifresi</label>
-                        <input type="password" wire:model="password" placeholder="••••••••" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                        @error('password') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                    <div class="space-y-1">
+                        <label class="form-label">Giriş Şifresi</label>
+                        <input type="password" wire:model="password" placeholder="••••••••" class="form-input">
+                        @error('password') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="space-y-1.5">
-                        <label class="font-semibold text-neutral-500">Şifre Tekrarı</label>
-                        <input type="password" wire:model="password_confirmation" placeholder="••••••••" class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
+                    <div class="space-y-1">
+                        <label class="form-label">Şifre Tekrarı</label>
+                        <input type="password" wire:model="password_confirmation" placeholder="••••••••" class="form-input">
                     </div>
                 </div>
 
@@ -372,10 +372,10 @@ new class extends Component {
                             <a href="{{ route('contracts', 'kvkk') }}" target="_blank" class="underline hover:text-black dark:hover:text-white font-semibold">KVKK Metnini</a> okudum ve kabul ediyorum.
                         </span>
                     </label>
-                    @error('acceptTerms') <span class="text-red-500 text-[10px] block mt-1">{{ $message }}</span> @enderror
+                    @error('acceptTerms') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
-                <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md flex justify-center items-center">
+                <button type="submit" class="btn-primary w-full py-3">
                     <span wire:loading.remove wire:target="register">Yük Sahibi Kaydını Başlat (E-Posta OTP Al)</span>
                     <span wire:loading wire:target="register">Bilgiler Kaydediliyor...</span>
                 </button>
@@ -388,7 +388,7 @@ new class extends Component {
 
         @else
             <!-- 2. ADIM: E-POSTA OTP DOĞRULAMA -->
-            <div class="space-y-5 animate-slide-up text-xs">
+            <div class="space-y-5 animate-slide-up">
                 <div class="text-center space-y-1">
                     <div class="w-12 h-12 bg-brand-500/10 text-brand-500 rounded-2xl flex items-center justify-center mx-auto mb-2 text-xl font-bold">
                         ✉️
@@ -404,10 +404,10 @@ new class extends Component {
                 @endif
 
                 <form wire:submit.prevent="verifyOtp" class="space-y-4">
-                    <input type="text" wire:model="otp" maxlength="6" placeholder="000000" class="w-full tracking-[0.5em] text-center p-3.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 text-neutral-900 dark:text-white text-xl font-mono font-bold rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30">
-                    @error('otp') <span class="text-red-500 text-[10px] text-center block">{{ $message }}</span> @enderror
+                    <input type="text" wire:model="otp" maxlength="6" placeholder="000000" class="form-input tracking-[0.5em] text-center text-xl font-mono font-bold">
+                    @error('otp') <span class="form-error">{{ $message }}</span> @enderror
 
-                    <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold flex justify-center items-center">
+                    <button type="submit" class="btn-primary w-full py-3">
                         <span wire:loading.remove wire:target="verifyOtp">Kodu Doğrula ve Panele Git</span>
                         <span wire:loading wire:target="verifyOtp">Hesap Doğrulanıyor...</span>
                     </button>

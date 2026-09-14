@@ -68,30 +68,30 @@ class extends Component {
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
     @endif
 
-    <div class="border-b border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-white tracking-tight">Cüzdan ve Hakedişlerim</h2>
-        <p class="text-xs text-neutral-400 mt-1">Hakedişleriniz, teslimat onayından sonra finans ekibi tarafından kayıtlı IBAN adresinize banka transferiyle aktarılır.</p>
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Cüzdan ve Hakedişlerim</h2>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Hakedişleriniz, teslimat onayından sonra finans ekibi tarafından kayıtlı IBAN adresinize banka transferiyle aktarılır.</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-400">Ödeme sırasında</div>
-            <div class="mt-2 text-2xl font-black text-white font-mono">{{ number_format((float) ($summary['pending'] ?? 0), 2, ',', '.') }} ₺</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödeme sırasında</div>
+            <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['pending'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Onaylanmış, transferi bekleyen net hakediş</div>
         </div>
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-400">Ödendi</div>
-            <div class="mt-2 text-2xl font-black text-emerald-400 font-mono">{{ number_format((float) ($summary['paid'] ?? 0), 2, ',', '.') }} ₺</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödendi</div>
+            <div class="mt-2 text-2xl font-black text-emerald-400 tabular-nums">{{ number_format((float) ($summary['paid'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Banka hesabınıza aktarılan toplam</div>
         </div>
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-400">Havuzda bloke</div>
-            <div class="mt-2 text-2xl font-black text-white font-mono">{{ number_format((float) ($summary['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Havuzda bloke</div>
+            <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Devam eden sevkiyatların navlun bedeli</div>
         </div>
-        <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-400">Kesilen komisyon</div>
-            <div class="mt-2 text-2xl font-black text-neutral-300 font-mono">{{ number_format((float) ($summary['commission'] ?? 0), 2, ',', '.') }} ₺</div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Kesilen komisyon</div>
+            <div class="mt-2 text-2xl font-black text-neutral-700 dark:text-neutral-300 tabular-nums">{{ number_format((float) ($summary['commission'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Tüm hakedişlerden düşülen toplam</div>
         </div>
     </div>
@@ -99,13 +99,13 @@ class extends Component {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <div class="lg:col-span-2 space-y-6">
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Hakediş kayıtları</h3>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Hakediş kayıtları</h3>
 
                 @if($payouts->count())
                     <div class="responsive-scroll overflow-x-auto">
                         <table class="w-full text-xs text-left">
-                            <thead class="text-[10px] uppercase text-neutral-500 border-b border-neutral-800">
+                            <thead class="text-[11px] uppercase text-neutral-500 border-b border-neutral-200 dark:border-neutral-800">
                                 <tr>
                                     <th class="py-2 pr-3">Sevkiyat</th>
                                     <th class="py-2 pr-3">Navlun</th>
@@ -116,27 +116,27 @@ class extends Component {
                                     <th class="py-2">Ödeme tarihi</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-neutral-800">
+                            <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
                                 @foreach($payouts as $payout)
                                     <tr>
-                                        <td class="py-3 pr-3 text-white">
+                                        <td class="py-3 pr-3 text-neutral-900 dark:text-white">
                                             @if($payout->cargoLoad)
                                                 <a href="{{ route('driver.shipments.show', $payout->cargoLoad->id) }}" wire:navigate class="hover:text-brand-400">{{ $payout->cargoLoad->pickup_location }} &rarr; {{ $payout->cargoLoad->delivery_location }}</a>
                                             @else
                                                 İlan kaldırılmış
                                             @endif
                                         </td>
-                                        <td class="py-3 pr-3 font-mono text-neutral-300">{{ number_format((float) ($payout->total_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3 font-mono text-neutral-400">{{ number_format((float) ($payout->commission_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3 font-mono font-bold text-white">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3 tabular-nums text-neutral-700 dark:text-neutral-300">{{ number_format((float) ($payout->total_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3 tabular-nums text-neutral-500 dark:text-neutral-400">{{ number_format((float) ($payout->commission_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3 tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
                                         <td class="py-3 pr-3">
-                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border
+                                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
                                                 {{ $payout->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($payout->status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400') }}">
                                                 {{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}
                                             </span>
                                         </td>
-                                        <td class="py-3 pr-3 font-mono text-neutral-400">{{ $payout->reference_no ?: '—' }}</td>
-                                        <td class="py-3 text-neutral-400">{{ $payout->paid_at?->format('d.m.Y H:i') ?? '—' }}</td>
+                                        <td class="py-3 pr-3 font-mono text-neutral-500 dark:text-neutral-400">{{ $payout->reference_no ?: '—' }}</td>
+                                        <td class="py-3 text-neutral-500 dark:text-neutral-400">{{ $payout->paid_at?->format('d.m.Y H:i') ?? '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -146,19 +146,19 @@ class extends Component {
                         <div class="pt-2">{{ $payouts->links() }}</div>
                     @endif
                 @else
-                    <div class="p-6 bg-neutral-950 border border-dashed border-neutral-800 rounded-xl text-center text-xs text-neutral-400">Henüz hakediş kaydınız yok. Tamamlanan ve onaylanan sevkiyatlar burada listelenir.</div>
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz hakediş kaydınız yok. Tamamlanan ve onaylanan sevkiyatlar burada listelenir.</div>
                 @endif
             </div>
 
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Faturalar</h3>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Faturalar</h3>
                 @forelse($invoices as $invoice)
-                    <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                         <div>
-                            <div class="text-white font-semibold">{{ $invoice->invoice_no ?: 'Numara bekleniyor' }}</div>
-                            <div class="text-[10px] text-neutral-500">{{ $invoice->invoice_type }} · {{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>
+                            <div class="text-neutral-900 dark:text-white font-semibold">{{ $invoice->invoice_no ?: 'Numara bekleniyor' }}</div>
+                            <div class="text-[11px] text-neutral-500">{{ $invoice->invoice_type }} · {{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>
                         </div>
-                        <div class="font-mono text-neutral-300">{{ number_format((float) ($invoice->total_amount ?? 0), 2, ',', '.') }} ₺ · {{ $invoice->status }}</div>
+                        <div class="tabular-nums text-neutral-700 dark:text-neutral-300">{{ number_format((float) ($invoice->total_amount ?? 0), 2, ',', '.') }} ₺ · {{ $invoice->status }}</div>
                     </div>
                 @empty
                     <div class="text-xs text-neutral-500">Henüz adınıza kesilmiş fatura yok.</div>
@@ -167,28 +167,28 @@ class extends Component {
         </div>
 
         <div class="space-y-6">
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ödeme alacağınız hesap</h3>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme alacağınız hesap</h3>
 
                 @if($bankAccount)
-                    <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-1">
-                        <div class="text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
-                        <div class="text-neutral-400">{{ $bankAccount->account_holder }}</div>
-                        <div class="text-[10px] text-neutral-500">{{ $bankAccount->is_verified ? 'Doğrulandı' : 'Finans ekibi ilk transferde doğrular' }}</div>
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
+                        <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">{{ $bankAccount->account_holder }}</div>
+                        <div class="text-[11px] text-neutral-500">{{ $bankAccount->is_verified ? 'Doğrulandı' : 'Finans ekibi ilk transferde doğrular' }}</div>
                     </div>
                 @else
                     <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300">Kayıtlı IBAN adresiniz yok. Hakedişlerinizin aktarılabilmesi için IBAN ekleyin.</div>
                 @endif
 
-                <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-800 pt-4">
+                <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-4">
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
-                        <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
+                        <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
                         @error('iban') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Hesap sahibi</label>
-                        <input type="text" wire:model="account_holder" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Hesap sahibi</label>
+                        <input type="text" wire:model="account_holder" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('account_holder') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
@@ -198,8 +198,8 @@ class extends Component {
                 </form>
             </div>
 
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-400 leading-relaxed">
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Ödeme süreci</h3>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Ödeme süreci</h3>
                 <p>Yük sahibi teslimatı onayladığında hakedişiniz komisyon düşülerek ödeme sırasına alınır.</p>
                 <p>Transfer, finans ekibi tarafından kayıtlı IBAN adresinize yapılır; ödeme tamamlandığında referans numarası bu sayfada görünür.</p>
             </div>

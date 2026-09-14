@@ -105,12 +105,12 @@ class extends Component {
         </div>
     @endif
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div class="flex items-center gap-2">
-            <button type="button" wire:click="setTab('active')" class="px-4 py-2 rounded-xl text-xs font-semibold transition-colors {{ $activeTab === 'active' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
+            <button type="button" wire:click="setTab('active')" class="px-4 py-2 rounded-xl text-xs font-semibold transition-colors {{ $activeTab === 'active' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-800' }}">
                 Aktif ilanlar
             </button>
-            <button type="button" wire:click="setTab('past')" class="px-4 py-2 rounded-xl text-xs font-semibold transition-colors {{ $activeTab === 'past' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800' }}">
+            <button type="button" wire:click="setTab('past')" class="px-4 py-2 rounded-xl text-xs font-semibold transition-colors {{ $activeTab === 'past' ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'bg-white dark:bg-neutral-900 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-800' }}">
                 Geçmiş
             </button>
         </div>
@@ -132,59 +132,59 @@ class extends Component {
                     'delivered' => 'bg-amber-500/10 border-amber-500/20 text-amber-400',
                     'completed' => 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
                     'disputed' => 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-                    default => 'bg-neutral-800 border-neutral-700 text-neutral-400',
+                    default => 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400',
                 };
                 $pendingPayment = $load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment';
             @endphp
-            <div class="bg-neutral-900 border border-neutral-800 hover:border-neutral-700/80 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
 
                 <div class="space-y-3 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
-                        <span class="px-2.5 py-1 rounded-md bg-neutral-800 text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
-                        <span class="px-2.5 py-1 rounded-full border text-[10px] font-bold {{ $statusTone }}">{{ $load->statusLabel() }}</span>
+                        <span class="px-2.5 py-1 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] font-bold">#{{ $load->id }}</span>
+                        <span class="px-2.5 py-1 rounded-full border text-[11px] font-bold {{ $statusTone }}">{{ $load->statusLabel() }}</span>
                         @if($load->status !== 'active_seeking' && $load->status !== 'cancelled')
-                            <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] font-bold">{{ $load->escrowLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->escrowLabel() }}</span>
                         @endif
                         @if($load->status === 'active_seeking')
-                            <span class="px-2.5 py-1 rounded-full bg-neutral-950 border border-neutral-800 text-neutral-300 text-[10px] font-bold">{{ (int) $load->pending_offers_count }} teklif</span>
+                            <span class="px-2.5 py-1 rounded-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ (int) $load->pending_offers_count }} teklif</span>
                         @endif
                         <span class="text-xs text-neutral-500 font-medium">{{ ($load->published_at ?? $load->created_at)?->format('d.m.Y H:i') }}</span>
                     </div>
 
-                    <div class="text-sm font-bold text-white break-words">
+                    <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">
                         {{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-400">
+                    <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Araç:</span>
-                            <span class="text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Yük:</span>
-                            <span class="text-neutral-200 font-medium">{{ $load->goods_type }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->goods_type }}</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Ağırlık:</span>
-                            <span class="text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Yükleme:</span>
-                            <span class="text-neutral-200 font-medium">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
                         </div>
                         @if($load->e_irsaliye_no)
                             <div class="flex items-center gap-1">
                                 <span class="text-neutral-500">e-İrsaliye:</span>
-                                <span class="text-neutral-300 font-mono">{{ $load->e_irsaliye_no }}</span>
+                                <span class="text-neutral-700 dark:text-neutral-300 font-mono">{{ $load->e_irsaliye_no }}</span>
                             </div>
                         @endif
                     </div>
                 </div>
 
-                <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-800">
+                <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-200 dark:border-neutral-800">
                     <div class="text-left lg:text-right">
-                        <span class="text-[10px] text-neutral-500 uppercase tracking-wider block">{{ $load->status === 'active_seeking' ? 'Navlun bedeli' : 'Anlaşılan bedel' }}</span>
-                        <div class="text-2xl font-black text-white font-mono">
+                        <span class="text-[11px] text-neutral-500 uppercase tracking-wider block">{{ $load->status === 'active_seeking' ? 'Navlun bedeli' : 'Anlaşılan bedel' }}</span>
+                        <div class="text-2xl font-black text-neutral-900 dark:text-white font-mono">
                             {{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} <span class="text-brand-500 text-lg">₺</span>
                         </div>
                     </div>
@@ -194,14 +194,14 @@ class extends Component {
                             <a href="{{ route('cargo-owner.loads.offers', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-1.5">
                                 Teklifler
                             </a>
-                            <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Bu ilanı iptal etmek istediğinize emin misiniz? Bekleyen teklifler reddedilecek." class="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
+                            <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Bu ilanı iptal etmek istediğinize emin misiniz? Bekleyen teklifler reddedilecek." class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
                                 İptal et
                             </button>
                         @elseif($pendingPayment)
                             <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center">
                                 Ödemeye git
                             </a>
-                            <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Şoför ataması yapılmış bu ilanı iptal etmek istediğinize emin misiniz?" class="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-rose-500/10 text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
+                            <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Şoför ataması yapılmış bu ilanı iptal etmek istediğinize emin misiniz?" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
                                 İptal et
                             </button>
                         @elseif($load->status === 'delivered')
@@ -209,14 +209,14 @@ class extends Component {
                                 Teslimatı onayla
                             </a>
                         @elseif(in_array($load->status, ['completed', 'cancelled'], true))
-                            <button type="button" wire:click="repeatLoad({{ $load->id }})" wire:confirm="Bu ilan aynı bilgilerle ve yarınki yükleme tarihiyle yeniden yayınlanacak. Devam edilsin mi?" class="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
+                            <button type="button" wire:click="repeatLoad({{ $load->id }})" wire:confirm="Bu ilan aynı bilgilerle ve yarınki yükleme tarihiyle yeniden yayınlanacak. Devam edilsin mi?" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                                 <span>Tekrar yayınla</span>
                             </button>
                             @if($load->status === 'completed')
-                                <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center">Detay</a>
+                                <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center">Detay</a>
                             @endif
                         @else
                             <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center">
@@ -228,15 +228,15 @@ class extends Component {
 
             </div>
         @empty
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center space-y-4">
-                <div class="w-16 h-16 rounded-full bg-neutral-800/80 flex items-center justify-center mx-auto text-neutral-500">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center space-y-4">
+                <div class="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800/80 flex items-center justify-center mx-auto text-neutral-500">
                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                 </div>
                 <div class="space-y-1">
-                    <h4 class="text-base font-bold text-white">{{ $activeTab === 'past' ? 'Henüz tamamlanmış veya iptal edilmiş ilanınız yok' : 'Henüz aktif ilanınız yok' }}</h4>
-                    <p class="text-xs text-neutral-400 max-w-sm mx-auto">Yeni bir ilan oluşturarak belgeleri doğrulanmış şoförlerden teklif toplamaya başlayabilirsiniz.</p>
+                    <h4 class="text-base font-bold text-neutral-900 dark:text-white">{{ $activeTab === 'past' ? 'Henüz tamamlanmış veya iptal edilmiş ilanınız yok' : 'Henüz aktif ilanınız yok' }}</h4>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yeni bir ilan oluşturarak belgeleri doğrulanmış şoförlerden teklif toplamaya başlayabilirsiniz.</p>
                 </div>
                 <a href="{{ route('cargo-owner.loads.create') }}" wire:navigate class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all">
                     <span>Yeni ilan oluştur</span>

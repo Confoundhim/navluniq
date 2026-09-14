@@ -193,45 +193,45 @@ class extends Component {
 
 <div class="max-w-4xl mx-auto space-y-8">
 
-    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+    <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
         <div class="flex items-center justify-between relative">
-            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-neutral-800 w-full z-0"></div>
+            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-neutral-100 dark:bg-neutral-800 w-full z-0"></div>
             <div class="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-brand-500 transition-all duration-500 z-0"
                  style="width: {{ $currentStep === 1 ? '0%' : ($currentStep === 2 ? '50%' : '100%') }};"></div>
 
             <div class="relative z-10 flex flex-col items-center gap-2">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep >= 1 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-400' }}">1</div>
-                <span class="text-xs font-semibold {{ $currentStep >= 1 ? 'text-white' : 'text-neutral-500' }}">Rota & tarih</span>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep >= 1 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-white dark:ring-neutral-950' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' }}">1</div>
+                <span class="text-xs font-semibold {{ $currentStep >= 1 ? 'text-neutral-900 dark:text-white' : 'text-neutral-500' }}">Rota & tarih</span>
             </div>
 
             <div class="relative z-10 flex flex-col items-center gap-2">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep >= 2 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-400' }}">2</div>
-                <span class="text-xs font-semibold {{ $currentStep >= 2 ? 'text-white' : 'text-neutral-500' }}">Yük & belge</span>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep >= 2 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-white dark:ring-neutral-950' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' }}">2</div>
+                <span class="text-xs font-semibold {{ $currentStep >= 2 ? 'text-neutral-900 dark:text-white' : 'text-neutral-500' }}">Yük & belge</span>
             </div>
 
             <div class="relative z-10 flex flex-col items-center gap-2">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep === 3 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-neutral-950' : 'bg-neutral-800 text-neutral-400' }}">3</div>
-                <span class="text-xs font-semibold {{ $currentStep === 3 ? 'text-white' : 'text-neutral-500' }}">Bütçe & onay</span>
+                <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 {{ $currentStep === 3 ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/30 ring-4 ring-white dark:ring-neutral-950' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400' }}">3</div>
+                <span class="text-xs font-semibold {{ $currentStep === 3 ? 'text-neutral-900 dark:text-white' : 'text-neutral-500' }}">Bütçe & onay</span>
             </div>
         </div>
     </div>
 
-    <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 md:p-8 space-y-6">
+    <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 md:p-8 space-y-6">
 
         @if($currentStep === 1)
             <div class="space-y-6">
-                <div class="border-b border-neutral-800 pb-4">
-                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                    <h3 class="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>1. Adım: Yükleme ve teslimat rotası</span>
                     </h3>
-                    <p class="text-xs text-neutral-400 mt-1">Yükün alınacağı ve teslim edileceği açık adresleri yazın veya adres defterinizden seçin.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Yükün alınacağı ve teslim edileceği açık adresleri yazın veya adres defterinizden seçin.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-400 mb-1.5">Kayıtlı yükleme adresi (isteğe bağlı)</label>
-                        <select wire:model.live="selected_saved_pickup" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">Kayıtlı yükleme adresi (isteğe bağlı)</label>
+                        <select wire:model.live="selected_saved_pickup" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
                             <option value="">Adres defterinden seç</option>
                             @foreach($pickupAddresses as $addr)
                                 <option value="{{ $addr->id }}">{{ $addr->title }} ({{ $addr->district }} / {{ $addr->city }})</option>
@@ -243,8 +243,8 @@ class extends Component {
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-400 mb-1.5">Kayıtlı teslimat adresi (isteğe bağlı)</label>
-                        <select wire:model.live="selected_saved_delivery" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-200 focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">Kayıtlı teslimat adresi (isteğe bağlı)</label>
+                        <select wire:model.live="selected_saved_delivery" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
                             <option value="">Adres defterinden seç</option>
                             @foreach($deliveryAddresses as $addr)
                                 <option value="{{ $addr->id }}">{{ $addr->title }} ({{ $addr->district }} / {{ $addr->city }})</option>
@@ -255,28 +255,28 @@ class extends Component {
 
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yükleme (çıkış) açık adresi <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="pickup_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yükleme (çıkış) açık adresi <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="pickup_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
                         @error('pickup_location') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Teslimat (varış) açık adresi <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="delivery_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Teslimat (varış) açık adresi <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="delivery_location" rows="2" placeholder="Mahalle, cadde, kapı numarası, ilçe / il" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
                         @error('delivery_location') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yükleme tarihi <span class="text-brand-500">*</span></label>
-                        <input type="date" wire:model="pickup_date" min="{{ now()->format('Y-m-d') }}" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yükleme tarihi <span class="text-brand-500">*</span></label>
+                        <input type="date" wire:model="pickup_date" min="{{ now()->format('Y-m-d') }}" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('pickup_date') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">En geç teslim tarihi (isteğe bağlı)</label>
-                        <input type="date" wire:model="delivery_date" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">En geç teslim tarihi (isteğe bağlı)</label>
+                        <input type="date" wire:model="delivery_date" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('delivery_date') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
@@ -285,18 +285,18 @@ class extends Component {
 
         @if($currentStep === 2)
             <div class="space-y-6">
-                <div class="border-b border-neutral-800 pb-4">
-                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                    <h3 class="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>2. Adım: Yük özellikleri ve e-İrsaliye</span>
                     </h3>
-                    <p class="text-xs text-neutral-400 mt-1">Şoförlerin doğru teklif verebilmesi için yük tipi, araç tipi ve ağırlık bilgisi gerekir. e-İrsaliye bilgisi varsa ekleyebilirsiniz.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoförlerin doğru teklif verebilmesi için yük tipi, araç tipi ve ağırlık bilgisi gerekir. e-İrsaliye bilgisi varsa ekleyebilirsiniz.</p>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Yük cinsi <span class="text-brand-500">*</span></label>
-                        <select wire:model="goods_type" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Yük cinsi <span class="text-brand-500">*</span></label>
+                        <select wire:model="goods_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @foreach($goodsTypes as $type)
                                 <option value="{{ $type }}">{{ $type }}</option>
                             @endforeach
@@ -305,8 +305,8 @@ class extends Component {
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Talep edilen araç tipi <span class="text-brand-500">*</span></label>
-                        <select wire:model="vehicle_type" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Talep edilen araç tipi <span class="text-brand-500">*</span></label>
+                        <select wire:model="vehicle_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @foreach($vehicleTypes as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
@@ -315,19 +315,19 @@ class extends Component {
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Tahmini ağırlık (kg) <span class="text-brand-500">*</span></label>
-                        <input type="number" wire:model="weight" inputmode="numeric" min="1" placeholder="Örn: 24000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Tahmini ağırlık (kg) <span class="text-brand-500">*</span></label>
+                        <input type="number" wire:model="weight" inputmode="numeric" min="1" placeholder="Örn: 24000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
                         @error('weight') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div>
-                        <label class="block text-xs font-medium text-neutral-300 mb-1.5">Hacim (m³, isteğe bağlı)</label>
-                        <input type="number" wire:model="volume" inputmode="numeric" min="0" placeholder="Örn: 80" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
+                        <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">Hacim (m³, isteğe bağlı)</label>
+                        <input type="number" wire:model="volume" inputmode="numeric" min="0" placeholder="Örn: 80" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
                         @error('volume') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
-                <div class="p-4 rounded-xl bg-neutral-950 border border-neutral-800 space-y-4">
+                <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-4">
                     <div class="flex items-center gap-2 text-xs font-semibold text-brand-400">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -337,15 +337,15 @@ class extends Component {
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-neutral-300 mb-1.5">e-İrsaliye numarası</label>
-                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white font-mono placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
+                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">e-İrsaliye numarası</label>
+                            <input type="text" wire:model="e_irsaliye_no" maxlength="40" class="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-neutral-900 dark:text-white font-mono placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none">
                             @error('e_irsaliye_no') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-neutral-300 mb-1.5">e-İrsaliye belgesi (JPG, PNG, PDF)</label>
-                            <input type="file" wire:model="e_irsaliye_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-xs text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-neutral-200 hover:file:bg-neutral-700 cursor-pointer">
-                            <div wire:loading wire:target="e_irsaliye_file" class="text-[10px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                            <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">e-İrsaliye belgesi (JPG, PNG, PDF)</label>
+                            <input type="file" wire:model="e_irsaliye_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-xs text-neutral-500 dark:text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-800 dark:file:text-neutral-200 hover:file:bg-neutral-300 dark:hover:file:bg-neutral-700 cursor-pointer">
+                            <div wire:loading wire:target="e_irsaliye_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                             @error('e_irsaliye_file') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -355,52 +355,52 @@ class extends Component {
 
         @if($currentStep === 3)
             <div class="space-y-6">
-                <div class="border-b border-neutral-800 pb-4">
-                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                    <h3 class="text-lg font-bold text-neutral-900 dark:text-white flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>3. Adım: Navlun bedeli ve ilan özeti</span>
                     </h3>
-                    <p class="text-xs text-neutral-400 mt-1">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarı, teslimat onayına kadar güvenli havuzda tutulur.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarı, teslimat onayına kadar güvenli havuzda tutulur.</p>
                 </div>
 
-                <div class="p-5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-3">
-                    <div class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">İlan önizlemesi</div>
+                <div class="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                    <div class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">İlan önizlemesi</div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
                         <div>
                             <span class="text-neutral-500 block">Çıkış noktası</span>
-                            <span class="text-white font-medium line-clamp-2">{{ $pickup_location }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium line-clamp-2">{{ $pickup_location }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Varış noktası</span>
-                            <span class="text-white font-medium line-clamp-2">{{ $delivery_location }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium line-clamp-2">{{ $delivery_location }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Araç & yük</span>
-                            <span class="text-white font-medium">{{ $vehicleTypes[$vehicle_type] ?? $vehicle_type }} · {{ $goods_type }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium">{{ $vehicleTypes[$vehicle_type] ?? $vehicle_type }} · {{ $goods_type }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Yükleme tarihi</span>
-                            <span class="text-white font-medium">{{ $pickup_date !== '' ? \Illuminate\Support\Carbon::parse($pickup_date)->format('d.m.Y') : '—' }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium">{{ $pickup_date !== '' ? \Illuminate\Support\Carbon::parse($pickup_date)->format('d.m.Y') : '—' }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">En geç teslim</span>
-                            <span class="text-white font-medium">{{ $delivery_date !== '' ? \Illuminate\Support\Carbon::parse($delivery_date)->format('d.m.Y') : 'Belirtilmedi' }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium">{{ $delivery_date !== '' ? \Illuminate\Support\Carbon::parse($delivery_date)->format('d.m.Y') : 'Belirtilmedi' }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Ağırlık / hacim</span>
-                            <span class="text-white font-medium">{{ number_format((int) ($weight ?: 0), 0, ',', '.') }} kg / {{ $volume !== '' ? $volume.' m³' : '—' }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium">{{ number_format((int) ($weight ?: 0), 0, ',', '.') }} kg / {{ $volume !== '' ? $volume.' m³' : '—' }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">e-İrsaliye no</span>
-                            <span class="text-white font-mono font-medium">{{ $e_irsaliye_no !== '' ? $e_irsaliye_no : '—' }}</span>
+                            <span class="text-neutral-900 dark:text-white font-mono font-medium">{{ $e_irsaliye_no !== '' ? $e_irsaliye_no : '—' }}</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="space-y-2">
-                    <label class="block text-xs font-medium text-neutral-300">Navlun bedeli (₺) <span class="text-brand-500">*</span></label>
+                    <label class="block text-xs font-medium text-neutral-700 dark:text-neutral-300">Navlun bedeli (₺) <span class="text-brand-500">*</span></label>
                     <div class="relative max-w-xs">
-                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-4 pr-10 py-3.5 text-lg font-bold text-white font-mono focus:border-brand-500 focus:outline-none">
+                        <input type="number" wire:model="price" inputmode="decimal" min="{{ (int) $minPrice }}" step="1" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-4 pr-10 py-3.5 text-lg font-bold text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
                         <span class="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-neutral-500 text-lg">₺</span>
                     </div>
                     @error('price') <span class="text-rose-500 text-xs mt-1 block">{{ $message }}</span> @enderror
@@ -409,8 +409,8 @@ class extends Component {
 
                 <div class="pt-2">
                     <label class="flex items-start gap-3 cursor-pointer">
-                        <input type="checkbox" wire:model="terms_accepted" class="mt-1 w-4 h-4 rounded bg-neutral-950 border-neutral-800 text-brand-500 focus:ring-brand-500/20">
-                        <span class="text-xs text-neutral-400 leading-relaxed">
+                        <input type="checkbox" wire:model="terms_accepted" class="mt-1 w-4 h-4 rounded bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-brand-500 focus:ring-brand-500/20">
+                        <span class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                             Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. İlan bilgilerinin doğru olduğunu ve <a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">kullanıcı sözleşmesini</a> kabul ediyorum.
                         </span>
                     </label>
@@ -419,9 +419,9 @@ class extends Component {
             </div>
         @endif
 
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-neutral-800">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6 border-t border-neutral-200 dark:border-neutral-800">
             @if($currentStep > 1)
-                <button type="button" wire:click="previousStep" class="px-5 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">
+                <button type="button" wire:click="previousStep" class="px-5 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">
                     &larr; Geri
                 </button>
             @else

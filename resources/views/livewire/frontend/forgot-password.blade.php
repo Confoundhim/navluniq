@@ -43,15 +43,15 @@ new class extends Component {
             </div>
             <a href="{{ route('login') }}" wire:navigate class="block text-center text-[11px] text-neutral-400 hover:text-neutral-600">← Giriş ekranına dön</a>
         @else
-            <form wire:submit.prevent="sendResetLink" class="space-y-4 text-xs">
+            <form wire:submit.prevent="sendResetLink" class="space-y-4">
                 <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Kayıtlı e-posta adresinizi girin. Size yeni şifre belirlemeniz için bir bağlantı göndereceğiz.</p>
                 <div class="space-y-1.5">
-                    <label class="font-semibold text-neutral-500">E-posta adresi</label>
+                    <label class="form-label">E-posta adresi</label>
                     <input type="email" wire:model="email" autocomplete="email" placeholder="ornek@sirket.com"
-                        class="w-full p-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/50 dark:border-neutral-700/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/20 text-neutral-900 dark:text-white">
-                    @error('email') <span class="text-red-500 text-[10px]">{{ $message }}</span> @enderror
+                        class="form-input">
+                    @error('email') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
-                <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md flex justify-center items-center">
+                <button type="submit" class="btn-primary w-full py-3">
                     <span wire:loading.remove wire:target="sendResetLink">Sıfırlama bağlantısı gönder</span>
                     <span wire:loading wire:target="sendResetLink">Gönderiliyor...</span>
                 </button>

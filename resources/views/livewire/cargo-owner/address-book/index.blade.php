@@ -184,9 +184,9 @@ class extends Component {
         </div>
     @endif
 
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-800 pb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
-            <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
                 <span class="p-1.5 rounded-lg bg-brand-500/10 text-brand-400">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -194,7 +194,7 @@ class extends Component {
                 </span>
                 <span>Kayıtlı adres defterim</span>
             </h2>
-            <p class="text-xs text-neutral-400 mt-1">Sık kullandığınız yükleme ve teslimat noktalarını kaydedin, ilan oluştururken tek tıkla seçin.</p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Sık kullandığınız yükleme ve teslimat noktalarını kaydedin, ilan oluştururken tek tıkla seçin.</p>
         </div>
 
         <button type="button" wire:click="openCreate" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95">
@@ -207,40 +207,40 @@ class extends Component {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse($addresses as $addr)
-            <div class="bg-neutral-900 border {{ $addr->is_default ? 'border-brand-500/40' : 'border-neutral-800 hover:border-neutral-700' }} rounded-2xl p-6 flex flex-col justify-between space-y-4 transition-all duration-200">
+            <div class="bg-white dark:bg-neutral-900 border {{ $addr->is_default ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700' }} rounded-2xl p-6 flex flex-col justify-between space-y-4 transition-all duration-200">
 
                 <div class="space-y-3">
                     <div class="flex items-start justify-between gap-2">
-                        <h3 class="text-sm font-bold text-white tracking-tight break-words">{{ $addr->title }}</h3>
+                        <h3 class="text-sm font-bold text-neutral-900 dark:text-white tracking-tight break-words">{{ $addr->title }}</h3>
                         <div class="flex flex-col items-end gap-1 shrink-0">
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $addr->type === 'pickup' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ($addr->type === 'delivery' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-brand-500/10 text-brand-400 border border-brand-500/20') }}">
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {{ $addr->type === 'pickup' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : ($addr->type === 'delivery' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-brand-500/10 text-brand-400 border border-brand-500/20') }}">
                                 {{ $typeLabels[$addr->type] ?? $addr->type }}
                             </span>
                             @if($addr->is_default)
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-800 border border-neutral-700 text-neutral-300">Varsayılan</span>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300">Varsayılan</span>
                             @endif
                         </div>
                     </div>
 
-                    <p class="text-xs text-neutral-300 bg-neutral-950 p-3 rounded-xl border border-neutral-800/80 leading-relaxed break-words">{{ $addr->fullAddress() }}</p>
+                    <p class="text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800/80 leading-relaxed break-words">{{ $addr->fullAddress() }}</p>
 
-                    <div class="space-y-1 text-xs text-neutral-400 pt-1">
+                    <div class="space-y-1 text-xs text-neutral-500 dark:text-neutral-400 pt-1">
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-neutral-500">Yetkili</span>
-                            <span class="text-neutral-200 font-medium text-right">{{ $addr->contact_person }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium text-right">{{ $addr->contact_person }}</span>
                         </div>
                         <div class="flex items-center justify-between gap-3">
                             <span class="text-neutral-500">Telefon</span>
-                            <span class="text-neutral-200 font-mono">{{ Phone::format($addr->contact_phone) }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-mono">{{ Phone::format($addr->contact_phone) }}</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="pt-3 border-t border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                     <div class="flex items-center gap-3">
-                        <button type="button" wire:click="openEdit({{ $addr->id }})" class="text-neutral-300 hover:text-white font-medium">Düzenle</button>
+                        <button type="button" wire:click="openEdit({{ $addr->id }})" class="text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white font-medium">Düzenle</button>
                         @if(! $addr->is_default)
-                            <button type="button" wire:click="setDefault({{ $addr->id }})" class="text-neutral-400 hover:text-brand-400 font-medium">Varsayılan yap</button>
+                            <button type="button" wire:click="setDefault({{ $addr->id }})" class="text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-medium">Varsayılan yap</button>
                         @endif
                     </div>
                     <button type="button" wire:click="deleteAddress({{ $addr->id }})" wire:confirm="Bu adresi defterinizden silmek istediğinize emin misiniz?" class="text-rose-400 hover:text-rose-300 font-medium flex items-center gap-1 transition-colors">
@@ -253,15 +253,15 @@ class extends Component {
 
             </div>
         @empty
-            <div class="col-span-full bg-neutral-900 border border-neutral-800 rounded-2xl p-12 text-center space-y-4">
-                <div class="w-16 h-16 rounded-full bg-neutral-800 flex items-center justify-center mx-auto text-neutral-500">
+            <div class="col-span-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center space-y-4">
+                <div class="w-16 h-16 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center mx-auto text-neutral-500">
                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                 </div>
                 <div class="space-y-1">
-                    <h4 class="text-base font-bold text-white">Henüz kayıtlı adresiniz yok</h4>
-                    <p class="text-xs text-neutral-400 max-w-sm mx-auto">Sık kullandığınız depo veya teslimat noktalarını kaydedin.</p>
+                    <h4 class="text-base font-bold text-neutral-900 dark:text-white">Henüz kayıtlı adresiniz yok</h4>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Sık kullandığınız depo veya teslimat noktalarını kaydedin.</p>
                 </div>
             </div>
         @endforelse
@@ -269,12 +269,12 @@ class extends Component {
 
     @if($modalOpen)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md" wire:click="$set('modalOpen', false)"></div>
-            <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5 text-left">
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="$set('modalOpen', false)"></div>
+            <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-5 text-left">
 
-                <div class="flex items-center justify-between border-b border-neutral-800 pb-4">
-                    <h3 class="text-base font-bold text-white">{{ $editingId ? 'Adresi düzenle' : 'Yeni adres ekle' }}</h3>
-                    <button type="button" wire:click="$set('modalOpen', false)" class="text-neutral-400 hover:text-white">
+                <div class="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $editingId ? 'Adresi düzenle' : 'Yeni adres ekle' }}</h3>
+                    <button type="button" wire:click="$set('modalOpen', false)" class="text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white">
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -283,49 +283,49 @@ class extends Component {
 
                 <div class="space-y-4 text-xs">
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Adres başlığı <span class="text-brand-500">*</span></label>
-                        <input type="text" wire:model="title" maxlength="120" placeholder="Örn: Merkez depo" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Adres başlığı <span class="text-brand-500">*</span></label>
+                        <input type="text" wire:model="title" maxlength="120" placeholder="Örn: Merkez depo" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('title') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Yetkili kişi <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="contact_person" maxlength="120" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yetkili kişi <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="contact_person" maxlength="120" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @error('contact_person') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Yetkili telefonu <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-mono focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Yetkili telefonu <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="contact_phone" inputmode="tel" placeholder="05XX XXX XX XX" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono focus:border-brand-500 focus:outline-none">
                             @error('contact_phone') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">İl <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="city" maxlength="96" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">İl <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="city" maxlength="96" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @error('city') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
 
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">İlçe <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="district" maxlength="96" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">İlçe <span class="text-brand-500">*</span></label>
+                            <input type="text" wire:model="district" maxlength="96" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @error('district') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                     </div>
 
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Açık adres <span class="text-brand-500">*</span></label>
-                        <textarea wire:model="address_detail" rows="3" maxlength="1000" placeholder="Mahalle, cadde, sokak, kapı numarası" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-white placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Açık adres <span class="text-brand-500">*</span></label>
+                        <textarea wire:model="address_detail" rows="3" maxlength="1000" placeholder="Mahalle, cadde, sokak, kapı numarası" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl p-3 text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:border-brand-500 focus:outline-none"></textarea>
                         @error('address_detail') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Kullanım amacı</label>
-                            <select wire:model="type" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-200 focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kullanım amacı</label>
+                            <select wire:model="type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-neutral-800 dark:text-neutral-200 focus:border-brand-500 focus:outline-none">
                                 <option value="both">Yükleme ve teslimat</option>
                                 <option value="pickup">Yalnız yükleme (çıkış)</option>
                                 <option value="delivery">Yalnız teslimat (varış)</option>
@@ -333,14 +333,14 @@ class extends Component {
                             @error('type') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <label class="flex items-center gap-2 cursor-pointer py-2.5">
-                            <input type="checkbox" wire:model="is_default" class="w-4 h-4 rounded bg-neutral-950 border-neutral-800 text-brand-500 focus:ring-brand-500/20">
-                            <span class="text-neutral-300">Varsayılan adres olsun</span>
+                            <input type="checkbox" wire:model="is_default" class="w-4 h-4 rounded bg-neutral-50 dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 text-brand-500 focus:ring-brand-500/20">
+                            <span class="text-neutral-700 dark:text-neutral-300">Varsayılan adres olsun</span>
                         </label>
                     </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">
-                    <button type="button" wire:click="$set('modalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
+                    <button type="button" wire:click="$set('modalOpen', false)" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
                     <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/20 transition-all">
                         <span wire:loading.remove wire:target="save">{{ $editingId ? 'Değişiklikleri kaydet' : 'Adresi kaydet' }}</span>
                         <span wire:loading wire:target="save">Kaydediliyor...</span>

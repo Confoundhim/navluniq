@@ -151,29 +151,29 @@ class extends Component {
         <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <div class="border-b border-neutral-800 pb-4">
-        <h2 class="text-xl font-bold text-white tracking-tight">Uyuşmazlık ve Destek</h2>
-        <p class="text-xs text-neutral-400 mt-1">Sevkiyatlarınız için açılan uyuşmazlıklara savunma ekleyin, destek ekibine talep iletin.</p>
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Uyuşmazlık ve Destek</h2>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Sevkiyatlarınız için açılan uyuşmazlıklara savunma ekleyin, destek ekibine talep iletin.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         <div class="lg:col-span-2 space-y-6">
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-3">
-                <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Uyuşmazlıklar</h3>
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+                <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Uyuşmazlıklar</h3>
 
                 @forelse($disputes as $dispute)
                     @php $dLoad = $dispute->cargoLoad; @endphp
-                    <div class="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-3 text-xs">
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div class="text-sm font-bold text-white">
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">
                                 @if($dLoad)
                                     {{ $dLoad->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $dLoad->delivery_location }}
                                 @else
                                     İlan kaldırılmış
                                 @endif
                             </div>
-                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold border
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
                                 {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' : ($dispute->status === 'resolved_driver_paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400') }}">
                                 {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}
                             </span>
@@ -183,18 +183,18 @@ class extends Component {
                             @if($dLoad) · Yük sahibi: {{ $dLoad->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }} @endif
                         </div>
 
-                        <div class="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
-                            <div class="text-[10px] uppercase text-neutral-500 font-bold">Yük sahibinin iddiası</div>
-                            <div class="text-neutral-200 leading-relaxed">{{ $dispute->cargo_owner_claim }}</div>
+                        <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                            <div class="text-[11px] uppercase text-neutral-500 font-bold">Yük sahibinin iddiası</div>
+                            <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->cargo_owner_claim }}</div>
                             @if($dispute->claim_photo_path)
                                 <a href="{{ route('files.dispute', [$dispute->id, 'claim']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">İddia fotoğrafını görüntüle</a>
                             @endif
                         </div>
 
                         @if($dispute->driver_defense)
-                            <div class="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
-                                <div class="text-[10px] uppercase text-neutral-500 font-bold">Savunmanız</div>
-                                <div class="text-neutral-200 leading-relaxed">{{ $dispute->driver_defense }}</div>
+                            <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Savunmanız</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->driver_defense }}</div>
                                 @if($dispute->driver_proof_photo_path)
                                     <a href="{{ route('files.dispute', [$dispute->id, 'defense']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">Kanıtınızı görüntüle</a>
                                 @endif
@@ -202,11 +202,11 @@ class extends Component {
                         @endif
 
                         @if($dispute->status !== 'open')
-                            <div class="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1">
-                                <div class="text-[10px] uppercase text-neutral-500 font-bold">Hakem kararı</div>
-                                <div class="text-neutral-200 leading-relaxed">{{ $dispute->arbitration_notes ?: 'Karar notu girilmedi.' }}</div>
+                            <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Hakem kararı</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->arbitration_notes ?: 'Karar notu girilmedi.' }}</div>
                                 @if($dispute->resolved_at)
-                                    <div class="text-[10px] text-neutral-500">{{ $dispute->resolved_at->format('d.m.Y H:i') }}</div>
+                                    <div class="text-[11px] text-neutral-500">{{ $dispute->resolved_at->format('d.m.Y H:i') }}</div>
                                 @endif
                             </div>
                         @else
@@ -215,13 +215,13 @@ class extends Component {
                                     {{ $dispute->driver_defense ? 'Savunmayı güncelle' : 'Savunma yap' }}
                                 </button>
                                 @if($dLoad)
-                                    <a href="{{ route('driver.shipments.show', $dLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white font-bold text-center">Sevkiyatı aç</a>
+                                    <a href="{{ route('driver.shipments.show', $dLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold text-center">Sevkiyatı aç</a>
                                 @endif
                             </div>
                         @endif
                     </div>
                 @empty
-                    <div class="p-6 bg-neutral-950 border border-dashed border-neutral-800 rounded-xl text-center text-xs text-neutral-400">Sevkiyatlarınız için açılmış uyuşmazlık yok.</div>
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Sevkiyatlarınız için açılmış uyuşmazlık yok.</div>
                 @endforelse
 
                 @if($disputes->hasPages())
@@ -231,17 +231,17 @@ class extends Component {
         </div>
 
         <div class="space-y-6">
-            <div class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Destek talepleri</h3>
+                    <h3 class="text-xs font-bold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Destek talepleri</h3>
                     <button type="button" wire:click="$set('ticketFormOpen', {{ $ticketFormOpen ? 'false' : 'true' }})" class="text-brand-400 font-bold hover:underline">{{ $ticketFormOpen ? 'Kapat' : 'Yeni talep' }}</button>
                 </div>
 
                 @if($ticketFormOpen)
-                    <form wire:submit.prevent="submitTicket" class="space-y-3 border-b border-neutral-800 pb-4">
+                    <form wire:submit.prevent="submitTicket" class="space-y-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Kategori</label>
-                            <select wire:model="ticket_category" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kategori</label>
+                            <select wire:model="ticket_category" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                                 @foreach($categories as $key => $label)
                                     <option value="{{ $key }}">{{ $label }}</option>
                                 @endforeach
@@ -249,13 +249,13 @@ class extends Component {
                             @error('ticket_category') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Konu (isteğe bağlı)</label>
-                            <input type="text" wire:model="ticket_subject" maxlength="150" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Konu (isteğe bağlı)</label>
+                            <input type="text" wire:model="ticket_subject" maxlength="150" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @error('ticket_subject') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <div>
-                            <label class="block font-medium text-neutral-300 mb-1">Mesaj</label>
-                            <textarea wire:model="ticket_message" rows="4" maxlength="3000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none"></textarea>
+                            <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Mesaj</label>
+                            <textarea wire:model="ticket_message" rows="4" maxlength="3000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
                             @error('ticket_message') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                         </div>
                         <button type="submit" class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">Talebi gönder</button>
@@ -263,20 +263,20 @@ class extends Component {
                 @endif
 
                 @forelse($tickets as $ticket)
-                    <div class="p-3 bg-neutral-950 rounded-xl border border-neutral-800 space-y-1">
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="flex items-center justify-between gap-2">
-                            <span class="text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border
-                                {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-800 border-neutral-700 text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-400') }}">
+                            <span class="text-neutral-900 dark:text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
+                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
+                                {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-400') }}">
                                 {{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapatıldı'][$ticket->status] ?? $ticket->status }}
                             </span>
                         </div>
-                        <div class="text-[10px] text-neutral-500">{{ $categories[$ticket->category] ?? $ticket->category }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</div>
-                        <div class="text-neutral-300 leading-relaxed">{{ $ticket->message }}</div>
+                        <div class="text-[11px] text-neutral-500">{{ $categories[$ticket->category] ?? $ticket->category }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</div>
+                        <div class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $ticket->message }}</div>
                         @if($ticket->admin_reply)
-                            <div class="mt-2 p-2 rounded-lg bg-neutral-900 border border-neutral-800">
-                                <div class="text-[10px] uppercase text-neutral-500 font-bold">Destek yanıtı @if($ticket->replied_at) · {{ $ticket->replied_at->format('d.m.Y H:i') }} @endif</div>
-                                <div class="text-neutral-200 leading-relaxed">{{ $ticket->admin_reply }}</div>
+                            <div class="mt-2 p-2 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Destek yanıtı @if($ticket->replied_at) · {{ $ticket->replied_at->format('d.m.Y H:i') }} @endif</div>
+                                <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $ticket->admin_reply }}</div>
                             </div>
                         @endif
                     </div>
@@ -289,29 +289,29 @@ class extends Component {
 
     @if($defendingDispute)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md" wire:click="closeDefense"></div>
-            <form wire:submit.prevent="submitDefense" class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
-                <div class="border-b border-neutral-800 pb-3">
-                    <h3 class="text-base font-bold text-white">Savunma</h3>
-                    <p class="text-neutral-400 mt-0.5">
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeDefense"></div>
+            <form wire:submit.prevent="submitDefense" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-3">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Savunma</h3>
+                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">
                         @if($defendingDispute->cargoLoad)
                             {{ $defendingDispute->cargoLoad->pickup_location }} &rarr; {{ $defendingDispute->cargoLoad->delivery_location }}
                         @endif
                     </p>
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-300 mb-1">Savunma metni (en az 20 karakter)</label>
-                    <textarea wire:model="defense" rows="5" maxlength="3000" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none"></textarea>
+                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Savunma metni (en az 20 karakter)</label>
+                    <textarea wire:model="defense" rows="5" maxlength="3000" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none"></textarea>
                     @error('defense') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="block font-medium text-neutral-300 mb-1">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
-                    <input type="file" wire:model="defense_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white">
+                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
+                    <input type="file" wire:model="defense_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
                     @error('defense_photo') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    <div wire:loading wire:target="defense_photo" class="text-[10px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                    <div wire:loading wire:target="defense_photo" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="closeDefense" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold">Vazgeç</button>
+                    <button type="button" wire:click="closeDefense" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Vazgeç</button>
                     <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
                         <span wire:loading.remove wire:target="submitDefense">Savunmayı gönder</span>
                         <span wire:loading wire:target="submitDefense">Gönderiliyor...</span>

@@ -199,58 +199,58 @@ class extends Component {
         <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
-    <div class="border-b border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+    <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-            <h2 class="text-xl font-bold text-white tracking-tight">Araçlarım</h2>
-            <p class="text-xs text-neutral-400 mt-1">Teklif verebilmek için en az bir aktif aracınız olmalı. Aktif araç, kabul edilen sevkiyata atanır.</p>
+            <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Araçlarım</h2>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Teklif verebilmek için en az bir aktif aracınız olmalı. Aktif araç, kabul edilen sevkiyata atanır.</p>
         </div>
         <button type="button" wire:click="openCreate" class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/20">Araç ekle</button>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         @forelse($vehicles as $vehicle)
-            <div class="bg-neutral-900 border {{ $vehicle->is_active ? 'border-brand-500/40' : 'border-neutral-800' }} rounded-2xl p-6 space-y-3 text-xs">
+            <div class="bg-white dark:bg-neutral-900 border {{ $vehicle->is_active ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800' }} rounded-2xl p-6 space-y-3 text-xs">
                 <div class="flex items-center justify-between gap-2">
-                    <div class="text-base font-black text-white font-mono">{{ $vehicle->plate }}</div>
+                    <div class="text-base font-black text-neutral-900 dark:text-white font-mono">{{ $vehicle->plate }}</div>
                     @if($vehicle->is_active)
-                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[10px]">Aktif</span>
+                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[11px]">Aktif</span>
                     @else
-                        <span class="px-2.5 py-1 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-300 font-bold text-[10px]">Pasif</span>
+                        <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-bold text-[11px]">Pasif</span>
                     @endif
                 </div>
-                <div class="text-neutral-300">{{ $vehicle->brand }} {{ $vehicle->model }}</div>
+                <div class="text-neutral-700 dark:text-neutral-300">{{ $vehicle->brand }} {{ $vehicle->model }}</div>
                 <div class="text-neutral-500">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</div>
                 <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-400' : 'text-neutral-500' }}">
                     {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
                 </div>
-                <div class="pt-3 border-t border-neutral-800 flex flex-col sm:flex-row gap-2">
+                <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-2">
                     @if(! $vehicle->is_active)
                         <button type="button" wire:click="activate({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-brand-500/10 border border-brand-500/30 text-brand-400 font-bold hover:bg-brand-500/20">Aktif yap</button>
                     @endif
-                    <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-neutral-800 border border-neutral-700 text-white font-bold hover:bg-neutral-700">Düzenle</button>
+                    <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold hover:bg-neutral-200 dark:hover:bg-neutral-700">Düzenle</button>
                     <button type="button" wire:click="delete({{ $vehicle->id }})" wire:confirm="{{ $vehicle->plate }} plakalı aracı silmek istediğinize emin misiniz?" class="px-3 py-2 rounded-xl border border-rose-500/30 text-rose-300 font-bold hover:bg-rose-500/10">Sil</button>
                 </div>
             </div>
         @empty
-            <div class="sm:col-span-2 p-6 bg-neutral-900 border border-dashed border-neutral-800 rounded-2xl text-center text-xs text-neutral-400">Henüz kayıtlı aracınız yok. Teklif verebilmek için bir araç ekleyin.</div>
+            <div class="sm:col-span-2 p-6 bg-white dark:bg-neutral-900 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz kayıtlı aracınız yok. Teklif verebilmek için bir araç ekleyin.</div>
         @endforelse
     </div>
 
     @if($formOpen)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
-            <div class="fixed inset-0 bg-neutral-950/85 backdrop-blur-md" wire:click="closeForm"></div>
-            <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
-                <h3 class="text-base font-bold text-white border-b border-neutral-800 pb-3">{{ $editingId ? 'Aracı düzenle' : 'Yeni araç' }}</h3>
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeForm"></div>
+            <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <h3 class="text-base font-bold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-800 pb-3">{{ $editingId ? 'Aracı düzenle' : 'Yeni araç' }}</h3>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Plaka</label>
-                        <input type="text" wire:model="plate" placeholder="34ABC123" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white font-mono uppercase focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Plaka</label>
+                        <input type="text" wire:model="plate" placeholder="34ABC123" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white font-mono uppercase focus:border-brand-500 focus:outline-none">
                         @error('plate') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Araç türü</label>
-                        <select wire:model="vehicle_type" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Araç türü</label>
+                        <select wire:model="vehicle_type" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                             @foreach($vehicleTypes as $key => $label)
                                 <option value="{{ $key }}">{{ $label }}</option>
                             @endforeach
@@ -258,26 +258,26 @@ class extends Component {
                         @error('vehicle_type') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Marka</label>
-                        <input type="text" wire:model="brand" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Marka</label>
+                        <input type="text" wire:model="brand" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('brand') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block font-medium text-neutral-300 mb-1">Model</label>
-                        <input type="text" wire:model="model" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-white focus:border-brand-500 focus:outline-none">
+                        <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Model</label>
+                        <input type="text" wire:model="model" class="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-neutral-900 dark:text-white focus:border-brand-500 focus:outline-none">
                         @error('model') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div>
-                    <label class="block font-medium text-neutral-300 mb-1">Ruhsat (JPG, PNG, PDF; en fazla 10 MB, isteğe bağlı)</label>
-                    <input type="file" wire:model="ruhsat" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-800 file:text-white">
+                    <label class="block font-medium text-neutral-700 dark:text-neutral-300 mb-1">Ruhsat (JPG, PNG, PDF; en fazla 10 MB, isteğe bağlı)</label>
+                    <input type="file" wire:model="ruhsat" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
                     @error('ruhsat') <span class="text-rose-500 text-[11px] mt-1 block">{{ $message }}</span> @enderror
-                    <div wire:loading wire:target="ruhsat" class="text-[10px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                    <div wire:loading wire:target="ruhsat" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
 
                 <div class="flex gap-3 pt-2">
-                    <button type="button" wire:click="closeForm" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold">Vazgeç</button>
+                    <button type="button" wire:click="closeForm" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 font-semibold">Vazgeç</button>
                     <button type="submit" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold" wire:loading.attr="disabled">
                         <span wire:loading.remove wire:target="save">Kaydet</span>
                         <span wire:loading wire:target="save">Kaydediliyor...</span>
