@@ -219,7 +219,7 @@ ok "her dakika schedule:run (www-data)"
 
 # -----------------------------------------------------------------------------
 log "Sağlık kontrolü"
-HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' -H "Host: ${DOMAIN}" http://127.0.0.1/ || true)"
+HTTP_CODE="$(curl -s -L -k -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:80:127.0.0.1" --resolve "${DOMAIN}:443:127.0.0.1" "http://${DOMAIN}/" || true)"
 [[ "$HTTP_CODE" == "200" ]] && ok "ana sayfa 200 döndü" || echo "Ana sayfa ${HTTP_CODE} döndü; storage/logs/laravel.log dosyasına bakın."
 
 cat <<SUMMARY
