@@ -135,9 +135,13 @@ else
     set_env SESSION_DRIVER database
     ok "önbellek ve oturum: veritabanı"
 fi
-[[ -n "${ADMIN_INIT_EMAIL:-}" ]]    && set_env ADMIN_INIT_EMAIL "$ADMIN_INIT_EMAIL"
-[[ -n "${ADMIN_INIT_PASSWORD:-}" ]] && set_env ADMIN_INIT_PASSWORD "$ADMIN_INIT_PASSWORD"
-[[ -n "${ADMIN_INIT_PHONE:-}" ]]    && set_env ADMIN_INIT_PHONE "$ADMIN_INIT_PHONE"
+# İsteğe bağlı anahtarlar: ortam değişkeni olarak verilmişse .env'e yazılır.
+for key in ADMIN_INIT_EMAIL ADMIN_INIT_PASSWORD ADMIN_INIT_PHONE \
+           MAIL_MAILER MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_ENCRYPTION MAIL_FROM_ADDRESS \
+           COMPANY_NAME COMPANY_TAX_OFFICE COMPANY_TAX_NO COMPANY_MERSIS_NO COMPANY_ADDRESS COMPANY_PHONE COMPANY_EMAIL \
+           LEGAL_EFFECTIVE_DATE; do
+    [[ -n "${!key:-}" ]] && set_env "$key" "${!key}"
+done
 chmod 640 .env
 ok ".env güncellendi"
 
