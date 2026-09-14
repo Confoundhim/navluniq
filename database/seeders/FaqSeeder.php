@@ -16,7 +16,6 @@ class FaqSeeder extends Seeder
     public function run(): void
     {
         $driverRate = self::percent(Settings::float('commission_standard_driver'));
-        $premiumRate = self::percent(Settings::float('commission_discounted_premium'));
         $ownerRate = Settings::float('commission_cargo_owner');
         $autoApprovalHours = max(1, Settings::int('delivery_auto_approval_hours'));
         $offerDays = max(1, Settings::int('offer_validity_days'));
@@ -45,12 +44,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Premium üyelikte iki somut avantaj vardır. Birincisi, izinli dış kaynaklardan derlenen ve ekibimizce onaylanan ilanlar standart üyelere açılmadan 20 dakika önce premium üyelere gösterilir ve ilan sahibinin telefon numarasının tamamı görünür. İkincisi, tamamlanan sevkiyatlarda hak edişinizden kesilen platform komisyonu %'.$driverRate.' yerine %'.$premiumRate.' olarak uygulanır. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil) ve satın alma ödeme altyapısı devreye alındığında panelinizden yapılır; ekstra bir "bot" ya da bildirim kanalı vaat edilmez.',
+                'answer' => 'Premium üyelikte iki somut avantaj vardır. Birincisi, izinli dış kaynaklardan derlenen ve ekibimizce onaylanan ilanlar standart üyelere açılmadan 20 dakika önce premium üyelere gösterilir ve ilan sahibinin telefon numarasının tamamı görünür. İkincisi, bu ilanlarda pazarlığı beklemeden doğrudan ilan sahibiyle yaparsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek bir ücret yoktur ve platform hizmet bedeli premium ile değişmez. Satın alma ödeme altyapısı devreye alındığında panelinizden yapılır; ekstra bir "bot" ya da bildirim kanalı vaat edilmez.',
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Ücretsiz hesapla platformdaki tüm yük sahibi ilanlarını anında görür ve sınırsız teklif verirsiniz; bu hak her zaman ücretsizdir. Dış kaynak ilanları ise ücretsiz hesaplara premium üyelerden 20 dakika sonra açılır ve iletişim bilgisi kısmen gizlenir. Komisyon oranı ücretsiz hesapta %'.$driverRate.', premiumda %'.$premiumRate.'\'dir. Yani premium, daha erken görme ve daha düşük kesinti demektir; teklif verme hakkı iki hesapta da aynıdır.',
+                'answer' => 'Ücretsiz hesapla platformdaki tüm yük sahibi ilanlarını anında görür ve sınırsız teklif verirsiniz; bu hak her zaman ücretsizdir. Dış kaynak ilanları ise ücretsiz hesaplara premium üyelerden 20 dakika sonra açılır ve iletişim bilgisi kısmen gizlenir. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Yani premium, dış kaynak ilanları daha erken ve numarasıyla görmek demektir; teklif verme hakkı ve kesinti oranı iki hesapta da aynıdır.',
             ],
             [
                 'order_num' => 6,
@@ -85,7 +84,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 12,
                 'question' => 'Komisyonlar ve faturalar nasıl işler?',
-                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün hak edişinden %'.$driverRate.' (premium üyelerde %'.$premiumRate.') platform hizmet bedeli kesilir; kesinti tutarı teklif ekranında ve cüzdan hareketlerinde açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
+                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün hak edişinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve cüzdan hareketlerinde açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
             ],
             [
                 'order_num' => 13,

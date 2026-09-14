@@ -11,7 +11,6 @@ final class Settings
 {
     public const DEFAULTS = [
         'commission_standard_driver' => 5.0,   // Standart şoför komisyonu (%)
-        'commission_discounted_premium' => 3.0, // Premium şoför komisyonu (%)
         'commission_cargo_owner' => 0.0,        // Yük sahibi hizmet bedeli (%)
         'delivery_auto_approval_hours' => 72,   // Teslimat sonrası otomatik onay süresi (saat)
         'offer_validity_days' => 2,             // Teklif geçerlilik süresi (gün)

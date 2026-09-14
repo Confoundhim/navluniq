@@ -16,7 +16,6 @@ new class extends Component {
 
     public const LIMIT_LABELS = [
         'commission_standard_driver' => 'Standart şoför komisyonu (%)',
-        'commission_discounted_premium' => 'Premium şoför komisyonu (%)',
         'commission_cargo_owner' => 'Yük sahibi hizmet bedeli (%)',
         'delivery_auto_approval_hours' => 'Teslimat sonrası otomatik onay süresi (saat)',
         'offer_validity_days' => 'Teklif geçerlilik süresi (gün)',
@@ -110,7 +109,6 @@ new class extends Component {
 
         $this->validate([
             'limits.commission_standard_driver' => 'required|numeric|min:0|max:100',
-            'limits.commission_discounted_premium' => 'required|numeric|min:0|max:100',
             'limits.commission_cargo_owner' => 'required|numeric|min:0|max:100',
             'limits.delivery_auto_approval_hours' => 'required|integer|min:1|max:720',
             'limits.offer_validity_days' => 'required|integer|min:1|max:60',

@@ -198,7 +198,6 @@ new class extends Component {
             'canManage' => auth()->user()->can('manage payouts'),
             'rates' => [
                 'Standart şoför komisyonu' => Settings::float('commission_standard_driver'),
-                'Premium şoför komisyonu' => Settings::float('commission_discounted_premium'),
                 'Yük sahibi hizmet bedeli' => Settings::float('commission_cargo_owner'),
             ],
             'payouts' => null,

@@ -111,6 +111,7 @@ class DriverProfile extends Model
 
     public function commissionRate(): float
     {
-        return Settings::float($this->isPremium() ? 'commission_discounted_premium' : 'commission_standard_driver');
+        // Komisyon oranı üyelik türünden bağımsızdır; premium yalnız erken erişim sağlar.
+        return Settings::float('commission_standard_driver');
     }
 }
