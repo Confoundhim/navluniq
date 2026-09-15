@@ -26,7 +26,36 @@ function applyTheme(theme) {
     if (meta) meta.setAttribute('content', theme === 'dark' ? '#121212' : '#f97316');
 }
 
+const TEXT_SIZE_KEY = 'textSize';
+
+function preferredTextSize() {
+    try { return localStorage.getItem(TEXT_SIZE_KEY) === 'large' ? 'large' : 'normal'; } catch (e) { return 'normal'; }
+}
+
+function applyTextSize(size) {
+    document.documentElement.classList.toggle('text-large', size === 'large');
+}
+
 document.addEventListener('alpine:init', () => {
+    // Büyük yazı tercihi: kök yazı boyutu büyütülür, rem tabanlı tüm ölçüler orantılı büyür.
+    Alpine.store('textSize', {
+        large: preferredTextSize() === 'large',
+
+        toggle() {
+            this.set(this.large ? 'normal' : 'large');
+        },
+
+        set(size) {
+            this.large = size === 'large';
+            try { localStorage.setItem(TEXT_SIZE_KEY, size); } catch (e) {}
+            applyTextSize(size);
+        },
+
+        init() {
+            applyTextSize(this.large ? 'large' : 'normal');
+        }
+    });
+
     Alpine.store('darkMode', {
         on: preferredTheme() === 'dark',
 
@@ -47,5 +76,5 @@ document.addEventListener('alpine:init', () => {
 });
 
 // wire:navigate ile sayfa değişince <html> sınıfları yeni sayfadan gelir; temayı yeniden uygula.
-document.addEventListener('livewire:navigated', () => applyTheme(preferredTheme()));
-document.addEventListener('livewire:navigating', () => applyTheme(preferredTheme()));
+document.addEventListener('livewire:navigated', () => { applyTheme(preferredTheme()); applyTextSize(preferredTextSize()); });
+document.addEventListener('livewire:navigating', () => { applyTheme(preferredTheme()); applyTextSize(preferredTextSize()); });

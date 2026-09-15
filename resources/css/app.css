@@ -14,6 +14,11 @@
         font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
 
+    /* "Büyük yazı" tercihi: tüm rem tabanlı yazı ve boşluk ölçüleri %18 büyür. */
+    html.text-large {
+        font-size: 118%;
+    }
+
     /* Minimalist ve şık kaydırma çubuğu tasarımı */
     ::-webkit-scrollbar {
         width: 8px;

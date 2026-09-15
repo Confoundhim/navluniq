@@ -8,7 +8,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#f97316">
     <title>{{ $title }}</title>
     <script>
@@ -18,6 +18,9 @@
                 var t = localStorage.getItem('theme');
                 if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                     document.documentElement.classList.add('dark');
+                }
+                if (localStorage.getItem('textSize') === 'large') {
+                    document.documentElement.classList.add('text-large');
                 }
             } catch (e) {}
         })();
@@ -86,6 +89,11 @@
 
         <!-- Sağ: Giriş / Panelim Butonu + Tema Değiştirici -->
         <div class="hidden sm:flex items-center space-x-3 text-xs">
+            <button @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500' : 'text-neutral-600 dark:text-neutral-300'"
+                class="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:scale-105 transition-all focus:outline-none"
+                title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 18.5l5-13 5 13M4.8 13.5h5.4M13.5 18.5l3-8 3 8M14.8 15.8h3.4"/></svg>
+            </button>
             <button @click="$store.darkMode.toggle()"
                 class="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:scale-105 transition-all focus:outline-none"
                 title="Temayı Değiştir">

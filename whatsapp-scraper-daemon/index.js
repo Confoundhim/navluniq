@@ -20,8 +20,11 @@ const SCRAPER_API_TOKEN = process.env.SCRAPER_API_TOKEN;
 const AUTH_FILE_PATH = process.env.WHATSAPP_AUTH_FILE || '/var/lib/navluniq-whatsapp/auth.json';
 const ALLOWED_GROUP_IDS = new Set((process.env.WHATSAPP_ALLOWED_GROUP_IDS || '').split(',').map(v => v.trim()).filter(Boolean));
 
-if (!LARAVEL_API_URL || !SCRAPER_API_TOKEN || ALLOWED_GROUP_IDS.size === 0) {
-    throw new Error('NAVLUNIQ_API_URL, SCRAPER_API_TOKEN ve WHATSAPP_ALLOWED_GROUP_IDS zorunludur.');
+if (!LARAVEL_API_URL || !SCRAPER_API_TOKEN) {
+    throw new Error('NAVLUNIQ_API_URL ve SCRAPER_API_TOKEN zorunludur.');
+}
+if (ALLOWED_GROUP_IDS.size === 0) {
+    console.warn('UYARI: WHATSAPP_ALLOWED_GROUP_IDS boş; hiçbir grup dinlenmiyor. Bağlantı kurulunca gruplar listelenecek, kimlikleri .env dosyasına ekleyip servisi yeniden başlatın.');
 }
 const contactMap = new Map();
 const msgRetryCounterCache = new Map();
@@ -163,6 +166,21 @@ async function startScraper() {
         } catch (error) {}
     });
 
+    // Hesabın üye olduğu grupları ad ve kimlikleriyle yazar; .env için kimlikler buradan alınır.
+    async function listGroups() {
+        try {
+            const groups = await sock.groupFetchAllParticipating();
+            const rows = Object.values(groups).sort((a, b) => (a.subject || '').localeCompare(b.subject || '', 'tr'));
+            console.log('\n Bu numaranın üye olduğu gruplar (dinlenenler ✔ ile işaretli):');
+            for (const g of rows) {
+                console.log(`  ${ALLOWED_GROUP_IDS.has(g.id) ? '✔' : ' '} ${g.id}  →  ${g.subject || '(adsız)'}`);
+            }
+            console.log('\n Bir grubu dinlemek için kimliğini WHATSAPP_ALLOWED_GROUP_IDS satırına virgülle ekleyip servisi yeniden başlatın.\n');
+        } catch (error) {
+            console.error(' Grup listesi alınamadı:', error.message);
+        }
+    }
+
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
 
@@ -194,8 +212,9 @@ async function startScraper() {
             }
         } else if (connection === 'open') {
             console.clear();
-            console.log(' NavlunIQ Otonom WhatsApp Kazıma Sunucusu Başarıyla Bağlandı!');
-            console.log('🤖 Burner numara aktif olarak lojistik gruplarını dinliyor...');
+            console.log(' NavlunIQ WhatsApp ilan toplama servisi bağlandı.');
+            console.log(` Dinlenen grup sayısı: ${ALLOWED_GROUP_IDS.size}`);
+            listGroups();
         }
     });
 
