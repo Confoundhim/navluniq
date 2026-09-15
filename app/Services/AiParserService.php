@@ -23,6 +23,25 @@ class AiParserService
             return $regex;
         }
 
+        return $this->parseWithAi($message, $preferredProvider);
+    }
+
+    /** Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz). */
+    public function parseCheap(string $message): array
+    {
+        $message = trim(mb_substr($message, 0, 5000));
+
+        return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message);
+    }
+
+    /** Sırayla sağlayıcıları dener; her çağrı kota harcar. */
+    public function parseWithAi(string $message, ?string $preferredProvider = null): array
+    {
+        $message = trim(mb_substr($message, 0, 5000));
+        if ($message === '') {
+            return $this->failure('empty_message');
+        }
+
         foreach ($this->providerOrder($preferredProvider) as $provider) {
             try {
                 $result = $this->parseWithProvider($provider, $message);
@@ -132,11 +151,14 @@ class AiParserService
 
     private function parseWithRegex(string $message): array
     {
-        preg_match('/(?<!\d)(?:(?:\+?90|0)?5\d{9})(?!\d)/u', $message, $phoneMatch);
+        // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
+        preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $message, $phoneMatch);
         $phone = $this->normalizePhone($phoneMatch[0] ?? null);
 
+        // "Ankara'dan İzmir'e" yazımındaki kesme işaretleri rota eşlemesini bozmasın.
+        $routeText = preg_replace("/[’'‘`]/u", '', $message) ?? $message;
         $city = '[\p{L}][\p{L}\s]{1,38}?';
-        preg_match('/('.$city.')\s*(?:->|→|>|-|–|—|den|dan)\s*('.$city.')(?:\s|$|[,.;])/iu', $message.' ', $route);
+        preg_match('/('.$city.')\s*(?:->|→|>|-|–|—|den|dan|tan|ten)\s*('.$city.')(?:\s|$|[,.;])/iu', $routeText.' ', $route);
         $pickup = $this->cleanText($route[1] ?? null, 120);
         $delivery = $this->cleanText($route[2] ?? null, 120);
         if (! $phone || ! $pickup || ! $delivery) {
