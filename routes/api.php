@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\NotificationWebhookController;
 use App\Http\Controllers\Api\WhatsappWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,4 +16,8 @@ Route::prefix('v1')->group(function () {
     // Node.js Baileys mikro-servisimizden gelen ham mesajları karşılayan webhook ucu
     Route::post('/webhook/whatsapp-scraper', [WhatsappWebhookController::class, 'handle'])
         ->middleware('throttle:30,1');
+
+    // Android bildirim iletici (MacroDroid vb.): WhatsApp bildirim başlığı + metni
+    Route::post('/webhook/notification', [NotificationWebhookController::class, 'handle'])
+        ->middleware('throttle:120,1');
 });

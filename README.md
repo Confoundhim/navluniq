@@ -45,7 +45,7 @@ Her adımdaki durumlar `App\Models\Load` sabitlerinde tanımlıdır.
 
 PayTR, NetGSM, NVİ ve yapay zekâ ayrıştırma anahtarları `.env` içinde boşken ilgili özellik güvenli biçimde devre dışı kalır; hiçbir işlem sahte olarak "başarılı" işaretlenmez. PayTR mağaza panelinde bildirim adresi olarak `https://alanadiniz.com/odeme/paytr/bildirim` tanımlanmalıdır.
 
-`whatsapp-scraper-daemon/` klasörü, izinli WhatsApp gruplarındaki yük ilanlarını webhook ucuna ileten ayrı bir Node.js servisidir; kurulumu kendi README dosyasında anlatılır.
+Dış kaynak ilanları için önerilen kanal Android bildirim ileticisidir; kurulum `docs/BILDIRIM_ILETICI_KURULUM.md` dosyasında anlatılır. `whatsapp-scraper-daemon/` klasörü, izinli WhatsApp gruplarındaki yük ilanlarını webhook ucuna ileten ayrı bir Node.js servisidir; kurulumu kendi README dosyasında anlatılır.
 
 ## Sunucuya kurulum
 

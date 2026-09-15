@@ -47,7 +47,7 @@ new class extends Component {
 
         $this->validate([
             'sourceName' => 'required|string|min:3|max:120',
-            'sourceType' => 'required|in:whatsapp,telegram,web',
+            'sourceType' => 'required|in:whatsapp,notification,telegram,web',
             'sourceIdentifier' => ['required', 'string', 'max:255', Rule::unique('scrapers', 'source_identifier')->where('type', $this->sourceType)->whereNull('deleted_at')],
         ], ['sourceIdentifier.unique' => 'Bu kaynak tanımlayıcısı aynı türde zaten kayıtlı.']);
 
@@ -253,6 +253,7 @@ new class extends Component {
                     <label class="form-label">Tür</label>
                     <select wire:model="sourceType" class="{{ $input }}">
                         <option value="whatsapp">WhatsApp grubu</option>
+                        <option value="notification">WhatsApp grubu (bildirim iletici)</option>
                         <option value="telegram">Telegram kanalı</option>
                         <option value="web">Web sayfası</option>
                     </select>
@@ -282,7 +283,7 @@ new class extends Component {
                         <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                             @forelse($sources as $source)
                                 <tr class="align-top">
-                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->type }} · {{ $source->source_identifier }}</div></td>
+                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
                                     <td class="p-4">{{ $source->scraped_loads_count }}</td>
                                     <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->format('d.m.Y H:i') : 'Henüz yok' }}</td>
                                     <td class="p-4 max-w-xs text-red-500">{{ $source->last_error ? \Illuminate\Support\Str::limit($source->last_error, 100) : '—' }}</td>
