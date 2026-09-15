@@ -7,7 +7,7 @@ use App\Models\Scraper;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
+use App\Support\TurkishCities;
 use Throwable;
 
 /**
@@ -128,7 +128,7 @@ class LoadIntakeService
     /** Emoji, noktalama, bağlantı ve büyük/küçük harf farklarını yok sayan karşılaştırma metni. */
     public static function normalizeText(string $text): string
     {
-        $t = mb_strtolower($text);
+        $t = TurkishCities::lower($text);
         $t = preg_replace('~https?://\S+~u', ' ', $t) ?? $t;
         $t = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $t) ?? $t;
 
@@ -138,7 +138,7 @@ class LoadIntakeService
     /** Telefon numarası ve en az bir lojistik işaret (rota, tonaj, fiyat ya da araç/yük sözcüğü) içermeli. */
     public static function looksLikeLoad(string $text): bool
     {
-        $hasPhone = (bool) preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.]*5(?:[\s\-.]*\d){9}(?!\d)/u', $text);
+        $hasPhone = (bool) preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $text);
         if (! $hasPhone) {
             return false;
         }
@@ -156,9 +156,9 @@ class LoadIntakeService
         if (! $phone || ! $pickup || ! $delivery) {
             return null;
         }
-        // İlçe/semt yazımı kaynağa göre değiştiği için yalnız ilk sözcük (il) karşılaştırılır:
-        // aynı numara, aynı il çifti, 48 saat içinde → aynı ilan.
-        $city = fn (string $v) => Str::slug((string) strtok(self::normalizeText($v), ' '), '-', 'tr');
+        // İlçe/semt yazımı kaynağa göre değiştiği için il düzeyinde karşılaştırılır:
+        // aynı numara, aynı il çifti, 48 saat içinde → aynı ilan. İl bulunamazsa ilk sözcük kullanılır.
+        $city = fn (string $v) => TurkishCities::ascii(TurkishCities::fromText($v) ?? (string) strtok(self::normalizeText($v), ' '));
 
         return mb_substr($phone.'|'.$city($pickup).'|'.$city($delivery), 0, 191);
     }

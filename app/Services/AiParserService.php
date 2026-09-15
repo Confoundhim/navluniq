@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\TurkishCities;
 use App\Models\AiProviderUsage;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -81,7 +82,7 @@ class AiParserService
 
     private function parseWithProvider(string $provider, string $message): array
     {
-        $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight, price. Eksik alan null olsun. Mesaj:\n".$message;
+        $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight (kilogram cinsinden tam sayı; ton yazıyorsa 1000 ile çarp), price (Türk lirası, sayı). Eksik alan null olsun. Mesaj:\n".$message;
 
         $response = match ($provider) {
             'gemini' => Http::timeout(20)->acceptJson()->withHeaders(['x-goog-api-key' => (string) config('services.ai.gemini_key')])->post(
@@ -131,8 +132,8 @@ class AiParserService
     private function normalize(array $data, string $provider): array
     {
         $phone = $this->normalizePhone($data['sender_phone'] ?? null);
-        $pickup = $this->cleanText($data['pickup_location'] ?? null, 120);
-        $delivery = $this->cleanText($data['delivery_location'] ?? null, 120);
+        $pickup = TurkishCities::normalizeLocation($this->cleanText($data['pickup_location'] ?? null, 120));
+        $delivery = TurkishCities::normalizeLocation($this->cleanText($data['delivery_location'] ?? null, 120));
         if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('required_fields_missing');
         }
@@ -157,16 +158,23 @@ class AiParserService
 
         // "Ankara'dan İzmir'e" yazımındaki kesme işaretleri rota eşlemesini bozmasın.
         $routeText = preg_replace("/[’'‘`]/u", '', $message) ?? $message;
-        $city = '[\p{L}][\p{L}\s]{1,38}?';
-        preg_match('/('.$city.')\s*(?:->|→|>|-|–|—|den|dan|tan|ten)\s*('.$city.')(?:\s|$|[,.;])/iu', $routeText.' ', $route);
-        $pickup = $this->cleanText($route[1] ?? null, 120);
-        $delivery = $this->cleanText($route[2] ?? null, 120);
+        // Bağlaçtan önce ve sonra en fazla iki sözcük alınır ("Ankara Ostim" → "İzmir Aliağa").
+        $word = '\p{L}+';
+        preg_match('/('.$word.'(?:\s+'.$word.')?)\s*(->|→|>|-|–|—|dan|den|tan|ten)\s+('.$word.'(?:\s+'.$word.')?)/iu', $routeText, $route);
+        $dativeForm = isset($route[2]) && preg_match('/^(?:dan|den|tan|ten)$/iu', $route[2]) === 1; // "Ankaradan İzmire": varış yönelme eki taşır
+        $pickup = $this->tidyLocation($route[1] ?? null);
+        $delivery = $this->tidyLocation($route[3] ?? null, $dativeForm);
         if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('regex_required_fields_missing');
         }
 
-        preg_match('/(?<!\d)(\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺)(?!\p{L})/iu', $message, $price);
-        preg_match('/(?<!\d)(\d{1,6}(?:[.,]\d{1,2})?)\s*(kg|ton)(?!\p{L})/iu', $message, $weight);
+        // "45.000 TL", "45000₺", "1.250,50 TL" ve "12,5 ton" gibi Türkçe sayı yazımları tanınır.
+        preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
+        preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|ton|tn)(?!\p{L})/iu', $message, $weight);
+        $weightKg = $this->positiveDecimal($weight[1] ?? null);
+        if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {
+            $weightKg *= 1000;
+        }
         preg_match('/(?:yük|mal|ürün)\s*[:\-]\s*([\p{L}\d\s]{2,80})/iu', $message, $goods);
 
         return [
@@ -175,10 +183,46 @@ class AiParserService
             'pickup_location' => $pickup,
             'delivery_location' => $delivery,
             'goods_type' => $this->cleanText($goods[1] ?? null, 120),
-            'weight' => $this->positiveInteger($weight[1] ?? null),
+            'weight' => $weightKg !== null ? (int) round($weightKg) : null,
             'price' => $this->positiveDecimal($price[1] ?? null),
             'parsed_by_llm' => 'regex_verified',
         ];
+    }
+
+    /** Yer adından "acil", "yük", "var" gibi dolgu sözcüklerini atar; il adını ekinden arındırır. */
+    private function tidyLocation(?string $value, bool $stripDative = false): ?string
+    {
+        $value = $this->cleanText($value, 120);
+        if ($value === null) {
+            return null;
+        }
+        $stop = ['acil', 'yük', 'yuk', 'var', 'lazım', 'lazim', 'palet', 'ton', 'tır', 'tir', 'kamyon', 'kamyonet', 'tenteli', 'komple', 'parsiyel',
+            'araç', 'arac', 'arayan', 'arayanlar', 'için', 'icin', 'ile', 've', 'mal', 'ürün', 'urun', 'çıkış', 'cikis', 'varış', 'varis',
+            'yükleme', 'yukleme', 'boşaltma', 'bosaltma', 'hazır', 'hazir', 'gidecek', 'gelecek', 'olan', 'yarın', 'yarin', 'bugün', 'bugun',
+            'sabah', 'akşam', 'aksam', 'yükü', 'yuku', 'nakliye', 'dorse', 'frigo', 'kasa'];
+        $words = preg_split('/\s+/u', $value) ?: [];
+        $isStop = fn (string $w) => in_array(TurkishCities::lower($w), $stop, true);
+        while ($words !== [] && $isStop($words[0])) {
+            array_shift($words);
+        }
+        while ($words !== [] && $isStop($words[array_key_last($words)])) {
+            array_pop($words);
+        }
+        if ($words === []) {
+            return null;
+        }
+        // "İzmire Aliağaya" → son sözcükteki yönelme eki (-a/-e/-ya/-ye) atılır; il adları ayrıca normalize edilir.
+        $last = array_key_last($words);
+        if ($stripDative && TurkishCities::fromText($words[$last]) === null) {
+            $w = $words[$last];
+            if (preg_match('/(ya|ye)$/iu', $w) && mb_strlen($w) > 5) {
+                $words[$last] = mb_substr($w, 0, -2);
+            } elseif (preg_match('/[^aeıioöuüAEIİOÖUÜ](a|e)$/iu', $w) && mb_strlen($w) > 4) {
+                $words[$last] = mb_substr($w, 0, -1);
+            }
+        }
+
+        return TurkishCities::normalizeLocation(implode(' ', $words));
     }
 
     private function normalizePhone(mixed $value): ?string
@@ -212,7 +256,7 @@ class AiParserService
         if (! is_scalar($value)) {
             return null;
         }
-        $number = (int) round((float) str_replace(',', '.', preg_replace('/[^0-9,.]/', '', (string) $value) ?? ''));
+        $number = (int) round($this->toNumber((string) $value));
 
         return $number > 0 ? $number : null;
     }
@@ -222,9 +266,28 @@ class AiParserService
         if (! is_scalar($value)) {
             return null;
         }
-        $number = (float) str_replace(',', '.', preg_replace('/[^0-9,.]/', '', (string) $value) ?? '');
+        $number = $this->toNumber((string) $value);
 
         return $number > 0 ? round($number, 2) : null;
+    }
+
+    /** Türkçe yazımı sayıya çevirir: "45.000" → 45000, "1.250,50" → 1250.5, "12,5" → 12.5, "45000.50" → 45000.5. */
+    private function toNumber(string $value): float
+    {
+        $v = preg_replace('/[^0-9,.]/', '', $value) ?? '';
+        if ($v === '') {
+            return 0.0;
+        }
+        if (str_contains($v, ',') && str_contains($v, '.')) {
+            $v = str_replace('.', '', $v);            // nokta binlik, virgül ondalık
+            $v = str_replace(',', '.', $v);
+        } elseif (str_contains($v, ',')) {
+            $v = str_replace(',', '.', $v);           // yalnız virgül: ondalık
+        } elseif (preg_match('/^\d{1,3}(?:\.\d{3})+$/', $v)) {
+            $v = str_replace('.', '', $v);            // yalnız nokta ve 3'lü gruplar: binlik
+        }
+
+        return (float) $v;
     }
 
     private function recordUsage(string $provider, bool $success, bool $quota): void

@@ -54,7 +54,19 @@ class LoadIntakeTest extends TestCase
         $this->assertSame(9, count(array_filter($statuses, fn ($s) => $s === 'duplicate')));
         $this->assertSame(1, ScrapedLoad::count());
         $this->assertSame('regex_verified', ScrapedLoad::first()->parsed_by_llm);
+        $this->assertSame('5321234567|ankara|izmir', ScrapedLoad::first()->route_key);
+        $this->assertSame('İzmir Aliağa', ScrapedLoad::first()->delivery_location);
         Http::assertNothingSent();
+    }
+
+    public function test_turkish_city_helper_handles_suffixes_and_aliases(): void
+    {
+        $this->assertSame('İzmir', \App\Support\TurkishCities::fromText("İzmir'e"));
+        $this->assertSame('Ankara', \App\Support\TurkishCities::fromText('Ankaradan Ostim'));
+        $this->assertSame('İstanbul', \App\Support\TurkishCities::fromText('istanbula'));
+        $this->assertSame('Kahramanmaraş', \App\Support\TurkishCities::fromText('Maraş'));
+        $this->assertNull(\App\Support\TurkishCities::fromText('Aliağa'));
+        $this->assertSame('İzmir Aliağa', \App\Support\TurkishCities::normalizeLocation('İzmire Aliağa'));
     }
 
     public function test_chatter_and_inactive_sources_never_reach_the_ai(): void
