@@ -28,6 +28,9 @@ if (ALLOWED_GROUP_IDS.size === 0) {
 }
 const contactMap = new Map();
 const msgRetryCounterCache = new Map();
+// Grup bilgisi her mesajda yeniden sorgulanmaz; 15 dakika önbellekte tutulur (gereksiz istek trafiğini önler).
+const groupMetaCache = new Map();
+const GROUP_META_TTL_MS = 15 * 60 * 1000;
 const logger = pino({ level: 'silent' });
 
 process.on('uncaughtException', (err) => {
@@ -234,7 +237,12 @@ async function startScraper() {
             if (!ALLOWED_GROUP_IDS.has(fromJid)) return;
 
             {
-                const groupMetadata = await sock.groupMetadata(fromJid);
+                let cached = groupMetaCache.get(fromJid);
+                if (!cached || Date.now() - cached.at > GROUP_META_TTL_MS) {
+                    cached = { at: Date.now(), meta: await sock.groupMetadata(fromJid) };
+                    groupMetaCache.set(fromJid, cached);
+                }
+                const groupMetadata = cached.meta;
                 const groupName = groupMetadata.subject;
 
                 if (groupMetadata.participants) {
