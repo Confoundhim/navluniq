@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
         (function () {
@@ -12,6 +12,9 @@
                 var t = localStorage.getItem('theme');
                 if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                     document.documentElement.classList.add('dark');
+                }
+                if (localStorage.getItem('textSize') === 'large') {
+                    document.documentElement.classList.add('text-large');
                 }
             } catch (e) {}
         })();
@@ -194,6 +197,10 @@
 
                 <!-- Sağ Taraf Kontrolleri (Tema Değiştirici ve Siteye Git) -->
                 <div class="flex items-center space-x-3">
+                    <button @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500 bg-brand-500/10' : 'text-neutral-600 dark:text-neutral-300'"
+                        class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 18.5l5-13 5 13M4.8 13.5h5.4M13.5 18.5l3-8 3 8M14.8 15.8h3.4"/></svg>
+                    </button>
                     <button @click="$store.darkMode.toggle()"
                         class="p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Temayı değiştir" aria-label="Temayı değiştir">
                         <svg x-show="!$store.darkMode.on" class="w-4 h-4" fill="none" stroke="currentColor"

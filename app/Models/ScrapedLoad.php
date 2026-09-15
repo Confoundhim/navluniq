@@ -17,6 +17,8 @@ class ScrapedLoad extends Model
         'scraper_id',
         'source_permission_id',
         'content_hash',
+        'normalized_hash',
+        'route_key',
         'raw_message',
         'sender_phone',
         'encrypted_sender_phone',

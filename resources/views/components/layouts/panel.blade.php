@@ -15,7 +15,7 @@
 <html lang="tr" class="h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#f97316">
     <title>{{ $title }} | {{ $appName }}</title>
@@ -26,6 +26,9 @@
                 var t = localStorage.getItem('theme');
                 if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                     document.documentElement.classList.add('dark');
+                }
+                if (localStorage.getItem('textSize') === 'large') {
+                    document.documentElement.classList.add('text-large');
                 }
             } catch (e) {}
         })();
@@ -111,6 +114,9 @@
             </button>
             <h1 class="flex-1 min-w-0 truncate text-base md:text-lg font-semibold text-neutral-900 dark:text-white">{{ $title }}</h1>
             <div class="flex items-center gap-2 shrink-0">
+                <button type="button" @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500 bg-brand-500/10' : 'text-neutral-600 dark:text-neutral-300'" class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 18.5l5-13 5 13M4.8 13.5h5.4M13.5 18.5l3-8 3 8M14.8 15.8h3.4"/></svg>
+                </button>
                 <button type="button" @click="$store.darkMode.toggle()" class="p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Temayı değiştir" aria-label="Temayı değiştir">
                     <svg x-show="!$store.darkMode.on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
                     <svg x-show="$store.darkMode.on" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
