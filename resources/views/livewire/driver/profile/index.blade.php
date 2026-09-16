@@ -126,6 +126,23 @@ class extends Component {
         session()->flash('success_message', 'Şifreniz güncellendi.');
     }
 
+    public function makeDefaultPreset(int $id): void
+    {
+        $profile = Auth::user()->driverProfile;
+        if (! $profile || ! $profile->filterPresets()->whereKey($id)->exists()) {
+            return;
+        }
+        $profile->filterPresets()->update(['is_default' => false]);
+        $profile->filterPresets()->whereKey($id)->update(['is_default' => true]);
+        session()->flash('success_message', 'Varsayılan filtre güncellendi.');
+    }
+
+    public function deletePreset(int $id): void
+    {
+        Auth::user()->driverProfile?->filterPresets()->whereKey($id)->delete();
+        session()->flash('success_message', 'Kalıcı filtre silindi.');
+    }
+
     public function uploadDocument(KycService $kyc): void
     {
         $this->validate([
@@ -185,6 +202,7 @@ class extends Component {
 
         return [
             'profile' => $profile,
+            'filterPresets' => $profile?->filterPresets()->get() ?? collect(),
             'documents' => KycDocument::query()->where('user_id', $user->id)->latest()->get()->keyBy('document_type'),
             'allowedTypes' => $this->allowedTypes(),
             'requiredTypes' => $kyc->requiredTypes($user, 'driver'),
@@ -386,6 +404,29 @@ class extends Component {
                     <button type="submit" class="btn-primary">Kaydet</button>
                 </div>
             </form>
+
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="section-title">Kalıcı ilan filtrelerim</h3>
+                    <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Yeni filtre oluştur →</a>
+                </div>
+                <p class="text-neutral-500 dark:text-neutral-400">İlan havuzu her açılışta varsayılan filtrenizle gelir; araç tipi, il, tonaj, fiyat ve "yakınımda" seçimlerini bir kez yapıp kaydedersiniz.</p>
+                @forelse($filterPresets as $preset)
+                    <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div class="min-w-0">
+                            <div class="font-bold text-neutral-900 dark:text-white">{{ $preset->name }} @if($preset->is_default)<span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400 ml-1">Varsayılan</span>@endif</div>
+                            <div class="text-[11px] text-neutral-500 truncate">{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}</div>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                            @unless($preset->is_default)<button type="button" wire:click="makeDefaultPreset({{ $preset->id }})" class="text-brand-400 font-bold hover:underline">Varsayılan yap</button>@endunless
+                            <a href="{{ route('driver.loads.index', ['preset' => $preset->id, 'filters' => 1]) }}" wire:navigate class="text-neutral-600 dark:text-neutral-300 font-bold hover:underline">Düzenle</a>
+                            <button type="button" wire:click="deletePreset({{ $preset->id }})" wire:confirm="Bu kalıcı filtre silinecek. Devam edilsin mi?" class="text-rose-500 font-bold hover:underline">Sil</button>
+                        </div>
+                    </div>
+                @empty
+                    <div class="p-3 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-neutral-500">Henüz kalıcı filtreniz yok. İlan havuzunda "Gelişmiş filtreler" açıp seçimlerinizi kaydedin.</div>
+                @endforelse
+            </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs">
                 <h3 class="section-title">Araçlarım</h3>

@@ -37,18 +37,7 @@ class DriverVehicle extends Model
     /** Şoför kaydı ve ilan formunda ortak kullanılan araç türleri. */
     public static function getVehicleTypes(): array
     {
-        return [
-            'otomobil' => 'Otomobil',
-            'minivan' => 'Minivan',
-            'orta_panelvan' => 'Orta Panelvan',
-            'uzun_panelvan' => 'Uzun Panelvan',
-            'kamyonet' => 'Kamyonet',
-            '6_teker_kamyon' => '6 Teker Kamyon',
-            '8_teker_kamyon' => '8 Teker Kamyon',
-            '10_teker_kamyon' => '10 Teker Kamyon',
-            'kirkayak' => 'Kırkayak',
-            'tir' => 'TIR',
-        ];
+        return \App\Support\VehicleTypes::labels();
     }
 
     /**

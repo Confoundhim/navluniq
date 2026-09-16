@@ -193,7 +193,7 @@ new class extends Component {
                                     @elseif($trashType === 'loads')
                                         {{ $record->pickup_location }} → {{ $record->delivery_location }} <span class="text-neutral-400">· {{ number_format((float) $record->price, 2, ',', '.') }} ₺ · {{ $record->cargoOwnerProfile?->displayName() }}</span>
                                     @else
-                                        {{ $record->plate }} <span class="text-neutral-400">· {{ $record->brand }} {{ $record->model }} · {{ $record->driverProfile?->user?->full_name }}</span>
+                                        {{ $record->plate }} <span class="text-neutral-400">· {{ \App\Support\VehicleTypes::label($record->vehicle_type) }} · {{ $record->driverProfile?->user?->full_name }}</span>
                                     @endif
                                 </td>
                                 <td class="p-4 whitespace-nowrap text-neutral-500">{{ $record->deleted_at?->format('d.m.Y H:i') }}</td>

@@ -159,7 +159,7 @@ class extends Component {
                             @elseif($hasPreferredRoutes)
                                 Tercih ettiğiniz rotalarda açık ilan bulunmadı; en yeni açık ilanlar gösteriliyor.
                             @else
-                                En yeni açık ilanlar. Profilinizden tercih ettiğiniz rotaları girerek listeyi daraltabilirsiniz.
+                                En yeni açık ilanlar. <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Kalıcı filtre oluşturun</a>, havuz size göre süzülsün.
                             @endif
                         </p>
                     </div>
@@ -213,7 +213,7 @@ class extends Component {
                 <h3 class="section-title">Aktif araç</h3>
                 @if($profile?->activeVehicle)
                     <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $profile->activeVehicle->plate }}</div>
-                    <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->activeVehicle->brand }} {{ $profile->activeVehicle->model }}</div>
+                    <div class="text-neutral-500 dark:text-neutral-400">{{ \App\Support\VehicleTypes::label($profile->activeVehicle->vehicle_type) }}</div>
                 @else
                     <div class="text-neutral-500 dark:text-neutral-400">Aktif aracınız yok. Teklif verebilmek için bir araç ekleyip aktif yapın.</div>
                 @endif

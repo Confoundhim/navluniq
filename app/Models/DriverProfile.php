@@ -60,6 +60,11 @@ class DriverProfile extends Model
     /**
      * Şoförün O An Aktif Kullandığı Araç (1-to-1 Helper)
      */
+    public function filterPresets(): HasMany
+    {
+        return $this->hasMany(DriverFilterPreset::class)->orderByDesc('is_default')->orderBy('name');
+    }
+
     public function activeVehicle(): HasOne
     {
         return $this->hasOne(DriverVehicle::class)->where('is_active', true);

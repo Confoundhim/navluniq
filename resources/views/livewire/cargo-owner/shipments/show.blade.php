@@ -402,7 +402,7 @@ class extends Component {
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Marka / model</span>
-                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
+                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? \App\Support\VehicleTypes::label($vehicle->vehicle_type) : '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Araç tipi</span>
