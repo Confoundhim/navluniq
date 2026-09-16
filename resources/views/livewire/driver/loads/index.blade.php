@@ -370,7 +370,12 @@ class extends Component {
                             <div class="text-neutral-500 dark:text-neutral-400">
                                 {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}
                                 @if($item->weight) · {{ number_format((int) ($item->weight ?? 0), 0, ',', '.') }} kg @endif
-                                @if($item->scraper) · Kaynak: {{ $item->scraper->name }} @endif
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Dış kaynak</span>
+                                @if((int) $item->duplicate_count > 1)
+                                    <span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} kaynakta görüldü</span>
+                                @endif
                             </div>
                             <div class="text-neutral-500">Derlendi: {{ $item->created_at?->format('d.m.Y H:i') }}</div>
                         </div>

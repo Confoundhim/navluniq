@@ -2,6 +2,7 @@
 
 use App\Models\ActivityLog;
 use App\Models\ScrapedLoad;
+use App\Services\ScrapedLoadService;
 use App\Models\Scraper;
 use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
@@ -9,8 +10,6 @@ use Livewire\WithPagination;
 
 new class extends Component {
     use WithPagination;
-
-    public const FREE_DELAY_MINUTES = 20;
 
     public string $activeTab = 'queue';
 
@@ -104,24 +103,22 @@ new class extends Component {
         }
 
         $load = ScrapedLoad::query()->find($loadId);
-        if (! $load || $load->visibility === 'public') {
-            session()->flash('error_message', 'İlan adayı bulunamadı veya zaten yayında.');
-
-            return;
-        }
-        if (! $load->pickup_location || ! $load->delivery_location) {
-            session()->flash('error_message', 'Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
+        if (! $load) {
+            session()->flash('error_message', 'İlan adayı bulunamadı.');
 
             return;
         }
 
-        $load->update([
-            'status' => 'parsed_success',
-            'visibility' => 'public',
-            'available_to_free_at' => now()->addMinutes(self::FREE_DELAY_MINUTES),
-        ]);
-        ActivityLog::record('scraped_load.approved', "Dış kaynak ilanı #{$load->id} yayınlandı", auth()->id(), $load);
-        session()->flash('success_message', 'İlan havuza alındı; premium olmayan şoförlere '.self::FREE_DELAY_MINUTES.' dakika sonra açılır.');
+        try {
+            app(ScrapedLoadService::class)->approve($load, auth()->id());
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+
+        $delay = app(ScrapedLoadService::class)->freeDelayMinutes();
+        session()->flash('success_message', "İlan havuza alındı; premium olmayan şoförlere {$delay} dakika sonra açılır.");
     }
 
     public function reject(int $loadId): void
@@ -136,14 +133,13 @@ new class extends Component {
         if (! $load) {
             return;
         }
-        $load->update(['status' => 'rejected', 'visibility' => 'private']);
-        ActivityLog::record('scraped_load.rejected', "Dış kaynak ilanı #{$load->id} reddedildi", auth()->id(), $load);
+        app(ScrapedLoadService::class)->reject($load, auth()->id());
         session()->flash('success_message', 'İlan adayı reddedildi.');
     }
 
     public function with(): array
     {
-        $data = ['sources' => null, 'queue' => null, 'freeDelay' => self::FREE_DELAY_MINUTES];
+        $data = ['sources' => null, 'queue' => null, 'freeDelay' => app(ScrapedLoadService::class)->freeDelayMinutes(), 'autoApprove' => \App\Support\Settings::bool('scraper_auto_approve'), 'telegramOn' => app(\App\Services\TelegramPublisher::class)->isConfigured()];
 
         if ($this->activeTab === 'sources') {
             $data['sources'] = Scraper::query()->withCount('scrapedLoads')->latest('id')->paginate(15);
@@ -206,8 +202,17 @@ new class extends Component {
                     </thead>
                     <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @forelse($queue as $load)
-                            <tr class="align-top">
-                                <td class="p-4"><span class="font-bold">#{{ $load->id }}</span><div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }} · {{ $load->created_at?->format('d.m.Y H:i') }}</div><div class="text-[11px] text-neutral-400">Telefon: {{ $load->masked_phone }}</div></td>
+                            <tr class="align-top {{ (int) $load->duplicate_count > 1 ? 'bg-amber-500/5 border-l-4 border-l-amber-500' : '' }}">
+                                <td class="p-4"><span class="font-bold">#{{ $load->id }}</span>
+                                    @if((int) $load->duplicate_count > 1)
+                                        <span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-bold align-middle" title="Bu ilan {{ $load->duplicate_count }} kaynakta görüldü: {{ implode(', ', (array) $load->seen_sources) }}">{{ $load->duplicate_count }}</span>
+                                    @endif
+                                    @if($load->auto_approved_at)
+                                        <span class="ml-1 badge bg-sky-500/10 text-sky-600 dark:text-sky-400 align-middle">Otomatik</span>
+                                    @endif
+                                    @if($load->telegram_posted_at)
+                                        <span class="ml-1 badge bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 align-middle" title="Telegram'a gönderildi: {{ $load->telegram_posted_at->format('d.m.Y H:i') }}">Telegram</span>
+                                    @endif<div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }} · {{ $load->created_at?->format('d.m.Y H:i') }}</div><div class="text-[11px] text-neutral-400">Telefon: {{ $load->masked_phone }}</div></td>
                                 <td class="p-4">{{ $load->pickup_location ?: '—' }} <span class="text-neutral-400">→</span> {{ $load->delivery_location ?: '—' }}<div class="text-[11px] text-neutral-400">{{ $load->goods_type ?: 'Yük türü belirsiz' }}@if($load->weight) · {{ number_format((int) $load->weight, 0, ',', '.') }} kg @endif</div></td>
                                 <td class="p-4 whitespace-nowrap font-semibold">{{ $load->price !== null ? number_format((float) $load->price, 2, ',', '.').' ₺' : '—' }}</td>
                                 <td class="p-4 max-w-xs text-neutral-500">{{ \Illuminate\Support\Str::limit($load->raw_message, 160) }}</td>
@@ -237,7 +242,10 @@ new class extends Component {
             </div>
             <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $queue->links() }}</div>
         </div>
-        <p class="text-[11px] text-neutral-400">Yayınlanan aday, premium şoförlere hemen; diğer şoförlere {{ $freeDelay }} dakika sonra görünür.</p>
+        <p class="text-[11px] text-neutral-400">Yayınlanan aday, premium şoförlere hemen; diğer şoförlere {{ $freeDelay }} dakika sonra görünür.
+            Otomatik onay: <span class="font-semibold {{ $autoApprove ? 'text-emerald-600' : 'text-neutral-500' }}">{{ $autoApprove ? 'açık' : 'kapalı' }}</span> ·
+            Telegram paylaşımı: <span class="font-semibold {{ $telegramOn ? 'text-emerald-600' : 'text-neutral-500' }}">{{ $telegramOn ? 'açık' : 'kapalı' }}</span>
+            (Sistem Ayarları → Dış kaynak ve Telegram). Sarı çerçeveli satırlar birden fazla kaynakta görülen ilanlardır; sayaç kaynak sayısını gösterir.</p>
     @endif
 
     @if($activeTab === 'sources')

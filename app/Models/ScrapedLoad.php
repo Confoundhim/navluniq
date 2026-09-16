@@ -19,6 +19,11 @@ class ScrapedLoad extends Model
         'content_hash',
         'normalized_hash',
         'route_key',
+        'duplicate_count',
+        'seen_sources',
+        'auto_approved_at',
+        'telegram_posted_at',
+        'telegram_attempts',
         'raw_message',
         'sender_phone',
         'encrypted_sender_phone',
@@ -39,6 +44,11 @@ class ScrapedLoad extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
+        'seen_sources' => 'array',
+        'duplicate_count' => 'integer',
+        'available_to_free_at' => 'datetime',
+        'auto_approved_at' => 'datetime',
+        'telegram_posted_at' => 'datetime',
     ];
 
     /**
