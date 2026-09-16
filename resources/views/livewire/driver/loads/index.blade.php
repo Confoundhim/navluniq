@@ -1,11 +1,15 @@
 <?php
 
+use App\Models\DriverFilterPreset;
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Offer;
 use App\Models\ScrapedLoad;
+use App\Services\LoadFilterService;
 use App\Services\OfferService;
 use App\Support\Settings;
+use App\Support\TurkishLocations;
+use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -24,7 +28,185 @@ class extends Component {
 
     public string $search = '';
 
-    public string $vehicleType = '';
+    /** @var array<string, mixed> LoadFilterService::defaults() yapısı */
+    public array $filters = [];
+
+    #[Locked]
+    public ?int $presetId = null;
+
+    public bool $advancedOpen = false;
+
+    public bool $presetModalOpen = false;
+
+    public string $presetName = '';
+
+    public bool $presetDefault = false;
+
+    public function mount(): void
+    {
+        $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external'], true) ? request()->query('tab') : 'pool';
+        $this->filters = LoadFilterService::defaults();
+
+        $requested = (int) request()->query('preset', 0);
+        $preset = $requested > 0
+            ? $this->presetsQuery()->whereKey($requested)->first()
+            : $this->presetsQuery()->where('is_default', true)->first();
+        if ($preset) {
+            $this->applyPreset($preset->id);
+        }
+        if (request()->boolean('filters')) {
+            $this->advancedOpen = true;
+        }
+    }
+
+    private function presetsQuery()
+    {
+        return DriverFilterPreset::query()->where('driver_profile_id', $this->profile()?->id ?? 0);
+    }
+
+    public function updatedFilters(): void
+    {
+        $this->filters = LoadFilterService::normalize($this->filters);
+        $this->resetPage();
+    }
+
+    public function applyPreset(?int $id): void
+    {
+        if ($id === null) {
+            $this->presetId = null;
+            $this->filters = LoadFilterService::defaults();
+            $this->resetPage();
+
+            return;
+        }
+        $preset = $this->presetsQuery()->whereKey($id)->first();
+        if (! $preset) {
+            return;
+        }
+        $this->presetId = $preset->id;
+        $this->filters = LoadFilterService::normalize((array) $preset->filters);
+        $preset->forceFill(['last_used_at' => now()])->save();
+        $this->resetPage();
+    }
+
+    public function clearFilters(): void
+    {
+        $this->presetId = null;
+        $this->search = '';
+        $this->filters = LoadFilterService::defaults();
+        $this->resetPage();
+    }
+
+    public function addProvince(string $side, $code): void
+    {
+        $key = $side === 'delivery' ? 'delivery_provinces' : 'pickup_provinces';
+        $code = (int) $code;
+        if ($code >= 1 && $code <= 81 && ! in_array($code, $this->filters[$key], true)) {
+            $this->filters[$key][] = $code;
+        }
+        $this->updatedFilters();
+    }
+
+    public function removeProvince(string $side, int $code): void
+    {
+        $key = $side === 'delivery' ? 'delivery_provinces' : 'pickup_provinces';
+        $this->filters[$key] = array_values(array_filter($this->filters[$key], fn ($c) => (int) $c !== $code));
+        $this->updatedFilters();
+    }
+
+    public function toggleVehicleType(string $type): void
+    {
+        if (! VehicleTypes::isValid($type)) {
+            return;
+        }
+        $this->filters['vehicle_mode'] = 'custom';
+        $types = $this->filters['vehicle_types'];
+        $this->filters['vehicle_types'] = in_array($type, $types, true) ? array_values(array_diff($types, [$type])) : [...$types, $type];
+        $this->updatedFilters();
+    }
+
+    /** Tarayıcı konumu (Alpine → Livewire). */
+    public function useMyLocation(float $lat, float $lng): void
+    {
+        $this->filters['near_lat'] = $lat;
+        $this->filters['near_lng'] = $lng;
+        $this->filters['near_label'] = 'Konumum';
+        $this->filters['near_radius_km'] = $this->filters['near_radius_km'] ?: 50;
+        $this->updatedFilters();
+    }
+
+    public function useProvinceCenter($code): void
+    {
+        $province = TurkishLocations::province((int) $code);
+        if (! $province) {
+            return;
+        }
+        $this->filters['near_lat'] = $province['lat'];
+        $this->filters['near_lng'] = $province['lng'];
+        $this->filters['near_label'] = $province['name'];
+        $this->filters['near_radius_km'] = $this->filters['near_radius_km'] ?: 50;
+        $this->updatedFilters();
+    }
+
+    public function clearNear(): void
+    {
+        $this->filters['near_radius_km'] = null;
+        $this->filters['near_lat'] = null;
+        $this->filters['near_lng'] = null;
+        $this->filters['near_label'] = '';
+        if ($this->filters['sort'] === 'distance') {
+            $this->filters['sort'] = 'newest';
+        }
+        $this->updatedFilters();
+    }
+
+    public function openPresetModal(): void
+    {
+        $current = $this->presetId ? $this->presetsQuery()->whereKey($this->presetId)->first() : null;
+        $this->presetName = $current?->name ?? '';
+        $this->presetDefault = $current?->is_default ?? ($this->presetsQuery()->count() === 0);
+        $this->resetErrorBag();
+        $this->presetModalOpen = true;
+    }
+
+    public function savePreset(): void
+    {
+        $profile = $this->profile();
+        if (! $profile) {
+            return;
+        }
+        $this->validate(['presetName' => 'required|string|min:2|max:60'], ['presetName.required' => 'Filtreye bir ad verin.', 'presetName.min' => 'Ad en az 2 karakter olmalı.']);
+
+        $filters = LoadFilterService::normalize($this->filters);
+        $preset = $this->presetId ? $this->presetsQuery()->whereKey($this->presetId)->first() : null;
+        if (! $preset && $this->presetsQuery()->count() >= 10) {
+            $this->addError('presetName', 'En fazla 10 kalıcı filtre oluşturabilirsiniz.');
+
+            return;
+        }
+        if ($this->presetDefault) {
+            $this->presetsQuery()->update(['is_default' => false]);
+        }
+        if ($preset) {
+            $preset->update(['name' => trim($this->presetName), 'is_default' => $this->presetDefault, 'filters' => $filters]);
+        } else {
+            $preset = DriverFilterPreset::create(['driver_profile_id' => $profile->id, 'name' => trim($this->presetName), 'is_default' => $this->presetDefault, 'filters' => $filters, 'last_used_at' => now()]);
+        }
+        $this->presetId = $preset->id;
+        $this->presetModalOpen = false;
+        session()->flash('success_message', $this->presetDefault ? 'Filtre kaydedildi ve varsayılan yapıldı; havuz her açılışta bu filtreyle gelir.' : 'Filtre kaydedildi.');
+    }
+
+    public function deletePreset(): void
+    {
+        if (! $this->presetId) {
+            return;
+        }
+        $this->presetsQuery()->whereKey($this->presetId)->delete();
+        $this->presetId = null;
+        session()->flash('success_message', 'Kalıcı filtre silindi.');
+        $this->resetPage();
+    }
 
     public bool $offerModalOpen = false;
 
@@ -38,11 +220,6 @@ class extends Component {
     public string $message = '';
 
     public function updatedSearch(): void
-    {
-        $this->resetPage();
-    }
-
-    public function updatedVehicleType(): void
     {
         $this->resetPage();
     }
@@ -72,9 +249,7 @@ class extends Component {
                 $term = '%'.trim($this->search).'%';
                 $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
             })
-            ->when($this->vehicleType !== '', fn (Builder $q) => $q->where('vehicle_type', $this->vehicleType))
-            ->latest('published_at')
-            ->latest('id');
+            ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToLoads($q, LoadFilterService::normalize($this->filters), $this->profile()));
     }
 
     private function externalQuery(): Builder
@@ -90,7 +265,7 @@ class extends Component {
                 $term = '%'.trim($this->search).'%';
                 $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
             })
-            ->latest('id');
+            ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToScraped($q, LoadFilterService::normalize($this->filters), $this->profile()));
     }
 
     public function openOffer(int $loadId): void
@@ -191,6 +366,15 @@ class extends Component {
             'hasActiveVehicle' => $profile ? $profile->activeVehicle()->exists() : false,
             'isPremium' => $profile?->isPremium() ?? false,
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
+            'presets' => $this->presetsQuery()->orderByDesc('is_default')->orderBy('name')->get(),
+            'provinces' => TurkishLocations::provinces(),
+            'normalizedFilters' => $normalized = LoadFilterService::normalize($this->filters),
+            'filterChips' => LoadFilterService::chips($normalized),
+            'activeFilterCount' => LoadFilterService::activeCount($normalized),
+            'radii' => LoadFilterService::RADII,
+            'sorts' => LoadFilterService::SORTS,
+            'withinDays' => LoadFilterService::WITHIN_DAYS,
+            'myVehicleType' => $profile?->activeVehicle()->value('vehicle_type'),
             'minPrice' => Settings::float('min_load_price'),
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             'loads' => null,
@@ -246,24 +430,185 @@ class extends Component {
         </div>
     @endif
 
-    @if($tab === 'pool')
-        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+
+    @if(in_array($tab, ['pool', 'external'], true))
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4 text-xs">
+            {{-- Kalıcı filtre profilleri --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mr-1">Filtre</span>
+                <button type="button" wire:click="applyPreset(null)" class="tab-pill {{ $presetId === null ? 'tab-pill-active' : '' }}">Serbest</button>
+                @foreach($presets as $preset)
+                    <button type="button" wire:click="applyPreset({{ $preset->id }})" class="tab-pill {{ $presetId === $preset->id ? 'tab-pill-active' : '' }}" title="{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}">
+                        {{ $preset->name }}@if($preset->is_default) <span class="text-brand-500">★</span>@endif
+                    </button>
+                @endforeach
+                <button type="button" wire:click="$toggle('advancedOpen')" class="ml-auto inline-flex items-center gap-1.5 font-bold text-brand-500 hover:underline">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M6 12h12M10 20h4"/></svg>
+                    Gelişmiş filtreler @if($activeFilterCount > 0)<span class="badge bg-brand-500 text-white">{{ $activeFilterCount }}</span>@endif
+                </button>
+            </div>
+
+            {{-- Hızlı satır --}}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                     <label class="form-label">Rota ara</label>
                     <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
                 </div>
                 <div>
-                    <label class="form-label">Araç türü</label>
-                    <select wire:model.live="vehicleType" class="form-input">
-                        <option value="">Tümü</option>
-                        @foreach($vehicleTypes as $key => $label)
-                            <option value="{{ $key }}">{{ $label }}</option>
+                    <label class="form-label">Çıkış ili ekle</label>
+                    <select class="form-input" wire:change="addProvince('pickup', $event.target.value); $event.target.value = ''">
+                        <option value="">Seçin…</option>
+                        @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Varış ili ekle</label>
+                    <select class="form-input" wire:change="addProvince('delivery', $event.target.value); $event.target.value = ''">
+                        <option value="">Seçin…</option>
+                        @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Sıralama</label>
+                    <select wire:model.live="filters.sort" class="form-input">
+                        @foreach($sorts as $key => $label)
+                            <option value="{{ $key }}" @disabled($key === 'distance' && $normalizedFilters['near_radius_km'] === null)>{{ $label }}</option>
                         @endforeach
                     </select>
                 </div>
             </div>
 
+            {{-- Seçili il rozetleri ve yakınımda --}}
+            <div class="flex flex-wrap items-center gap-2">
+                @foreach($normalizedFilters['pickup_provinces'] as $code)
+                    <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Çıkış: {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} <button type="button" wire:click="removeProvince('pickup', {{ $code }})" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
+                @endforeach
+                @foreach($normalizedFilters['delivery_provinces'] as $code)
+                    <span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Varış: {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} <button type="button" wire:click="removeProvince('delivery', {{ $code }})" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
+                @endforeach
+                @if($normalizedFilters['near_radius_km'] !== null)
+                    <span class="badge bg-sky-500/10 text-sky-700 dark:text-sky-400">{{ $normalizedFilters['near_label'] ?: 'Konumum' }} çevresi {{ $normalizedFilters['near_radius_km'] }} km <button type="button" wire:click="clearNear" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
+                @else
+                    <button type="button"
+                        x-data
+                        @click="if (!navigator.geolocation) { alert('Tarayıcınız konum desteklemiyor.'); return; } $el.disabled = true; navigator.geolocation.getCurrentPosition(p => { $wire.useMyLocation(p.coords.latitude, p.coords.longitude); $el.disabled = false; }, () => { alert('Konum alınamadı. Telefonun konum izni açık olmalı.'); $el.disabled = false; }, { enableHighAccuracy: false, timeout: 10000 })"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-dashed border-sky-400/60 text-sky-700 dark:text-sky-400 font-semibold hover:bg-sky-500/10 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.2 7-11a7 7 0 10-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                        Yakınımdaki ilanlar
+                    </button>
+                @endif
+                @if($activeFilterCount > 0 || $search !== '')
+                    <button type="button" wire:click="clearFilters" class="text-neutral-500 hover:text-rose-500 font-semibold">Temizle</button>
+                @endif
+            </div>
+
+            {{-- Gelişmiş panel --}}
+            @if($advancedOpen)
+                <div class="pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-5">
+                    <div class="space-y-2">
+                        <label class="form-label">Araç tipi</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" wire:click="$set('filters.vehicle_mode', 'mine')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'mine' ? 'tab-pill-active' : '' }}">Aracıma uygun{{ $myVehicleType ? ' ('.\App\Support\VehicleTypes::label($myVehicleType).' ve altı)' : '' }}</button>
+                            <button type="button" wire:click="$set('filters.vehicle_mode', 'any')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'any' ? 'tab-pill-active' : '' }}">Tüm tipler</button>
+                            <button type="button" wire:click="$set('filters.vehicle_mode', 'custom')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'custom' ? 'tab-pill-active' : '' }}">Seçtiklerim</button>
+                        </div>
+                        @if($normalizedFilters['vehicle_mode'] === 'custom')
+                            <div class="flex flex-wrap gap-2 pt-1">
+                                @foreach(\App\Support\VehicleTypes::FORM_ORDER as $type)
+                                    <button type="button" wire:click="toggleVehicleType('{{ $type }}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-colors {{ in_array($type, $normalizedFilters['vehicle_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($type) !!}</svg>{{ \App\Support\VehicleTypes::label($type) }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                            <label class="form-label">En az tonaj (kg)</label>
+                            <input type="number" inputmode="numeric" min="0" step="100" wire:model.live.debounce.500ms="filters.min_weight" class="form-input" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="form-label">En fazla tonaj (kg)</label>
+                            <input type="number" inputmode="numeric" min="0" step="100" wire:model.live.debounce.500ms="filters.max_weight" class="form-input" placeholder="Sınırsız">
+                        </div>
+                        <div>
+                            <label class="form-label">En az fiyat (₺)</label>
+                            <input type="number" inputmode="numeric" min="0" step="500" wire:model.live.debounce.500ms="filters.min_price" class="form-input" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="form-label">Yükleme zamanı</label>
+                            <select wire:model.live="filters.pickup_within_days" class="form-input">
+                                @foreach($withinDays as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">Yük türü anahtar sözcükleri</label>
+                            <input type="text" wire:model.live.debounce.500ms="filters.goods_keywords" placeholder="palet, koli, frigo, dökme…" class="form-input">
+                            <span class="form-help">Virgülle ayırın; biri geçen ilanlar listelenir.</span>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="form-label">Yakınımda (çıkış noktası)</label>
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <select wire:model.live="filters.near_radius_km" class="form-input w-auto">
+                                    <option value="">Kapalı</option>
+                                    @foreach($radii as $km)<option value="{{ $km }}">{{ $km }} km</option>@endforeach
+                                </select>
+                                <select class="form-input w-auto" wire:change="useProvinceCenter($event.target.value); $event.target.value = ''">
+                                    <option value="">İl merkezi seç…</option>
+                                    @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
+                                </select>
+                                <label class="inline-flex items-center gap-2 text-[11px] text-neutral-500"><input type="checkbox" wire:model.live="filters.only_priced" class="accent-brand-500 w-4 h-4"> Yalnız fiyatlı ilanlar</label>
+                            </div>
+                            <span class="form-help">Merkez olarak konumunuzu ("Yakınımdaki ilanlar") ya da bir il merkezini kullanın.</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                        <button type="button" wire:click="openPresetModal" class="btn-primary py-2 text-xs">{{ $presetId ? 'Bu filtreyi güncelle' : 'Bu filtreyi kaydet' }}</button>
+                        @if($presetId)
+                            <button type="button" wire:click="deletePreset" wire:confirm="Bu kalıcı filtre silinecek. Devam edilsin mi?" class="btn-danger py-2 text-xs">Sil</button>
+                        @endif
+                        <span class="text-[11px] text-neutral-400 ml-auto">Kaydedilen filtreler telefonda ve bilgisayarda aynı çalışır; varsayılan filtre havuz her açılışta uygulanır.</span>
+                    </div>
+                </div>
+            @endif
+
+            @if($filterChips !== [])
+                <div class="flex flex-wrap gap-1.5 text-[11px] text-neutral-500">
+                    @foreach($filterChips as $chip)<span class="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800">{{ $chip }}</span>@endforeach
+                </div>
+            @endif
+        </div>
+
+        @if($presetModalOpen)
+            <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="$set('presetModalOpen', false)"></div>
+                <form wire:submit.prevent="savePreset" class="relative z-10 w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-xs">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $presetId ? 'Kalıcı filtreyi güncelle' : 'Kalıcı filtre kaydet' }}</h3>
+                    <div>
+                        <label class="form-label">Filtre adı</label>
+                        <input type="text" wire:model="presetName" placeholder="Örn. Ankara çıkışlı tır yükleri" class="form-input" autofocus>
+                        @error('presetName') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 text-[11px] text-neutral-500">
+                        @foreach($filterChips as $chip)<span class="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800">{{ $chip }}</span>@endforeach
+                    </div>
+                    <label class="inline-flex items-center gap-2"><input type="checkbox" wire:model="presetDefault" class="accent-brand-500 w-4 h-4"> Varsayılan filtrem olsun (havuz her açılışta bununla gelsin)</label>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" wire:click="$set('presetModalOpen', false)" class="btn-secondary flex-1">Vazgeç</button>
+                        <button type="submit" class="btn-primary flex-1">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        @endif
+    @endif
+
+    @if($tab === 'pool')
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="space-y-3">
                 @forelse($loads as $load)
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 hover:border-brand-500/40 rounded-xl transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
@@ -347,12 +692,8 @@ class extends Component {
 
     @if($tab === 'external')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                    <label class="form-label">Rota ara</label>
-                    <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
-                </div>
-                <div class="text-[11px] text-neutral-500 sm:self-end leading-relaxed">
+            <div class="text-xs">
+                <div class="text-[11px] text-neutral-500 leading-relaxed">
                     Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır.
                     @if(! $isPremium)
                         Yeni dış kaynak ilanlar önce premium üyelere açılır; telefon numarasının tamamı premium üyelere gösterilir.
