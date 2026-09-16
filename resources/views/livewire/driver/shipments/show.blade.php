@@ -470,7 +470,7 @@ class extends Component {
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-1 text-xs">
                         <h3 class="section-title">Atanan araç</h3>
                         <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $shipment->vehicle->plate }}</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">{{ $shipment->vehicle->brand }} {{ $shipment->vehicle->model }}</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">{{ \App\Support\VehicleTypes::label($shipment->vehicle->vehicle_type) }}</div>
                     </div>
                 @endif
 

@@ -31,8 +31,6 @@ new class extends Component {
 
     public string $plate = '';
     public string $vehicleType = '';
-    public string $brand = '';
-    public string $model = '';
 
     public array $availableVehicleTypes = [];
 
@@ -53,8 +51,6 @@ new class extends Component {
             'password' => 'required|string|min:12|max:255|confirmed',
             'plate' => ['required', 'string', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')->where(fn ($q) => $q->whereNotIn('driver_profile_id', $this->draftProfileIds()))],
             'vehicleType' => ['required', Rule::in(array_keys($this->availableVehicleTypes))],
-            'brand' => 'required|string|max:80',
-            'model' => 'required|string|max:80',
             'acceptTerms' => 'accepted',
         ], [
             'acceptTerms.accepted' => 'Sözleşmeleri ve KVKK metnini onaylamadan kayıt olamazsınız.',
@@ -144,8 +140,6 @@ new class extends Component {
             DriverVehicle::create([
                 'driver_profile_id' => $driverProfile->id,
                 'plate' => $this->plate,
-                'brand' => trim($this->brand),
-                'model' => trim($this->model),
                 'vehicle_type' => $this->vehicleType,
                 'is_active' => true,
             ]);
@@ -279,34 +273,15 @@ new class extends Component {
 
                 <div class="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl border border-neutral-200/40 space-y-3">
                     <span class="font-bold text-brand-500 block">ARAÇ VE FİLO BİLGİLERİ</span>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                            <label class="form-label">Araç Plakası</label>
-                            <input type="text" wire:model="plate" placeholder="06ANK1920" class="form-input uppercase font-bold">
-                            @error('plate') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1">
-                            <label class="form-label">Araç Türü</label>
-                            <select wire:model="vehicleType" class="form-input font-bold">
-                                <option value="">Seçiniz...</option>
-                                @foreach($availableVehicleTypes as $key => $label)
-                                    <option value="{{ $key }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
-                            @error('vehicleType') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
+                    <div class="space-y-1 sm:max-w-xs">
+                        <label class="form-label">Araç Plakası</label>
+                        <input type="text" wire:model="plate" placeholder="06ANK1920" class="form-input uppercase font-bold">
+                        @error('plate') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div class="space-y-1">
-                            <label class="form-label">Marka</label>
-                            <input type="text" wire:model="brand" placeholder="Mercedes-Benz" class="form-input">
-                            @error('brand') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1">
-                            <label class="form-label">Model</label>
-                            <input type="text" wire:model="model" placeholder="Actros 1845" class="form-input">
-                            @error('model') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
+                    <div class="space-y-2">
+                        <label class="form-label">Araç Türü <span class="font-normal text-neutral-400">(tek dokunuşla seçin)</span></label>
+                        <x-vehicle-type-picker model="vehicleType" />
+                        @error('vehicleType') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 

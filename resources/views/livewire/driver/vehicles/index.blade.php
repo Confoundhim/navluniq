@@ -23,10 +23,6 @@ class extends Component {
 
     public string $plate = '';
 
-    public string $brand = '';
-
-    public string $model = '';
-
     public string $vehicle_type = '';
 
     public $ruhsat = null;
@@ -43,7 +39,7 @@ class extends Component {
 
     public function openCreate(): void
     {
-        $this->reset(['editingId', 'plate', 'brand', 'model', 'ruhsat']);
+        $this->reset(['editingId', 'plate', 'ruhsat']);
         $this->vehicle_type = array_key_first(DriverVehicle::getVehicleTypes());
         $this->resetErrorBag();
         $this->formOpen = true;
@@ -60,8 +56,6 @@ class extends Component {
 
         $this->editingId = $vehicle->id;
         $this->plate = $vehicle->plate;
-        $this->brand = $vehicle->brand;
-        $this->model = $vehicle->model;
         $this->vehicle_type = $vehicle->vehicle_type;
         $this->ruhsat = null;
         $this->resetErrorBag();
@@ -71,7 +65,7 @@ class extends Component {
     public function closeForm(): void
     {
         $this->formOpen = false;
-        $this->reset(['editingId', 'plate', 'brand', 'model', 'vehicle_type', 'ruhsat']);
+        $this->reset(['editingId', 'plate', 'vehicle_type', 'ruhsat']);
         $this->resetErrorBag();
     }
 
@@ -81,16 +75,12 @@ class extends Component {
 
         $this->validate([
             'plate' => ['required', 'string', 'max:32', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')->ignore($this->editingId)],
-            'brand' => ['required', 'string', 'min:2', 'max:80'],
-            'model' => ['required', 'string', 'min:1', 'max:80'],
             'vehicle_type' => ['required', Rule::in(array_keys(DriverVehicle::getVehicleTypes()))],
             'ruhsat' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ], [
             'plate.required' => 'Plaka zorunludur.',
             'plate.regex' => 'Geçerli bir Türk plakası girin (örn. 34ABC123).',
             'plate.unique' => 'Bu plaka sistemde zaten kayıtlı.',
-            'brand.required' => 'Marka zorunludur.',
-            'model.required' => 'Model zorunludur.',
             'vehicle_type.in' => 'Geçerli bir araç türü seçin.',
             'ruhsat.mimes' => 'Ruhsat JPG, PNG veya PDF olmalıdır.',
             'ruhsat.max' => 'Ruhsat dosyası en fazla 10 MB olabilir.',
@@ -105,8 +95,6 @@ class extends Component {
 
         $data = [
             'plate' => $this->plate,
-            'brand' => trim($this->brand),
-            'model' => trim($this->model),
             'vehicle_type' => $this->vehicle_type,
         ];
 
@@ -218,8 +206,10 @@ class extends Component {
                         <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-bold text-[11px]">Pasif</span>
                     @endif
                 </div>
-                <div class="text-neutral-700 dark:text-neutral-300">{{ $vehicle->brand }} {{ $vehicle->model }}</div>
-                <div class="text-neutral-500">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</div>
+                <div class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
+                    <svg class="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($vehicle->vehicle_type) !!}</svg>
+                    <span class="font-semibold">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</span>
+                </div>
                 <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500' }}">
                     {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
                 </div>
@@ -242,31 +232,15 @@ class extends Component {
             <form wire:submit.prevent="save" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white border-b border-neutral-200 dark:border-neutral-800 pb-3">{{ $editingId ? 'Aracı düzenle' : 'Yeni araç' }}</h3>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="form-label">Plaka</label>
-                        <input type="text" wire:model="plate" placeholder="34ABC123" class="form-input font-mono uppercase">
-                        @error('plate') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Araç türü</label>
-                        <select wire:model="vehicle_type" class="form-input">
-                            @foreach($vehicleTypes as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        @error('vehicle_type') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Marka</label>
-                        <input type="text" wire:model="brand" class="form-input">
-                        @error('brand') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Model</label>
-                        <input type="text" wire:model="model" class="form-input">
-                        @error('model') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
+                <div>
+                    <label class="form-label">Plaka</label>
+                    <input type="text" wire:model="plate" placeholder="34ABC123" class="form-input font-mono uppercase">
+                    @error('plate') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="form-label">Araç türü</label>
+                    <x-vehicle-type-picker model="vehicle_type" columns="grid-cols-2 sm:grid-cols-3" />
+                    @error('vehicle_type') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
 
                 <div>

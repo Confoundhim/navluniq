@@ -306,11 +306,7 @@ class extends Component {
 
                     <div>
                         <label class="form-label">Talep edilen araç tipi <span class="text-brand-500">*</span></label>
-                        <select wire:model="vehicle_type" class="form-input">
-                            @foreach($vehicleTypes as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
+                        <x-vehicle-type-picker model="vehicle_type" columns="grid-cols-2 sm:grid-cols-5" />
                         @error('vehicle_type') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
 

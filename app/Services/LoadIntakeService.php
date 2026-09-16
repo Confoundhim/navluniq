@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use App\Support\TurkishCities;
+use App\Support\TurkishLocations;
+use App\Support\VehicleTypes;
 use Throwable;
 
 /**
@@ -109,8 +111,29 @@ class LoadIntakeService
             }
         }
 
+        // Araç tipi: ayrıştırıcı bulamadıysa metin ve tonajdan çıkar. Konum: il/ilçe ve koordinat.
+        $vehicleType = $parsed['vehicle_type'] ?? null;
+        $vehicleSource = $parsed['vehicle_type_source'] ?? null;
+        if (! VehicleTypes::isValid($vehicleType)) {
+            $detected = VehicleTypes::detect($raw, isset($parsed['weight']) ? (int) $parsed['weight'] : null);
+            $vehicleType = $detected['type'];
+            $vehicleSource = $detected['source'];
+        }
+        $pickupGeo = TurkishLocations::resolve($parsed['pickup_location'] ?? null);
+        $deliveryGeo = TurkishLocations::resolve($parsed['delivery_location'] ?? null);
+
         $scraper->update(['last_scraped_at' => now(), 'last_success_at' => now(), 'last_error' => null]);
         $scrapedLoad = ScrapedLoad::create([
+            'vehicle_type' => $vehicleType,
+            'vehicle_type_source' => $vehicleSource,
+            'pickup_province_code' => $pickupGeo['province_code'] ?? null,
+            'pickup_district' => $pickupGeo['district'] ?? null,
+            'pickup_lat' => $pickupGeo['lat'] ?? null,
+            'pickup_lng' => $pickupGeo['lng'] ?? null,
+            'delivery_province_code' => $deliveryGeo['province_code'] ?? null,
+            'delivery_district' => $deliveryGeo['district'] ?? null,
+            'delivery_lat' => $deliveryGeo['lat'] ?? null,
+            'delivery_lng' => $deliveryGeo['lng'] ?? null,
             'scraper_id' => $scraper->id,
             'content_hash' => $contentHash,
             'normalized_hash' => $normalizedHash,

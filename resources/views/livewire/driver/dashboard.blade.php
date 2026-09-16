@@ -213,7 +213,7 @@ class extends Component {
                 <h3 class="section-title">Aktif araç</h3>
                 @if($profile?->activeVehicle)
                     <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $profile->activeVehicle->plate }}</div>
-                    <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->activeVehicle->brand }} {{ $profile->activeVehicle->model }}</div>
+                    <div class="text-neutral-500 dark:text-neutral-400">{{ \App\Support\VehicleTypes::label($profile->activeVehicle->vehicle_type) }}</div>
                 @else
                     <div class="text-neutral-500 dark:text-neutral-400">Aktif aracınız yok. Teklif verebilmek için bir araç ekleyip aktif yapın.</div>
                 @endif

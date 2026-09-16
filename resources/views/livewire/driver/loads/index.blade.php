@@ -373,6 +373,7 @@ class extends Component {
                             </div>
                             <div class="flex flex-wrap items-center gap-1.5">
                                 <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Dış kaynak</span>
+                                @if($item->vehicle_type)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ \App\Support\VehicleTypes::label($item->vehicle_type) }}</span>@endif
                                 @if((int) $item->duplicate_count > 1)
                                     <span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} kaynakta görüldü</span>
                                 @endif

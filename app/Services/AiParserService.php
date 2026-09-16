@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\TurkishCities;
+use App\Support\VehicleTypes;
 use App\Models\AiProviderUsage;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -82,7 +83,7 @@ class AiParserService
 
     private function parseWithProvider(string $provider, string $message): array
     {
-        $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight (kilogram cinsinden tam sayı; ton yazıyorsa 1000 ile çarp), price (Türk lirası, sayı). Eksik alan null olsun. Mesaj:\n".$message;
+        $prompt = "Aşağıdaki lojistik ilanından yalnız açıkça yazılmış verileri çıkar. Tahmin etme. JSON dışında metin üretme. Alanlar: sender_phone, pickup_location, delivery_location, goods_type, weight (kilogram cinsinden tam sayı; ton yazıyorsa 1000 ile çarp), price (Türk lirası, sayı), vehicle_type (yalnız şu anahtarlardan biri: tir, kirkayak, 10_teker_kamyon, 8_teker_kamyon, 6_teker_kamyon, kamyonet, uzun_panelvan, orta_panelvan, minivan, otomobil; yazmıyorsa null). Eksik alan null olsun. Mesaj:\n".$message;
 
         $response = match ($provider) {
             'gemini' => Http::timeout(20)->acceptJson()->withHeaders(['x-goog-api-key' => (string) config('services.ai.gemini_key')])->post(
@@ -144,8 +145,10 @@ class AiParserService
             'pickup_location' => $pickup,
             'delivery_location' => $delivery,
             'goods_type' => $this->cleanText($data['goods_type'] ?? null, 120),
-            'weight' => $this->positiveInteger($data['weight'] ?? null),
+            'weight' => $weight = $this->positiveInteger($data['weight'] ?? null),
             'price' => $this->positiveDecimal($data['price'] ?? null),
+            'vehicle_type' => VehicleTypes::isValid($data['vehicle_type'] ?? null) ? $data['vehicle_type'] : null,
+            'vehicle_type_source' => VehicleTypes::isValid($data['vehicle_type'] ?? null) ? 'ai' : null,
             'parsed_by_llm' => $provider,
         ];
     }
@@ -185,6 +188,8 @@ class AiParserService
             'goods_type' => $this->cleanText($goods[1] ?? null, 120),
             'weight' => $weightKg !== null ? (int) round($weightKg) : null,
             'price' => $this->positiveDecimal($price[1] ?? null),
+            'vehicle_type' => ($vehicle = VehicleTypes::detect($message, $weightKg !== null ? (int) round($weightKg) : null))['type'],
+            'vehicle_type_source' => $vehicle['source'],
             'parsed_by_llm' => 'regex_verified',
         ];
     }

@@ -203,7 +203,7 @@ class extends Component {
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500">Araç</span>
-                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: (\App\Models\DriverVehicle::getVehicleTypes()[$vehicle->vehicle_type] ?? $vehicle->vehicle_type) : 'Araç bilgisi yok' }}</span>
+                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? \App\Support\VehicleTypes::label($vehicle->vehicle_type).' · '.$vehicle->plate : 'Araç bilgisi yok' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500">Plaka</span>

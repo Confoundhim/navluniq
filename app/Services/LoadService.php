@@ -21,17 +21,25 @@ class LoadService
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
         }
 
-        return DB::transaction(function () use ($owner, $data, $eIrsaliyeFile): Load {
+        // Adres metninden il/ilçe ve koordinat çözümlenir; koordinat açıkça verildiyse o korunur.
+        $pickupGeo = \App\Support\TurkishLocations::resolve($data['pickup_location'] ?? null);
+        $deliveryGeo = \App\Support\TurkishLocations::resolve($data['delivery_location'] ?? null);
+
+        return DB::transaction(function () use ($owner, $data, $eIrsaliyeFile, $pickupGeo, $deliveryGeo): Load {
             $load = Load::create([
                 'cargo_owner_profile_id' => $owner->id,
                 'source_type' => 'internal',
                 'visibility' => 'public',
                 'pickup_location' => trim($data['pickup_location']),
+                'pickup_province_code' => $pickupGeo['province_code'] ?? null,
+                'pickup_district' => $pickupGeo['district'] ?? null,
                 'delivery_location' => trim($data['delivery_location']),
-                'pickup_lat' => $data['pickup_lat'] ?? null,
-                'pickup_lng' => $data['pickup_lng'] ?? null,
-                'delivery_lat' => $data['delivery_lat'] ?? null,
-                'delivery_lng' => $data['delivery_lng'] ?? null,
+                'delivery_province_code' => $deliveryGeo['province_code'] ?? null,
+                'delivery_district' => $deliveryGeo['district'] ?? null,
+                'pickup_lat' => $data['pickup_lat'] ?? $pickupGeo['lat'] ?? null,
+                'pickup_lng' => $data['pickup_lng'] ?? $pickupGeo['lng'] ?? null,
+                'delivery_lat' => $data['delivery_lat'] ?? $deliveryGeo['lat'] ?? null,
+                'delivery_lng' => $data['delivery_lng'] ?? $deliveryGeo['lng'] ?? null,
                 'pickup_date' => $data['pickup_date'],
                 'delivery_date' => $data['delivery_date'] ?? null,
                 'vehicle_type' => $data['vehicle_type'],
