@@ -16,7 +16,22 @@ final class Settings
         'offer_validity_days' => 2,             // Teklif geçerlilik süresi (gün)
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
+
+        // Dış kaynak ilanları
+        'scraper_free_delay_minutes' => 20,     // Onaylanan ilanın ücretsiz üyelere açılma gecikmesi (dk)
+        'scraper_auto_approve' => 0,            // 1: kriterleri sağlayan adaylar her dakika otomatik onaylanır
+        'scraper_auto_approve_require_price' => 0,
+        'scraper_auto_approve_require_weight' => 0,
+
+        // Telegram kanalı
+        'telegram_post_enabled' => 0,           // 1: ücretsiz üyelere açılan ilan kanala gönderilir
+        'telegram_bot_token' => '',
+        'telegram_channel_id' => '',            // @kanaladi veya -100... sayısal kimlik
+        'telegram_show_full_phone' => 0,        // 0: maskeli numara + siteye bağlantı
     ];
+
+    /** Yalnız değeri gizlenerek günlüğe yazılacak anahtarlar. */
+    public const SECRET_KEYS = ['telegram_bot_token'];
 
     public static function get(string $key, mixed $default = null): mixed
     {
@@ -33,6 +48,16 @@ final class Settings
     public static function int(string $key): int
     {
         return (int) self::get($key);
+    }
+
+    public static function bool(string $key): bool
+    {
+        return in_array(strtolower(trim((string) self::get($key))), ['1', 'true', 'on', 'yes', 'evet'], true);
+    }
+
+    public static function string(string $key): string
+    {
+        return trim((string) self::get($key));
     }
 
     public static function set(string $key, mixed $value, ?int $updatedBy = null): void

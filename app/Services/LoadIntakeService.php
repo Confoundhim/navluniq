@@ -39,21 +39,27 @@ class LoadIntakeService
 
         // 1) Birebir aynı teslimat (daemon yeniden bağlanınca aynı mesajı tekrar yollar).
         $contentHash = hash('sha256', $sourceId.'|'.($payload['message_id'] ?? '').'|'.$raw);
+        $groupName = (string) $payload['group_name'];
         if ($existing = ScrapedLoad::query()->where('content_hash', $contentHash)->first()) {
             return $this->result(200, true, 'duplicate', 'Mesaj daha önce işlendi.', $existing->id);
         }
 
-        // 2) Aynı metin farklı gruplardan (aynı anda bile gelse) yalnız bir kez işlenir.
+        // 2) Aynı metin farklı gruplardan (aynı anda bile gelse) yalnız bir kez işlenir; diğerleri sayaca yazılır.
         $normalizedHash = hash('sha256', self::normalizeText($raw));
         $seenKey = 'intake:seen:'.$normalizedHash;
         if (! Cache::add($seenKey, 1, now()->addHours(24))) {
-            return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.');
+            $first = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)->latest('id')->first();
+            $this->noteSighting($first, $groupName);
+
+            return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.', $first?->id);
         }
 
         try {
             $recent = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
                 ->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->first();
             if ($recent) {
+                $this->noteSighting($recent, $groupName);
+
                 return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan daha önce alındı.', $recent->id);
             }
 
@@ -97,6 +103,8 @@ class LoadIntakeService
             $sameRoute = ScrapedLoad::query()->where('route_key', $routeKey)
                 ->where('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->first();
             if ($sameRoute) {
+                $this->noteSighting($sameRoute, $groupName);
+
                 return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id);
             }
         }
@@ -107,6 +115,8 @@ class LoadIntakeService
             'content_hash' => $contentHash,
             'normalized_hash' => $normalizedHash,
             'route_key' => $routeKey,
+            'duplicate_count' => 1,
+            'seen_sources' => [$groupName],
             'raw_message' => $raw,
             'sender_phone' => null,
             'encrypted_sender_phone' => Crypt::encryptString($phone),
@@ -123,6 +133,20 @@ class LoadIntakeService
         ]);
 
         return $this->result(201, true, 'created', 'İlan adayı kaydedildi.', $scrapedLoad->id);
+    }
+
+    /** Aynı ilan yeni bir kaynaktan görüldüyse sayacı ve kaynak listesini günceller; aynı kaynaktan tekrar sayılmaz. */
+    private function noteSighting(?ScrapedLoad $load, string $groupName): void
+    {
+        if (! $load || $groupName === '') {
+            return;
+        }
+        $sources = array_values(array_filter((array) ($load->seen_sources ?? [])));
+        if (in_array($groupName, $sources, true)) {
+            return;
+        }
+        $sources[] = $groupName;
+        $load->forceFill(['seen_sources' => $sources, 'duplicate_count' => count($sources)])->save();
     }
 
     /** Emoji, noktalama, bağlantı ve büyük/küçük harf farklarını yok sayan karşılaştırma metni. */

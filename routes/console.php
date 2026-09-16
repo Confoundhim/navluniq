@@ -1,6 +1,8 @@
 <?php
 
 use App\Services\AccountService;
+use App\Services\ScrapedLoadService;
+use App\Services\TelegramPublisher;
 use App\Services\OfferService;
 use App\Services\ShipmentService;
 use Illuminate\Support\Facades\Artisan;
@@ -18,6 +20,16 @@ Artisan::command('accounts:purge-drafts', function (AccountService $accounts) {
     $this->info('Silinen taslak hesap sayısı: '.$accounts->purgeUnverifiedDrafts());
 })->purpose('E-posta doğrulaması yapılmamış 24 saatten eski kayıtları siler');
 
+Artisan::command('scraped-loads:auto-approve', function (ScrapedLoadService $loads) {
+    $this->info('Otomatik onaylanan dış kaynak ilanı sayısı: '.$loads->autoApproveDue());
+})->purpose('Ayar açıksa kriterleri sağlayan dış kaynak ilan adaylarını yayınlar');
+
+Artisan::command('scraped-loads:publish-telegram', function (TelegramPublisher $telegram) {
+    $this->info('Telegram kanalına gönderilen ilan sayısı: '.$telegram->publishDue());
+})->purpose('Ücretsiz üyelere açılan dış kaynak ilanlarını Telegram kanalına gönderir');
+
 Schedule::command('offers:expire')->hourly();
+Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
+Schedule::command('scraped-loads:publish-telegram')->everyMinute()->withoutOverlapping();
 Schedule::command('shipments:auto-approve')->hourly();
 Schedule::command('accounts:purge-drafts')->daily();
