@@ -164,7 +164,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-8">
+<div wire:poll.30s class="max-w-7xl mx-auto space-y-8">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Sistem Sağlığı</h1>

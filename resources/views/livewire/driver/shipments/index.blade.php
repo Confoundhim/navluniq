@@ -41,7 +41,7 @@ class extends Component {
     }
 }; ?>
 
-<div class="space-y-6">
+<div wire:poll.15s class="space-y-6">
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>

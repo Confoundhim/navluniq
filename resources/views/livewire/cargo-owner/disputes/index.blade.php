@@ -102,7 +102,7 @@ class extends Component {
     }
 }; ?>
 
-<div class="space-y-6">
+<div wire:poll.15s class="space-y-6">
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
