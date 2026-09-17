@@ -44,3 +44,4 @@ ls -1t "$OUT_DIR"/navluniq-*.tar.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xar
 
 echo "==> Yedek hazır: $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"
 echo "    Bilgisayara indirmek için (PowerShell): scp root@$(hostname -I | awk '{print $1}'):$ARCHIVE ."
+echo "    En son yedeği indirmek için: scp \"root@$(hostname -I | awk '{print $1}'):$OUT_DIR/navluniq-*.tar.gz\" ."
