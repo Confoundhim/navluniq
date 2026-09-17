@@ -29,6 +29,12 @@ class ScrapedLoadService
         if (! $load->pickup_location || ! $load->delivery_location) {
             throw new RuntimeException('Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
         }
+        // Yayın öncesi son standartlaştırma: eski kayıtlar ve sonradan iyileşen sözlükler için.
+        app(LoadStandardizer::class)->restandardize($load);
+        $load->refresh();
+        if (! $load->pickup_province_code || ! $load->delivery_province_code) {
+            throw new RuntimeException('Kalkış ya da varış ili çözülemedi; ilanı düzenleyip ili seçin.');
+        }
 
         $load->update([
             'status' => 'parsed_success',

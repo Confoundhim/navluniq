@@ -54,20 +54,29 @@ class TelegramPublisher
     public function messageFor(ScrapedLoad $load): string
     {
         $e = fn (?string $v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $lines = ['🚛 <b>'.$e($load->pickup_location).' → '.$e($load->delivery_location).'</b>'];
+        $lines = [($load->isUrgent() ? '🔴 <b>ACİL</b> ' : '').'🚛 <b>'.$e($load->routeLabel()).'</b>'];
 
         $facts = [];
         if ($load->goods_type) {
             $facts[] = '📦 '.$e($load->goods_type);
         }
-        if ((int) $load->weight > 0) {
-            $facts[] = '⚖️ '.number_format((int) $load->weight, 0, ',', '.').' kg';
+        if ($w = $load->weightLabel()) {
+            $facts[] = '⚖️ '.$w;
         }
-        if ((float) $load->price > 0) {
-            $facts[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺';
+        if ($v = $load->vehicleLabel()) {
+            $facts[] = '🚚 '.$e($v);
+        }
+        foreach ($load->traitLabels() as $trait) {
+            $facts[] = ($trait === 'Soğuk zincir' ? '❄️ ' : '⚠️ ').$e($trait);
         }
         if ($facts !== []) {
             $lines[] = implode(' · ', $facts);
+        }
+        if ((float) $load->price > 0) {
+            $lines[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺';
+        }
+        if ($note = $load->meta('pickup_note')) {
+            $lines[] = '📅 Yükleme: '.$e((string) $note);
         }
 
         $sources = (int) $load->duplicate_count;

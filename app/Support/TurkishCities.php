@@ -22,6 +22,9 @@ final class TurkishCities
     private const ALIASES = [
         'afyon' => 'Afyonkarahisar', 'maraş' => 'Kahramanmaraş', 'maras' => 'Kahramanmaraş', 'urfa' => 'Şanlıurfa',
         'antep' => 'Gaziantep', 'içel' => 'Mersin', 'icel' => 'Mersin', 'ist' => 'İstanbul', 'izmit' => 'Kocaeli',
+        'gantep' => 'Gaziantep', 'ank' => 'Ankara', 'izm' => 'İzmir', 'istanbul' => 'İstanbul', 'stanbul' => 'İstanbul',
+        'ıstanbul' => 'İstanbul', 'kmaras' => 'Kahramanmaraş', 'sanliurfa' => 'Şanlıurfa', 'diyarbekir' => 'Diyarbakır',
+        'trabzon' => 'Trabzon', 'ada' => 'Adana', 'mrs' => 'Mersin', 'ist.' => 'İstanbul', 'izmir' => 'İzmir',
     ];
 
     private const SUFFIXES = ['ından', 'inden', 'undan', 'ünden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'ı', 'i', 'u', 'ü'];
@@ -38,8 +41,8 @@ final class TurkishCities
         return strtr(self::lower($text), ['ç' => 'c', 'ğ' => 'g', 'ı' => 'i', 'ö' => 'o', 'ş' => 's', 'ü' => 'u', 'â' => 'a', 'î' => 'i', 'û' => 'u']);
     }
 
-    /** Metindeki ilk sözcükten il adını çıkarır; bulunamazsa null. */
-    public static function fromText(?string $text): ?string
+    /** Metindeki ilk sözcükten il adını çıkarır; bulunamazsa null. $fuzzy: yazım hatasına tolerans. */
+    public static function fromText(?string $text, bool $fuzzy = true): ?string
     {
         if ($text === null || trim($text) === '') {
             return null;
@@ -66,7 +69,46 @@ final class TurkishCities
             }
         }
 
-        return null;
+        return $fuzzy ? self::fuzzyProvince($token) : null;
+    }
+
+    /**
+     * Yazım hatalı il adı: "diyarbakr" → Diyarbakır, "istanbl" → İstanbul, "ankra" → Ankara.
+     * Kısa sözcüklerde tek harf, uzunlarda iki harf farkına izin verir; ek takılı yazımları da dener.
+     */
+    public static function fuzzyProvince(string $asciiToken): ?string
+    {
+        $token = preg_replace('/[^a-z]/', '', $asciiToken) ?? '';
+        // Yer adına benzeyen gündelik sözcükler il sanılmasın ("burda" → Bursa, "aydan" → Aydın).
+        static $stop = ['burda', 'orda', 'surda', 'sonra', 'yukle', 'yuklu', 'hemen', 'acele', 'kadar', 'tonaj', 'arasi', 'gunde', 'yarin',
+            'bugun', 'sabah', 'aksam', 'gece', 'fiyat', 'kamyon', 'bosta', 'ambar', 'depo', 'liman', 'sube', 'aydan', 'kilit', 'ucak', 'boru',
+            'sirket', 'firma', 'musteri', 'dolar', 'nakit', 'siparis', 'teslim', 'gidecek', 'gelecek', 'olacak', 'lazim', 'aranan'];
+        if (strlen($token) < 5 || in_array($token, $stop, true)) {
+            return null;
+        }
+        // Ek takılı yazım da denenir: "diyarbakrdan" → "diyarbakr"
+        $variants = [$token];
+        foreach (self::SUFFIXES as $suffix) {
+            $sfx = self::ascii($suffix);
+            if (str_ends_with($token, $sfx) && strlen($token) - strlen($sfx) >= 5) {
+                $variants[] = substr($token, 0, -strlen($sfx));
+            }
+        }
+        $best = null;
+        $bestDist = PHP_INT_MAX;
+        foreach (self::asciiMap() as $ascii => $name) {
+            // Kısa il adlarında (Kars, Bolu, Van) yalnız birebir eşleşme; 5-7 harfte tek, 8+ harfte iki harf farkı.
+            $limit = strlen($ascii) >= 8 ? 2 : (strlen($ascii) >= 5 ? 1 : 0);
+            foreach ($variants as $v) {
+                $d = levenshtein($v, $ascii);
+                if ($d <= $limit && $d < $bestDist) {
+                    $bestDist = $d;
+                    $best = $name;
+                }
+            }
+        }
+
+        return $best;
     }
 
     /** Konum metninin ilk sözcüğü il ise ek atılmış haliyle geri yazar: "İzmire Aliağa" → "İzmir Aliağa". */

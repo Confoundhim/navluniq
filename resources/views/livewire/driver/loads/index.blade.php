@@ -707,19 +707,27 @@ class extends Component {
                     @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; @endphp
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                         <div class="space-y-1.5 flex-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
-                            <div class="text-neutral-500 dark:text-neutral-400">
-                                {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}
-                                @if($item->weight) · {{ number_format((int) ($item->weight ?? 0), 0, ',', '.') }} kg @endif
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">
+                                @if($item->isUrgent())<span class="badge bg-red-500 text-white mr-1 align-middle">ACİL</span>@endif
+                                {{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}
+                            </div>
+                            <div class="text-neutral-600 dark:text-neutral-300 font-medium">
+                                {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif@if($item->meta('pickup_note')) · Yükleme: {{ $item->meta('pickup_note') }}@endif
                             </div>
                             <div class="flex flex-wrap items-center gap-1.5">
-                                <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Dış kaynak</span>
-                                @if($item->vehicle_type)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ \App\Support\VehicleTypes::label($item->vehicle_type) }}</span>@endif
+                                @if($item->vehicle_type)
+                                    <span class="badge bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 inline-flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">{!! \App\Support\VehicleTypes::iconPath($item->vehicle_type) !!}</svg>
+                                        {{ $item->vehicleLabel() }}
+                                    </span>
+                                @endif
+                                @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
+                                <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">WhatsApp grubu</span>
                                 @if((int) $item->duplicate_count > 1)
-                                    <span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} kaynakta görüldü</span>
+                                    <span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} grupta paylaşıldı</span>
                                 @endif
                             </div>
-                            <div class="text-neutral-500">Derlendi: {{ $item->created_at?->format('d.m.Y H:i') }}</div>
+                            <div class="text-neutral-500">{{ $item->created_at?->diffForHumans() }}</div>
                         </div>
                         <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
                             <div class="text-neutral-900 dark:text-white tabular-nums font-bold">
