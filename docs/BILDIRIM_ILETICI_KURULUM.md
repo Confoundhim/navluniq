@@ -50,7 +50,8 @@ Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `t
 {"title": "{not_title}", "text": "{notification}", "ticker": "{not_ticker}", "app": "{not_app_name}", "token": "SUNUCUDAN_ALDIGINIZ_ANAHTAR"}
 ```
 
-- Yeni Android sürümlerinde WhatsApp mesaj metnini gönderen adı olmadan verir; `ticker` alanı göndereni taşır.
+- Yeni Android sürümlerinde başlık "Grup (3 mesaj): Gönderen" biçimindedir; sunucu grup adını ve göndereni
+  başlıktan ayıklar, kaynak her zaman grup adıyla (`notif:grup-adi`) açılır. `ticker` alanı yedek gönderen kaynağıdır.
   MacroDroid'de ticker değişkeni yoksa alanı silin, ilan yine işlenir (gönderen adı boş kalır).
 - "Bildirim büyük metni" gibi genişletilmiş metin değişkeni sunuluyorsa `text` için onu seçin; uzun ilanlar kırpılmaz.
 - Zaman aşımı 20 saniye; "Yanıtı değişkene kaydet" gerekmez.

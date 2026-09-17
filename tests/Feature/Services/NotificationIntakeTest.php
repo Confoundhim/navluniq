@@ -37,6 +37,22 @@ class NotificationIntakeTest extends TestCase
 
         $this->assertSame('summary_notification', NotificationIntakeParser::parse(['title' => 'WhatsApp', 'text' => '12 mesaj 3 sohbet'])['skipped']);
 
+        // Yeni Android: gönderen ve mesaj sayısı başlıkta ("Grup (3 mesaj): Gönderen"), metin yalnız mesaj.
+        $titled = NotificationIntakeParser::parse([
+            'title' => 'Test (3 mesaj): Osman Yılmaz',
+            'text' => "Ankara: İzmir 24 ton palet 0532 123 45 67",
+        ]);
+        $this->assertNull($titled['skipped']);
+        $this->assertSame('Test', $titled['group']);
+        $this->assertCount(1, $titled['messages']);
+        $this->assertSame('Osman Yılmaz', $titled['messages'][0]['sender']);
+        $this->assertSame("Ankara: İzmir 24 ton palet 0532 123 45 67", $titled['messages'][0]['text']);
+        $this->assertSame(['Test', 'Osman Yılmaz'], NotificationIntakeParser::splitTitle('Test: Osman Yılmaz'));
+        $this->assertSame(['Test', 'Osman Yılmaz'], NotificationIntakeParser::splitTitle('Osman Yılmaz @ Test'));
+        $this->assertSame(['Ankara Nakliye', null], NotificationIntakeParser::splitTitle('Ankara Nakliye (5 mesaj)'));
+        $this->assertSame(['Test', '+90 532 111 22 33'], NotificationIntakeParser::splitTitle('Test (2 mesaj): +90 532 111 22 33'));
+        $this->assertSame('notif:test', NotificationIntakeParser::sourceIdentifier($titled['group']));
+
         // Yeni Android: metin yalnız mesaj, gönderen ticker'da ("Gönderen @ Grup: mesaj").
         $single = NotificationIntakeParser::parse([
             'title' => 'Test',
