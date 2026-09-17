@@ -54,6 +54,11 @@ INI
 done
 ok "upload_max_filesize 12M, post_max_size 32M"
 
+log "Gece yedeği (03:00)"
+BACKUP_LINE="0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
+{ crontab -l 2>/dev/null | grep -vF "deploy/backup.sh" || true; echo "$BACKUP_LINE"; } | crontab -
+ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
+
 log "İzinler ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private
 chown -R www-data:www-data "$APP_DIR"
