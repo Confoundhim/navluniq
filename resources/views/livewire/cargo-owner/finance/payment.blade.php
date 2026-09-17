@@ -187,7 +187,7 @@ class extends Component {
                 </div>
             </div>
 
-            <div wire:poll.10s="checkStatus" class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
+            <div wire:poll.5s="checkStatus" class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
                 <span>Ödeme durumu izleniyor: <span class="text-neutral-800 dark:text-neutral-200">{{ $load->escrowLabel() }}</span>. Ödeme tamamlandığında sevkiyat sayfasına yönlendirileceksiniz.</span>
             </div>

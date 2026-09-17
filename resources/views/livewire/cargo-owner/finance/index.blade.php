@@ -69,7 +69,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.20s class="space-y-6">
+<div wire:poll.10s class="space-y-6">
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Finans, güvenli havuz ve faturalar</h2>

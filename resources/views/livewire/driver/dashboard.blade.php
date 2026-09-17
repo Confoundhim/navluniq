@@ -70,7 +70,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.15s class="space-y-6">
+<div wire:poll.8s class="space-y-6">
 
     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
 
