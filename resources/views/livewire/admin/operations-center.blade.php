@@ -170,7 +170,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-7xl mx-auto space-y-6">
+<div wire:poll.15s class="max-w-7xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
     @endphp
@@ -187,7 +187,7 @@ new class extends Component {
         <p class="page-subtitle">İlanlar, teklifler, sevkiyatlar ve yoldaki araçların son bildirilen konumları.</p>
     </div>
 
-    <section wire:poll.30s class="apple-glass rounded-3xl p-6 space-y-4">
+    <section class="apple-glass rounded-3xl p-6 space-y-4">
         <div class="flex items-center justify-between">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yoldaki sevkiyatlar</h2>
             <span class="text-[11px] text-neutral-400">{{ count($mapPoints) }} araç · 30 saniyede bir yenilenir</span>
