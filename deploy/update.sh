@@ -54,6 +54,12 @@ INI
 done
 ok "upload_max_filesize 12M, post_max_size 32M"
 
+# /root/update.sh kopyasını depodaki güncel sürümle eşitle (bir sonraki çalıştırma yeni betiği kullanır)
+if [[ -f /root/update.sh ]] && ! cmp -s "$APP_DIR/deploy/update.sh" /root/update.sh; then
+    cp "$APP_DIR/deploy/update.sh" /root/update.sh
+    ok "/root/update.sh güncellendi (bir sonraki çalıştırmada geçerli)"
+fi
+
 log "Gece yedeği (03:00)"
 BACKUP_LINE="0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
 { crontab -l 2>/dev/null | grep -vF "deploy/backup.sh" || true; echo "$BACKUP_LINE"; } | crontab -
