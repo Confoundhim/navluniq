@@ -23,6 +23,7 @@
 
     <!-- Tarayıcı Sekme İkonu (Favicon) -->
     <link rel="icon" type="image/png" href="/images/fav-ico.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="shortcut icon" href="/images/fav-ico.png">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
