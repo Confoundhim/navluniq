@@ -157,7 +157,7 @@ new class extends Component {
     }
 }; ?>
 
-<div wire:poll.10s class="max-w-7xl mx-auto space-y-6">
+<div wire:poll.5s class="max-w-7xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
     @endphp
@@ -214,7 +214,7 @@ new class extends Component {
                                         <span class="ml-1 badge bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 align-middle" title="Telegram'a gönderildi: {{ $load->telegram_posted_at->format('d.m.Y H:i') }}">Telegram</span>
                                     @endif<div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }} · {{ $load->created_at?->format('d.m.Y H:i') }}</div><div class="text-[11px] text-neutral-400">Telefon: {{ $load->masked_phone }}</div></td>
                                 <td class="p-4">{{ $load->pickup_location ?: '—' }} <span class="text-neutral-400">→</span> {{ $load->delivery_location ?: '—' }}
-                                    @if($load->vehicle_type)<div class="mt-1"><span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200" title="Kaynak: {{ ['keyword' => 'anahtar sözcük', 'weight' => 'tonaj', 'ai' => 'yapay zeka'][$load->vehicle_type_source] ?? $load->vehicle_type_source }}">{{ \App\Support\VehicleTypes::label($load->vehicle_type) }}</span></div>@else<div class="mt-1 text-[11px] text-amber-600">Araç tipi çözülemedi</div>@endif<div class="text-[11px] text-neutral-400">{{ $load->goods_type ?: 'Yük türü belirsiz' }}@if($load->weight) · {{ number_format((int) $load->weight, 0, ',', '.') }} kg @endif</div></td>
+                                    @if($load->vehicle_type)<div class="mt-1"><span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200" title="Kaynak: {{ ['keyword' => 'araç adı', 'hint' => 'kasa ipucu', 'weight' => 'tonaj', 'pallet' => 'palet adedi', 'volume' => 'hacim', 'ai' => 'yapay zeka'][$load->vehicle_type_source] ?? $load->vehicle_type_source }}">{{ \App\Support\VehicleTypes::label($load->vehicle_type) }}</span></div>@else<div class="mt-1 text-[11px] text-amber-600">Araç tipi çözülemedi</div>@endif<div class="text-[11px] text-neutral-400">{{ $load->goods_type ?: 'Yük türü belirsiz' }}@if($load->weight) · {{ number_format((int) $load->weight, 0, ',', '.') }} kg @endif</div></td>
                                 <td class="p-4 whitespace-nowrap font-semibold">{{ $load->price !== null ? number_format((float) $load->price, 2, ',', '.').' ₺' : '—' }}</td>
                                 <td class="p-4 max-w-xs text-neutral-500">{{ \Illuminate\Support\Str::limit($load->raw_message, 160) }}</td>
                                 <td class="p-4">

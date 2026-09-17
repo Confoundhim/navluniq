@@ -147,7 +147,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.15s class="space-y-6">
+<div wire:poll.8s class="space-y-6">
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
@@ -210,7 +210,7 @@ class extends Component {
 
             <div class="lg:col-span-2 space-y-6">
 
-                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.30s="refreshTrail" @endif>
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.15s="refreshTrail" @endif>
                     <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                         <div class="flex items-center gap-2">
                             <span class="w-2.5 h-2.5 rounded-full {{ $isLive && $latest ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600' }}"></span>

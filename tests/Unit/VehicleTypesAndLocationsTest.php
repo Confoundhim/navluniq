@@ -10,13 +10,14 @@ class VehicleTypesAndLocationsTest extends TestCase
 {
     public function test_vehicle_type_detection_prefers_keywords_then_weight(): void
     {
-        $this->assertSame(['type' => 'tir', 'source' => 'keyword'], VehicleTypes::detect('24 ton palet tenteli lazım', 24000));
-        $this->assertSame(['type' => 'kirkayak', 'source' => 'keyword'], VehicleTypes::detect('Kırkayak arayan var mı', null));
-        $this->assertSame(['type' => '10_teker_kamyon', 'source' => 'keyword'], VehicleTypes::detect('10 teker kamyon lazım', null));
-        $this->assertSame(['type' => '6_teker_kamyon', 'source' => 'keyword'], VehicleTypes::detect('kamyon lazım 5 ton', 5000));
-        $this->assertSame(['type' => 'minivan', 'source' => 'keyword'], VehicleTypes::detect('Doblo ile gidecek koli', null));
-        $this->assertSame(['type' => 'kamyonet', 'source' => 'weight'], VehicleTypes::detect('3 ton yük var', 3000));
-        $this->assertSame(['type' => null, 'source' => null], VehicleTypes::detect('sadece rota yazılmış', null));
+        $d = fn (string $t, ?int $w = null) => VehicleTypes::detect($t, $w);
+        $this->assertSame(['tir', 'hint'], [$d('24 ton palet tenteli lazım', 24000)['type'], $d('24 ton palet tenteli lazım', 24000)['source']]);
+        $this->assertSame('kirkayak', $d('Kırkayak arayan var mı')['type']);
+        $this->assertSame('10_teker_kamyon', $d('10 teker kamyon lazım')['type']);
+        $this->assertSame('6_teker_kamyon', $d('kamyon lazım 5 ton', 5000)['type']);
+        $this->assertSame('minivan', $d('Doblo ile gidecek koli')['type']);
+        $this->assertSame(['kamyonet', 'weight'], [$d('3 ton yük var', 3000)['type'], $d('3 ton yük var', 3000)['source']]);
+        $this->assertNull($d('sadece rota yazılmış')['type']);
         $this->assertTrue(VehicleTypes::canCarry('tir', 'kamyonet'));
         $this->assertFalse(VehicleTypes::canCarry('minivan', 'tir'));
         $this->assertSame(10, count(VehicleTypes::labels()));

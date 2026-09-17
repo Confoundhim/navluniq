@@ -11,7 +11,7 @@ final class VehicleTypes
     public const TYPES = [
         'tir' => ['label' => 'TIR', 'group' => 'agir', 'capacity_kg' => 28000, 'icon' => 'tir',
             'keywords' => ['tır', 'tir ', 'tir,', 'tir.', 'çekici', 'cekici', 'dorse', 'tenteli', 'mega', 'lowbed', '13.60', '13,60', 'frigo dorse', 'kapalı kasa tır']],
-        'kirkayak' => ['label' => 'Kırkayak', 'group' => 'agir', 'capacity_kg' => 24000, 'icon' => 'tir',
+        'kirkayak' => ['label' => 'Kırkayak', 'group' => 'agir', 'capacity_kg' => 22000, 'icon' => 'tir',
             'keywords' => ['kırkayak', 'kirkayak', '4 dingil', 'dört dingil']],
         '10_teker_kamyon' => ['label' => '10 Teker Kamyon', 'group' => 'agir', 'capacity_kg' => 16000, 'icon' => 'kamyon',
             'keywords' => ['10 teker', '10teker', 'on teker']],
@@ -78,28 +78,15 @@ final class VehicleTypes
     }
 
     /**
-     * Serbest metinden araç tipini çıkarır. Önce anahtar sözcük, sonra tonaj.
+     * Serbest metinden araç tipini çıkarır (VehicleClassifier: araç adı → kasa ipucu → tonaj/palet/hacim).
      *
-     * @return array{type:?string, source:?string} source: keyword | weight | null
+     * @return array{type:?string, source:?string, confidence:?string}
      */
     public static function detect(string $text, ?int $weightKg = null): array
     {
-        $t = ' '.TurkishCities::lower($text).' ';
-        foreach (self::TYPES as $key => $meta) {
-            foreach ($meta['keywords'] as $kw) {
-                if (str_contains($t, TurkishCities::lower($kw))) {
-                    return ['type' => $key, 'source' => 'keyword'];
-                }
-            }
-        }
-        if (preg_match('/(?<!\p{L})kamyon(?!\p{L}|et)/u', $t)) {
-            return ['type' => $weightKg ? self::byWeight($weightKg, true) : '8_teker_kamyon', 'source' => 'keyword'];
-        }
-        if ($weightKg !== null && $weightKg > 0) {
-            return ['type' => self::byWeight($weightKg), 'source' => 'weight'];
-        }
+        $r = VehicleClassifier::analyze($text, $weightKg);
 
-        return ['type' => null, 'source' => null];
+        return ['type' => $r['type'], 'source' => $r['source'], 'confidence' => $r['confidence']];
     }
 
     /** Tonaja göre en küçük uygun araç. $truckOnly: yalnız kamyon sınıfları arasından seçer. */
@@ -110,7 +97,7 @@ final class VehicleTypes
         }
 
         return match (true) {
-            $kg > 24000 => 'tir',
+            $kg >= 23000 => 'tir', // 23-24 ton Türkiye'de standart komple tır yüküdür
             $kg > 16000 => 'kirkayak',
             $kg > 12000 => '10_teker_kamyon',
             $kg > 8000 => '8_teker_kamyon',

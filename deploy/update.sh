@@ -33,6 +33,8 @@ npm run build --silent
 
 log "Veritabanı"
 php artisan migrate --force --no-interaction
+# Araç tipi boş kalmış dış kaynak ilanlarını sınıflandırıcıyla doldur (yalnız boş olanlar; tekrar çalıştırmak güvenli).
+php artisan scraped-loads:classify --no-interaction || true
 
 log "Roller ve izinler"
 php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder --quiet

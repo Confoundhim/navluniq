@@ -63,7 +63,7 @@ new class extends Component {
     }
 }; ?>
 
-<div wire:poll.15s class="max-w-7xl mx-auto space-y-8">
+<div wire:poll.8s class="max-w-7xl mx-auto space-y-8">
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Genel Özet</h1>
         <p class="page-subtitle">Veriler sayfa her yüklendiğinde veritabanından okunur.</p>
