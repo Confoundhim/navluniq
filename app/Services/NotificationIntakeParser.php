@@ -49,21 +49,27 @@ final class NotificationIntakeParser
             }
         }
 
-        // "Grup Adı (3 mesaj)" → "Grup Adı"
-        $group = trim(preg_replace('/\s*\(\d+\s+(?:yeni\s+)?(?:mesaj|messages?)\)\s*$/iu', '', $title) ?? $title);
+        // Başlık biçimleri: "Grup", "Grup (3 mesaj)", "Grup (3 mesaj): Gönderen", "Grup: Gönderen", "Gönderen @ Grup".
+        [$group, $titleSender] = self::splitTitle($title);
 
         $messages = [];
-        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-            if (preg_match('/^([^:\n]{1,40}?):\s+(.+)$/su', $line, $m) && ! preg_match('/^(?:yük|yuk|fiyat|tonaj|rota|tel|telefon|not|yükleme|teslim|araç|arac)$/iu', trim($m[1]))) {
-                $sender = trim($m[1]);
-                $messages[] = ['sender' => $sender, 'phone' => self::phoneFrom($sender), 'text' => trim($m[2])];
-            } elseif ($messages !== []) {
-                $last = array_key_last($messages);
-                $messages[$last]['text'] .= "\n".$line; // önceki mesajın devam satırı
+        if ($titleSender !== null) {
+            // Gönderen başlıkta: metin tek mesajdır, satırlar "Gönderen: mesaj" diye bölünmez
+            // (aksi halde "Ankara: İzmir 24 ton" gibi satırlar gönderen sanılır).
+            $messages[] = ['sender' => $titleSender, 'phone' => self::phoneFrom($titleSender), 'text' => $text];
+        } else {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if (preg_match('/^([^:\n]{1,40}?):\s+(.+)$/su', $line, $m) && ! preg_match('/^(?:yük|yuk|fiyat|tonaj|rota|tel|telefon|not|yükleme|teslim|araç|arac)$/iu', trim($m[1]))) {
+                    $sender = trim($m[1]);
+                    $messages[] = ['sender' => $sender, 'phone' => self::phoneFrom($sender), 'text' => trim($m[2])];
+                } elseif ($messages !== []) {
+                    $last = array_key_last($messages);
+                    $messages[$last]['text'] .= "\n".$line; // önceki mesajın devam satırı
+                }
             }
         }
 
@@ -82,6 +88,27 @@ final class NotificationIntakeParser
         $slug = preg_replace('/[^a-z0-9]+/', '-', TurkishCities::ascii($group)) ?? '';
 
         return 'notif:'.trim($slug, '-');
+    }
+
+    /**
+     * Bildirim başlığını grup adı ve (varsa) gönderene ayırır.
+     *
+     * @return array{0:string, 1:?string}
+     */
+    public static function splitTitle(string $title): array
+    {
+        // "(3 mesaj)" / "(2 new messages)" parçası nerede olursa olsun atılır.
+        $clean = trim(preg_replace('/\s*\(\d+\s+(?:yeni\s+)?(?:mesaj|new\s+messages?|messages?)\)\s*/iu', ' ', $title) ?? $title);
+        $clean = trim(preg_replace('/\s{2,}/u', ' ', $clean) ?? $clean);
+
+        if (preg_match('/^(.{1,80}?)\s+@\s+(.{1,120})$/su', $clean, $m)) {
+            return [trim($m[2]), trim($m[1])]; // "Gönderen @ Grup"
+        }
+        if (preg_match('/^(.{1,120}?)\s*:\s+(.{1,80})$/su', $clean, $m)) {
+            return [trim($m[1]), trim($m[2])]; // "Grup: Gönderen"
+        }
+
+        return [$clean, null];
     }
 
     private static function senderFromTicker(string $ticker, string $group): ?string
