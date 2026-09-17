@@ -15,7 +15,8 @@ echo "Telefona yazılacak anahtar: ${TOKEN}"
 ```
 
 Uç nokta: `https://navluniq.com/api/v1/webhook/notification` (POST, JSON).
-Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `app` (uygulama adı), `token`.
+Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `ticker` (isteğe bağlı; "Gönderen @ Grup: mesaj"),
+`app` (uygulama adı), `token`.
 
 ## 2. Telefon: WhatsApp bildirim ayarları
 
@@ -46,9 +47,11 @@ Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `a
 - Gövde (sihirli metin düğmesinden seçerek yazın; süslü parantezli alanlar MacroDroid değişkenleridir):
 
 ```json
-{"title": "{not_title}", "text": "{notification}", "app": "{not_app_name}", "token": "SUNUCUDAN_ALDIGINIZ_ANAHTAR"}
+{"title": "{not_title}", "text": "{notification}", "ticker": "{not_ticker}", "app": "{not_app_name}", "token": "SUNUCUDAN_ALDIGINIZ_ANAHTAR"}
 ```
 
+- Yeni Android sürümlerinde WhatsApp mesaj metnini gönderen adı olmadan verir; `ticker` alanı göndereni taşır.
+  MacroDroid'de ticker değişkeni yoksa alanı silin, ilan yine işlenir (gönderen adı boş kalır).
 - "Bildirim büyük metni" gibi genişletilmiş metin değişkeni sunuluyorsa `text` için onu seçin; uzun ilanlar kırpılmaz.
 - Zaman aşımı 20 saniye; "Yanıtı değişkene kaydet" gerekmez.
 
@@ -72,5 +75,6 @@ diğerlerine 20 dakika sonra açılır.
   MacroDroid → Sistem günlüğü'nde HTTP isteğinin gönderilip gönderilmediğini görebilirsiniz.
 - Yanıt `401`: telefondaki `token` ile sunucudaki `SCRAPER_API_TOKEN` farklı; `config:cache` unutulmuş olabilir.
 - Yanıt `status: filtered`: mesajda telefon numarası ya da lojistik işaret yok; sohbet sayılmıştır.
+- Yanıt `status: source_pending`: grup Kaynaklar listesine pasif düşmüştür; aktif edince sonraki mesajlar işlenir.
 - Yanıt `status: duplicate`: aynı ilan başka gruptan daha önce gelmiştir; beklenen davranıştır.
 - Sunucu günlüğü: `tail -f /var/www/navluniq/storage/logs/laravel.log`

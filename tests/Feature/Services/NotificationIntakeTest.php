@@ -36,7 +36,23 @@ class NotificationIntakeTest extends TestCase
         $this->assertStringContainsString("komple tır lazım\n45.000 TL", $parsed['messages'][1]['text']);
 
         $this->assertSame('summary_notification', NotificationIntakeParser::parse(['title' => 'WhatsApp', 'text' => '12 mesaj 3 sohbet'])['skipped']);
-        $this->assertSame('no_group_sender_prefix', NotificationIntakeParser::parse(['title' => 'Mehmet', 'text' => 'selam nasılsın'])['skipped']);
+
+        // Yeni Android: metin yalnız mesaj, gönderen ticker'da ("Gönderen @ Grup: mesaj").
+        $single = NotificationIntakeParser::parse([
+            'title' => 'Test',
+            'text' => "Ankara'dan İzmir'e 24 ton palet yük 0532 123 45 67",
+            'ticker' => "Osman Yılmaz @ Test: Ankara'dan İzmir'e 24 ton palet yük 0532 123 45 67",
+        ]);
+        $this->assertNull($single['skipped']);
+        $this->assertCount(1, $single['messages']);
+        $this->assertSame('Osman Yılmaz', $single['messages'][0]['sender']);
+        $this->assertSame("Ankara'dan İzmir'e 24 ton palet yük 0532 123 45 67", $single['messages'][0]['text']);
+
+        // Ticker yok: gönderen bilinmez, metin yine tek mesajdır (sohbet mi ilan mı ayrımı ön filtrede).
+        $noTicker = NotificationIntakeParser::parse(['title' => 'Mehmet', 'text' => 'selam nasılsın']);
+        $this->assertNull($noTicker['skipped']);
+        $this->assertNull($noTicker['messages'][0]['sender']);
+        $this->assertSame('selam nasılsın', $noTicker['messages'][0]['text']);
         $this->assertSame('not_whatsapp', NotificationIntakeParser::parse(['title' => 'X', 'text' => 'Y: Z', 'app' => 'Instagram'])['skipped']);
         $this->assertSame('notif:ankara-nakliye-grubu', NotificationIntakeParser::sourceIdentifier('Ankara Nakliye Grubu'));
     }
