@@ -7,8 +7,10 @@ use App\Support\TurkishCities;
 /**
  * Android bildirim iletici (MacroDroid vb.) ile gelen WhatsApp bildirimini ilan mesajlarına ayırır.
  *
- * Grup bildirimlerinde başlık grup adı, metin "Gönderen: mesaj" satırlarıdır. Özet bildirimleri
- * ("12 mesaj 3 sohbet") ve gönderen öneki olmayan birebir sohbetler atlanır.
+ * Grup bildirimlerinde başlık grup adı, metin "Gönderen: mesaj" satırlarıdır. Yeni Android
+ * sürümlerinde WhatsApp göndereni ayrı alanda taşır ve metin yalnız mesajın kendisidir; bu durumda
+ * metnin tamamı tek mesaj sayılır (gönderen varsa "Gönderen @ Grup: mesaj" biçimli ticker'dan alınır).
+ * Özet bildirimleri ("12 mesaj 3 sohbet") atlanır; sohbet/ilan ayrımını ön filtre yapar.
  */
 final class NotificationIntakeParser
 {
@@ -22,7 +24,7 @@ final class NotificationIntakeParser
     ];
 
     /**
-     * @param  array{title?:?string, text?:?string, text_big?:?string, app?:?string}  $payload
+     * @param  array{title?:?string, text?:?string, text_big?:?string, ticker?:?string, app?:?string}  $payload
      * @return array{skipped:?string, group:?string, messages:list<array{sender:?string, phone:?string, text:string}>}
      */
     public static function parse(array $payload): array
@@ -66,7 +68,9 @@ final class NotificationIntakeParser
         }
 
         if ($messages === []) {
-            return self::skip('no_group_sender_prefix');
+            // Gönderen öneki yok: metin tek bir mesajdır. Ticker "Gönderen @ Grup: mesaj" biçimindeyse göndereni oradan al.
+            $sender = self::senderFromTicker(trim((string) ($payload['ticker'] ?? '')), $group);
+            $messages[] = ['sender' => $sender, 'phone' => $sender !== null ? self::phoneFrom($sender) : null, 'text' => $text];
         }
 
         return ['skipped' => null, 'group' => $group, 'messages' => $messages];
@@ -78,6 +82,21 @@ final class NotificationIntakeParser
         $slug = preg_replace('/[^a-z0-9]+/', '-', TurkishCities::ascii($group)) ?? '';
 
         return 'notif:'.trim($slug, '-');
+    }
+
+    private static function senderFromTicker(string $ticker, string $group): ?string
+    {
+        if ($ticker === '') {
+            return null;
+        }
+        if (preg_match('/^(.{1,60}?)\s*@\s*(.{1,120}?):\s/su', $ticker, $m)) {
+            return trim($m[1]);
+        }
+        if (preg_match('/^([^:\n]{1,40}?):\s/su', $ticker, $m) && trim($m[1]) !== $group) {
+            return trim($m[1]);
+        }
+
+        return null;
     }
 
     private static function phoneFrom(string $sender): ?string

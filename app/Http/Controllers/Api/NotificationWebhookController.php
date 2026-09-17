@@ -34,6 +34,7 @@ class NotificationWebhookController extends Controller
             'title' => ['nullable', 'string', 'max:255'],
             'text' => ['nullable', 'string', 'max:10000'],
             'text_big' => ['nullable', 'string', 'max:10000'],
+            'ticker' => ['nullable', 'string', 'max:2000'],
             'app' => ['nullable', 'string', 'max:120'],
             'posted_at' => ['nullable', 'string', 'max:64'],
         ]);
