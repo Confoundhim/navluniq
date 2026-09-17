@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
+use App\Support\VehicleClassifier;
 use App\Support\VehicleTypes;
 use Throwable;
 
@@ -111,13 +112,17 @@ class LoadIntakeService
             }
         }
 
-        // Araç tipi: ayrıştırıcı bulamadıysa metin ve tonajdan çıkar. Konum: il/ilçe ve koordinat.
+        // Araç tipi: metindeki açık araç adı (yüksek güven) yapay zekanın tahminine üstün gelir;
+        // yapay zeka geçersiz/boş döndürdüyse kasa ipucu, tonaj, palet ve hacimden çıkarılır.
+        $detected = VehicleClassifier::analyze($raw, isset($parsed['weight']) ? (int) $parsed['weight'] : null);
         $vehicleType = $parsed['vehicle_type'] ?? null;
         $vehicleSource = $parsed['vehicle_type_source'] ?? null;
-        if (! VehicleTypes::isValid($vehicleType)) {
-            $detected = VehicleTypes::detect($raw, isset($parsed['weight']) ? (int) $parsed['weight'] : null);
+        if (! VehicleTypes::isValid($vehicleType) || ($detected['confidence'] === 'high' && $detected['type'] !== $vehicleType)) {
             $vehicleType = $detected['type'];
             $vehicleSource = $detected['source'];
+        }
+        if (empty($parsed['weight']) && $detected['weight_kg']) {
+            $parsed['weight'] = $detected['weight_kg'];
         }
         $pickupGeo = TurkishLocations::resolve($parsed['pickup_location'] ?? null);
         $deliveryGeo = TurkishLocations::resolve($parsed['delivery_location'] ?? null);

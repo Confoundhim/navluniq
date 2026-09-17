@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\TurkishCities;
+use App\Support\VehicleClassifier;
 use App\Support\VehicleTypes;
 use App\Models\AiProviderUsage;
 use Illuminate\Http\Client\Response;
@@ -178,6 +179,8 @@ class AiParserService
         if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {
             $weightKg *= 1000;
         }
+        // "24t", "20-25 ton", "yirmi dört ton" gibi yazımlar sınıflandırıcının tonaj çözümüyle yakalanır.
+        $weightKg ??= VehicleClassifier::weightFromText(VehicleClassifier::normalize($message));
         preg_match('/(?:yük|mal|ürün)\s*[:\-]\s*([\p{L}\d\s]{2,80})/iu', $message, $goods);
 
         return [
