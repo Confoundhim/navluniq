@@ -20,6 +20,7 @@
     <meta name="theme-color" content="#f97316">
     <title>{{ $title }} | {{ $appName }}</title>
     <link rel="icon" type="image/png" href="/images/fav-ico.png">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <script>
         (function () {
             try {
