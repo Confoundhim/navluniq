@@ -5,6 +5,14 @@
 #   APP_BRANCH=baska-dal bash /var/www/navluniq/deploy/update.sh
 set -euo pipefail
 
+# Betik çalışırken /root/update.sh kendini güncellediğinde bash dosyayı yarım okumasın:
+# her zaman geçici bir kopyadan çalışır, kopya bitince silinir.
+if [[ -z "${NAVLUNIQ_UPDATE_COPY:-}" ]]; then
+    UPDATE_TMP="$(mktemp /tmp/navluniq-update.XXXXXX)"
+    cp "$0" "$UPDATE_TMP"
+    NAVLUNIQ_UPDATE_COPY=1 exec bash "$UPDATE_TMP" "$@"
+fi
+
 APP_DIR="/var/www/navluniq"
 APP_BRANCH="${APP_BRANCH:-main}"
 
@@ -14,7 +22,7 @@ ok()  { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
 git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
 cd "$APP_DIR"
 BEFORE="$(git rev-parse --short HEAD)"
-trap 'php artisan up --quiet >/dev/null 2>&1 || true' EXIT
+trap 'php artisan up --quiet >/dev/null 2>&1 || true; rm -f "$0"' EXIT
 
 log "Bakım modu"
 php artisan down --retry=15 --quiet || true
