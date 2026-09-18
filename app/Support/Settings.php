@@ -22,6 +22,7 @@ final class Settings
         'scraper_auto_approve' => 0,            // 1: kriterleri sağlayan adaylar her dakika otomatik onaylanır
         'scraper_auto_approve_require_price' => 0,
         'scraper_auto_approve_require_weight' => 0,
+        'scraper_auto_approve_require_vehicle' => 0, // 1: araç tipi çözülemeyen aday otomatik onaylanmaz
 
         // Telegram kanalı
         'telegram_post_enabled' => 0,           // 1: ücretsiz üyelere açılan ilan kanala gönderilir

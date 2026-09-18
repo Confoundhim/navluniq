@@ -259,6 +259,13 @@
                     </div>
                 </div>
                 @endif
+                @if(config('company.name') && config('company.address'))
+                    <div class="mt-3 text-[11px] text-neutral-400 leading-relaxed">
+                        <div class="font-semibold text-neutral-500">{{ config('company.name') }}</div>
+                        <div>{{ config('company.address') }}</div>
+                        @if(config('company.tax_office') || config('company.tax_no'))<div>{{ config('company.tax_office') }} VD · VKN {{ config('company.tax_no') }}@if(config('company.mersis_no')) · MERSİS {{ config('company.mersis_no') }}@endif</div>@endif
+                    </div>
+                @endif
             </div>
 
             <!-- 2. Sütun: Keşfet -->

@@ -22,7 +22,9 @@ class Payout extends Model
         'net_amount',
         'currency',
         'status',
+        'channel',
         'reference_no',
+        'failure_reason',
         'available_at',
         'paid_at',
     ];

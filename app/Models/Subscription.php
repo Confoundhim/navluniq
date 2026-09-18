@@ -25,6 +25,16 @@ class Subscription extends Model
         'ended_at',
     ];
 
+    public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function cycles(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SubscriptionCycle::class);
+    }
+
     protected $casts = [
         'amount' => 'decimal:4',
         'trial_ends_at' => 'datetime',

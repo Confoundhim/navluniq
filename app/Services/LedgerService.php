@@ -19,6 +19,9 @@ class LedgerService
         'driver_payable' => ['Şoförlere ödenecek hakediş', 'liability'],
         'commission_revenue' => ['Komisyon geliri', 'revenue'],
         'refunds' => ['İadeler', 'expense'],
+        'bank_cash' => ['Banka / ödeme kuruluşu tahsilat hesabı', 'asset'],
+        'subscription_revenue' => ['Abonelik geliri', 'revenue'],
+        'vat_payable' => ['Hesaplanan KDV', 'liability'],
     ];
 
     public function post(string $type, string $description, array $entries, ?string $referenceType = null, ?int $referenceId = null): LedgerTransaction
