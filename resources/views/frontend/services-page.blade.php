@@ -20,8 +20,8 @@
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Otomatik İlan Tarama ve Filtreleme</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Sarı Rozetli Dış Kaynak İlanlarına Erişim</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Anlık Bildirimler</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Standart Karta Dönüştürülmüş Dış Kaynak İlanları</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Kalıcı Filtre Profilleri ve Yakınımdaki İlanlar</span>
                 </div>
             </div>
 
@@ -33,7 +33,7 @@
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Dakikalar İçinde Sürücü Teklifleri</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Şehir İçi Rota Optimizasyonu</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Araç Türüne Göre Uygun Şoför Eşleşmesi</span>
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Canlı Takipli Güvenli Teslimat</span>
                 </div>
             </div>
@@ -46,8 +46,8 @@
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">KYC Doğrulamalı Güvenilir Şoförler</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Arka Planda Kesintisiz Konum Takibi</span>
-                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Akıllı Dönüş Yükü Eşleştirme Motoru</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">İzinli Canlı Konum Takibi</span>
+                    <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Rota ve İl Bazlı Kalıcı Filtreler</span>
                 </div>
             </div>
         </div>

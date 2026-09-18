@@ -15,18 +15,18 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Rota Tercihleri</h4>
-                <p class="text-neutral-500 leading-relaxed">Profilinize kaydettiğiniz rotalara uyan ilanlar panelinizde öne çıkar.</p>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Kalıcı Filtreler</h4>
+                <p class="text-neutral-500 leading-relaxed">Araç tipi, il ve mesafeye göre kaydettiğiniz filtreler her girişte hazırdır; "yakınımdaki ilanlar" ile konumunuza en yakın yükleri önce görürsünüz.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Garantili Hak Ediş</h4>
-                <p class="text-neutral-500 leading-relaxed">Navlun bedeli yola çıkmadan havuzda bloke edilir, paranız teslimat onayı sonrası banka hesabınıza aktarılır; süre banka iş günlerine göre değişinde IBAN'ınıza yatar.</p>
+                <p class="text-neutral-500 leading-relaxed">Navlun bedeli siz yola çıkmadan güvence altına alınır; teslimat onayından sonra hak edişiniz kayıtlı IBAN'ınıza aktarılır. Hesaba geçiş süresi banka iş günlerine göre değişir.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Tek Ekranda Tüm İlanlar</h4>
-                <p class="text-neutral-500 leading-relaxed">Onlarca WhatsApp grubundaki dağınık mesajları yapay zeka temiz bir tablo halinde önünüze serer.</p>
+                <p class="text-neutral-500 leading-relaxed">Onlarca WhatsApp grubundaki dağınık mesajlar yapay zeka ile ayrıştırılır; rota, yük türü, tonaj ve uygun araç tipi standart bir ilan kartı olarak önünüze gelir.</p>
             </div>
         </div>
 
