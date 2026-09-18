@@ -7,7 +7,7 @@
                 Nasıl Çalışır?
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                NavlunIQ ekosisteminde şoförlerin yük bulma ve yük sahiplerinin sevkiyat yönetimi süreçleri tamamen dijitalleşmiştir.
+                Şoförler için yük bulma, yük sahipleri için sevkiyat yönetimi: her iki taraf da üç adımda, tek panelden.
             </p>
         </div>
 
@@ -30,12 +30,12 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">2</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Filtre Ayarlarınızı Yapın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Platform ilanları ve onaylı dış kaynak ilanları arasından size uygun olanları rota ve araç türüne göre filtreleyin.</p>
+                    <p class="text-neutral-500 leading-relaxed">Araç tipinize, çalıştığınız illere ve konumunuza göre filtrelerinizi bir kez kaydedin; platform ilanları ve WhatsApp gruplarından derlenen onaylı ilanlar her girişte size göre listelenir.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">3</div>
-                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklif Verin ve Yola Çıkın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Konumunuza en uygun yüklere teklif verin. Navlun ödemesi lisanslı ödeme kuruluşu üzerinden, teslimat onayına bağlı olarak yapılır; onaydan sonra ödemeniz banka hesabınıza geçer.</p>
+                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklif Verin, Taşıyın, Ödemenizi Alın</h3>
+                    <p class="text-neutral-500 leading-relaxed">Uygun yüke teklif verin; yük sahibi kabul edip ödemeyi yaptığında yola çıkın. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında navlun ödemesi banka hesabınıza geçer.</p>
                 </div>
             </div>
         </div>
@@ -54,17 +54,17 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">1</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Yük İlanı Yayınlayın</h3>
-                    <p class="text-neutral-500 leading-relaxed">İlan sihirbazımız ile desteklenen araç türü, rota ve bütçe stratejinizi girerek ilanınızı anında açın.</p>
+                    <p class="text-neutral-500 leading-relaxed">Rota, yük bilgisi, uygun araç türü ve bütçenizi girin; ilanınız anında belgeleri doğrulanmış şoförlere açılır.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">2</div>
-                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teslimat Onaylı Ödeme</h3>
-                    <p class="text-neutral-500 leading-relaxed">Anlaşma sağlandığında navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödersiniz; ödeme, teslimatı onayladığınızda şoföre tamamlanır.</p>
+                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklifleri Karşılaştırın, Şoförü Seçin</h3>
+                    <p class="text-neutral-500 leading-relaxed">Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödeyin, şoför yola çıksın.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">3</div>
-                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Seçim Yapın ve Canlı İzleyin</h3>
-                    <p class="text-neutral-500 leading-relaxed">Belgeleri onaylanan profesyonel şoförlerin tekliflerini seçin, süreci başlatın ve sevkiyatı haritadan anlık olarak izleyin.</p>
+                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Canlı İzleyin, Teslimatı Onaylayın</h3>
+                    <p class="text-neutral-500 leading-relaxed">Sevkiyatı haritadan anlık izleyin. Şoförün yüklediği teslim kanıtını kontrol edip onaylayın; ödeme ancak onayınızla şoföre tamamlanır. Sorun varsa tek tıkla uyuşmazlık açın.</p>
                 </div>
             </div>
         </div>
