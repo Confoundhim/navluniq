@@ -7,7 +7,7 @@
                 Yükünüz Güvende, Maliyetiniz Kontrol Altında
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                İlan sihirbazımız ile dorse tipi, rota ve bütçe stratejinizi girerek ilanınızı anında açın. PayTR güvenceli havuz ödemesiyle teslimata kadar riskinizi sıfırlayın.
+                İlan sihirbazımız ile dorse tipi, rota ve bütçe stratejinizi girerek ilanınızı anında açın. Güvenceli ödeme sistemiyle teslimata kadar riskinizi sıfırlayın.
             </p>
         </div>
 
@@ -16,7 +16,7 @@
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Güvenli Havuz (Escrow)</h4>
-                <p class="text-neutral-500 leading-relaxed">Ödemeniz PayTR bloke havuzunda saklanır, yük sağlam teslim edilene kadar şoföre aktarılmaz.</p>
+                <p class="text-neutral-500 leading-relaxed">Ödemeniz lisanslı ödeme altyapısında güvence altında tutulur, yük sağlam teslim edilene kadar şoföre aktarılmaz.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>

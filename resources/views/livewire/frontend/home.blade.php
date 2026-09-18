@@ -234,7 +234,7 @@ new class extends Component {
                 <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg></div>
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">Güvenli Havuz & Canlı Takip</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Yük sahibi navlun bedelini PayTR ile güvenli havuza yatırır, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
+                    Yük sahibi navlun bedelini güvenli ödeme sistemine yatırır, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
                 </p>
             </div>
 
@@ -513,8 +513,8 @@ new class extends Component {
         <div class="apple-glass rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 border border-neutral-200/50 shadow-apple-sm">
             <div class="space-y-1 text-center md:text-left">
                 <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
-                <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Partnerimiz PayTR</h3>
-                <p class="text-xs text-neutral-400">Ödemeler PayTR altyapısı üzerinden alınır ve teslimat onayına kadar havuzda tutulur.</p>
+                <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
+                <p class="text-xs text-neutral-400">Ödemeler lisanslı ödeme kuruluşları ve bankalar üzerinden kredi kartı, banka kartı ya da havale ile alınır; teslimat onayına kadar güvence altında tutulur.</p>
             </div>
             <div class="flex items-center space-x-3 text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-4 py-2 rounded-xl">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
