@@ -78,7 +78,7 @@ class extends Component {
         $load = $this->ownerLoad();
 
         if ($load && $load->escrow_status === Load::ESCROW_PAID) {
-            session()->flash('success_message', 'Ödemeniz alındı. Navlun bedeli teslimat onayınıza kadar güvenli havuzda tutulacak.');
+            session()->flash('success_message', 'Ödemeniz alındı. Navlun ödemesi teslimat onayınızla şoföre tamamlanacak.');
             $this->redirect(route('cargo-owner.shipments.show', $load->id), navigate: true);
         }
     }
@@ -142,14 +142,14 @@ class extends Component {
                     <span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($amounts['total'], 2, ',', '.') }} ₺</span>
                 </div>
             </div>
-            <p class="text-[11px] text-neutral-500 leading-relaxed">Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. Ödeme yalnız ödeme sağlayıcısının sunucu bildirimi doğrulandığında tamamlanmış sayılır.</p>
+            <p class="text-[11px] text-neutral-500 leading-relaxed">Navlun ödemesi lisanslı ödeme kuruluşu üzerinden yapılır ve teslimat onayınızla şoföre tamamlanır. Ödeme yalnız ödeme kuruluşunun sunucu bildirimi doğrulandığında alınmış sayılır.</p>
         </div>
 
         @if(! $payable)
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
                 <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Bu ilan ödeme adımında değil</h3>
                 <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    İlan durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->statusLabel() }}</strong> · Havuz durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->escrowLabel() }}</strong>.
+                    İlan durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->statusLabel() }}</strong> · Ödeme durumu: <strong class="text-neutral-900 dark:text-white">{{ $load->escrowLabel() }}</strong>.
                     @if($load->status === 'active_seeking')
                         Ödeme, bir teklifi kabul ettikten sonra yapılır.
                     @elseif($load->isPaid())
@@ -169,9 +169,9 @@ class extends Component {
                 <h3 class="text-sm font-bold text-amber-800 dark:text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
                 <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                     Ödeme sağlayıcısı henüz bu ortam için etkinleştirilmedi; bu nedenle şu anda kart ile tahsilat yapılamıyor.
-                    Ödeme altyapısı açıldığında bu sayfadan {{ number_format($amounts['total'], 2, ',', '.') }} ₺ tutarındaki bedeli güvenli havuza yatırabileceksiniz.
+                    Ödeme altyapısı açıldığında bu sayfadan {{ number_format($amounts['total'], 2, ',', '.') }} ₺ tutarındaki navlun bedelini ödeyebileceksiniz.
                 </p>
-                <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Şoför, ödeme havuza yatırılmadan sevkiyatı başlatamaz. Sorularınız için <a href="{{ route('cargo-owner.support.index') }}" wire:navigate class="text-brand-400 hover:underline">destek bileti</a> açabilirsiniz.</p>
+                <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Şoför, navlun ödemesi yapılmadan sevkiyatı başlatamaz. Sorularınız için <a href="{{ route('cargo-owner.support.index') }}" wire:navigate class="text-brand-400 hover:underline">destek bileti</a> açabilirsiniz.</p>
             </div>
         @elseif($tokenError)
             <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">

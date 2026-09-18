@@ -31,10 +31,10 @@ new class extends Component {
     public function loadData(): void
     {
         $this->ownerTitle = CmsContent::getVal('slider_owner_title', 'Ödemeleriniz NavlunIQ ile Güvende!');
-        $this->ownerDesc = CmsContent::getVal('slider_owner_desc', 'Gerçek Zamanlı Eşleşme ve Kontrollü Ödeme Süreci. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Ödemeleriniz havuz sistemi ile yükleriniz KYC doğrulamalı güvenilir şoförlerle korunmaktadır.');
+        $this->ownerDesc = CmsContent::getVal('slider_owner_desc', 'Gerçek Zamanlı Eşleşme ve Kontrollü Ödeme Süreci. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Ödemeleriniz teslimat onaylı güvenli ödeme akışıyla, yükleriniz belgeleri doğrulanmış güvenilir şoförlerle korunur.');
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
         $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. WhatsApp gruplarında paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
-        $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun bedeli teslimat onayına kadar güvence altında tutulur ve canlı konumla izlenir. İzinli WhatsApp gruplarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
+        $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli WhatsApp gruplarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
 
         // Veritabanı Sayaçları
         $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
@@ -140,7 +140,7 @@ new class extends Component {
                             <div class="p-3.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-apple rounded-2xl border border-neutral-200/50 dark:border-neutral-800 space-y-1 shadow-apple-sm">
                                 <span class="text-[10px] text-neutral-400 font-semibold block">Güzergah & Ödeme Durumu</span>
                                 <div class="text-xs sm:text-sm font-black text-neutral-900 dark:text-white">Ankara Ostim → İzmir Aliağa</div>
-                                <div class="text-xs text-brand-500 font-bold tabular-nums">18.500,00 ₺ • Güvenli havuzda bekliyor</div>
+                                <div class="text-xs text-brand-500 font-bold tabular-nums">18.500,00 ₺ • Ödendi, teslimat onayı bekleniyor</div>
                             </div>
 
                             <div class="p-3 bg-white/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/40 dark:border-neutral-800/40 flex items-center justify-between text-[11px]">
@@ -150,7 +150,7 @@ new class extends Component {
                         </div>
 
                         <div class="text-[10px] text-neutral-400 font-medium text-center pt-1 border-t border-neutral-200/40 dark:border-neutral-800/40">
-                            Ödeme, teslimat onayına kadar havuzda tutulur
+                            Ödeme teslimat onayıyla tamamlanır
                         </div>
                     </div>
                 </div>
@@ -232,17 +232,17 @@ new class extends Component {
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 relative overflow-hidden shadow-apple-sm border-t-2 border-brand-500">
                 <div class="w-12 h-12 rounded-2xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/></svg></div>
-                <h3 class="text-base font-bold text-neutral-900 dark:text-white">Güvenli Havuz & Canlı Takip</h3>
+                <h3 class="text-base font-bold text-neutral-900 dark:text-white">Güvenli Ödeme & Canlı Takip</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Yük sahibi navlun bedelini güvenli ödeme sistemine yatırır, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
+                    Yük sahibi navlun bedelini lisanslı ödeme kuruluşu üzerinden öder, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
                 </p>
             </div>
 
             <div class="apple-glass rounded-3xl p-8 space-y-4 relative overflow-hidden shadow-apple-sm">
                 <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center"><svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 14h4"/></svg></div>
-                <h3 class="text-base font-bold text-neutral-900 dark:text-white">POD Onay & Hak Ediş</h3>
+                <h3 class="text-base font-bold text-neutral-900 dark:text-white">Teslimat Onayı & Ödeme</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Şoför teslimat kanıtını yükler, yük sahibi onaylar. Onayın ardından şoförün hak edişi banka hesabına aktarılır.
+                    Şoför teslimat kanıtını yükler, yük sahibi onaylar. Onayın ardından şoförün navlun ödemesi banka hesabına geçer.
                 </p>
             </div>
         </div>
@@ -362,7 +362,7 @@ new class extends Component {
                 </div>
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Platform içi tüm ilanları anında görün, sınırsız teklif verin</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Güvenli havuz ödemesi, cüzdan ve teslimat kayıtları</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Teslimat onaylı güvenli ödeme, cüzdan ve teslimat kayıtları</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
                 </ul>
@@ -514,7 +514,7 @@ new class extends Component {
             <div class="space-y-1 text-center md:text-left">
                 <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
                 <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
-                <p class="text-xs text-neutral-400">Ödemeler lisanslı ödeme kuruluşları ve bankalar üzerinden kredi kartı, banka kartı ya da havale ile alınır; teslimat onayına kadar güvence altında tutulur.</p>
+                <p class="text-xs text-neutral-400">Ödemeler lisanslı ödeme kuruluşları ve bankalar üzerinden kredi kartı, banka kartı ya da havale ile yapılır; navlun ödemesi teslimat onayıyla tamamlanır.</p>
             </div>
             <div class="flex items-center space-x-3 text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-4 py-2 rounded-xl">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -533,7 +533,7 @@ new class extends Component {
         <div class="text-center space-y-2">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SSS</span>
             <h2 class="text-3xl font-black text-neutral-950 dark:text-white">Sıkça Sorulan Sorular</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400">NavlunIQ işleyişi, ödeme havuzu ve güvenlik protokolleri hakkında merak edilenler.</p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">NavlunIQ işleyişi, ödeme akışı ve güvenlik hakkında merak edilenler.</p>
         </div>
 
         <div class="space-y-3.5">

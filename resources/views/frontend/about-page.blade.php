@@ -28,7 +28,7 @@
                 <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold text-lg"></div>
                 <h3 class="text-xl font-bold text-neutral-900 dark:text-white">Emeğinizi Koruyoruz</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                    Yola çıkan her palet, her koli sadece bir "mal" değildir; o, yük sahibinin aylarca verdiği emeğin, göz nurunun ve ticari geleceğinin ta kendisidir. NavlunIQ olarak o yüke kendi gözümüz gibi bakıyoruz. Yükünüzü yalnızca kimliği ve belgeleri ekibimizce kontrol edilmiş şoförlerle buluşturuyor, ödemeyi teslimat onayına kadar havuzda tutuyoruz.
+                    Yola çıkan her palet, her koli sadece bir "mal" değildir; o, yük sahibinin aylarca verdiği emeğin, göz nurunun ve ticari geleceğinin ta kendisidir. NavlunIQ olarak o yüke kendi gözümüz gibi bakıyoruz. Yükünüzü yalnızca kimliği ve belgeleri ekibimizce kontrol edilmiş şoförlerle buluşturuyor, ödemeyi teslimat onayına bağlı güvenli ödeme akışıyla yönetiyoruz.
                 </p>
             </div>
         </div>

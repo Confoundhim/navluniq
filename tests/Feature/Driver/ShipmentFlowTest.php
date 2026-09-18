@@ -132,7 +132,7 @@ class ShipmentFlowTest extends TestCase
         Volt::test('driver.shipments.show', ['loadId' => $this->load->id])
             ->assertSee('Yük sahibi ödemeyi yapmadan yola çıkamazsınız')
             ->call('startTransit')
-            ->assertSee('havuza yatırmadan yola çıkamazsınız');
+            ->assertSee('ödemesini yapmadan yola çıkamazsınız');
 
         $this->assertSame(Shipment::STATUS_AWAITING_PICKUP, $shipment->fresh()->status);
         $this->assertSame(Load::STATUS_ASSIGNED, $this->load->fresh()->status);

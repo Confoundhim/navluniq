@@ -93,8 +93,8 @@ class PayoutService
         }
 
         if ($driverUser = $payout->user) {
-            $this->notifications->notify($driverUser, 'Hakedişiniz ödendi',
-                [number_format((float) $payout->net_amount, 2, ',', '.').' ₺ tutarındaki hakedişiniz banka hesabınıza aktarıldı. Referans: '.$reference],
+            $this->notifications->notify($driverUser, 'Ödemeniz hesabınıza geçti',
+                [number_format((float) $payout->net_amount, 2, ',', '.').' ₺ tutarındaki navlun ödemeniz banka hesabınıza geçti. Referans: '.$reference],
                 route('driver.wallet.index'), 'Cüzdanı görüntüle');
         }
     }

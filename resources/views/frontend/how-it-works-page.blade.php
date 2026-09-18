@@ -35,7 +35,7 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">3</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklif Verin ve Yola Çıkın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Konumunuza en uygun yüklere teklif verin. Güvenli ödeme sistemiyle navlun bedeli garantilensin, teslimat onayından sonra hakedişiniz hesabınıza aktarılsın.</p>
+                    <p class="text-neutral-500 leading-relaxed">Konumunuza en uygun yüklere teklif verin. Navlun ödemesi lisanslı ödeme kuruluşu üzerinden, teslimat onayına bağlı olarak yapılır; onaydan sonra ödemeniz banka hesabınıza geçer.</p>
                 </div>
             </div>
         </div>
@@ -58,8 +58,8 @@
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">2</div>
-                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Güvenli Havuz Ödemesi</h3>
-                    <p class="text-neutral-500 leading-relaxed">Anlaşma sağlandığında navlun bedeli lisanslı ödeme altyapısında güvence altına alınır. Yük teslim edilene kadar paranız güvendedir.</p>
+                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teslimat Onaylı Ödeme</h3>
+                    <p class="text-neutral-500 leading-relaxed">Anlaşma sağlandığında navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödersiniz; ödeme, teslimatı onayladığınızda şoföre tamamlanır.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">3</div>

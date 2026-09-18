@@ -19,7 +19,7 @@ class ShipmentService
         private readonly PayoutService $payouts,
     ) {}
 
-    /** Şoför yükü aldı ve yola çıktı. Havuz ödemesi alınmadan başlatılamaz. */
+    /** Şoför yükü aldı ve yola çıktı. Navlun ödemesi alınmadan başlatılamaz. */
     public function startTransit(Shipment $shipment, DriverProfile $driver): void
     {
         DB::transaction(function () use ($shipment, $driver): void {
@@ -33,7 +33,7 @@ class ShipmentService
                 throw new RuntimeException('Sevkiyat yola çıkarılabilir durumda değil.');
             }
             if ($load->escrow_status !== Load::ESCROW_PAID) {
-                throw new RuntimeException('Yük sahibi navlun bedelini havuza yatırmadan yola çıkamazsınız.');
+                throw new RuntimeException('Yük sahibi navlun ödemesini yapmadan yola çıkamazsınız.');
             }
 
             $locked->update([
@@ -117,7 +117,7 @@ class ShipmentService
                 throw new RuntimeException('Onaylanacak bir teslimat bulunmuyor.');
             }
             if ($load->escrow_status !== Load::ESCROW_PAID) {
-                throw new RuntimeException('Havuzda bloke ödeme bulunmadığından onay verilemez.');
+                throw new RuntimeException('Teslimat onayı bekleyen bir navlun ödemesi bulunmadığından onay verilemez.');
             }
             if ($load->openDispute()) {
                 throw new RuntimeException('Açık bir uyuşmazlık varken teslimat onaylanamaz.');
@@ -130,8 +130,8 @@ class ShipmentService
         });
 
         if ($driverUser = $shipment->driverProfile?->user) {
-            $this->notifications->notify($driverUser, 'Teslimat onaylandı, hakedişiniz sıraya alındı',
-                ['Yük sahibi teslimatı onayladı. Hakedişiniz komisyon düşüldükten sonra kayıtlı IBAN adresinize aktarılacaktır.'],
+            $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',
+                ['Yük sahibi teslimatı onayladı. Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.'],
                 route('driver.wallet.index'), 'Cüzdanı görüntüle');
         }
     }

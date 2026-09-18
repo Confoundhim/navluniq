@@ -56,7 +56,7 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Teklif kabul edildi. Şoförün yola çıkabilmesi için navlun bedelini güvenli havuza yatırın.');
+        session()->flash('success_message', 'Teklif kabul edildi. Şoförün yola çıkabilmesi için navlun bedelini ödeyin.');
         $this->redirect(route('cargo-owner.finance.payment', $load->id), navigate: true);
     }
 

@@ -158,7 +158,7 @@ class OfferService
             $this->notifications->notify(
                 $driverUser,
                 'Teklifiniz kabul edildi',
-                ['Teklifiniz yük sahibi tarafından kabul edildi. Yük sahibi ödemeyi havuza yatırdığında sevkiyat sayfasından yola çıkabileceksiniz.'],
+                ['Teklifiniz yük sahibi tarafından kabul edildi. Yük sahibi navlun ödemesini yaptığında sevkiyat sayfasından yola çıkabileceksiniz.'],
                 route('driver.shipments.show', $shipment->load_id),
                 'Sevkiyatı görüntüle'
             );

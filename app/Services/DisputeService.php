@@ -20,7 +20,7 @@ class DisputeService
         private readonly PaymentService $payments,
     ) {}
 
-    /** Yük sahibi uyuşmazlık açar; havuz ödemesi karar verilene kadar askıya alınır. */
+    /** Yük sahibi uyuşmazlık açar; navlun ödemesi karar verilene kadar askıya alınır. */
     public function open(Load $load, User $owner, string $claim, ?UploadedFile $photo = null): Dispute
     {
         $dispute = DB::transaction(function () use ($load, $owner, $claim, $photo): Dispute {
@@ -33,7 +33,7 @@ class DisputeService
                 throw new RuntimeException('Uyuşmazlık yalnız yoldaki veya teslim edilmiş sevkiyatlar için açılabilir.');
             }
             if ($locked->escrow_status !== Load::ESCROW_PAID) {
-                throw new RuntimeException('Havuzda bloke ödeme bulunmadığından uyuşmazlık açılamaz.');
+                throw new RuntimeException('Teslimat onayı bekleyen bir navlun ödemesi bulunmadığından uyuşmazlık açılamaz.');
             }
             if ($locked->openDispute()) {
                 throw new RuntimeException('Bu sevkiyat için zaten açık bir uyuşmazlık var.');
@@ -57,7 +57,7 @@ class DisputeService
 
         if ($driverUser = $load->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Sevkiyatınız için uyuşmazlık açıldı',
-                ['Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi. Havuz ödemesi karar verilene kadar askıya alındı. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'],
+                ['Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi. Navlun ödemesi karar verilene kadar askıya alındı. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'],
                 route('driver.disputes.index'), 'Savunma yap');
         }
 
@@ -126,7 +126,7 @@ class DisputeService
         $load = $dispute->cargoLoad?->fresh();
         foreach (array_filter([$load?->cargoOwnerProfile?->user, $load?->driverProfile?->user]) as $user) {
             $this->notifications->notify($user, 'Uyuşmazlık karara bağlandı',
-                [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; hakediş ödeme sırasına alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)]);
+                [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)]);
         }
     }
 }

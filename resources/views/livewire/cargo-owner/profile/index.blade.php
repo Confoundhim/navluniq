@@ -370,7 +370,7 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-rose-900/40 rounded-2xl p-6 space-y-3">
                 <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Hesabı kapat</h3>
-                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya ödenmemiş hakediş yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
+                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya tamamlanmamış ödeme yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
                 <button type="button" wire:click="$set('deleteModalOpen', true)" class="btn-danger w-full py-2 text-xs">Hesabımı kapatmak istiyorum</button>
             </div>
         </div>

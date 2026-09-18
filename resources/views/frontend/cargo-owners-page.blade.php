@@ -15,8 +15,8 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Güvenli Havuz Ödemesi</h4>
-                <p class="text-neutral-500 leading-relaxed">Ödemeniz lisanslı ödeme altyapısında güvence altında tutulur, yük sağlam teslim edilene kadar şoföre aktarılmaz.</p>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Teslimat Onaylı Ödeme</h4>
+                <p class="text-neutral-500 leading-relaxed">Navlun bedelini lisanslı ödeme kuruluşu üzerinden ödersiniz; ödeme, yükün sağlam teslim edildiğini onayladığınızda şoföre tamamlanır.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
