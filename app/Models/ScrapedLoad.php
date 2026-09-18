@@ -55,6 +55,7 @@ class ScrapedLoad extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'seen_sources' => 'array',
+        'parse_metadata' => 'array',
         'duplicate_count' => 'integer',
         'available_to_free_at' => 'datetime',
         'auto_approved_at' => 'datetime',
@@ -81,6 +82,57 @@ class ScrapedLoad extends Model
         }
 
         return Phone::normalize($this->sender_phone);
+    }
+
+    /** Standart başlık: "Diyarbakır → İstanbul Kartal". */
+    public function routeLabel(): string
+    {
+        return ($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş');
+    }
+
+    /** "24 ton" / "800 kg" / null. */
+    public function weightLabel(): ?string
+    {
+        $kg = (int) $this->weight;
+        if ($kg <= 0) {
+            return null;
+        }
+        if ($kg >= 1000) {
+            $t = $kg / 1000;
+
+            return (fmod($t, 1.0) === 0.0 ? number_format($t, 0, ',', '.') : number_format($t, 1, ',', '.')).' ton';
+        }
+
+        return number_format($kg, 0, ',', '.').' kg';
+    }
+
+    /** Araç etiketi: açıkça istenen tip ise adı, çıkarımsa "X ve üzeri". */
+    public function vehicleLabel(): ?string
+    {
+        if (! \App\Support\VehicleTypes::isValid($this->vehicle_type)) {
+            return null;
+        }
+        $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin'], true) || $this->vehicle_type === 'tir';
+
+        return $exact ? \App\Support\VehicleTypes::label($this->vehicle_type) : \App\Support\VehicleTypes::label($this->vehicle_type).' ve üzeri';
+    }
+
+    public function meta(string $key, mixed $default = null): mixed
+    {
+        return ((array) ($this->parse_metadata ?? []))[$key] ?? $default;
+    }
+
+    public function isUrgent(): bool
+    {
+        return (bool) $this->meta('urgent', false);
+    }
+
+    /** @return list<string> Soğuk zincir, Kırılgan, ADR, Gabari dışı */
+    public function traitLabels(): array
+    {
+        $map = ['cold' => 'Soğuk zincir', 'fragile' => 'Kırılgan', 'hazmat' => 'ADR', 'oversize' => 'Gabari dışı'];
+
+        return array_values(array_filter(array_map(fn ($t) => $map[$t] ?? null, (array) $this->meta('goods_traits', []))));
     }
 
     public function getFormattedPhoneAttribute(): string

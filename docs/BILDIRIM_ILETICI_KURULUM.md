@@ -70,6 +70,19 @@ Yönetim paneli → **Dış Kaynak İlanları → Kaynaklar** listesinde grup ad
 Kaynağı **aktif** edin. Sonraki ilanlar **onay kuyruğuna** düşer; onaylananlar premium şoförlere anında,
 diğerlerine 20 dakika sonra açılır.
 
+## İlan standardizasyonu
+
+Her mesaj kaydedilmeden önce standartlaştırılır; onaylanırken bir kez daha çalışır:
+
+- **Konum**: 81 il + 973 ilçe kataloğuna bağlanır; yazım hataları düzeltilir ("Diyarbakr" → Diyarbakır, "İstanbl Kartala" → İstanbul Kartal).
+  İl çözülemeyen ilan yayınlanamaz; yönetici satırdaki **Düzenle** ile ili seçer.
+- **Yük**: kataloğa bağlanır (Paletli yük, Beyaz eşya, Demir / çelik, Soğuk zincir gıda…); kırılgan, soğuk zincir, ADR, gabari dışı etiketleri eklenir.
+- **Araç**: açık araç adı → kasa ipucu → tonaj → palet → hacim → yük türü. Araç yazmayan ilanda yükten en küçük uygun araç seçilir ve
+  şoförlere "Orta Panelvan ve üzeri" gibi gösterilir; daha büyük tüm araçlar ilanı görür (otomobil hariç).
+- **Fiyat**: "45 bin", "45.000 TL", "fiyat: 45000". **Aciliyet** ("acil", "hemen") ve **yükleme notu** ("yarın", "pazartesi") işaretlenir.
+- Yöneticinin düzenlediği ilanlar sonraki otomatik standardizasyondan etkilenmez.
+- Eski kayıtlar: `php artisan scraped-loads:classify` (update.sh her güncellemede çalıştırır; `--all` bütün kayıtlar).
+
 ## Sorun giderme
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?

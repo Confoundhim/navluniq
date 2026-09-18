@@ -7,10 +7,9 @@ use App\Models\Scraper;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
+use App\Support\GoodsCatalog;
 use App\Support\TurkishCities;
-use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
-use App\Support\VehicleTypes;
 use Throwable;
 
 /**
@@ -26,7 +25,7 @@ class LoadIntakeService
 
     public const ROUTE_DEDUPE_HOURS = 48;
 
-    public function __construct(private readonly AiParserService $parser)
+    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer)
     {
     }
 
@@ -112,33 +111,11 @@ class LoadIntakeService
             }
         }
 
-        // Araç tipi: metindeki açık araç adı (yüksek güven) yapay zekanın tahminine üstün gelir;
-        // yapay zeka geçersiz/boş döndürdüyse kasa ipucu, tonaj, palet ve hacimden çıkarılır.
-        $detected = VehicleClassifier::analyze($raw, isset($parsed['weight']) ? (int) $parsed['weight'] : null);
-        $vehicleType = $parsed['vehicle_type'] ?? null;
-        $vehicleSource = $parsed['vehicle_type_source'] ?? null;
-        if (! VehicleTypes::isValid($vehicleType) || ($detected['confidence'] === 'high' && $detected['type'] !== $vehicleType)) {
-            $vehicleType = $detected['type'];
-            $vehicleSource = $detected['source'];
-        }
-        if (empty($parsed['weight']) && $detected['weight_kg']) {
-            $parsed['weight'] = $detected['weight_kg'];
-        }
-        $pickupGeo = TurkishLocations::resolve($parsed['pickup_location'] ?? null);
-        $deliveryGeo = TurkishLocations::resolve($parsed['delivery_location'] ?? null);
+        // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
+        $std = $this->standardizer->standardize($raw, $parsed);
 
         $scraper->update(['last_scraped_at' => now(), 'last_success_at' => now(), 'last_error' => null]);
         $scrapedLoad = ScrapedLoad::create([
-            'vehicle_type' => $vehicleType,
-            'vehicle_type_source' => $vehicleSource,
-            'pickup_province_code' => $pickupGeo['province_code'] ?? null,
-            'pickup_district' => $pickupGeo['district'] ?? null,
-            'pickup_lat' => $pickupGeo['lat'] ?? null,
-            'pickup_lng' => $pickupGeo['lng'] ?? null,
-            'delivery_province_code' => $deliveryGeo['province_code'] ?? null,
-            'delivery_district' => $deliveryGeo['district'] ?? null,
-            'delivery_lat' => $deliveryGeo['lat'] ?? null,
-            'delivery_lng' => $deliveryGeo['lng'] ?? null,
             'scraper_id' => $scraper->id,
             'content_hash' => $contentHash,
             'normalized_hash' => $normalizedHash,
@@ -148,14 +125,25 @@ class LoadIntakeService
             'raw_message' => $raw,
             'sender_phone' => null,
             'encrypted_sender_phone' => Crypt::encryptString($phone),
-            'pickup_location' => $parsed['pickup_location'] ?? null,
-            'delivery_location' => $parsed['delivery_location'] ?? null,
-            'goods_type' => $parsed['goods_type'] ?? null,
-            'weight' => $parsed['weight'] ?? null,
-            'price' => $parsed['price'] ?? null,
+            'pickup_location' => $std['pickup_location'],
+            'pickup_province_code' => $std['pickup_province_code'],
+            'pickup_district' => $std['pickup_district'],
+            'pickup_lat' => $std['pickup_lat'],
+            'pickup_lng' => $std['pickup_lng'],
+            'delivery_location' => $std['delivery_location'],
+            'delivery_province_code' => $std['delivery_province_code'],
+            'delivery_district' => $std['delivery_district'],
+            'delivery_lat' => $std['delivery_lat'],
+            'delivery_lng' => $std['delivery_lng'],
+            'goods_type' => $std['goods_type'],
+            'vehicle_type' => $std['vehicle_type'],
+            'vehicle_type_source' => $std['vehicle_type_source'],
+            'weight' => $std['weight'],
+            'price' => $std['price'],
             'currency' => 'TRY',
-            'status' => (! empty($parsed['pickup_location']) && ! empty($parsed['delivery_location'])) ? 'parsed_success' : 'parsed_partial',
+            'status' => ($std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) ? 'parsed_success' : 'parsed_partial',
             'parsed_by_llm' => $parsed['parsed_by_llm'] ?? 'unknown',
+            'parse_metadata' => $std['metadata'],
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30),
         ]);
@@ -195,12 +183,16 @@ class LoadIntakeService
             return false;
         }
 
-        $hasMoney = (bool) preg_match('/\d[\d.,]*\s*(?:tl|₺|lira)(?!\p{L})/iu', $text);
-        $hasWeight = (bool) preg_match('/\d[\d.,]*\s*(?:kg|ton|tn)(?!\p{L})/iu', $text);
-        $hasRoute = (bool) preg_match('/\p{L}{3,}\s*(?:->|→|>|-|–|—)\s*\p{L}{3,}|\p{L}{3,}(?:dan|den|tan|ten)\s+\p{L}{3,}(?:a|e|ya|ye)(?!\p{L})/iu', $text);
-        $hasKeyword = (bool) preg_match('/(?<!\p{L})(?:yük|yuk|nakliye|nakliyat|tır|tir|kamyon|kamyonet|dorse|tenteli|tente|parsiyel|komple|araç|arac|sevkiyat|yükleme|yukleme|teslim|palet|frigo|lowbed|kırkayak|panelvan|çekici|cekici|navlun)(?!\p{L})/iu', $text);
+        $hasMoney = (bool) preg_match('/\d[\d.,]*\s*(?:tl|₺|lira|bin)(?!\p{L})/iu', $text);
+        $hasWeight = (bool) preg_match('/\d[\d.,]*\s*(?:kg|ton|tn|t|palet|koli|adet|m3)(?!\p{L})/iu', $text);
+        // "Ankara-İzmir", "Ankaradan İzmire", "Diyarbakr dan Ankaraya", "Ankara → İzmir"
+        $hasRoute = (bool) preg_match('/\p{L}{3,}\s*(?:->|→|>|-|–|—)\s*\p{L}{3,}|\p{L}{3,}\s*(?:dan|den|tan|ten)\s+\p{L}{3,}/iu', $text);
+        $hasKeyword = (bool) preg_match('/(?<!\p{L})(?:yük|yuk|yükü|nakliye|nakliyat|tır|tir|kamyon|kamyonet|dorse|tenteli|tente|parsiyel|komple|araç|arac|sevkiyat|yükleme|yukleme|teslim|palet|frigo|lowbed|kırkayak|panelvan|çekici|cekici|navlun|gidecek|taşınacak|tasinacak|lazım|lazim|aranıyor|araniyor|arayan|boşta|bosta|yükleyecek)(?!\p{L})/iu', $text);
+        $norm = VehicleClassifier::normalize($text);
+        $hasGoods = GoodsCatalog::detect($norm) !== null;
+        $hasVehicle = VehicleClassifier::analyze($text)['type'] !== null;
 
-        return $hasRoute || $hasMoney || $hasWeight || $hasKeyword;
+        return $hasRoute || $hasMoney || $hasWeight || $hasKeyword || $hasGoods || $hasVehicle;
     }
 
     public static function routeKey(?string $phone, ?string $pickup, ?string $delivery): ?string

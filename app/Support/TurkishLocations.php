@@ -20,7 +20,7 @@ final class TurkishLocations
     private static function load(): array
     {
         if (self::$data === null) {
-            self::$data = json_decode((string) file_get_contents(resource_path('data/tr-locations.json')), true) ?: ['provinces' => [], 'districts' => []];
+            self::$data = json_decode((string) file_get_contents(dirname(__DIR__, 2).'/resources/data/tr-locations.json'), true) ?: ['provinces' => [], 'districts' => []];
             self::$provinceIndex = [];
             foreach (self::$data['provinces'] as $p) {
                 self::$provinceIndex[TurkishCities::ascii($p['name'])] = $p['code'];
@@ -84,39 +84,51 @@ final class TurkishLocations
         $words = preg_split('/[\s,\/\-]+/u', $clean) ?: [];
         $words = array_values(array_filter($words, fn ($w) => $w !== ''));
 
-        $province = TurkishCities::fromText($clean);
+        // Sıra: birebir il → tek başına ilçe adı → yazım hatalı il → yazım hatalı ilçe.
+        $province = TurkishCities::fromText($clean, fuzzy: false);
         $code = $province ? (self::$provinceIndex[TurkishCities::ascii($province)] ?? null) : null;
-
-        // İl bulunduysa kalan sözcüklerde ilçe ara
         if ($code !== null) {
-            $rest = array_slice($words, 1);
-            $district = self::matchDistrict($code, $rest);
-            $p = self::province($code);
-
-            return [
-                'province_code' => $code,
-                'province' => $p['name'],
-                'district' => $district['n'] ?? null,
-                'lat' => $district['lat'] ?? $p['lat'],
-                'lng' => $district['lng'] ?? $p['lng'],
-            ];
+            return self::withDistrict($code, array_slice($words, 1));
         }
 
-        // İl yok: ilçe adı tek başına yazılmış olabilir (Gebze, Aliağa, Ostim değil)
-        foreach (self::$districtIndex as $pCode => $districts) {
-            $district = self::matchDistrict($pCode, array_slice($words, 0, 2));
-            if ($district !== null && $district['n'] !== 'Merkez') {
-                $p = self::province($pCode);
+        foreach ([false, true] as $fuzzy) {
+            foreach (self::$districtIndex as $pCode => $districts) {
+                $district = self::matchDistrict($pCode, array_slice($words, 0, 2), $fuzzy);
+                if ($district !== null && $district['n'] !== 'Merkez') {
+                    $p = self::province($pCode);
 
-                return ['province_code' => $pCode, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+                    return ['province_code' => $pCode, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+                }
+            }
+            if (! $fuzzy) {
+                $province = TurkishCities::fromText($clean, fuzzy: true);
+                $code = $province ? (self::$provinceIndex[TurkishCities::ascii($province)] ?? null) : null;
+                if ($code !== null) {
+                    return self::withDistrict($code, array_slice($words, 1));
+                }
             }
         }
 
         return null;
     }
 
+    /** İl bulunduysa kalan sözcüklerde ilçe arar (önce birebir, sonra yazım hatalı). */
+    private static function withDistrict(int $code, array $rest): array
+    {
+        $district = self::matchDistrict($code, $rest, false) ?? self::matchDistrict($code, $rest, true);
+        $p = self::province($code);
+
+        return [
+            'province_code' => $code,
+            'province' => $p['name'],
+            'district' => $district['n'] ?? null,
+            'lat' => $district['lat'] ?? $p['lat'],
+            'lng' => $district['lng'] ?? $p['lng'],
+        ];
+    }
+
     /** @param list<string> $words */
-    private static function matchDistrict(int $provinceCode, array $words): ?array
+    private static function matchDistrict(int $provinceCode, array $words, bool $fuzzy = false): ?array
     {
         $districts = self::$districtIndex[$provinceCode] ?? [];
         if ($districts === [] || $words === []) {
@@ -145,6 +157,21 @@ final class TurkishLocations
                     if (strlen($stem) >= 4 && isset($districts[$stem])) {
                         return $districts[$stem];
                     }
+                }
+            }
+        }
+        if (! $fuzzy) {
+            return null;
+        }
+        // Yazım hatası: tek harf farkı (5+ harf). "cesme" ↔ "çeşme" zaten ascii'de eşittir.
+        foreach ($candidates as $cand) {
+            $a = TurkishCities::ascii($cand);
+            if (strlen($a) < 5) {
+                continue;
+            }
+            foreach ($districts as $ascii => $d) {
+                if (abs(strlen($ascii) - strlen($a)) <= 1 && levenshtein($a, $ascii) === 1) {
+                    return $d;
                 }
             }
         }
