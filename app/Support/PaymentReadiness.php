@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Console\Commands\RefreshLegalTextsCommand;
 use App\Models\BankAccount;
 use App\Models\CmsContent;
 use App\Models\DriverProfile;
@@ -24,7 +25,7 @@ final class PaymentReadiness
         $checks = [];
 
         // 1) Ödeme kuruluşu
-        $checks[] = self::item('Ödeme kuruluşu', 'Sağlayıcı seçili', $selected->id() !== 'none', $selected->label(), 'PAYMENT_PROVIDER ayarını yapın (paytr).');
+        $checks[] = self::item('Ödeme kuruluşu', 'Sağlayıcı seçili', $selected->id() !== 'none', $selected->label(), 'Sunucu .env dosyasında PAYMENT_PROVIDER boş ya da tanımsız olmalı (varsayılan paytr).');
         $checks[] = self::item('Ödeme kuruluşu', 'Anahtarlar tanımlı', $active->isConfigured(), $active->isConfigured() ? 'Etkin: '.$active->label() : 'Anahtarlar boş; kart tahsilatı kapalı',
             'Sözleşme sonrası merchant anahtarlarını sunucu .env dosyasına yazın, php artisan config:cache çalıştırın.');
         $checks[] = self::item('Ödeme kuruluşu', 'Canlı mod', $active->isConfigured() && ! $active->isSandbox(), $active->isSandbox() ? 'Test (sandbox) modu' : 'Canlı',
@@ -37,12 +38,12 @@ final class PaymentReadiness
             'Pazaryeri ürünü olan bir sağlayıcı adaptörü eklendiğinde otomatik aktarım açılır.');
 
         // 2) Şirket bilgileri (sitede görünür olmalı)
-        foreach (['name' => 'Şirket unvanı', 'address' => 'Adres', 'phone' => 'Telefon', 'email' => 'E-posta', 'tax_office' => 'Vergi dairesi', 'tax_no' => 'Vergi numarası', 'mersis_no' => 'MERSİS numarası'] as $key => $label) {
-            $val = trim((string) config('company.'.$key));
-            $checks[] = self::item('Şirket bilgileri', $label, $val !== '', $val !== '' ? $val : 'Boş', 'Sunucu .env dosyasında COMPANY_'.strtoupper($key).' alanını doldurup php artisan config:cache çalıştırın.');
+        foreach (Company::LABELS as $key => $label) {
+            $val = Company::get($key);
+            $checks[] = self::item('Şirket bilgileri', $label, $val !== '', $val !== '' ? $val : 'Boş', 'Bu sekmedeki "Şirket künyesi" formundan '.mb_strtolower($label).' alanını doldurun.');
         }
         $etbis = trim((string) CmsContent::getVal('etbis_code'));
-        $checks[] = self::item('Şirket bilgileri', 'ETBİS kaydı', $etbis !== '', $etbis !== '' ? $etbis : 'Boş', 'İçerik ve CMS → etbis_code alanına ETBİS kodunu yazın.');
+        $checks[] = self::item('Şirket bilgileri', 'ETBİS kaydı', $etbis !== '', $etbis !== '' ? $etbis : 'Boş', 'Bu sekmedeki "Şirket künyesi" formuna ETBİS kodunu yazın (etbis.ticaret.gov.tr kaydı sonrası verilir).');
 
         // 3) Yasal sayfalar
         $legal = ['contract_kvkk' => 'KVKK aydınlatma', 'contract_terms' => 'Kullanıcı sözleşmesi', 'contract_privacy' => 'Gizlilik politikası', 'contract_distance_sale' => 'Mesafeli satış sözleşmesi', 'contract_cancellation' => 'İptal ve iade politikası'];
@@ -51,16 +52,19 @@ final class PaymentReadiness
             $val = (string) CmsContent::getVal($key, '');
             $ok = mb_strlen(trim(strip_tags($val))) > 200;
             $badWords += preg_match_all('/havuz|bloke|escrow/iu', $val);
-            $checks[] = self::item('Yasal sayfalar', $label, $ok, $ok ? mb_strlen(strip_tags($val)).' karakter' : 'Eksik', 'php artisan db:seed --class=CmsContractSeeder --force');
+            $checks[] = self::item('Yasal sayfalar', $label, $ok, $ok ? mb_strlen(strip_tags($val)).' karakter' : 'Eksik', 'Bu sekmedeki "Yasal metinleri güncel şablonla yenile" düğmesini kullanın.');
         }
         $checks[] = self::item('Yasal sayfalar', 'Sözleşmelerde "havuz/bloke/escrow" ifadesi yok', $badWords === 0, $badWords === 0 ? 'Temiz' : $badWords.' geçiş bulundu',
-            'Sözleşmeleri güncel seed ile yenileyin ya da CMS\'den düzenleyin.');
+            'Bu sekmedeki "Yasal metinleri güncel şablonla yenile" düğmesini kullanın ya da İçerik ve CMS\'den düzenleyin.');
+        $stale = RefreshLegalTextsCommand::isStale();
+        $checks[] = self::item('Yasal sayfalar', 'Sözleşmeler şirket künyesini panelden alıyor', ! $stale, $stale ? 'Eski biçim (künye metne gömülü ya da boş)' : 'Güncel',
+            'Bu sekmedeki "Yasal metinleri güncel şablonla yenile" düğmesini kullanın; künye değişiklikleri metne otomatik yansır.');
 
         // 4) Fiyatlandırma ve vergi
         $premium = Settings::float('premium_monthly_price');
         $checks[] = self::item('Fiyatlandırma', 'Premium aylık ücret', $premium > 0, number_format($premium, 2, ',', '.').' ₺ (KDV dahil)', 'Komisyon ve limitler sekmesinden ücret girin.');
-        $vat = (float) config('services.payment.vat_rate', 20);
-        $checks[] = self::item('Fiyatlandırma', 'KDV oranı', $vat > 0, '%'.number_format($vat, 0), 'PAYMENT_VAT_RATE ayarını yapın.');
+        $vat = Settings::float('payment_vat_rate');
+        $checks[] = self::item('Fiyatlandırma', 'KDV oranı', $vat > 0, '%'.number_format($vat, 0), 'Bu sekmedeki "Şirket künyesi" formundan KDV oranını girin.');
         $checks[] = self::item('Fiyatlandırma', 'Şoför hizmet bedeli oranı', Settings::float('commission_standard_driver') >= 0, '%'.number_format(Settings::float('commission_standard_driver'), 1, ',', '.'), null);
         $checks[] = self::item('Fiyatlandırma', 'Asgari navlun bedeli', Settings::float('min_load_price') > 0, number_format(Settings::float('min_load_price'), 2, ',', '.').' ₺', null);
 

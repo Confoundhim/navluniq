@@ -24,7 +24,7 @@
             <a class="btn" href="{{ $actionUrl }}">{{ $actionText ?? 'Panele git' }}</a>
         @endif
         <div class="footer">
-            © {{ date('Y') }} {{ config('company.name') }}<br>
+            © {{ date('Y') }} {{ \App\Support\Company::get('name') }}<br>
             Bu e-posta otomatik olarak gönderilmiştir, lütfen yanıtlamayınız.
         </div>
     </div>

@@ -1,6 +1,6 @@
 @props(['title' => 'NavlunIQ - Akıllı Lojistik Ağı'])
 @php
-    $whatsappNumber = preg_replace('/\D/', '', (string) \App\Models\CmsContent::getVal('contact_whatsapp', config('company.phone')));
+    $whatsappNumber = preg_replace('/\D/', '', (string) \App\Models\CmsContent::getVal('contact_whatsapp', \App\Support\Company::get('phone')));
     $whatsappNumber = $whatsappNumber !== '' ? (str_starts_with($whatsappNumber, '90') ? $whatsappNumber : '90'.ltrim($whatsappNumber, '0')) : null;
 @endphp
 <!DOCTYPE html>
@@ -259,11 +259,11 @@
                     </div>
                 </div>
                 @endif
-                @if(config('company.name') && config('company.address'))
+                @if(\App\Support\Company::get('name') && \App\Support\Company::get('address'))
                     <div class="mt-3 text-[11px] text-neutral-400 leading-relaxed">
-                        <div class="font-semibold text-neutral-500">{{ config('company.name') }}</div>
-                        <div>{{ config('company.address') }}</div>
-                        @if(config('company.tax_office') || config('company.tax_no'))<div>{{ config('company.tax_office') }} VD · VKN {{ config('company.tax_no') }}@if(config('company.mersis_no')) · MERSİS {{ config('company.mersis_no') }}@endif</div>@endif
+                        <div class="font-semibold text-neutral-500">{{ \App\Support\Company::get('name') }}</div>
+                        <div>{{ \App\Support\Company::get('address') }}</div>
+                        @if(\App\Support\Company::get('tax_office') || \App\Support\Company::get('tax_no'))<div>{{ \App\Support\Company::get('tax_office') }} VD · VKN {{ \App\Support\Company::get('tax_no') }}@if(\App\Support\Company::get('mersis_no')) · MERSİS {{ \App\Support\Company::get('mersis_no') }}@endif</div>@endif
                     </div>
                 @endif
             </div>
@@ -288,7 +288,7 @@
                     <li><a href="/#sss" class="hover:text-brand-500 transition-colors">Sıkça Sorulan Sorular</a></li>
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">Müşteri Hizmetleri</a></li>
                     @if($whatsappNumber)<li><a href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">WhatsApp Destek Hattı</a></li>@endif
-                    @if(config('company.email'))<li><a href="mailto:{{ config('company.email') }}" class="hover:text-brand-500 transition-colors">{{ config('company.email') }}</a></li>@endif
+                    @if(\App\Support\Company::get('email'))<li><a href="mailto:{{ \App\Support\Company::get('email') }}" class="hover:text-brand-500 transition-colors">{{ \App\Support\Company::get('email') }}</a></li>@endif
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">İletişim Formu</a></li>
                 </ul>
             </div>

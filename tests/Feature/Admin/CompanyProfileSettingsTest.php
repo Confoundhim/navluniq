@@ -1,0 +1,96 @@
+<?php
+
+namespace Tests\Feature\Admin;
+
+use App\Console\Commands\RefreshLegalTextsCommand;
+use App\Models\CmsContent;
+use App\Models\User;
+use App\Support\Company;
+use App\Support\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Volt\Volt;
+use Tests\TestCase;
+
+class CompanyProfileSettingsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private function admin(): User
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $user = User::factory()->create(['current_role' => 'admin']);
+        $user->syncRoles(['super_admin']);
+
+        return $user->fresh();
+    }
+
+    public function test_company_info_comes_from_defaults_then_panel_and_fills_contract_tokens(): void
+    {
+        $this->assertSame(Company::DEFAULTS['name'], Company::get('name'));
+        $this->assertSame('', Company::get('mersis_no'));
+
+        CmsContent::setVal('company_name', 'Panel Lojistik A.Ş.');
+        CmsContent::setVal('company_mersis_no', '0123456789012345');
+        $this->assertSame('Panel Lojistik A.Ş.', Company::get('name'));
+
+        $html = Company::fillTokens('<p>{{COMPANY_NAME}} · {{COMPANY_TAX_OFFICE}} / {{COMPANY_TAX_NO}}</p>');
+        $this->assertSame('<p>Panel Lojistik A.Ş. · '.Company::DEFAULTS['tax_office'].' / '.Company::DEFAULTS['tax_no'].'</p>', $html);
+
+        // Sözleşme sayfası yer tutucuyu değil künyeyi gösterir.
+        CmsContent::setVal('contract_kvkk', '<p>Veri sorumlusu: {{COMPANY_NAME}}</p>');
+        $this->get('/sozlesmeler/kvkk')->assertOk()->assertSee('Veri sorumlusu: Panel Lojistik A.Ş.')->assertDontSee('{{COMPANY_NAME}}');
+    }
+
+    public function test_legal_refresh_reseeds_only_stale_texts(): void
+    {
+        $this->assertTrue(RefreshLegalTextsCommand::isStale(), 'Boş metinler eski sayılmalı');
+
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertFalse(RefreshLegalTextsCommand::isStale());
+        $this->assertStringContainsString('{{COMPANY_NAME}}', (string) CmsContent::getVal('contract_kvkk'));
+
+        // Künyesi metne gömülü eski biçim: yer tutucu yok → yenilenir.
+        foreach (['contract_kvkk', 'contract_terms', 'contract_privacy', 'contract_distance_sale'] as $key) {
+            CmsContent::setVal($key, '<p>Eski A.Ş. metni</p>');
+        }
+        $this->assertTrue(RefreshLegalTextsCommand::isStale());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertStringContainsString('{{COMPANY_NAME}}', (string) CmsContent::getVal('contract_terms'));
+
+        // Güncel biçimdeki el düzenlemesi --if-stale ile korunur.
+        CmsContent::setVal('contract_privacy', '<p>{{COMPANY_NAME}} özel gizlilik metni</p>');
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertSame('<p>{{COMPANY_NAME}} özel gizlilik metni</p>', CmsContent::getVal('contract_privacy'));
+    }
+
+    public function test_admin_saves_company_profile_and_vat_from_settings_page(): void
+    {
+        $this->actingAs($this->admin());
+
+        Volt::test('admin.settings-center')
+            ->set('activeTab', 'payment')
+            ->assertSee('Şirket künyesi')
+            ->set('company.name', 'NavlunIQ Test Ltd. Şti.')
+            ->set('company.mersis_no', '0123456789012345')
+            ->set('company.etbis_code', 'ETBIS-123')
+            ->set('company.payment_vat_rate', '10')
+            ->call('saveCompany')
+            ->assertHasNoErrors();
+
+        $this->assertSame('NavlunIQ Test Ltd. Şti.', Company::get('name'));
+        $this->assertSame('0123456789012345', Company::get('mersis_no'));
+        $this->assertSame('ETBIS-123', CmsContent::getVal('etbis_code'));
+        $this->assertSame(10.0, Settings::float('payment_vat_rate'));
+        // Varsayılanla aynı bırakılan alan ayrıca saklanmaz.
+        $this->assertSame('', Company::stored('address'));
+
+        Volt::test('admin.settings-center')
+            ->set('activeTab', 'payment')
+            ->set('company.tax_no', '12ab')
+            ->call('saveCompany')
+            ->assertHasErrors(['company.tax_no']);
+
+        $this->get('/iletisim')->assertOk()->assertSee(Company::get('phone'));
+    }
+}

@@ -33,9 +33,11 @@ Pazaryeri (alt üye işyeri) ürünü olan sağlayıcıda `supportsSubMerchants(
 ## Ödeme kuruluşu başvurusu
 
 Yönetici paneli → Sistem Ayarları → **Ödeme altyapısı** sekmesindeki hazırlık listesi (28 madde) yeşil olmalı:
-şirket bilgileri (`COMPANY_*` .env), ETBİS kodu (CMS), beş yasal sayfa, "havuz/bloke/escrow" ifadesi yok, HTTPS, fiyat ve KDV, gönderici e-posta.
+şirket künyesi, ETBİS kodu ve KDV oranı (aynı sekmedeki "Şirket künyesi" formu; .env gerekmez, künye değişince altbilgi/iletişim/sözleşmeler kendiliğinden güncellenir), beş yasal sayfa, "havuz/bloke/escrow" ifadesi yok, HTTPS, fiyat ve KDV, gönderici e-posta.
 
 Başvuruda iş modelini şöyle anlatın: "Yük sahipleri ile belgeleri doğrulanmış şoförleri buluşturan dijital platform. Yük sahibi navlun bedelini lisanslı ödeme kuruluşu üzerinden öder; ödeme teslimat onayına bağlı olarak şoföre tamamlanır (pazaryeri / alt üye işyeri modeli). Ayrıca şoförlere aylık premium üyelik (dijital hizmet, KDV dahil) satılır."
+
+Yasal metinler `{{COMPANY_*}}` yer tutucularıyla saklanır ve gösterimde künyeyle doldurulur. Eski biçimdeki (künyesi gömülü) metinler `update.sh` içindeki `php artisan legal:refresh --if-stale` ile bir kez yenilenir; panelde "Yasal metinleri güncel şablonla yenile" düğmesi aynı işi elle yapar.
 
 ## Faturalar
 

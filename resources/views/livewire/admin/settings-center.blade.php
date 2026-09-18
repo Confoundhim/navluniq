@@ -4,7 +4,9 @@ use App\Models\ActivityLog;
 use App\Models\CmsContent;
 use App\Models\SettingRevision;
 use App\Services\PaymentService;
+use App\Support\Company;
 use App\Support\Settings;
+use Illuminate\Support\Facades\Artisan;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -48,6 +50,15 @@ new class extends Component {
     /** @var array<string, string> */
     public array $scraper = [];
 
+    /** Şirket künyesi + ETBİS + KDV; künye anahtarları CmsContent'te company_* olarak saklanır. */
+    public const COMPANY_EXTRA_KEYS = [
+        'etbis_code' => 'ETBİS kodu',
+        'payment_vat_rate' => 'KDV oranı (%)',
+    ];
+
+    /** @var array<string, string> */
+    public array $company = [];
+
     public function mount(): void
     {
         abort_unless(auth()->user()->can('manage settings'), 403);
@@ -65,6 +76,70 @@ new class extends Component {
         foreach (array_keys(self::SCRAPER_KEYS) as $key) {
             $this->scraper[$key] = in_array($key, self::SCRAPER_TOGGLES, true) ? (Settings::bool($key) ? '1' : '0') : (string) Settings::get($key);
         }
+        foreach (array_keys(Company::LABELS) as $key) {
+            $this->company[$key] = Company::get($key);
+        }
+        $this->company['etbis_code'] = (string) CmsContent::getVal('etbis_code', '');
+        $this->company['payment_vat_rate'] = number_format(Settings::float('payment_vat_rate'), 0, '.', '');
+    }
+
+    public function saveCompany(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        foreach ($this->company as $key => $value) {
+            $this->company[$key] = trim((string) $value);
+        }
+        $this->company['payment_vat_rate'] = str_replace(',', '.', $this->company['payment_vat_rate']);
+
+        $this->validate([
+            'company.name' => 'required|string|max:160',
+            'company.address' => 'required|string|max:300',
+            'company.phone' => 'required|string|max:40',
+            'company.email' => 'required|email|max:120',
+            'company.tax_office' => 'required|string|max:120',
+            'company.tax_no' => ['required', 'regex:/^\d{10,11}$/'],
+            'company.mersis_no' => ['nullable', 'regex:/^\d{16}$/'],
+            'company.etbis_code' => 'nullable|string|max:60',
+            'company.payment_vat_rate' => 'required|numeric|min:0|max:100',
+        ], [
+            'company.tax_no.regex' => 'Vergi numarası 10 haneli (VKN) ya da 11 haneli (TCKN) olmalıdır.',
+            'company.mersis_no.regex' => 'MERSİS numarası 16 hanelidir.',
+        ]);
+
+        $changed = 0;
+        foreach (Company::LABELS as $key => $label) {
+            $value = $this->company[$key];
+            $old = Company::stored($key);
+            // Zaten geçerli olan (.env ya da koddaki varsayılan) değeri ayrıca saklamaya gerek yok.
+            $new = $value === Company::fallback($key) && $old === '' ? '' : $value;
+            $changed += $this->persist('company_'.$key, $label, $new === '' ? null : $new, $old === '' ? null : $old) ? 1 : 0;
+        }
+        $etbisOld = (string) CmsContent::getVal('etbis_code', '');
+        $changed += $this->persist('etbis_code', 'ETBİS kodu', $this->company['etbis_code'] === '' ? null : $this->company['etbis_code'], $etbisOld === '' ? null : $etbisOld) ? 1 : 0;
+        $vat = number_format((float) $this->company['payment_vat_rate'], 2, '.', '');
+        $changed += $this->persist('payment_vat_rate', 'KDV oranı (%)', $vat, number_format(Settings::float('payment_vat_rate'), 2, '.', '')) ? 1 : 0;
+
+        $this->loadValues();
+        session()->flash('success_message', $changed > 0 ? "{$changed} alan güncellendi; altbilgi, iletişim sayfası ve sözleşmeler yeni künyeyi gösterir." : 'Değişiklik yok.');
+    }
+
+    /** Beş yasal metni koddaki güncel şablonla yeniler (künye yer tutucuları panelden dolar). */
+    public function refreshLegalTexts(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        Artisan::call('legal:refresh');
+        ActivityLog::record('setting.updated', 'Yasal metinler güncel şablonla yenilendi', auth()->id(), null, []);
+        session()->flash('success_message', 'Yasal metinler güncel şablonla yenilendi; sözleşme sayfaları şirket künyesini panelden alıyor.');
     }
 
     private function normalizeLimit(string $key, string $raw): string
@@ -217,6 +292,8 @@ new class extends Component {
             'generalKeys' => self::GENERAL_KEYS,
             'limitLabels' => self::LIMIT_LABELS,
             'defaults' => Settings::DEFAULTS,
+            'companyLabels' => Company::LABELS,
+            'companyExtra' => self::COMPANY_EXTRA_KEYS,
             'payment' => [
                 'provider' => $gateway->label(),
                 'configured' => $payments->isConfigured(),
@@ -356,8 +433,35 @@ new class extends Component {
                 <span class="font-mono break-all">{{ $payment['webhook'] }}</span>
                 <span class="text-[11px] text-neutral-400 block">Eski adres de çalışır: {{ $payment['legacy_webhook'] }}</span>
             </div>
-            <p class="text-[11px] text-neutral-400">Anahtarlar yalnız sunucudaki .env dosyasında tutulur (PAYMENT_PROVIDER, PAYTR_MERCHANT_ID/KEY/SALT, PAYTR_SANDBOX_MODE); değişiklik sonrası <code>php artisan config:cache</code>. Yeni bir sağlayıcıyla anlaşıldığında yalnız bir adaptör eklenir; sipariş, fatura, defter ve bildirim akışı değişmez.</p>
+            <p class="text-[11px] text-neutral-400">Yalnız ödeme kuruluşunun gizli anahtarları sunucudaki .env dosyasında tutulur (PAYTR_MERCHANT_ID/KEY/SALT, PAYTR_SANDBOX_MODE); bunlar sözleşme imzalanınca bir kez girilir. Diğer her şey bu sayfadan yönetilir. Yeni bir sağlayıcıyla anlaşıldığında yalnız bir adaptör eklenir; sipariş, fatura, defter ve bildirim akışı değişmez.</p>
         </div>
+
+        <form wire:submit="saveCompany" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div>
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Şirket künyesi</h2>
+                <p class="text-[11px] text-neutral-400 mt-1">Altbilgi, iletişim sayfası, e-postalar ve beş yasal metin bu bilgileri kullanır. Boş bırakılan alan koddaki varsayılana döner; sunucuda dosya düzenlemek gerekmez.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                @foreach($companyLabels as $key => $label)
+                    <div class="{{ in_array($key, ['name', 'address'], true) ? 'sm:col-span-2' : '' }}">
+                        <label class="form-label">{{ $label }}</label>
+                        <input type="text" wire:model="company.{{ $key }}" class="{{ $input }}" placeholder="{{ $key === 'mersis_no' ? '16 haneli MERSİS numarası' : '' }}">
+                        @error('company.'.$key)<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+                @foreach($companyExtra as $key => $label)
+                    <div>
+                        <label class="form-label">{{ $label }}</label>
+                        <input type="text" wire:model="company.{{ $key }}" class="{{ $input }}" placeholder="{{ $key === 'etbis_code' ? 'etbis.ticaret.gov.tr kaydından sonra' : '' }}">
+                        @error('company.'.$key)<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+            </div>
+            <div class="flex flex-wrap gap-3 items-center">
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+                <button type="button" wire:click="refreshLegalTexts" wire:confirm="Beş yasal metin koddaki güncel şablonla değiştirilecek; İçerik ve CMS'den yapılmış el düzenlemeleri silinir. Devam edilsin mi?" wire:loading.attr="disabled" class="btn-apple-secondary py-2.5 px-5 text-xs">Yasal metinleri güncel şablonla yenile</button>
+            </div>
+        </form>
 
         <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
             <div class="flex items-center justify-between gap-3">

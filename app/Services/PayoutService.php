@@ -8,6 +8,7 @@ use App\Models\Load;
 use App\Models\Payout;
 use App\Models\User;
 use App\Payments\GatewayManager;
+use App\Support\Settings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -63,7 +64,7 @@ class PayoutService
 
         // Platform hizmet bedeli faturası (şoföre); numara e-belge sağlayıcısı bağlanınca yazılır.
         if ($commission > 0) {
-            $vatRate = (float) config('services.payment.vat_rate', 20);
+            $vatRate = Settings::float('payment_vat_rate');
             $base = round($commission / (1 + $vatRate / 100), 2);
             Invoice::firstOrCreate(['payout_id' => $payout->id, 'invoice_type' => 'commission'], [
                 'user_id' => $driver->user_id,

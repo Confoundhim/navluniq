@@ -54,7 +54,6 @@ return [
     // Etkin ödeme kuruluşu: paytr (GatewayManager::REGISTRY). Anahtarlar boşsa ödeme kapalı kalır.
     'payment' => [
         'provider' => env('PAYMENT_PROVIDER', 'paytr'),
-        'vat_rate' => (float) env('PAYMENT_VAT_RATE', 20),
     ],
 
     'paytr' => [

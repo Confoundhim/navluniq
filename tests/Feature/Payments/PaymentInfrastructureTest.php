@@ -3,6 +3,7 @@
 namespace Tests\Feature\Payments;
 
 use App\Models\CargoOwnerProfile;
+use App\Models\CmsContent;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
 use App\Models\Invoice;
@@ -26,12 +27,14 @@ use App\Services\PaymentService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
+use App\Support\Company;
 use App\Support\PaymentReadiness;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -309,13 +312,19 @@ class PaymentInfrastructureTest extends TestCase
 
     public function test_readiness_checklist_flags_missing_company_info_and_escrow_wording(): void
     {
-        config(['company.name' => '', 'company.address' => '', 'app.url' => 'http://navluniq.test']);
+        config(['app.url' => 'http://navluniq.test']);
         $checks = PaymentReadiness::checks();
         $byLabel = collect($checks)->keyBy('label');
-        $this->assertFalse($byLabel['Şirket unvanı']['ok']);
+        $this->assertTrue($byLabel['Şirket unvanı']['ok'], 'Unvan koddaki varsayılandan dolu gelmeli');
+        $this->assertFalse($byLabel['MERSİS numarası']['ok']);
         $this->assertFalse($byLabel['HTTPS adres']['ok']);
         $this->assertTrue($byLabel['Anahtarlar tanımlı']['ok']);
-        $this->assertNotNull($byLabel['Şirket unvanı']['fix']);
+        $this->assertNotNull($byLabel['MERSİS numarası']['fix']);
+
+        CmsContent::setVal('company_mersis_no', '0123456789012345');
+        CmsContent::setVal('company_name', 'Panelden Girilen A.Ş.');
+        $this->assertSame('Panelden Girilen A.Ş.', Company::get('name'));
+        $this->assertTrue(collect(PaymentReadiness::checks())->keyBy('label')['MERSİS numarası']['ok']);
         $summary = PaymentReadiness::summary($checks);
         $this->assertLessThan($summary['total'], $summary['ok']);
     }
@@ -326,7 +335,7 @@ class PaymentInfrastructureTest extends TestCase
         $old = ScrapedLoad::create(['scraper_id' => $scraper->id, 'raw_message' => 'eski', 'pickup_location' => 'Ankara', 'delivery_location' => 'İzmir',
             'status' => 'parsed_success', 'visibility' => 'public', 'message_id' => 'a', 'retention_expires_at' => now()->subDay()]);
         $fresh = ScrapedLoad::create(['scraper_id' => $scraper->id, 'raw_message' => 'yeni tenteli 0532 123 45 67', 'pickup_location' => 'Ankara', 'delivery_location' => 'İzmir',
-            'pickup_province_code' => 6, 'delivery_province_code' => 35, 'encrypted_sender_phone' => \Illuminate\Support\Facades\Crypt::encryptString('5321234567'),
+            'pickup_province_code' => 6, 'delivery_province_code' => 35, 'encrypted_sender_phone' => Crypt::encryptString('5321234567'),
             'status' => 'parsed_partial', 'visibility' => 'private', 'message_id' => 'b', 'retention_expires_at' => now()->addDays(20)]);
 
         $service = app(ScrapedLoadService::class);
@@ -340,7 +349,7 @@ class PaymentInfrastructureTest extends TestCase
         $this->assertNull($service->autoApprovalBlocker($fresh));
 
         $unresolved = ScrapedLoad::create(['scraper_id' => $scraper->id, 'raw_message' => 'x 0532 123 45 67', 'pickup_location' => 'Bilinmezköy', 'delivery_location' => 'İzmir',
-            'encrypted_sender_phone' => \Illuminate\Support\Facades\Crypt::encryptString('5321234567'), 'vehicle_type' => 'tir',
+            'encrypted_sender_phone' => Crypt::encryptString('5321234567'), 'vehicle_type' => 'tir',
             'status' => 'parsed_partial', 'visibility' => 'private', 'message_id' => 'c']);
         $this->assertSame('il çözülemedi', $service->autoApprovalBlocker($unresolved));
     }

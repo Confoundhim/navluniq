@@ -80,7 +80,7 @@ class extends Component {
     {
         return [
             'price' => app(SubscriptionService::class)->monthlyPrice(),
-            'vatRate' => (float) config('services.payment.vat_rate', 20),
+            'vatRate' => \App\Support\Settings::float('payment_vat_rate'),
             'premiumUntil' => Auth::user()->driverProfile?->premium_until,
         ];
     }

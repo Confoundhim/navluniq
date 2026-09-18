@@ -103,7 +103,7 @@ class SubscriptionService
             $profile->update(['premium_until' => $end]);
 
             // KDV dahil fiyattan matrah ayrıştırılır; fatura numarası e-belge sağlayıcısı bağlanınca yazılır.
-            $vatRate = (float) config('services.payment.vat_rate', 20);
+            $vatRate = Settings::float('payment_vat_rate');
             $total = round((float) $order->amount, 2);
             $base = round($total / (1 + $vatRate / 100), 2);
             Invoice::create([
@@ -122,7 +122,7 @@ class SubscriptionService
         });
 
         try {
-            $vatRate = (float) config('services.payment.vat_rate', 20);
+            $vatRate = Settings::float('payment_vat_rate');
             $total = round((float) $order->amount, 2);
             $base = round($total / (1 + $vatRate / 100), 2);
             $this->ledger->post('subscription_in', 'Premium abonelik #'.$order->id, array_values(array_filter([

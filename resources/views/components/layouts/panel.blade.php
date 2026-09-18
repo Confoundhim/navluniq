@@ -134,7 +134,7 @@
         </main>
 
         <footer class="py-4 px-4 text-center text-xs text-neutral-500 border-t border-neutral-200 dark:border-neutral-800 safe-bottom">
-            &copy; {{ date('Y') }} {{ config('company.name') ?: $appName }}
+            &copy; {{ date('Y') }} {{ \App\Support\Company::get('name') ?: $appName }}
         </footer>
     </div>
 

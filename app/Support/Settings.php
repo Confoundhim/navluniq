@@ -16,6 +16,7 @@ final class Settings
         'offer_validity_days' => 2,             // Teklif geçerlilik süresi (gün)
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
+        'payment_vat_rate' => 20.0,             // Abonelik ve hizmet bedeli faturalarında KDV oranı (%)
 
         // Dış kaynak ilanları
         'scraper_free_delay_minutes' => 20,     // Onaylanan ilanın ücretsiz üyelere açılma gecikmesi (dk)

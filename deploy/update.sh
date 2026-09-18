@@ -46,8 +46,9 @@ php artisan scraped-loads:classify --no-interaction || true
 
 log "Roller ve izinler"
 php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder --quiet
-# SSS ve sözleşme metinleri panelden düzenlenebildiği için otomatik yenilenmez.
-# Koddaki güncel metinleri yüklemek için: php artisan db:seed --class=FaqSeeder --force
+# Sözleşme metinleri: künye yer tutucusu taşımayan eski biçim varsa güncel şablonla bir kez yenilenir; sonrası panelden.
+php artisan legal:refresh --if-stale --no-interaction || true
+# SSS panelden düzenlenebildiği için otomatik yenilenmez: php artisan db:seed --class=FaqSeeder --force
 
 log "PHP sınırları"
 PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
