@@ -56,7 +56,7 @@ new class extends Component {
         }
         RateLimiter::hit($key, 600);
 
-        SupportTicket::create([
+        $ticket = SupportTicket::create([
             'user_id' => Auth::id(),
             'name' => trim($this->name),
             'email' => mb_strtolower(trim($this->email)),
@@ -67,6 +67,21 @@ new class extends Component {
             'message' => trim($this->message),
             'status' => 'open',
         ]);
+
+        $notifications = app(\App\Services\NotificationService::class);
+        $confirmLines = ['Talebiniz alındı ve destek ekibimize iletildi. Konu: '.$ticket->subject.' (talep no #'.$ticket->id.').', 'Genellikle 1 iş günü içinde e-posta ile yanıt veriyoruz. Acil durumlar için WhatsApp destek hattımızı kullanabilirsiniz.'];
+        if (Auth::user()) {
+            $notifications->notify(Auth::user(), 'Destek talebiniz alındı', $confirmLines, null, null, 'support');
+        } else {
+            try {
+                \Illuminate\Support\Facades\Mail::to($ticket->email, $ticket->name)->send(new \App\Mail\SystemNoticeMail('Destek talebiniz alındı', $confirmLines, null, null, $ticket->name));
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Destek talebi onay e-postası gönderilemedi.', ['ticket_id' => $ticket->id, 'error' => $e->getMessage()]);
+            }
+        }
+        $notifications->notifyAdmins('manage support tickets', 'Yeni destek talebi',
+            ['#'.$ticket->id.' · '.$ticket->subject.' · '.$ticket->name.' ('.(SupportTicket::ROLE_LABELS[$ticket->role] ?? $ticket->role).')', mb_substr($ticket->message, 0, 300)],
+            route('admin.disputes'), 'Talebi yanıtla', 'admin');
 
         $this->reset(['message']);
         if (! Auth::check()) {

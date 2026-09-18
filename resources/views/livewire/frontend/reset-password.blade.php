@@ -50,6 +50,10 @@ new class extends Component {
                 ])->save();
 
                 event(new PasswordReset($user));
+                app(\App\Services\NotificationService::class)->notify($user, 'Şifreniz değiştirildi',
+                    ['Hesabınızın şifresi az önce sıfırlama bağlantısıyla değiştirildi ('.now()->format('d.m.Y H:i').').',
+                     'Bu işlemi siz yapmadıysanız hemen "Şifremi unuttum" ile yeni şifre belirleyin ve destek ekibimize yazın.'],
+                    route('login'), 'Giriş yap', 'security');
             }
         );
 

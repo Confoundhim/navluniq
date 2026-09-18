@@ -10,6 +10,7 @@ use App\Models\Offer;
 use App\Models\OutboxEvent;
 use App\Models\Shipment;
 use App\Support\Settings;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -17,6 +18,9 @@ use RuntimeException;
 class OfferService
 {
     public function __construct(private readonly NotificationService $notifications) {}
+
+    /** accept() içinde reddedilen diğer teklifler; işlem bitince sahipleri bilgilendirilir. */
+    private ?Collection $pendingLosers = null;
 
     /** Şoför bir ilana teklif verir; ilan başına tek aktif teklif tutulur. */
     public function submit(DriverProfile $driver, Load $load, float $amount, ?string $message = null, ?int $estimatedDays = null): Offer
@@ -66,7 +70,8 @@ class OfferService
                     'İlanınıza yeni teklif geldi',
                     ["{$locked->pickup_location} → {$locked->delivery_location} ilanınıza ".number_format($offer->amount, 2, ',', '.').' ₺ tutarında yeni bir teklif verildi.'],
                     route('cargo-owner.loads.offers', $locked->id),
-                    'Teklifleri incele'
+                    'Teklifleri incele',
+                    'offer'
                 );
             }
 
@@ -81,6 +86,13 @@ class OfferService
         }
 
         $offer->update(['status' => 'withdrawn', 'responded_at' => now()]);
+
+        if ($ownerUser = $offer->cargoLoad?->cargoOwnerProfile?->user) {
+            $load = $offer->cargoLoad;
+            $this->notifications->notify($ownerUser, 'Bir teklif geri çekildi',
+                ["{$load->pickup_location} → {$load->delivery_location} ilanınıza verilen ".number_format((float) $offer->amount, 2, ',', '.').' ₺ tutarındaki teklif şoför tarafından geri çekildi.'],
+                route('cargo-owner.loads.offers', $load->id), 'Teklifleri incele', 'offer', sendMail: false);
+        }
     }
 
     public function reject(Offer $offer, int $ownerUserId): void
@@ -90,6 +102,13 @@ class OfferService
         }
 
         $offer->update(['status' => 'rejected', 'responded_at' => now()]);
+
+        if ($driverUser = $offer->driverProfile?->user) {
+            $load = $offer->cargoLoad;
+            $this->notifications->notify($driverUser, 'Teklifiniz kabul edilmedi',
+                ["{$load->pickup_location} → {$load->delivery_location} ilanına verdiğiniz ".number_format((float) $offer->amount, 2, ',', '.').' ₺ tutarındaki teklif yük sahibi tarafından kabul edilmedi.', 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                route('driver.loads.index'), 'İlan havuzuna git', 'offer');
+        }
     }
 
     /** Teklif kabulü: şoför atanır, diğer teklifler reddedilir, sevkiyat ve mesajlaşma kaydı açılır. */
@@ -118,8 +137,9 @@ class OfferService
             }
 
             $lockedOffer->update(['status' => 'accepted', 'responded_at' => now()]);
-            Offer::query()->where('load_id', $lockedLoad->id)->whereKeyNot($lockedOffer->id)->where('status', 'pending')
-                ->update(['status' => 'rejected', 'responded_at' => now()]);
+            $others = Offer::query()->with('driverProfile.user')->where('load_id', $lockedLoad->id)->whereKeyNot($lockedOffer->id)->where('status', 'pending')->get();
+            Offer::query()->whereIn('id', $others->pluck('id'))->update(['status' => 'rejected', 'responded_at' => now()]);
+            $this->pendingLosers = $others;
 
             $lockedLoad->update([
                 'driver_profile_id' => $lockedOffer->driver_profile_id,
@@ -160,9 +180,19 @@ class OfferService
                 'Teklifiniz kabul edildi',
                 ['Teklifiniz yük sahibi tarafından kabul edildi. Yük sahibi navlun ödemesini yaptığında sevkiyat sayfasından yola çıkabileceksiniz.'],
                 route('driver.shipments.show', $shipment->load_id),
-                'Sevkiyatı görüntüle'
+                'Sevkiyatı görüntüle',
+                'offer'
             );
         }
+
+        foreach ($this->pendingLosers ?? [] as $lost) {
+            if ($lostUser = $lost->driverProfile?->user) {
+                $this->notifications->notify($lostUser, 'İlan başka bir şoföre verildi',
+                    ["{$load->pickup_location} → {$load->delivery_location} ilanı için yük sahibi başka bir teklifi kabul etti; teklifiniz kapandı.", 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                    route('driver.loads.index'), 'İlan havuzuna git', 'offer');
+            }
+        }
+        $this->pendingLosers = null;
 
         return $shipment;
     }
@@ -170,7 +200,22 @@ class OfferService
     /** Süresi geçmiş bekleyen teklifleri kapatır (zamanlanmış görev). */
     public function expireStale(): int
     {
-        return Offer::query()->where('status', 'pending')->whereNotNull('expires_at')->where('expires_at', '<', now())
-            ->update(['status' => 'expired', 'responded_at' => now()]);
+        $stale = Offer::query()->with(['driverProfile.user', 'cargoLoad'])->where('status', 'pending')->whereNotNull('expires_at')->where('expires_at', '<', now())->get();
+        if ($stale->isEmpty()) {
+            return 0;
+        }
+
+        $count = Offer::query()->whereIn('id', $stale->pluck('id'))->update(['status' => 'expired', 'responded_at' => now()]);
+
+        foreach ($stale as $offer) {
+            $load = $offer->cargoLoad;
+            if ($load && ($driverUser = $offer->driverProfile?->user)) {
+                $this->notifications->notify($driverUser, 'Teklifinizin süresi doldu',
+                    ["{$load->pickup_location} → {$load->delivery_location} ilanına verdiğiniz teklif yanıtlanmadan süresi doldu. İlan hâlâ açıksa yeni teklif verebilirsiniz."],
+                    route('driver.loads.index'), 'İlan havuzuna git', 'offer', sendMail: false);
+            }
+        }
+
+        return $count;
     }
 }

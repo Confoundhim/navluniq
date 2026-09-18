@@ -254,6 +254,10 @@ new class extends Component {
 
         Auth::login($user, true);
         request()->session()->regenerate();
+        app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
+            ['Yük sahibi hesabınız doğrulandı. İlk ilanınızı oluşturun; belgeleri onaylı şoförlerden teklif almaya hemen başlayın.',
+             'Kimlik (kurumsal hesapta vergi levhası) belgenizi profilinizden yükleyerek doğrulamanızı tamamlayın; teklif kabul ve ödeme adımı için gereklidir.'],
+            route('cargo-owner.loads.create'), 'İlan oluştur', 'welcome');
         session()->flash('success', 'Yük sahibi hesabınız doğrulandı.');
 
         return $this->redirect(route('cargo-owner.dashboard'), navigate: true);

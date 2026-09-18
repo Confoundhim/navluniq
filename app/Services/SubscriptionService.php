@@ -7,6 +7,7 @@ use App\Models\PaymentOrder;
 use App\Models\Subscription;
 use App\Models\SubscriptionCycle;
 use App\Models\User;
+use App\Models\UserNotification;
 use App\Support\Settings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -136,7 +137,7 @@ class SubscriptionService
 
         $this->notifications->notify($user, 'Premium üyeliğiniz etkinleşti',
             ['Premium üyeliğiniz '.$profile->fresh()->premium_until?->format('d.m.Y H:i').' tarihine kadar geçerli. Onaylı dış kaynak ilanlarını artık herkesten önce, ilan sahibinin numarasıyla görüyorsunuz.'],
-            route('driver.loads.index', ['tab' => 'external']), 'İlanlara git');
+            route('driver.loads.index', ['tab' => 'external']), 'İlanlara git', 'subscription');
 
         return $subscription;
     }
@@ -144,8 +145,47 @@ class SubscriptionService
     /** Süresi dolan abonelikleri kapatır (zamanlanmış görev). premium_until zaten geçmişte olduğu için erişim kendiliğinden düşer. */
     public function expireDue(): int
     {
-        return Subscription::query()->where('status', 'active')
-            ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '<', now())
-            ->update(['status' => 'expired', 'ended_at' => now()]);
+        $due = Subscription::query()->with('user')->where('status', 'active')
+            ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '<', now())->get();
+        if ($due->isEmpty()) {
+            return 0;
+        }
+
+        $count = Subscription::query()->whereIn('id', $due->pluck('id'))->update(['status' => 'expired', 'ended_at' => now()]);
+
+        foreach ($due as $subscription) {
+            if ($user = $subscription->user) {
+                $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi',
+                    ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.', 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
+                    route('driver.premium.index'), 'Premium\'u yeniden başlat', 'subscription');
+            }
+        }
+
+        return $count;
+    }
+
+    /** Bitişine belirli gün kalan premium üyeler için tek seferlik hatırlatma (zamanlanmış görev). */
+    public function remindExpiring(int $daysBefore = 3): int
+    {
+        $window = [now()->startOfDay(), now()->addDays($daysBefore)->endOfDay()];
+        $sent = 0;
+        Subscription::query()->with('user')->where('status', 'active')->whereBetween('current_period_ends_at', $window)
+            ->get()->each(function (Subscription $subscription) use (&$sent): void {
+                $user = $subscription->user;
+                if (! $user) {
+                    return;
+                }
+                $already = UserNotification::query()->where('user_id', $user->id)->where('type', 'subscription')
+                    ->where('title', 'Premium üyeliğiniz yakında sona eriyor')->where('created_at', '>=', now()->subDays(10))->exists();
+                if ($already) {
+                    return;
+                }
+                $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
+                    ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Üyelik otomatik yenilenmez.', 'Kesinti olmaması için şimdi 1 ay daha uzatabilirsiniz; süre mevcut dönemin bitiminden itibaren eklenir.'],
+                    route('driver.premium.checkout'), '1 ay daha uzat', 'subscription');
+                $sent++;
+            });
+
+        return $sent;
     }
 }

@@ -125,6 +125,7 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/kyc', function () {
             return view('admin.kyc-page');
         })->name('admin.kyc');
+        Volt::route('/notifications', 'admin.notifications.index')->name('admin.notifications');
         Route::get('/operations', function () {
             return view('admin.operations-page');
         })->name('admin.operations');
@@ -193,6 +194,7 @@ Route::middleware(['auth', EnsureCargoOwner::class])->prefix('panel/yuk-sahibi')
     Volt::route('/destek', 'cargo-owner.support.index')->name('support.index');
     Volt::route('/adres-defteri', 'cargo-owner.address-book.index')->name('address-book.index');
     Volt::route('/profil', 'cargo-owner.profile.index')->name('profile.index');
+    Volt::route('/bildirimler', 'cargo-owner.notifications.index')->name('notifications.index');
 });
 
 // =========================================================
@@ -215,4 +217,5 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Volt::route('/uyusmazliklar', 'driver.disputes.index')->name('disputes.index');
     Volt::route('/araclarim', 'driver.vehicles.index')->name('vehicles.index');
     Volt::route('/profil', 'driver.profile.index')->name('profile.index');
+    Volt::route('/bildirimler', 'driver.notifications.index')->name('notifications.index');
 });

@@ -41,7 +41,7 @@ class OtpService
         ])->save();
 
         try {
-            Mail::to($user->email)->send(new UserOtpMail($code, $purpose));
+            Mail::to($user->email)->send(new UserOtpMail($code, $purpose, $user->first_name));
         } catch (\Throwable $e) {
             $this->clear($user);
             Log::error('OTP e-postası gönderilemedi.', ['user_id' => $user->id, 'context' => $context, 'error' => $e->getMessage()]);

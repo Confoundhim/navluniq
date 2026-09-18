@@ -90,7 +90,7 @@ new class extends Component {
             if ($owner = $load->cargoOwnerProfile?->user) {
                 app(NotificationService::class)->notify($owner, 'İlanınız yönetici tarafından kaldırıldı',
                     ["#{$load->id} numaralı ilanınız platform kuralları gereği yayından kaldırıldı.", 'Gerekçe: '.$this->suspendReason],
-                    route('cargo-owner.loads.index'), 'İlanlarımı gör');
+                    route('cargo-owner.loads.index'), 'İlanlarımı gör', 'load');
             }
 
             $this->suspendReason = '';

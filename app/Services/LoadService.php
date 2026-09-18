@@ -6,6 +6,7 @@ use App\Models\CargoOwnerProfile;
 use App\Models\Load;
 use App\Models\Shipment;
 use App\Support\Settings;
+use App\Support\TurkishLocations;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -22,8 +23,8 @@ class LoadService
         }
 
         // Adres metninden il/ilçe ve koordinat çözümlenir; koordinat açıkça verildiyse o korunur.
-        $pickupGeo = \App\Support\TurkishLocations::resolve($data['pickup_location'] ?? null);
-        $deliveryGeo = \App\Support\TurkishLocations::resolve($data['delivery_location'] ?? null);
+        $pickupGeo = TurkishLocations::resolve($data['pickup_location'] ?? null);
+        $deliveryGeo = TurkishLocations::resolve($data['delivery_location'] ?? null);
 
         return DB::transaction(function () use ($owner, $data, $eIrsaliyeFile, $pickupGeo, $deliveryGeo): Load {
             $load = Load::create([
@@ -82,7 +83,8 @@ class LoadService
     /** Ödeme alınmamış bir ilanı iptal eder; bekleyen teklifler reddedilir. */
     public function cancel(Load $load, CargoOwnerProfile $owner, ?string $reason = null): void
     {
-        DB::transaction(function () use ($load, $owner, $reason): void {
+        $affected = collect();
+        DB::transaction(function () use ($load, $owner, $reason, &$affected): void {
             $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
 
             if ($locked->cargo_owner_profile_id !== $owner->id) {
@@ -96,6 +98,7 @@ class LoadService
                 throw new RuntimeException('Ödemesi yapılmış veya yola çıkmış bir sevkiyat buradan iptal edilemez. Lütfen destek ekibiyle iletişime geçin.');
             }
 
+            $affected = $locked->offers()->with('driverProfile.user')->whereIn('status', ['pending', 'accepted'])->get();
             $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
             $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
             $locked->update([
@@ -105,6 +108,16 @@ class LoadService
                 'visibility' => 'private',
             ]);
         });
+
+        $notifications = app(NotificationService::class);
+        foreach ($affected as $offer) {
+            if ($driverUser = $offer->driverProfile?->user) {
+                $notifications->notify($driverUser, 'İlan iptal edildi',
+                    ["{$load->pickup_location} → {$load->delivery_location} ilanı yük sahibi tarafından iptal edildi; ".($offer->status === 'accepted' ? 'kabul edilmiş teklifiniz ve sevkiyat kaydı kapandı.' : 'teklifiniz kapandı.'),
+                        $reason ? 'Yük sahibinin açıklaması: '.mb_substr($reason, 0, 300) : 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                    route('driver.loads.index'), 'İlan havuzuna git', 'load');
+            }
+        }
     }
 
     public function eIrsaliyeExists(Load $load): bool
