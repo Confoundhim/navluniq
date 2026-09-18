@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\Invoice;
 use App\Models\Load;
 use App\Models\Payout;
 use App\Models\User;
+use App\Payments\GatewayManager;
+use App\Support\Settings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -15,6 +18,7 @@ class PayoutService
     public function __construct(
         private readonly LedgerService $ledger,
         private readonly NotificationService $notifications,
+        private readonly GatewayManager $gateways,
     ) {}
 
     /** Onaylanmış teslimat için hakediş kaydı (ilan başına tek). */
@@ -58,13 +62,65 @@ class PayoutService
             Log::error('Hakediş tahakkuku muhasebeye yazılamadı.', ['payout' => $payout->id, 'error' => $e->getMessage()]);
         }
 
+        // Platform hizmet bedeli faturası (şoföre); numara e-belge sağlayıcısı bağlanınca yazılır.
+        if ($commission > 0) {
+            $vatRate = Settings::float('payment_vat_rate');
+            $base = round($commission / (1 + $vatRate / 100), 2);
+            Invoice::firstOrCreate(['payout_id' => $payout->id, 'invoice_type' => 'commission'], [
+                'user_id' => $driver->user_id,
+                'base_amount' => $base,
+                'tax_amount' => round($commission - $base, 2),
+                'total_amount' => $commission,
+                'currency' => 'TRY',
+                'tax_rate' => $vatRate,
+                'status' => 'pending',
+            ]);
+        }
+
+        // Pazaryeri modelinde ödeme kuruluşu alt üye işyerine aktarımı yapar; desteklenmiyorsa finans ekibi banka transferi yapar.
+        $this->releaseViaGateway($payout);
+
         return $payout;
+    }
+
+    /**
+     * Etkin ödeme kuruluşu alt üye işyeri aktarımını destekliyorsa ve şoför kayıtlıysa hakedişi aktarır.
+     * Başarılıysa payout otomatik "paid" olur; aksi halde manuel süreçte kalır.
+     */
+    public function releaseViaGateway(Payout $payout): bool
+    {
+        $gateway = $this->gateways->active();
+        $driver = $payout->user?->driverProfile;
+        if (! $gateway->supportsSubMerchants() || ! $driver?->payout_provider_ref || $driver->payout_provider !== $gateway->id()) {
+            return false;
+        }
+        if (! in_array($payout->status, ['pending', 'failed'], true)) {
+            return false;
+        }
+
+        $payout->update(['status' => 'processing', 'channel' => 'gateway']);
+        $result = $gateway->transferToSubMerchant($payout, (string) $driver->payout_provider_ref);
+        if (! $result->succeeded) {
+            $payout->update(['status' => 'pending', 'failure_reason' => mb_substr((string) $result->failureMessage, 0, 500)]);
+            Log::warning('Ödeme kuruluşu aktarımı başarısız; manuel sürece düştü.', ['payout' => $payout->id, 'error' => $result->failureMessage]);
+
+            return false;
+        }
+
+        $this->settle($payout, 'gateway', (string) ($result->reference ?: $gateway->id().':'.now()->timestamp), null);
+
+        return true;
     }
 
     /** Finans ekibi banka transferini tamamladığında çağrılır. */
     public function markPaid(Payout $payout, User $admin, string $reference): void
     {
-        DB::transaction(function () use ($payout, $admin, $reference): void {
+        $this->settle($payout, 'manual', $reference, $admin);
+    }
+
+    private function settle(Payout $payout, string $channel, string $reference, ?User $admin): void
+    {
+        DB::transaction(function () use ($payout, $channel, $reference, $admin): void {
             $locked = Payout::query()->lockForUpdate()->findOrFail($payout->id);
             if (! in_array($locked->status, ['pending', 'processing', 'failed'], true)) {
                 throw new RuntimeException('Bu hakediş zaten sonuçlandırılmış.');
@@ -73,14 +129,16 @@ class PayoutService
             $bankAccount = $locked->bankAccount ?? $locked->user?->defaultBankAccount;
             $locked->update([
                 'status' => 'paid',
+                'channel' => $channel,
                 'paid_at' => now(),
                 'reference_no' => mb_substr(trim($reference), 0, 120),
+                'failure_reason' => null,
                 'bank_account_id' => $bankAccount?->id ?? $locked->bank_account_id,
             ]);
 
             Load::query()->whereKey($locked->load_id)->update(['escrow_status' => Load::ESCROW_RELEASED]);
 
-            ActivityLog::record('payout.paid', "Hakediş #{$locked->id} ödendi ({$reference})", $admin->id, $locked);
+            ActivityLog::record('payout.paid', "Hakediş #{$locked->id} ödendi ({$channel}: {$reference})", $admin?->id, $locked);
         });
 
         try {

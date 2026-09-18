@@ -53,27 +53,27 @@
 
             <!-- 1. KVKK -->
             <div x-show="activeTab === 'kvkk'" x-cloak class="space-y-4 animate-fade-in">
-                @php($html = \App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_kvkk')))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
+                @php($html = \App\Support\Company::fillTokens(\App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_kvkk'))))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
             </div>
 
             <!-- 2. KULLANICI SÖZLEŞMESİ -->
             <div x-show="activeTab === 'kullanici-sozlesmesi'" x-cloak class="space-y-4 animate-fade-in">
-                @php($html = \App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_terms')))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
+                @php($html = \App\Support\Company::fillTokens(\App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_terms'))))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
             </div>
 
             <!-- 3. GİZLİLİK POLİTİKASI -->
             <div x-show="activeTab === 'gizlilik-politikasi'" x-cloak class="space-y-4 animate-fade-in">
-                @php($html = \App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_privacy')))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
+                @php($html = \App\Support\Company::fillTokens(\App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_privacy'))))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
             </div>
 
             <!-- 4. MESAFELİ SATIŞ SÖZLEŞMESİ -->
             <div x-show="activeTab === 'mesafeli-satis'" x-cloak class="space-y-4 animate-fade-in">
-                @php($html = \App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_distance_sale')))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
+                @php($html = \App\Support\Company::fillTokens(\App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_distance_sale'))))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
             </div>
 
             <!-- 5. İADE VE İPTAL POLİTİKASI -->
             <div x-show="activeTab === 'iade-politikasi'" x-cloak class="space-y-4 animate-fade-in">
-                @php($html = \App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_cancellation')))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
+                @php($html = \App\Support\Company::fillTokens(\App\Support\HtmlSanitizer::clean(\App\Models\CmsContent::getVal('contract_cancellation'))))@if(filled($html)){!! $html !!}@else<p class=\"text-sm text-neutral-500\">Bu metin henüz yayınlanmadı.</p>@endif
             </div>
 
         </div>

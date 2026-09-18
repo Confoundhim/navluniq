@@ -43,7 +43,7 @@ Her adımdaki durumlar `App\Models\Load` sabitlerinde tanımlıdır.
 
 ## Dış servisler
 
-PayTR, NetGSM, NVİ ve yapay zekâ ayrıştırma anahtarları `.env` içinde boşken ilgili özellik güvenli biçimde devre dışı kalır; hiçbir işlem sahte olarak "başarılı" işaretlenmez. PayTR mağaza panelinde bildirim adresi olarak `https://alanadiniz.com/odeme/paytr/bildirim` tanımlanmalıdır.
+PayTR, NetGSM, NVİ ve yapay zekâ ayrıştırma anahtarları `.env` içinde boşken ilgili özellik güvenli biçimde devre dışı kalır; hiçbir işlem sahte olarak "başarılı" işaretlenmez. Ödeme kuruluşu panelinde sunucu bildirimi adresi olarak `https://alanadiniz.com/odeme/bildirim/paytr` tanımlanmalıdır (eski `/odeme/paytr/bildirim` de çalışır). Mimari ve yeni sağlayıcı ekleme: `docs/ODEME_ALTYAPISI.md`.
 
 Dış kaynak ilanları için önerilen kanal Android bildirim ileticisidir; kurulum `docs/BILDIRIM_ILETICI_KURULUM.md` dosyasında anlatılır. `whatsapp-scraper-daemon/` klasörü, izinli WhatsApp gruplarındaki yük ilanlarını webhook ucuna ileten ayrı bir Node.js servisidir; kurulumu kendi README dosyasında anlatılır.
 
@@ -71,8 +71,9 @@ derlemeyi yeniler, migration'ları uygular, önbellekleri tazeler.
 bash /var/www/navluniq/deploy/update.sh
 ```
 
-Kurulumdan sonra `.env` içinde `MAIL_*` (OTP e-postaları için şart) ve `COMPANY_*` alanları
-doldurulup `php artisan config:cache` çalıştırılır. PayTR, NetGSM ve yapay zeka anahtarları
+Kurulumdan sonra `.env` içinde `MAIL_*` (OTP e-postaları için şart) doldurulup `php artisan config:cache`
+çalıştırılır. Şirket künyesi (unvan, adres, vergi, MERSİS, ETBİS) ve KDV oranı yönetici panelinden
+(Sistem Ayarları → Ödeme altyapısı) girilir; `.env` gerekmez. PayTR, NetGSM ve yapay zeka anahtarları
 hazır olduğunda aynı dosyaya eklenir.
 
 Kuyruk kullanılmaz; e-postalar eşzamanlı gönderilir. Uygulama bir yük dengeleyici veya CDN arkasındaysa `bootstrap/app.php` içinde `trustProxies` tanımlanmalıdır; aksi halde güvenlik duvarı ve hız sınırlayıcı proxy IP'sini görür.

@@ -51,6 +51,11 @@ return [
         'claude_model' => env('CLAUDE_MODEL', 'claude-haiku-4-5'),
     ],
 
+    // Etkin ödeme kuruluşu: paytr (GatewayManager::REGISTRY). Anahtarlar boşsa ödeme kapalı kalır.
+    'payment' => [
+        'provider' => env('PAYMENT_PROVIDER', 'paytr'),
+    ],
+
     'paytr' => [
         'merchant_id' => env('PAYTR_MERCHANT_ID'),
         'merchant_key' => env('PAYTR_MERCHANT_KEY'),

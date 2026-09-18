@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
+use App\Http\Controllers\Payment\PaymentWebhookController;
 use App\Http\Controllers\Payment\PaytrController;
 use App\Http\Middleware\EnsureCargoOwner;
 use App\Http\Middleware\EnsureDriver;
@@ -80,9 +81,12 @@ Route::middleware('auth')->get('/panel', function () {
     return redirect()->route('cargo-owner.dashboard');
 })->name('panel');
 
-// Ödeme sağlayıcısı geri dönüşleri
+// Ödeme kuruluşu sunucu bildirimi (sağlayıcıdan bağımsız) ve eski PayTR adresleri
+Route::post('/odeme/bildirim/{provider}', [PaymentWebhookController::class, 'handle'])->whereAlpha('provider')->name('payment.webhook');
 Route::post('/odeme/paytr/bildirim', [PaytrController::class, 'callback'])->name('payment.paytr.callback');
 Route::middleware('auth')->group(function () {
+    // Kullanıcı ödeme ekranından döndüğünde: nihai durum yalnız sunucu bildirimiyle belirlenir, sayfa durumu sorgular.
+    Volt::route('/odeme/sonuc/{order}/{outcome}', 'payment.result')->whereIn('outcome', ['basarili', 'basarisiz'])->name('payment.result');
     Route::get('/odeme/paytr/basarili/{load}', [PaytrController::class, 'success'])->name('payment.paytr.success');
     Route::get('/odeme/paytr/basarisiz/{load}', [PaytrController::class, 'fail'])->name('payment.paytr.fail');
 
@@ -206,6 +210,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Volt::route('/sevkiyatlarim', 'driver.shipments.index')->name('shipments.index');
     Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show')->whereNumber('loadId');
     Volt::route('/premium', 'driver.premium.index')->name('premium.index');
+    Volt::route('/premium/odeme', 'driver.premium.checkout')->name('premium.checkout');
     Volt::route('/cuzdan', 'driver.wallet.index')->name('wallet.index');
     Volt::route('/uyusmazliklar', 'driver.disputes.index')->name('disputes.index');
     Volt::route('/araclarim', 'driver.vehicles.index')->name('vehicles.index');

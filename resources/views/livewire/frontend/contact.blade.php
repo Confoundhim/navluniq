@@ -161,20 +161,20 @@ new class extends Component {
                 <div class="space-y-3 text-neutral-600 dark:text-neutral-300">
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Müşteri Hizmetleri / Telefon</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.phone') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('phone') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">E-Posta Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.email') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('email') ?: 'Yakında' }}</span>
                     </div>
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Merkez Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ config('company.address') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('address') ?: 'Yakında' }}</span>
                     </div>
                 </div>
             </div>
 
-            @php $mapAddress = trim((string) config('company.address')); @endphp
+            @php $mapAddress = trim((string) \App\Support\Company::get('address')); @endphp
             @if($mapAddress !== '')
                 <div class="apple-glass rounded-3xl p-2 shadow-apple-md overflow-hidden">
                     <div class="relative rounded-2xl overflow-hidden bg-neutral-100 dark:bg-neutral-800" style="aspect-ratio: 4 / 3;">

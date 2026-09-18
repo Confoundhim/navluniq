@@ -7,19 +7,17 @@ use Illuminate\Database\Seeder;
 
 class CmsContractSeeder extends Seeder
 {
+    public const KEYS = ['contract_kvkk', 'contract_terms', 'contract_privacy', 'contract_distance_sale', 'contract_cancellation'];
+
     /**
-     * Beş yasal metni şirket künyesi (.env COMPANY_*) ile doldurarak yükler.
+     * Beş yasal metni yükler. Şirket künyesi yer tutucu olarak kalır ve gösterimde panelden doldurulur.
      * Metinler hukuk danışmanı onayından geçirilmelidir; bu seed yalnızca başlangıç içeriğidir.
      */
     public function run(): void
     {
+        // Şirket künyesi yer tutucuları ({{COMPANY_*}}) metinde saklanır; sayfada gösterilirken
+        // App\Support\Company::fillTokens() panelden yönetilen güncel künyeyle doldurur.
         $tokens = [
-            '{{COMPANY_NAME}}' => (string) config('company.name'),
-            '{{COMPANY_TAX_OFFICE}}' => (string) (config('company.tax_office') ?: '—'),
-            '{{COMPANY_TAX_NO}}' => (string) (config('company.tax_no') ?: '—'),
-            '{{COMPANY_ADDRESS}}' => (string) (config('company.address') ?: '—'),
-            '{{COMPANY_EMAIL}}' => (string) (config('company.email') ?: '—'),
-            '{{COMPANY_PHONE}}' => (string) (config('company.phone') ?: '—'),
             '{{LEGAL_DATE}}' => (string) (config('company.legal_effective_date') ?: now()->translatedFormat('d F Y')),
         ];
 

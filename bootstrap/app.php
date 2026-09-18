@@ -23,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(FirewallMiddleware::class);
 
         // Ödeme sağlayıcısı sunucudan sunucuya bildirir; CSRF yerine imza doğrulaması yapılır.
-        $middleware->validateCsrfTokens(except: ['odeme/paytr/bildirim']);
+        $middleware->validateCsrfTokens(except: ['odeme/paytr/bildirim', 'odeme/bildirim/*']);
 
         // Uygulama bir yük dengeleyici veya CDN arkasına alınırsa gerçek istemci IP'si için
         // burada trustProxies(at: [...]) tanımlanmalıdır; aksi halde firewall ve hız sınırlayıcı proxy IP'sini görür.

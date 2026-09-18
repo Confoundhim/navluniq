@@ -17,6 +17,8 @@ class DriverProfile extends Model
     protected $fillable = [
         'user_id',
         'premium_until',
+        'payout_provider_ref',
+        'payout_provider',
         'avatar_path',
         'driver_license_path',
         'src_document_path',

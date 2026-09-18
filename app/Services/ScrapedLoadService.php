@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\ScrapedLoad;
 use App\Support\Settings;
+use App\Support\TurkishLocations;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -69,6 +70,15 @@ class ScrapedLoadService
         if (! $load->pickup_location || ! $load->delivery_location) {
             return 'rota eksik';
         }
+        // İl kodu kayıtta yoksa kataloğa bakılır (eski kayıtlar onay sırasında standartlaştırılır).
+        $pickupOk = $load->pickup_province_code || TurkishLocations::resolve($load->pickup_location) !== null;
+        $deliveryOk = $load->delivery_province_code || TurkishLocations::resolve($load->delivery_location) !== null;
+        if (! $pickupOk || ! $deliveryOk) {
+            return 'il çözülemedi';
+        }
+        if (Settings::bool('scraper_auto_approve_require_vehicle') && ! $load->vehicle_type) {
+            return 'araç tipi yok';
+        }
         if (! $load->encrypted_sender_phone && ! $load->sender_phone) {
             return 'telefon yok';
         }
@@ -80,6 +90,27 @@ class ScrapedLoadService
         }
 
         return null;
+    }
+
+    /**
+     * Saklama süresi dolan adayları havuzdan kaldırır (yumuşak silme). Yayındakiler de dahil:
+     * 30 günden eski bir WhatsApp ilanı artık güncel değildir. Arşiv kaydı ActivityLog'a düşer.
+     */
+    public function purgeExpired(): int
+    {
+        $count = 0;
+        ScrapedLoad::query()->whereNotNull('retention_expires_at')->where('retention_expires_at', '<', now())
+            ->orderBy('id')->limit(2000)->get()
+            ->each(function (ScrapedLoad $load) use (&$count): void {
+                $load->update(['visibility' => 'private']);
+                $load->delete();
+                $count++;
+            });
+        if ($count > 0) {
+            ActivityLog::record('scraped_load.purged', "Saklama süresi dolan {$count} dış kaynak ilanı arşivlendi", null);
+        }
+
+        return $count;
     }
 
     /** Ayar açıksa bekleyen adayları tarar; kriterleri sağlayanları yayınlar ve sayısını döndürür. */

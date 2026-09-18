@@ -16,7 +16,13 @@ class extends Component {
     public int $loadId = 0;
 
     #[Locked]
-    public ?string $token = null;
+    public ?string $checkoutType = null;
+
+    #[Locked]
+    public ?string $checkoutUrl = null;
+
+    #[Locked]
+    public ?string $resizerScript = null;
 
     #[Locked]
     public ?string $tokenError = null;
@@ -45,13 +51,21 @@ class extends Component {
         if ($this->configured && $this->isPayable($load)) {
             try {
                 $order = $payments->orderFor($load, Auth::user());
-                $cacheKey = 'paytr.token.'.$order->id;
+                $cacheKey = 'checkout.'.$order->id;
                 $cached = session($cacheKey);
-                if (is_array($cached) && ($cached['expires'] ?? 0) > time() && ! empty($cached['token'])) {
-                    $this->token = $cached['token'];
+                if (is_array($cached) && ($cached['expires'] ?? 0) > time() && ! empty($cached['url'])) {
+                    $this->checkoutType = $cached['type'];
+                    $this->checkoutUrl = $cached['url'];
+                    $this->resizerScript = $cached['resizer'] ?? null;
                 } else {
-                    $this->token = $payments->iframeToken($order, request());
-                    session()->put($cacheKey, ['token' => $this->token, 'expires' => time() + 25 * 60]);
+                    $checkout = $payments->checkout($order, request());
+                    $this->checkoutType = $checkout->type;
+                    $this->checkoutUrl = $checkout->url;
+                    $this->resizerScript = $checkout->resizerScript;
+                    session()->put($cacheKey, ['type' => $checkout->type, 'url' => $checkout->url, 'resizer' => $checkout->resizerScript, 'expires' => time() + $checkout->expiresInSeconds]);
+                }
+                if ($this->checkoutType === 'redirect') {
+                    $this->redirect($this->checkoutUrl);
                 }
             } catch (\RuntimeException $e) {
                 $this->tokenError = $e->getMessage();
@@ -92,7 +106,7 @@ class extends Component {
             'load' => $load,
             'payable' => $load ? $this->isPayable($load) : false,
             'amounts' => $load ? $payments->calculateAmounts($load) : ['price' => 0.0, 'service_fee' => 0.0, 'total' => 0.0],
-            'iframeUrl' => $this->token ? PaymentService::IFRAME_URL.$this->token : null,
+            'iframeUrl' => $this->checkoutType === 'iframe' ? $this->checkoutUrl : null,
         ];
     }
 }; ?>
@@ -183,7 +197,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
                 <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500 dark:text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme, sağlayıcının güvenli sayfasında tamamlanır.</div>
                 <div class="bg-white" wire:ignore>
-                    <iframe src="{{ $iframeUrl }}" id="paytriframe" frameborder="0" scrolling="no" style="width:100%"></iframe>
+                    <iframe src="{{ $iframeUrl }}" id="checkout-frame" frameborder="0" scrolling="no" style="width:100%;min-height:520px"></iframe>
                 </div>
             </div>
 
@@ -192,15 +206,16 @@ class extends Component {
                 <span>Ödeme durumu izleniyor: <span class="text-neutral-800 dark:text-neutral-200">{{ $load->escrowLabel() }}</span>. Ödeme tamamlandığında sevkiyat sayfasına yönlendirileceksiniz.</span>
             </div>
 
+            @if($resizerScript)
             @assets
-            <script src="https://www.paytr.com/js/iframeResizer.min.js"></script>
+            <script src="{{ $resizerScript }}"></script>
             @endassets
 
             @script
             <script>
                 const startResizer = () => {
-                    if (window.iFrameResize && document.getElementById('paytriframe')) {
-                        iFrameResize({}, '#paytriframe');
+                    if (window.iFrameResize && document.getElementById('checkout-frame')) {
+                        iFrameResize({}, '#checkout-frame');
                     } else {
                         setTimeout(startResizer, 250);
                     }
@@ -208,6 +223,7 @@ class extends Component {
                 startResizer();
             </script>
             @endscript
+            @endif
         @endif
     @else
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">İlan bulunamadı.</div>

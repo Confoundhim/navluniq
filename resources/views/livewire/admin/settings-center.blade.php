@@ -4,7 +4,9 @@ use App\Models\ActivityLog;
 use App\Models\CmsContent;
 use App\Models\SettingRevision;
 use App\Services\PaymentService;
+use App\Support\Company;
 use App\Support\Settings;
+use Illuminate\Support\Facades\Artisan;
 use Livewire\Volt\Component;
 
 new class extends Component {
@@ -36,16 +38,26 @@ new class extends Component {
         'scraper_auto_approve' => 'Otomatik onay',
         'scraper_auto_approve_require_price' => 'Otomatik onay için fiyat zorunlu',
         'scraper_auto_approve_require_weight' => 'Otomatik onay için tonaj zorunlu',
+        'scraper_auto_approve_require_vehicle' => 'Otomatik onay için araç tipi zorunlu',
         'telegram_post_enabled' => 'Telegram kanalına paylaş',
         'telegram_bot_token' => 'Telegram bot anahtarı',
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
         'telegram_show_full_phone' => 'Telegram mesajında tam numara',
     ];
 
-    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'telegram_post_enabled', 'telegram_show_full_phone'];
+    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'telegram_post_enabled', 'telegram_show_full_phone'];
 
     /** @var array<string, string> */
     public array $scraper = [];
+
+    /** Şirket künyesi + ETBİS + KDV; künye anahtarları CmsContent'te company_* olarak saklanır. */
+    public const COMPANY_EXTRA_KEYS = [
+        'etbis_code' => 'ETBİS kodu',
+        'payment_vat_rate' => 'KDV oranı (%)',
+    ];
+
+    /** @var array<string, string> */
+    public array $company = [];
 
     public function mount(): void
     {
@@ -64,6 +76,70 @@ new class extends Component {
         foreach (array_keys(self::SCRAPER_KEYS) as $key) {
             $this->scraper[$key] = in_array($key, self::SCRAPER_TOGGLES, true) ? (Settings::bool($key) ? '1' : '0') : (string) Settings::get($key);
         }
+        foreach (array_keys(Company::LABELS) as $key) {
+            $this->company[$key] = Company::get($key);
+        }
+        $this->company['etbis_code'] = (string) CmsContent::getVal('etbis_code', '');
+        $this->company['payment_vat_rate'] = number_format(Settings::float('payment_vat_rate'), 0, '.', '');
+    }
+
+    public function saveCompany(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        foreach ($this->company as $key => $value) {
+            $this->company[$key] = trim((string) $value);
+        }
+        $this->company['payment_vat_rate'] = str_replace(',', '.', $this->company['payment_vat_rate']);
+
+        $this->validate([
+            'company.name' => 'required|string|max:160',
+            'company.address' => 'required|string|max:300',
+            'company.phone' => 'required|string|max:40',
+            'company.email' => 'required|email|max:120',
+            'company.tax_office' => 'required|string|max:120',
+            'company.tax_no' => ['required', 'regex:/^\d{10,11}$/'],
+            'company.mersis_no' => ['nullable', 'regex:/^\d{16}$/'],
+            'company.etbis_code' => 'nullable|string|max:60',
+            'company.payment_vat_rate' => 'required|numeric|min:0|max:100',
+        ], [
+            'company.tax_no.regex' => 'Vergi numarası 10 haneli (VKN) ya da 11 haneli (TCKN) olmalıdır.',
+            'company.mersis_no.regex' => 'MERSİS numarası 16 hanelidir.',
+        ]);
+
+        $changed = 0;
+        foreach (Company::LABELS as $key => $label) {
+            $value = $this->company[$key];
+            $old = Company::stored($key);
+            // Zaten geçerli olan (.env ya da koddaki varsayılan) değeri ayrıca saklamaya gerek yok.
+            $new = $value === Company::fallback($key) && $old === '' ? '' : $value;
+            $changed += $this->persist('company_'.$key, $label, $new === '' ? null : $new, $old === '' ? null : $old) ? 1 : 0;
+        }
+        $etbisOld = (string) CmsContent::getVal('etbis_code', '');
+        $changed += $this->persist('etbis_code', 'ETBİS kodu', $this->company['etbis_code'] === '' ? null : $this->company['etbis_code'], $etbisOld === '' ? null : $etbisOld) ? 1 : 0;
+        $vat = number_format((float) $this->company['payment_vat_rate'], 2, '.', '');
+        $changed += $this->persist('payment_vat_rate', 'KDV oranı (%)', $vat, number_format(Settings::float('payment_vat_rate'), 2, '.', '')) ? 1 : 0;
+
+        $this->loadValues();
+        session()->flash('success_message', $changed > 0 ? "{$changed} alan güncellendi; altbilgi, iletişim sayfası ve sözleşmeler yeni künyeyi gösterir." : 'Değişiklik yok.');
+    }
+
+    /** Beş yasal metni koddaki güncel şablonla yeniler (künye yer tutucuları panelden dolar). */
+    public function refreshLegalTexts(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+
+        Artisan::call('legal:refresh');
+        ActivityLog::record('setting.updated', 'Yasal metinler güncel şablonla yenilendi', auth()->id(), null, []);
+        session()->flash('success_message', 'Yasal metinler güncel şablonla yenilendi; sözleşme sayfaları şirket künyesini panelden alıyor.');
     }
 
     private function normalizeLimit(string $key, string $raw): string
@@ -208,21 +284,26 @@ new class extends Component {
     public function with(): array
     {
         $payments = app(PaymentService::class);
-        $merchantId = (string) config('services.paytr.merchant_id');
+        $gateway = app(\App\Payments\GatewayManager::class)->selected();
+        $checks = \App\Support\PaymentReadiness::checks();
 
         return [
             'scraperKeys' => self::SCRAPER_KEYS,
             'generalKeys' => self::GENERAL_KEYS,
             'limitLabels' => self::LIMIT_LABELS,
             'defaults' => Settings::DEFAULTS,
-            'paytr' => [
+            'companyLabels' => Company::LABELS,
+            'companyExtra' => self::COMPANY_EXTRA_KEYS,
+            'payment' => [
+                'provider' => $gateway->label(),
                 'configured' => $payments->isConfigured(),
                 'sandbox' => $payments->isSandbox(),
-                'merchant_id' => $merchantId === '' ? 'Tanımlı değil' : str_repeat('*', max(0, strlen($merchantId) - 3)).substr($merchantId, -3),
-                'key' => filled(config('services.paytr.merchant_key')) ? 'Tanımlı' : 'Tanımlı değil',
-                'salt' => filled(config('services.paytr.merchant_salt')) ? 'Tanımlı' : 'Tanımlı değil',
-                'callback' => route('payment.paytr.callback'),
+                'webhook' => route('payment.webhook', ['provider' => $gateway->id()]),
+                'legacy_webhook' => route('payment.paytr.callback'),
+                'marketplace' => $gateway->supportsSubMerchants(),
             ],
+            'checks' => $checks,
+            'checkSummary' => \App\Support\PaymentReadiness::summary($checks),
             'revisions' => SettingRevision::query()->with('user')->latest('id')->limit(10)->get(),
         ];
     }
@@ -231,7 +312,7 @@ new class extends Component {
 <div class="max-w-5xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
-        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'paytr' => 'PayTR'];
+        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı'];
     @endphp
 
     @if (session()->has('success_message'))
@@ -293,7 +374,7 @@ new class extends Component {
                 <p class="text-[11px] text-neutral-400 mt-1">Açıkken her dakika çalışan görev, kriterleri sağlayan adayları kendiliğinden yayınlar. Kapalıyken adaylar Dış Kaynak İlanları ekranında elle onaylanır.</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                @foreach(['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight'] as $key)
+                @foreach(['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle'] as $key)
                     <div>
                         <label class="form-label">{{ $scraperKeys[$key] }}</label>
                         <select wire:model="scraper.{{ $key }}" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select>
@@ -340,19 +421,67 @@ new class extends Component {
         </form>
     @endif
 
-    @if($activeTab === 'paytr')
+    @if($activeTab === 'payment')
         <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Durum</span><span class="font-bold {{ $paytr['configured'] ? 'text-emerald-600' : 'text-amber-600' }}">{{ $paytr['configured'] ? 'Yapılandırıldı' : 'Eksik anahtar; ödeme alınamaz' }}</span></div>
-                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Mod</span><span class="font-bold">{{ $paytr['sandbox'] ? 'Test (sandbox)' : 'Canlı' }}</span></div>
-                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Merchant ID</span><span class="font-mono font-bold">{{ $paytr['merchant_id'] }}</span></div>
-                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Merchant key / salt</span><span class="font-bold">{{ $paytr['key'] }} / {{ $paytr['salt'] }}</span></div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Sağlayıcı</span><span class="font-bold">{{ $payment['provider'] }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Durum</span><span class="font-bold {{ $payment['configured'] ? 'text-emerald-600' : 'text-amber-600' }}">{{ $payment['configured'] ? ($payment['sandbox'] ? 'Etkin · test modu' : 'Etkin · canlı') : 'Anahtarlar tanımlı değil' }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Şoför ödemeleri</span><span class="font-bold">{{ $payment['marketplace'] ? 'Ödeme kuruluşu üzerinden (pazaryeri)' : 'Finans ekibi banka transferi' }}</span></div>
             </div>
-            <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40">
-                <span class="text-neutral-400 block">Bildirim (callback) adresi</span>
-                <span class="font-mono break-all">{{ $paytr['callback'] }}</span>
+            <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 space-y-1">
+                <span class="text-neutral-400 block">Sağlayıcı paneline yazılacak sunucu bildirimi (webhook) adresi</span>
+                <span class="font-mono break-all">{{ $payment['webhook'] }}</span>
+                <span class="text-[11px] text-neutral-400 block">Eski adres de çalışır: {{ $payment['legacy_webhook'] }}</span>
             </div>
-            <p class="text-[11px] text-neutral-400">Anahtarlar yalnız sunucudaki .env dosyasında (PAYTR_MERCHANT_ID, PAYTR_MERCHANT_KEY, PAYTR_MERCHANT_SALT, PAYTR_SANDBOX) tutulur; bu ekrandan değiştirilemez. Değişiklik sonrası yapılandırma önbelleğini yenileyin.</p>
+            <p class="text-[11px] text-neutral-400">Yalnız ödeme kuruluşunun gizli anahtarları sunucudaki .env dosyasında tutulur (PAYTR_MERCHANT_ID/KEY/SALT, PAYTR_SANDBOX_MODE); bunlar sözleşme imzalanınca bir kez girilir. Diğer her şey bu sayfadan yönetilir. Yeni bir sağlayıcıyla anlaşıldığında yalnız bir adaptör eklenir; sipariş, fatura, defter ve bildirim akışı değişmez.</p>
+        </div>
+
+        <form wire:submit="saveCompany" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div>
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Şirket künyesi</h2>
+                <p class="text-[11px] text-neutral-400 mt-1">Altbilgi, iletişim sayfası, e-postalar ve beş yasal metin bu bilgileri kullanır. Boş bırakılan alan koddaki varsayılana döner; sunucuda dosya düzenlemek gerekmez.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                @foreach($companyLabels as $key => $label)
+                    <div class="{{ in_array($key, ['name', 'address'], true) ? 'sm:col-span-2' : '' }}">
+                        <label class="form-label">{{ $label }}</label>
+                        <input type="text" wire:model="company.{{ $key }}" class="{{ $input }}" placeholder="{{ $key === 'mersis_no' ? '16 haneli MERSİS numarası' : '' }}">
+                        @error('company.'.$key)<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+                @foreach($companyExtra as $key => $label)
+                    <div>
+                        <label class="form-label">{{ $label }}</label>
+                        <input type="text" wire:model="company.{{ $key }}" class="{{ $input }}" placeholder="{{ $key === 'etbis_code' ? 'etbis.ticaret.gov.tr kaydından sonra' : '' }}">
+                        @error('company.'.$key)<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
+                @endforeach
+            </div>
+            <div class="flex flex-wrap gap-3 items-center">
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+                <button type="button" wire:click="refreshLegalTexts" wire:confirm="Beş yasal metin koddaki güncel şablonla değiştirilecek; İçerik ve CMS'den yapılmış el düzenlemeleri silinir. Devam edilsin mi?" wire:loading.attr="disabled" class="btn-apple-secondary py-2.5 px-5 text-xs">Yasal metinleri güncel şablonla yenile</button>
+            </div>
+        </form>
+
+        <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Ödeme kuruluşu başvurusu hazırlık listesi</h2>
+                <span class="badge {{ $checkSummary['ok'] === $checkSummary['total'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $checkSummary['ok'] }} / {{ $checkSummary['total'] }} hazır</span>
+            </div>
+            @foreach(collect($checks)->groupBy('group') as $group => $items)
+                <div class="space-y-1.5">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{{ $group }}</div>
+                    @foreach($items as $c)
+                        <div class="flex items-start gap-3 p-3 rounded-xl border {{ $c['ok'] ? 'border-neutral-200/60 dark:border-neutral-800' : 'border-amber-500/30 bg-amber-500/5' }}">
+                            <span class="mt-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-bold {{ $c['ok'] ? 'bg-emerald-500' : 'bg-amber-500' }}">{{ $c['ok'] ? '✓' : '!' }}</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold text-neutral-900 dark:text-white">{{ $c['label'] }} <span class="font-normal text-neutral-500">· {{ $c['detail'] }}</span></div>
+                                @if($c['fix'])<div class="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">{{ $c['fix'] }}</div>@endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endforeach
         </div>
     @endif
 

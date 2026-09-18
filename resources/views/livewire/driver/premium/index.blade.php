@@ -66,10 +66,14 @@ class extends Component {
                     <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
                         Ödeme altyapısı aktivasyon aşamasında; premium satın alma yakında. Altyapı devreye alındığında bu sayfadan abonelik başlatabileceksiniz.
                     </div>
-                @else
+                @elseif(! ($profile?->isKycApproved() ?? false))
                     <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs leading-relaxed">
-                        Premium abonelik satın alma akışı bu sayfaya henüz bağlanmadı. Abonelik için destek ekibiyle iletişime geçebilirsiniz.
-                        <a href="{{ route('driver.disputes.index', ['ticket' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Destek talebi oluştur</a>
+                        Premium üyelik için önce belgelerinizin onaylanması gerekir. <a href="{{ route('driver.profile.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Belgelerime git</a>
+                    </div>
+                @else
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <a href="{{ route('driver.premium.checkout') }}" wire:navigate class="btn-primary text-sm px-6 py-3 text-center">{{ $isPremium ? '1 ay daha uzat' : 'Premium\'u başlat' }} · {{ number_format($monthlyPrice, 2, ',', '.') }} ₺</a>
+                        <span class="text-[11px] text-neutral-500">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez.</span>
                     </div>
                 @endif
             </div>
