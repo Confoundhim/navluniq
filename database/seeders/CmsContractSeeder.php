@@ -58,7 +58,7 @@ class CmsContractSeeder extends Seeder
             <li><strong>İletişim Bilgileri:</strong> Cep telefonu numarası, kurumsal e-posta adresi, şirket açık adresi, teslimat ve varış noktası adresleri.</li>
             <li><strong>Mesleki Belgeler ve Onboarding (KYC) Verileri:</strong> Sürücü ehliyeti, SRC belgesi, psikoteknik raporu, tır ruhsatı, araç tescil belgesi, K Yetki Belgesi, profil fotoğrafları, araç fotoğrafları, Taşıyıcı Mali Mesuliyet Sigortası Poliçesi ve vergi levhası görselleri ile bu görsellerden ayrıştırılan yasal belgeler.</li>
             <li><strong>Fotoğraf Verileri:</strong> Kimlikle birlikte çekilen fotoğraf ve profil fotoğrafı yalnız kimlik doğrulama amacıyla, biyometrik işleme yapılmaksızın saklanan veriler yalnız ayrı bilgilendirme, gerekli açık rıza ve uygulanabilir mevzuat şartları sağlanarak işlenir.</li>
-            <li><strong>Finansal ve Muhasebe Verileri:</strong> Banka hesap bilgileri, IBAN numaraları, fatura detayları, komisyon ödeme geçmişleri, PayTR ödeme entegrasyonu işlem günlükleri ve bloke tutarları.</li>
+            <li><strong>Finansal ve Muhasebe Verileri:</strong> Banka hesap bilgileri, IBAN numaraları, fatura detayları, komisyon ödeme geçmişleri, ödeme altyapısı işlem günlükleri ve bloke tutarları.</li>
             <li><strong>Coğrafi Konum Bilgileri:</strong> Sürücülerin platform üzerinden aktif olarak yük taşıdıkları esnada, kullanıcının cihaz izni verdiği PWA konum servisleri vasıtasıyla toplanan enlem, boylam, hız ve rota koordinat verileri.</li>
             <li><strong>İşlem Güvenliği Verileri:</strong> IP adresi, port bilgileri, web sitesi giriş-çıkış logları, e-posta doğrulama kodu ve diğer hesap güvenliği günlükleri, cihaz marka/model ve tarayıcı bilgileri.</li>
         </ul>
@@ -73,7 +73,7 @@ class CmsContractSeeder extends Seeder
             <li>Şoförlerin yasal taşıma belgelerinin (ehliyet, SRC, vergi levhası) <strong>AI OCR</strong> teknolojisiyle ön incelemeye tabi tutulması, gerektiğinde yetkili personelce doğrulanması ve sahte evrak riskinin azaltılması,</li>
             <li>Taşıma esnasında yükün güvenliğinin sağlanması amacıyla sürücünün izin verdiği konumun aktif sevkiyat süresince gerekli kapsamda ilgili göndericiye gösterilmesi,</li>
             <li><strong>Ulaştırma ve Altyapı Bakanlığı U-ETDS</strong> bildirimlerinin ilgili işlem ve kullanıcı bakımından yükümlülük doğduğu ölçüde yürütülmesi,</li>
-            <li><strong>PayTR güvenli ödeme ve platform transfer altyapısı</strong> üzerinden tahsilat, mutabakat, iade ve hak ediş süreçlerinin yürütülmesi,</li>
+            <li><strong>BDDK/TCMB lisanslı ödeme kuruluşları ve banka altyapıları</strong> üzerinden tahsilat, mutabakat, iade ve hak ediş süreçlerinin yürütülmesi,</li>
             <li>Sistem genelinde tahsil edilen aracılık komisyonlarının ve aylık aboneliklerin yasal olarak faturalandırılması ve muhasebeleştirilmesi,</li>
             <li>Müşteri ilişkileri süreçlerinin yürütülmesi, destek taleplerinin alınması ve uyuşmazlıkların çözümlenmesi.</li>
         </ul>
@@ -102,7 +102,7 @@ class CmsContractSeeder extends Seeder
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 6: İşlenen Kişisel Verilerin Aktarılması</h3>
         <p>
-            Kişisel verileriniz, hukuki dayanak ve gerekli bilgilendirme olmaksızın üçüncü kişilerin bağımsız reklam veya pazarlama amaçları için aktarılmaz. Veriler; hizmetin gerektirdiği ölçüde ödeme ortağımız (<strong>PayTR</strong>), iletişim altyapısı sağlayıcıları, yetkili sigorta ve e-belge iş ortakları, Ulaştırma Bakanlığı (U-ETDS) ve usulüne uygun bilgi talep eden adli/idari kurumlarla Kanun’un 8. ve 9. maddelerindeki şartlara uygun olarak paylaşılabilir.
+            Kişisel verileriniz, hukuki dayanak ve gerekli bilgilendirme olmaksızın üçüncü kişilerin bağımsız reklam veya pazarlama amaçları için aktarılmaz. Veriler; hizmetin gerektirdiği ölçüde sözleşmeli lisanslı ödeme kuruluşu ve bankalar, iletişim altyapısı sağlayıcıları, yetkili sigorta ve e-belge iş ortakları, Ulaştırma Bakanlığı (U-ETDS) ve usulüne uygun bilgi talep eden adli/idari kurumlarla Kanun’un 8. ve 9. maddelerindeki şartlara uygun olarak paylaşılabilir.
         </p>
     </div>
 
@@ -143,7 +143,7 @@ HTML;
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: Sözleşmenin Konusu ve Kapsamı</h3>
         <p>
-            İşbu sözleşmenin konusu; NavlunIQ'nun göndericiler ile sürücüleri akıllı eşleşme, yapay zeka destekli evrak ön inceleme, izinli konum takibi ve PayTR güvenli ödeme/platform transfer altyapısıyla buluşturduğu dijital lojistik platformunun kullanım şartlarının, tarafların karşılıklı hak, borç ve sorumluluklarının belirlenmesidir.
+            İşbu sözleşmenin konusu; NavlunIQ'nun göndericiler ile sürücüleri akıllı eşleşme, yapay zeka destekli evrak ön inceleme, izinli konum takibi ve lisanslı ödeme kuruluşları üzerinden yürütülen güvenli ödeme altyapısıyla buluşturduğu dijital lojistik platformunun kullanım şartlarının, tarafların karşılıklı hak, borç ve sorumluluklarının belirlenmesidir.
         </p>
     </div>
 
@@ -166,12 +166,12 @@ HTML;
         </ul>
     </div>
 
-    <!-- Madde 5: PayTR Güvenli Ödeme ve Platform Transfer Sistemi ile Komisyon Kuralları -->
+    <!-- Madde 5: Güvenli Ödeme Sistemi ve Komisyon Kuralları -->
     <div class="space-y-3">
-        <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 5: PayTR Güvenli Ödeme ve Platform Transfer Sistemi ile Komisyon Kuralları</h3>
+        <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 5: Güvenli Ödeme Sistemi ve Komisyon Kuralları</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>5.1 Bloke Ödeme ve Çözümleme:</strong> Gönderici, anlaşılan navlun bedelini PayTR güvenli ödeme altyapısı üzerinden öder. Teslim onay belgesinin (POD) sisteme yüklenmesi, göndericinin onayı ve açık bir uyuşmazlık bulunmaması halinde sürücü hak edişi oluşturulur; transfer PayTR ve ilgili bankanın işlem kurallarına göre yürütülür.</li>
-            <li><strong>5.2 24 Saatlik Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>24 saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanabilir ve sürücü bakiyesi çekilebilir duruma getirilebilir. Bankaya aktarımın tamamlanma zamanı PayTR ve banka işlem takvimine bağlıdır.</li>
+            <li><strong>5.1 Bloke Ödeme ve Çözümleme:</strong> Gönderici, anlaşılan navlun bedelini platformun sözleşmeli olduğu lisanslı ödeme kuruluşunun güvenli ödeme altyapısı üzerinden öder. Teslim onay belgesinin (POD) sisteme yüklenmesi, göndericinin onayı ve açık bir uyuşmazlık bulunmaması halinde sürücü hak edişi oluşturulur; transfer ilgili ödeme kuruluşu ve bankanın işlem kurallarına göre yürütülür.</li>
+            <li><strong>5.2 24 Saatlik Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>24 saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanabilir ve sürücü bakiyesi çekilebilir duruma getirilebilir. Bankaya aktarımın tamamlanma zamanı ödeme kuruluşu ve banka işlem takvimine bağlıdır.</li>
             <li><strong>5.3 Komisyon ve Bilgi Ücreti:</strong> Başarıyla eşleşen her ilan ve navlun mutabakatı üzerinden NavlunIQ, işlem öncesinde oranı ve vergileri açıkça gösterilen bir "Aracılık Hizmet Komisyonu" tahsil edebilir.</li>
         </ul>
     </div>
@@ -181,7 +181,7 @@ HTML;
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 6: İptal, İade ve Uyuşmazlık Çözüm Protokolü (Dispute)</h3>
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>6.1 Fiziksel Yükleme Öncesi İptal:</strong> Fiziksel yükleme işlemi başlamadan önce gönderici ilanı tek tıkla iptal edebilir; bu durumda tahsil edilmiş bedel, işlemin durumu ve uygulanabilir ödeme/iade kuralları çerçevesinde göndericiye iade edilir.</li>
-            <li><strong>6.2 Kriz ve Uyuşmazlık İnceleme Süreci:</strong> Yükleme onaylandıktan sonra meydana gelen kriz veya hasar durumlarında süreç kilitlenir. NavlunIQ <strong>"Kriz ve Uyuşmazlık Merkezi"</strong> yönetim ekranından, sürücünün teslimat kanıtlarını (anlık konum ve fotoğraflar) ve göndericinin hasar iddialarını inceleyerek sunulan kayıtlar çerçevesinde platform içi bir değerlendirme yapar; tutarın tamamen veya kısmen iadesi ya da sürücü hak edişine aktarılması için PayTR üzerinden işlem başlatabilir. Bu değerlendirme tarafların mahkeme, tüketici hakem heyeti, ödeme itirazı ve diğer kanuni başvuru haklarını ortadan kaldırmaz.</li>
+            <li><strong>6.2 Kriz ve Uyuşmazlık İnceleme Süreci:</strong> Yükleme onaylandıktan sonra meydana gelen kriz veya hasar durumlarında süreç kilitlenir. NavlunIQ <strong>"Kriz ve Uyuşmazlık Merkezi"</strong> yönetim ekranından, sürücünün teslimat kanıtlarını (anlık konum ve fotoğraflar) ve göndericinin hasar iddialarını inceleyerek sunulan kayıtlar çerçevesinde platform içi bir değerlendirme yapar; tutarın tamamen veya kısmen iadesi ya da sürücü hak edişine aktarılması için ödeme kuruluşu üzerinden işlem başlatabilir. Bu değerlendirme tarafların mahkeme, tüketici hakem heyeti, ödeme itirazı ve diğer kanuni başvuru haklarını ortadan kaldırmaz.</li>
         </ul>
     </div>
 
@@ -270,7 +270,7 @@ HTML;
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 6: Verilerin Üçüncü Şahıslarla Paylaşımı</h3>
         <p class="text-xs">
-            NavlunIQ, kullanıcı verilerini hukuki dayanak ve gerekli bilgilendirme olmaksızın üçüncü kişilerin bağımsız reklam amaçları için kullanmaz. Verileriniz hizmetin gerektirdiği ölçüde ödeme ortağımız (PayTR), yetkili sigorta ve e-belge sağlayıcıları ile usulüne uygun bilgi talep eden adli/idari kurumlarla paylaşılabilir.
+            NavlunIQ, kullanıcı verilerini hukuki dayanak ve gerekli bilgilendirme olmaksızın üçüncü kişilerin bağımsız reklam amaçları için kullanmaz. Verileriniz hizmetin gerektirdiği ölçüde sözleşmeli lisanslı ödeme kuruluşu ve bankalar, yetkili sigorta ve e-belge sağlayıcıları ile usulüne uygun bilgi talep eden adli/idari kurumlarla paylaşılabilir.
         </p>
     </div>
 </div>
@@ -306,7 +306,7 @@ HTML;
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>2.1 Premium Sürücü Aboneliği:</strong> Sürücülere paylaşım izni doğrulanmış dış kaynak ilanlarına plan kapsamında 20 dakikaya kadar erken erişim ve bildirim özellikleri sağlayan, aylık <strong>satın alma ekranında gösterilen KDV dahil bedel</strong> üzerinden sunulan dijital üyelik hizmetidir.</li>
             <li><strong>2.2 Aracılık Hizmet Komisyonu:</strong> Sürücü ile Gönderici arasında platform vasıtasıyla başarılı bir şekilde eşleşen her navlun işlemi üzerinden, mutabakat bedeli üzerinden hesaplanan veya sabit olarak tahsil edilen aracı hizmet komisyonudur.</li>
-            <li><strong>2.3 Tüm Komisyon ve Abonelik Bedelleri:</strong> yetkili ödeme ortağımız <strong>PayTR</strong> altyapısı üzerinden desteklenen ödeme yöntemleriyle tahsil edilir; KDV dâhil e-Fatura/e-Arşiv belgesi yetkili e-belge sağlayıcısının başarılı yanıtı sonrasında oluşturularak panel ve/veya e-posta üzerinden sunulur.</li>
+            <li><strong>2.3 Tüm Komisyon ve Abonelik Bedelleri:</strong> lisanslı ödeme kuruluşları ve bankalar aracılığıyla sunulan kredi kartı, banka kartı ve havale/EFT gibi ödeme yöntemleriyle tahsil edilir; KDV dâhil e-Fatura/e-Arşiv belgesi yetkili e-belge sağlayıcısının başarılı yanıtı sonrasında oluşturularak panel ve/veya e-posta üzerinden sunulur.</li>
         </ul>
     </div>
 
@@ -346,7 +346,7 @@ HTML;
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 1: Genel İptal ve İade Şartları</h3>
         <p>
-            NavlunIQ üzerinden uygun nitelikteki finansal işlemler, alıcı ve satıcı haklarını korumaya yönelik <strong>PayTR</strong> güvenli ödeme ve platform transfer altyapısıyla yürütülür. Hizmetin gerçekleşmemesi veya taraflardan birinin kusurunun doğrulanması halinde iade ve hak ediş süreçleri bu politika, işlem kayıtları ve uygulanabilir mevzuata göre işletilir.
+            NavlunIQ üzerinden uygun nitelikteki finansal işlemler, alıcı ve satıcı haklarını korumaya yönelik, lisanslı ödeme kuruluşları ve bankalar üzerinden işletilen güvenli ödeme altyapısıyla yürütülür. Hizmetin gerçekleşmemesi veya taraflardan birinin kusurunun doğrulanması halinde iade ve hak ediş süreçleri bu politika, işlem kayıtları ve uygulanabilir mevzuata göre işletilir.
         </p>
     </div>
 
@@ -372,7 +372,7 @@ HTML;
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 4: İade Süreçleri ve Ödeme Kanalları</h3>
         <p class="text-xs">
-            Onaylanan iade işlemleri, mümkün olduğunda ödemenin yapıldığı kredi kartına veya banka hesabına <strong>PayTR altyapısı üzerinden iletilir</strong>. İadenin hesaba yansıma süresi PayTR ve ilgili bankanın işlem takvimine göre değişebilir; NavlunIQ işlem durumunu izler ve kendi kontrolündeki sorunlar için destek sağlar.
+            Onaylanan iade işlemleri, mümkün olduğunda ödemenin yapıldığı kredi kartına veya banka hesabına <strong>ödemenin alındığı ödeme altyapısı üzerinden iletilir</strong>. İadenin hesaba yansıma süresi ödeme kuruluşu ve ilgili bankanın işlem takvimine göre değişebilir; NavlunIQ işlem durumunu izler ve kendi kontrolündeki sorunlar için destek sağlar.
         </p>
     </div>
 </div>

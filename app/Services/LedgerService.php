@@ -14,7 +14,7 @@ use InvalidArgumentException;
 class LedgerService
 {
     public const ACCOUNTS = [
-        'escrow_cash' => ['Havuz hesabı (PayTR)', 'asset'],
+        'escrow_cash' => ['Havuz hesabı (ödeme kuruluşu)', 'asset'],
         'escrow_liability' => ['Yük sahiplerine borç (havuz)', 'liability'],
         'driver_payable' => ['Şoförlere ödenecek hakediş', 'liability'],
         'commission_revenue' => ['Komisyon geliri', 'revenue'],

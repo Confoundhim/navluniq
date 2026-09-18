@@ -29,7 +29,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 1,
                 'question' => 'Güvenli havuz sistemi nedir, ödeme şoföre ne zaman aktarılır?',
-                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini PayTR altyapısı üzerinden öder; tutar NavlunIQ güvenli havuzunda bekletilir ve şoföre doğrudan geçmez. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün hak edişi finans ekibimiz tarafından kayıtlı IBAN\'ına banka havalesiyle aktarılır ve durumu şoför panelindeki cüzdan ekranından izlenir.',
+                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden kredi kartı, banka kartı ya da havale ile öder; tutar NavlunIQ güvenli havuzunda bekletilir ve şoföre doğrudan geçmez. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün hak edişi finans ekibimiz tarafından kayıtlı IBAN\'ına banka havalesiyle aktarılır ve durumu şoför panelindeki cüzdan ekranından izlenir.',
             ],
             [
                 'order_num' => 2,
