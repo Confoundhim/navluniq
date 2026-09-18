@@ -52,13 +52,13 @@ class CmsContractSeeder extends Seeder
     <!-- Madde 2: İşlenen Kişisel Veri Kategorileri ve Veri Türleri -->
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: İşlenen Kişisel Veri Kategorileri ve Veri Türleri</h3>
-        <p>Platformumuzdaki akıllı eşleşme, kimlik doğrulama, finansal transfer ve güvenli lojistik operasyonları kapsamında aşağıdaki kişisel verileriniz, ilgili hizmetin gerektirdiği ölçüde işlenebilmektedir:</p>
+        <p>Platformumuzdaki akıllı eşleşme, kimlik doğrulama, ödeme süreçleri ve güvenli lojistik operasyonları kapsamında aşağıdaki kişisel verileriniz, ilgili hizmetin gerektirdiği ölçüde işlenebilmektedir:</p>
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>Kimlik Bilgileri:</strong> Ad, soyad, doğum tarihi, T.C. Kimlik Numarası (Sürücü ehliyeti, SRC belgesi ve vergi levhasından uzman ekibimizce kontrol edilerek doğrulanan ve gerektiğinde kullanıcı veya yetkili personel tarafından doğrulanan veriler dahil).</li>
             <li><strong>İletişim Bilgileri:</strong> Cep telefonu numarası, kurumsal e-posta adresi, şirket açık adresi, teslimat ve varış noktası adresleri.</li>
             <li><strong>Mesleki Belgeler ve Onboarding (KYC) Verileri:</strong> Sürücü ehliyeti, SRC belgesi, psikoteknik raporu, tır ruhsatı, araç tescil belgesi, K Yetki Belgesi, profil fotoğrafları, araç fotoğrafları, Taşıyıcı Mali Mesuliyet Sigortası Poliçesi ve vergi levhası görselleri ile bu görsellerden ayrıştırılan yasal belgeler.</li>
             <li><strong>Fotoğraf Verileri:</strong> Kimlikle birlikte çekilen fotoğraf ve profil fotoğrafı yalnız kimlik doğrulama amacıyla, biyometrik işleme yapılmaksızın saklanan veriler yalnız ayrı bilgilendirme, gerekli açık rıza ve uygulanabilir mevzuat şartları sağlanarak işlenir.</li>
-            <li><strong>Finansal ve Muhasebe Verileri:</strong> Banka hesap bilgileri, IBAN numaraları, fatura detayları, komisyon ödeme geçmişleri, ödeme altyapısı işlem günlükleri ve bloke tutarları.</li>
+            <li><strong>Finansal ve Muhasebe Verileri:</strong> Banka hesap bilgileri, IBAN numaraları, fatura detayları, hizmet bedeli ödeme geçmişleri ve ödeme altyapısı işlem günlükleri.</li>
             <li><strong>Coğrafi Konum Bilgileri:</strong> Sürücülerin platform üzerinden aktif olarak yük taşıdıkları esnada, kullanıcının cihaz izni verdiği PWA konum servisleri vasıtasıyla toplanan enlem, boylam, hız ve rota koordinat verileri.</li>
             <li><strong>İşlem Güvenliği Verileri:</strong> IP adresi, port bilgileri, web sitesi giriş-çıkış logları, e-posta doğrulama kodu ve diğer hesap güvenliği günlükleri, cihaz marka/model ve tarayıcı bilgileri.</li>
         </ul>
@@ -73,7 +73,7 @@ class CmsContractSeeder extends Seeder
             <li>Şoförlerin yasal taşıma belgelerinin (ehliyet, SRC, vergi levhası) <strong>AI OCR</strong> teknolojisiyle ön incelemeye tabi tutulması, gerektiğinde yetkili personelce doğrulanması ve sahte evrak riskinin azaltılması,</li>
             <li>Taşıma esnasında yükün güvenliğinin sağlanması amacıyla sürücünün izin verdiği konumun aktif sevkiyat süresince gerekli kapsamda ilgili göndericiye gösterilmesi,</li>
             <li><strong>Ulaştırma ve Altyapı Bakanlığı U-ETDS</strong> bildirimlerinin ilgili işlem ve kullanıcı bakımından yükümlülük doğduğu ölçüde yürütülmesi,</li>
-            <li><strong>BDDK/TCMB lisanslı ödeme kuruluşları ve banka altyapıları</strong> üzerinden tahsilat, mutabakat, iade ve hak ediş süreçlerinin yürütülmesi,</li>
+            <li><strong>BDDK/TCMB lisanslı ödeme kuruluşları ve banka altyapıları</strong> üzerinden tahsilat, mutabakat, iade ve sürücü ödeme süreçlerinin yürütülmesi,</li>
             <li>Sistem genelinde tahsil edilen aracılık komisyonlarının ve aylık aboneliklerin yasal olarak faturalandırılması ve muhasebeleştirilmesi,</li>
             <li>Müşteri ilişkileri süreçlerinin yürütülmesi, destek taleplerinin alınması ve uyuşmazlıkların çözümlenmesi.</li>
         </ul>
@@ -84,7 +84,7 @@ class CmsContractSeeder extends Seeder
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 4: Kişisel Veri Toplamanın Yöntemi ve Hukuki Sebebi</h3>
         <p>Kişisel verileriniz, <strong>navluniq.com</strong> web sitesi, mobil uygulamalar, PWA konum servisleri ve yapay zeka destekli evrak analiz araçları dahil olmak üzere, kullanıcı işlemleri ve yetkilendirilmiş entegrasyonlar vasıtasıyla ağırlıklı olarak elektronik ortamda toplanmaktadır. Kişisel verilerinizin işlenmesindeki hukuki sebeplerimiz şunlardır:</p>
         <ul class="list-disc pl-5 space-y-1.5">
-            <li><strong>Sözleşmenin Kurulması ve İfası (KVKK m. 5/2-c):</strong> Üyelik işlemlerinin tamamlanması, yük ve sürücü eşleşmelerinin yapılması, taşıma sürecinin koordinasyonu ve güvenli ödeme/platform transfer süreçlerinin yönetilmesi.</li>
+            <li><strong>Sözleşmenin Kurulması ve İfası (KVKK m. 5/2-c):</strong> Üyelik işlemlerinin tamamlanması, yük ve sürücü eşleşmelerinin yapılması, taşıma sürecinin koordinasyonu ve güvenli ödeme süreçlerinin yönetilmesi.</li>
             <li><strong>Veri Sorumlusunun Hukuki Yükümlülüğü (KVKK m. 5/2-ç):</strong> Faturalandırma, vergi beyannameleri, resmi makamların taleplerine uyum, U-ETDS ve taşımacılık mevzuatından kaynaklanan bildirim yükümlülükleri.</li>
             <li><strong>Açık Rıza (KVKK m. 5/1 ve m. 6/2):</strong> İlgili işlem için açık rıza gerektiği ölçüde aktif sevkiyat konumunun işlenmesi ve ayrıca etkinleştirilmesi halinde biyometrik veri (profil fotoğrafı ve selfie) doğrulaması.</li>
         </ul>
@@ -170,8 +170,8 @@ HTML;
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 5: Güvenli Ödeme Sistemi ve Komisyon Kuralları</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>5.1 Bloke Ödeme ve Çözümleme:</strong> Gönderici, anlaşılan navlun bedelini platformun sözleşmeli olduğu lisanslı ödeme kuruluşunun güvenli ödeme altyapısı üzerinden öder. Teslim onay belgesinin (POD) sisteme yüklenmesi, göndericinin onayı ve açık bir uyuşmazlık bulunmaması halinde sürücü hak edişi oluşturulur; transfer ilgili ödeme kuruluşu ve bankanın işlem kurallarına göre yürütülür.</li>
-            <li><strong>5.2 24 Saatlik Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>24 saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanabilir ve sürücü bakiyesi çekilebilir duruma getirilebilir. Bankaya aktarımın tamamlanma zamanı ödeme kuruluşu ve banka işlem takvimine bağlıdır.</li>
+            <li><strong>5.1 Teslimat Onaylı Ödeme:</strong> Gönderici, anlaşılan navlun bedelini platformun sözleşmeli olduğu lisanslı ödeme kuruluşunun güvenli ödeme altyapısı üzerinden öder. NavlunIQ, taraflar adına para tutan bir ödeme kuruluşu değildir; tahsilat, saklama ve sürücüye ödeme işlemleri ilgili lisanslı ödeme kuruluşu ve bankalar tarafından kendi mevzuat ve işlem kurallarına göre yürütülür. Teslim onay belgesinin (POD) sisteme yüklenmesi, göndericinin onayı ve açık bir uyuşmazlık bulunmaması halinde sürücü ödemesi, platform hizmet bedeli düşülerek sürücünün kayıtlı banka hesabına yapılır.</li>
+            <li><strong>5.2 24 Saatlik Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>24 saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanabilir ve sürücü ödemesi başlatılabilir. Ödemenin banka hesabına geçme zamanı ödeme kuruluşu ve banka işlem takvimine bağlıdır.</li>
             <li><strong>5.3 Komisyon ve Bilgi Ücreti:</strong> Başarıyla eşleşen her ilan ve navlun mutabakatı üzerinden NavlunIQ, işlem öncesinde oranı ve vergileri açıkça gösterilen bir "Aracılık Hizmet Komisyonu" tahsil edebilir.</li>
         </ul>
     </div>
@@ -181,7 +181,7 @@ HTML;
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 6: İptal, İade ve Uyuşmazlık Çözüm Protokolü (Dispute)</h3>
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>6.1 Fiziksel Yükleme Öncesi İptal:</strong> Fiziksel yükleme işlemi başlamadan önce gönderici ilanı tek tıkla iptal edebilir; bu durumda tahsil edilmiş bedel, işlemin durumu ve uygulanabilir ödeme/iade kuralları çerçevesinde göndericiye iade edilir.</li>
-            <li><strong>6.2 Kriz ve Uyuşmazlık İnceleme Süreci:</strong> Yükleme onaylandıktan sonra meydana gelen kriz veya hasar durumlarında süreç kilitlenir. NavlunIQ <strong>"Kriz ve Uyuşmazlık Merkezi"</strong> yönetim ekranından, sürücünün teslimat kanıtlarını (anlık konum ve fotoğraflar) ve göndericinin hasar iddialarını inceleyerek sunulan kayıtlar çerçevesinde platform içi bir değerlendirme yapar; tutarın tamamen veya kısmen iadesi ya da sürücü hak edişine aktarılması için ödeme kuruluşu üzerinden işlem başlatabilir. Bu değerlendirme tarafların mahkeme, tüketici hakem heyeti, ödeme itirazı ve diğer kanuni başvuru haklarını ortadan kaldırmaz.</li>
+            <li><strong>6.2 Kriz ve Uyuşmazlık İnceleme Süreci:</strong> Yükleme onaylandıktan sonra meydana gelen kriz veya hasar durumlarında süreç kilitlenir. NavlunIQ <strong>"Kriz ve Uyuşmazlık Merkezi"</strong> yönetim ekranından, sürücünün teslimat kanıtlarını (anlık konum ve fotoğraflar) ve göndericinin hasar iddialarını inceleyerek sunulan kayıtlar çerçevesinde platform içi bir değerlendirme yapar; tutarın tamamen veya kısmen göndericiye iadesi ya da sürücüye ödenmesi için ödeme kuruluşu nezdinde işlem başlatabilir. Bu değerlendirme tarafların mahkeme, tüketici hakem heyeti, ödeme itirazı ve diğer kanuni başvuru haklarını ortadan kaldırmaz.</li>
         </ul>
     </div>
 
@@ -339,7 +339,7 @@ HTML;
     </div>
 
     <p>
-        NavlunIQ platformu üzerinde gerçekleştirilen yük ilan iptalleri, ödeme iadeleri ve güvenli ödeme/platform transfer işlemlerine ait genel esaslar bu politikada açıklanmıştır; emredici mevzuat ve işlem öncesi özel koşullar saklıdır.
+        NavlunIQ platformu üzerinde gerçekleştirilen yük ilan iptalleri, ödeme iadeleri ve teslimat onaylı ödeme işlemlerine ait genel esaslar bu politikada açıklanmıştır; emredici mevzuat ve işlem öncesi özel koşullar saklıdır.
     </p>
 
     <!-- Madde 1: Genel İptal ve İade Şartları -->

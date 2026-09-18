@@ -13,7 +13,7 @@ use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Cüzdan ve Hakedişler')]
+#[Title('Cüzdan ve Ödemeler')]
 class extends Component {
     use WithPagination;
 
@@ -46,7 +46,7 @@ class extends Component {
         }
 
         $this->reset(['iban']);
-        session()->flash('success_message', 'Banka hesabınız kaydedildi. Hakedişleriniz bu hesaba aktarılacaktır.');
+        session()->flash('success_message', 'Banka hesabınız kaydedildi. Ödemeleriniz bu hesaba yapılacaktır.');
     }
 
     public function with(): array
@@ -69,15 +69,15 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="page-title">Cüzdan ve Hakedişlerim</h2>
-        <p class="page-subtitle">Hakedişleriniz, teslimat onayından sonra finans ekibi tarafından kayıtlı IBAN adresinize banka transferiyle aktarılır.</p>
+        <h2 class="page-title">Cüzdan ve Ödemelerim</h2>
+        <p class="page-subtitle">Navlun ödemeleriniz, teslimat onayından sonra lisanslı ödeme kuruluşu aracılığıyla kayıtlı IBAN adresinize yapılır.</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödeme sırasında</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['pending'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-1 text-[11px] text-neutral-500">Onaylanmış, transferi bekleyen net hakediş</div>
+            <div class="mt-1 text-[11px] text-neutral-500">Onaylanmış, hesaba geçmeyi bekleyen net ödeme</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödendi</div>
@@ -85,14 +85,14 @@ class extends Component {
             <div class="mt-1 text-[11px] text-neutral-500">Banka hesabınıza aktarılan toplam</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-500 dark:text-neutral-400">Havuzda bloke</div>
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Devam eden sevkiyatların navlun bedeli</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Kesilen komisyon</div>
             <div class="mt-2 text-2xl font-black text-neutral-700 dark:text-neutral-300 tabular-nums">{{ number_format((float) ($summary['commission'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-1 text-[11px] text-neutral-500">Tüm hakedişlerden düşülen toplam</div>
+            <div class="mt-1 text-[11px] text-neutral-500">Tüm ödemelerden düşülen toplam</div>
         </div>
     </div>
 
@@ -100,7 +100,7 @@ class extends Component {
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="section-title">Hakediş kayıtları</h3>
+                <h3 class="section-title">Ödeme kayıtları</h3>
 
                 @if($payouts->count())
                     <div class="responsive-scroll overflow-x-auto">
@@ -146,7 +146,7 @@ class extends Component {
                         <div class="pt-2">{{ $payouts->links() }}</div>
                     @endif
                 @else
-                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz hakediş kaydınız yok. Tamamlanan ve onaylanan sevkiyatlar burada listelenir.</div>
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz ödeme kaydınız yok. Tamamlanan ve onaylanan sevkiyatlar burada listelenir.</div>
                 @endif
             </div>
 
@@ -177,7 +177,7 @@ class extends Component {
                         <div class="text-[11px] text-neutral-500">{{ $bankAccount->is_verified ? 'Doğrulandı' : 'Finans ekibi ilk transferde doğrular' }}</div>
                     </div>
                 @else
-                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kayıtlı IBAN adresiniz yok. Hakedişlerinizin aktarılabilmesi için IBAN ekleyin.</div>
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kayıtlı IBAN adresiniz yok. Ödemelerinizin yapılabilmesi için IBAN ekleyin.</div>
                 @endif
 
                 <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-4">
@@ -200,7 +200,7 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <h3 class="section-title">Ödeme süreci</h3>
-                <p>Yük sahibi teslimatı onayladığında hakedişiniz komisyon düşülerek ödeme sırasına alınır.</p>
+                <p>Yük sahibi teslimatı onayladığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.</p>
                 <p>Transfer, finans ekibi tarafından kayıtlı IBAN adresinize yapılır; ödeme tamamlandığında referans numarası bu sayfada görünür.</p>
             </div>
         </div>

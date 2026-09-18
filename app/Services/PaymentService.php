@@ -249,13 +249,13 @@ class PaymentService
 
         if ($load) {
             if ($driverUser = $load->driverProfile?->user) {
-                $this->notifications->notify($driverUser, 'Navlun bedeli havuza yatırıldı',
-                    ['Yük sahibi ödemeyi güvenli havuza yatırdı. Artık sevkiyatı başlatabilirsiniz.'],
+                $this->notifications->notify($driverUser, 'Navlun ödemesi yapıldı',
+                    ['Yük sahibi navlun ödemesini yaptı. Artık sevkiyatı başlatabilirsiniz.'],
                     route('driver.shipments.show', $load->id), 'Sevkiyata git');
             }
             if ($ownerUser = $load->cargoOwnerProfile?->user) {
                 $this->notifications->notify($ownerUser, 'Ödemeniz alındı',
-                    ['Navlun bedeli teslimat onayınıza kadar güvenli havuzda tutulacaktır.'],
+                    ['Navlun ödemesi teslimat onayınızla şoföre tamamlanacaktır.'],
                     route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı takip et');
             }
         }

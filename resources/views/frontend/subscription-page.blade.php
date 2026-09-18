@@ -13,7 +13,7 @@
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         ['Onaylı dış kaynak ilanları', '20 dakika gecikmeli', 'Yayınlandığı anda'],
         ['Dış kaynak ilanlarda iletişim bilgisi', 'Kısmen gizli', 'Tamamı görünür'],
-        ['Güvenli havuz ve banka havalesiyle ödeme', 'Dahil', 'Dahil'],
+        ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Cüzdan, fatura ve destek talepleri', 'Dahil', 'Dahil'],
     ];
 @endphp
@@ -56,7 +56,7 @@
                 </div>
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Platform içi tüm yük ilanlarını anında görün, sınırsız teklif verin</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Güvenli havuz ödemesi, cüzdan ve teslimat kayıtları</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, cüzdan ve teslimat kayıtları</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
                 </ul>
@@ -203,7 +203,7 @@
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Dış kaynak ilanları nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli web siteleri ve gruplardan derlenip ekibimizce onaylanan ilanlardır. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; güvenli havuz yalnız platform içi ilanlarda geçerlidir.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli web siteleri ve gruplardan derlenip ekibimizce onaylanan ilanlardır. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız platform içi ilanlarda geçerlidir.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Fatura alabilir miyim?</h3>

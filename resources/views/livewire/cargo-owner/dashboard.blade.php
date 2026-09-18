@@ -62,7 +62,7 @@ class extends Component {
                     Hoş geldiniz, <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-neutral-200 to-neutral-400">{{ auth()->user()?->full_name }}</span>
                 </h2>
                 <p class="text-sm text-neutral-300 max-w-2xl leading-relaxed">
-                    İlan yayınlayın, belgeleri doğrulanmış şoförlerden teklif toplayın ve sevkiyatınızı bu panelden takip edin. Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur.
+                    İlan yayınlayın, belgeleri doğrulanmış şoförlerden teklif toplayın ve sevkiyatınızı bu panelden takip edin. Navlun ödemesi teslimat onayınıza bağlı olarak tamamlanır.
                 </p>
             </div>
             <div class="flex flex-wrap gap-3">
@@ -120,7 +120,7 @@ class extends Component {
 
         <a href="{{ route('cargo-owner.finance.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
             <div class="flex items-center justify-between mb-3">
-                <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Güvenli havuzda</span>
+                <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen ödemeler</span>
                 <span class="p-2.5 rounded-xl bg-brand-500/10 text-brand-400 group-hover:scale-110 transition-transform">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -130,7 +130,7 @@ class extends Component {
             <div class="text-2xl font-extrabold text-neutral-900 dark:text-white tracking-tight font-mono">
                 {{ number_format($escrowBalance, 2, ',', '.') }} <span class="text-brand-500 text-lg">₺</span>
             </div>
-            <div class="text-xs text-neutral-500 mt-2">Teslimat onayına kadar bloke</div>
+            <div class="text-xs text-neutral-500 mt-2">Onayınızla şoföre tamamlanır</div>
         </a>
     </div>
 

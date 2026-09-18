@@ -76,7 +76,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Hoş geldiniz, {{ auth()->user()->first_name }}</h2>
-        <p class="page-subtitle">Tekliflerinizin, aktif sevkiyatınızın ve hakedişlerinizin özeti.</p>
+        <p class="page-subtitle">Tekliflerinizin, aktif sevkiyatınızın ve ödemelerinizin özeti.</p>
     </div>
 
     @if($kycStatus !== 'approved')
@@ -102,17 +102,17 @@ class extends Component {
             <a href="{{ route('driver.loads.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Teklifleri gör</a>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-500 dark:text-neutral-400">Havuzda bloke</div>
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($wallet['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-2 text-[11px] text-neutral-500">Yük sahibinin havuza yatırdığı navlun bedeli</div>
+            <div class="mt-2 text-[11px] text-neutral-500">Yük sahibinin ödediği, onayla tamamlanacak navlun bedeli</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödeme sırasındaki hakediş</div>
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçecek ödeme</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($wallet['pending'] ?? 0), 2, ',', '.') }} ₺</div>
             <a href="{{ route('driver.wallet.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Cüzdana git</a>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödenen toplam hakediş</div>
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçen toplam ödeme</div>
             <div class="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{{ number_format((float) ($wallet['paid'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-2 text-[11px] text-neutral-500">Kesilen komisyon: {{ number_format((float) ($wallet['commission'] ?? 0), 2, ',', '.') }} ₺</div>
         </div>

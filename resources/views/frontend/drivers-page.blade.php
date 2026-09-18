@@ -7,7 +7,7 @@
                 Boş Dönüşe Son, Alın Teriniz Güvende
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Tercih ettiğiniz rotalardaki ilanları tek panelden görün, teklif verin. Teslimat onaylandığında hak edişiniz banka hesabınıza aktarılır.
+                Tercih ettiğiniz rotalardaki ilanları tek panelden görün, teklif verin. Teslimat onaylandığında navlun ödemeniz banka hesabınıza geçer.
             </p>
         </div>
 
@@ -20,8 +20,8 @@
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Garantili Hak Ediş</h4>
-                <p class="text-neutral-500 leading-relaxed">Navlun bedeli siz yola çıkmadan güvence altına alınır; teslimat onayından sonra hak edişiniz kayıtlı IBAN'ınıza aktarılır. Hesaba geçiş süresi banka iş günlerine göre değişir.</p>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Teslimat Onaylı Ödeme</h4>
+                <p class="text-neutral-500 leading-relaxed">Yük sahibi navlun bedelini siz yola çıkmadan lisanslı ödeme kuruluşu üzerinden öder; teslimat onaylandığında ödeme kayıtlı IBAN'ınıza geçer. Hesaba geçiş süresi banka iş günlerine göre değişir.</p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>

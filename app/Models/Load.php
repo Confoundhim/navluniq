@@ -50,9 +50,9 @@ class Load extends Model
 
     public const ESCROW_LABELS = [
         self::ESCROW_PENDING => 'Ödeme bekleniyor',
-        self::ESCROW_PAID => 'Havuzda bloke',
+        self::ESCROW_PAID => 'Ödendi, teslimat onayı bekleniyor',
         self::ESCROW_ON_HOLD => 'Uyuşmazlık nedeniyle askıda',
-        self::ESCROW_RELEASE_APPROVED => 'Hakediş onaylandı',
+        self::ESCROW_RELEASE_APPROVED => 'Şoför ödemesi onaylandı',
         self::ESCROW_RELEASED => 'Şoföre ödendi',
         self::ESCROW_REFUNDED => 'Yük sahibine iade edildi',
     ];

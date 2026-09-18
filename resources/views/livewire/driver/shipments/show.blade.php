@@ -231,13 +231,13 @@ class extends Component {
 
                         @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
                             @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
-                                <p class="text-xs text-neutral-700 dark:text-neutral-300">Navlun bedeli havuzda bloke edildi. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
+                                <p class="text-xs text-neutral-700 dark:text-neutral-300">Yük sahibi navlun ödemesini yaptı. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
                                 <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="btn-primary w-full sm:w-auto py-2 text-xs" wire:loading.attr="disabled">
                                     Yükü aldım, yola çıktım
                                 </button>
                             @else
                                 <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
-                                    Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme havuza yatırıldığında bu sayfada yola çıkma düğmesi görünecektir.
+                                    Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme yapıldığında bu sayfada yola çıkma düğmesi görünecektir.
                                 </div>
                             @endif
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT)
@@ -275,11 +275,11 @@ class extends Component {
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                         <div>Navlun: <span class="tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->total_amount ?? 0), 2, ',', '.') }} ₺</span></div>
                                         <div>Komisyon: <span class="tabular-nums text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->commission_amount ?? 0), 2, ',', '.') }} ₺</span></div>
-                                        <div>Net hakediş: <span class="tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->net_amount ?? 0), 2, ',', '.') }} ₺</span></div>
+                                        <div>Net ödeme: <span class="tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->net_amount ?? 0), 2, ',', '.') }} ₺</span></div>
                                     </div>
                                     <div>Durum: {{ \App\Models\Payout::STATUS_LABELS[$load->payout->status] ?? $load->payout->status }}</div>
                                 @else
-                                    <div>Hakediş kaydı henüz oluşmadı.</div>
+                                    <div>Ödeme kaydı henüz oluşmadı.</div>
                                 @endif
                                 <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Cüzdana git</a>
                             </div>
@@ -428,7 +428,7 @@ class extends Component {
                     @if($ownerPhone)
                         <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
                     @else
-                        <div class="text-neutral-500">İletişim numarası, yük sahibi havuz ödemesini yaptıktan sonra görünür.</div>
+                        <div class="text-neutral-500">İletişim numarası, yük sahibi navlun ödemesini yaptıktan sonra görünür.</div>
                     @endif
                 </div>
 
@@ -441,16 +441,16 @@ class extends Component {
                                 Yük sahibi ödemeyi yapmadan yola çıkamazsınız.
                                 @break
                             @case(\App\Models\Load::ESCROW_PAID)
-                                Navlun bedeli havuzda bloke. Teslimat onaylandığında hakedişiniz komisyon düşülerek ödeme sırasına alınır.
+                                Navlun ödemesi yapıldı. Teslimat onaylandığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.
                                 @break
                             @case(\App\Models\Load::ESCROW_ON_HOLD)
                                 Uyuşmazlık karara bağlanana kadar ödeme askıda tutulur.
                                 @break
                             @case(\App\Models\Load::ESCROW_RELEASE_APPROVED)
-                                Hakedişiniz onaylandı; finans ekibi banka transferini tamamladığında bilgilendirilirsiniz.
+                                Ödemeniz onaylandı; banka hesabınıza geçtiğinde bilgilendirilirsiniz.
                                 @break
                             @case(\App\Models\Load::ESCROW_RELEASED)
-                                Hakedişiniz kayıtlı banka hesabınıza aktarıldı.
+                                Ödemeniz kayıtlı banka hesabınıza geçti.
                                 @break
                             @case(\App\Models\Load::ESCROW_REFUNDED)
                                 Navlun bedeli yük sahibine iade edildi.

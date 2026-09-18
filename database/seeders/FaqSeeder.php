@@ -28,8 +28,8 @@ class FaqSeeder extends Seeder
         $faqs = [
             [
                 'order_num' => 1,
-                'question' => 'Güvenli havuz sistemi nedir, ödeme şoföre ne zaman aktarılır?',
-                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden kredi kartı, banka kartı ya da havale ile öder; tutar NavlunIQ güvenli havuzunda bekletilir ve şoföre doğrudan geçmez. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün hak edişi finans ekibimiz tarafından kayıtlı IBAN\'ına banka havalesiyle aktarılır ve durumu şoför panelindeki cüzdan ekranından izlenir.',
+                'question' => 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
+                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden kredi kartı, banka kartı ya da havale ile öder; ödeme, lisanslı ödeme kuruluşu nezdinde teslimat onayına bağlı olarak işlenir; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki cüzdan ekranından izlenir.',
             ],
             [
                 'order_num' => 2,
@@ -59,12 +59,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 7,
                 'question' => 'NavlunIQ bir nakliye firması mıdır?',
-                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, ödemeyi güvenli havuzda tutan ve süreci kayıt altına alan bir aracı teknoloji platformudur. Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
+                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, ödemeyi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlayan ve süreci kayıt altına alan bir aracı teknoloji platformudur. Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
             ],
             [
                 'order_num' => 8,
                 'question' => 'Uyuşmazlık merkezi nasıl çalışır?',
-                'answer' => 'Teslimatta hasar, eksik ya da anlaşmazlık yaşanırsa yük sahibi teslimatı onaylamak yerine panelinden itiraz açar; o anda havuzdaki ödeme kilitlenir ve otomatik onay durur. Şoför kendi açıklamasını ve fotoğrafını ekler. NavlunIQ destek ekibi iki tarafın beyanlarını, yükleme ve teslim fotoğraflarını ve varsa konum kayıtlarını inceleyerek ödemenin şoföre aktarılmasına ya da yük sahibine iadesine karar verir. Karar ve gerekçesi her iki tarafa panelden bildirilir. Bu süreç taraflara hukuki yollara başvurma hakkını kaybettirmez.',
+                'answer' => 'Teslimatta hasar, eksik ya da anlaşmazlık yaşanırsa yük sahibi teslimatı onaylamak yerine panelinden itiraz açar; o anda navlun ödemesi askıya alınır ve otomatik onay durur. Şoför kendi açıklamasını ve fotoğrafını ekler. NavlunIQ destek ekibi iki tarafın beyanlarını, yükleme ve teslim fotoğraflarını ve varsa konum kayıtlarını inceleyerek ödemenin şoföre yapılmasına ya da yük sahibine iadesine karar verir. Karar ve gerekçesi her iki tarafa panelden bildirilir. Bu süreç taraflara hukuki yollara başvurma hakkını kaybettirmez.',
             ],
             [
                 'order_num' => 9,
@@ -84,7 +84,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 12,
                 'question' => 'Komisyonlar ve faturalar nasıl işler?',
-                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün hak edişinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve cüzdan hareketlerinde açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
+                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve cüzdan hareketlerinde açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
             ],
             [
                 'order_num' => 13,

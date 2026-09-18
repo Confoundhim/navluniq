@@ -17,7 +17,7 @@ class SupportTicket extends Model
         'account' => 'Hesap, giriş ve güvenlik',
         'kyc' => 'Belge ve KYC doğrulama',
         'load' => 'İlan, teklif ve rota',
-        'escrow' => 'Ödeme ve güvenli havuz',
+        'escrow' => 'Ödeme ve tahsilat',
         'billing' => 'Fatura ve muhasebe',
         'subscription' => 'Abonelik ve fiyatlandırma',
         'dispute' => 'Uyuşmazlık yönetimi',

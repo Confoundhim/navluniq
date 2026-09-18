@@ -72,14 +72,14 @@ class extends Component {
 <div wire:poll.10s class="space-y-6">
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="page-title">Finans, güvenli havuz ve faturalar</h2>
-        <p class="page-subtitle">Havuzda bloke tutarlar, ödeme geçmişiniz ve adınıza kesilen faturalar.</p>
+        <h2 class="page-title">Finans, ödemeler ve faturalar</h2>
+        <p class="page-subtitle">Teslimat onayı bekleyen ödemeler, ödeme geçmişiniz ve adınıza kesilen faturalar.</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5">
-            <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-2">Güvenli havuzda bloke</span>
+            <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-2">Teslimat onayı bekleyen ödemeler</span>
             <div class="text-3xl font-extrabold text-brand-400 tabular-nums">
                 {{ number_format($inEscrow, 2, ',', '.') }} <span class="text-lg text-neutral-900 dark:text-white">₺</span>
             </div>

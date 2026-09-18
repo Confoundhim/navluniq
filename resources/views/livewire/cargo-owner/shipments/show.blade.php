@@ -61,7 +61,7 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Teslimat onaylandı. Şoförün hakedişi ödeme sırasına alındı.');
+        session()->flash('success_message', 'Teslimat onaylandı. Şoförün navlun ödemesi tamamlanma sırasına alındı.');
     }
 
     public function submitReview(ReviewService $reviews): void
@@ -193,7 +193,7 @@ class extends Component {
             <div class="p-5 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="text-xs text-neutral-800 dark:text-neutral-200 leading-relaxed">
                     <span class="font-bold text-neutral-900 dark:text-white block mb-0.5">Ödeme bekleniyor</span>
-                    Şoför, navlun bedeli güvenli havuza yatırılmadan sevkiyatı başlatamaz.
+                    Şoför, navlun ödemesi yapılmadan sevkiyatı başlatamaz.
                 </div>
                 <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs text-center shadow-lg shadow-brand-500/20">Ödemeye git</a>
             </div>
@@ -201,7 +201,7 @@ class extends Component {
 
         @if($openDispute)
             <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Havuz ödemesi karar verilene kadar askıda.</span>
+                <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Navlun ödemesi karar verilene kadar askıda.</span>
                 <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
             </div>
         @endif
@@ -308,7 +308,7 @@ class extends Component {
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <h3 class="section-title">Teslimat kanıtları</h3>
                         @if($canApprove)
-                            <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda havuzdaki navlun bedeli şoförün hakedişi olarak ödeme sırasına alınır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                            <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda navlun ödemesi şoföre tamamlanır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
                                 <span wire:loading.remove wire:target="approveDelivery">Teslimatı onayla</span>
                                 <span wire:loading wire:target="approveDelivery">Onaylanıyor...</span>
                             </button>
@@ -415,7 +415,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                    <h3 class="section-title">Güvenli havuz</h3>
+                    <h3 class="section-title">Ödeme durumu</h3>
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-neutral-500 dark:text-neutral-400">Navlun bedeli</span>
                         <span class="text-brand-400 font-bold tabular-nums text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
@@ -428,11 +428,11 @@ class extends Component {
                         @if($load->escrow_status === 'pending_payment')
                             Ödeme henüz alınmadı.
                         @elseif($load->escrow_status === 'paid_in_escrow')
-                            Teslimatı onayladığınızda bedel şoförün hakedişi olarak ödeme sırasına alınır.
+                            Teslimatı onayladığınızda navlun ödemesi şoföre tamamlanır.
                         @elseif($load->escrow_status === 'on_hold')
                             Uyuşmazlık karara bağlanana kadar ödeme askıda.
                         @elseif(in_array($load->escrow_status, ['release_approved', 'released_to_driver'], true))
-                            Hakediş şoföre aktarım sürecinde ya da aktarıldı.
+                            Navlun ödemesi şoföre tamamlanıyor ya da tamamlandı.
                         @else
                             İade süreci tamamlandı.
                         @endif
@@ -445,7 +445,7 @@ class extends Component {
                 @if($canDispute)
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
                         <h3 class="section-title">Sorun mu var?</h3>
-                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında havuzdaki ödeme karar verilene kadar askıya alınır.</p>
+                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır.</p>
                         <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>
                 @endif

@@ -84,7 +84,7 @@ class extends Component {
         $this->createModalOpen = false;
         $this->reset(['selected_load_id', 'claim', 'claim_photo']);
         $this->resetPage();
-        session()->flash('success_message', 'Uyuşmazlık kaydı açıldı. Havuzdaki ödeme karar verilene kadar askıya alındı; şoförün savunması ve hakem kararı burada görünecek.');
+        session()->flash('success_message', 'Uyuşmazlık kaydı açıldı. Navlun ödemesi karar verilene kadar askıya alındı; şoförün savunması ve hakem kararı burada görünecek.');
     }
 
     public function with(): array
@@ -120,7 +120,7 @@ class extends Component {
                 </span>
                 <span>Uyuşmazlık merkezi</span>
             </h2>
-            <p class="page-subtitle">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; havuzdaki ödeme karar verilene kadar askıya alınır.</p>
+            <p class="page-subtitle">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; navlun ödemesi karar verilene kadar askıya alınır.</p>
         </div>
 
         <button type="button" wire:click="openModal" class="btn-primary bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 py-2 text-xs">
@@ -134,7 +134,7 @@ class extends Component {
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
             <div class="text-xs font-bold text-brand-400">1. Ödeme askıya alınır</div>
-            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Uyuşmazlık açıldığında havuzdaki navlun bedeli karar verilene kadar şoföre aktarılmaz.</p>
+            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar şoföre tamamlanmaz.</p>
         </div>
         <div class="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
             <div class="text-xs font-bold text-brand-400">2. Şoför savunma yapar</div>
@@ -169,7 +169,7 @@ class extends Component {
                             @if($load)
                                 <div class="text-neutral-900 dark:text-white font-bold break-words">#{{ $load->id }} · {{ $load->pickup_location }} &rarr; {{ $load->delivery_location }}</div>
                                 <div class="text-neutral-500">Şoför: <span class="text-neutral-700 dark:text-neutral-300 font-medium">{{ $load->driverProfile?->user?->full_name ?: '—' }}</span></div>
-                                <div class="text-neutral-500">Havuzdaki tutar: <span class="text-brand-400 tabular-nums font-bold">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span> · {{ $load->escrowLabel() }}</div>
+                                <div class="text-neutral-500">Navlun bedeli: <span class="text-brand-400 tabular-nums font-bold">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span> · {{ $load->escrowLabel() }}</div>
                                 <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="text-brand-400 hover:underline inline-block pt-1">Sevkiyatı görüntüle</a>
                             @else
                                 <div class="text-neutral-500">Sevkiyat kaydı bulunamadı.</div>
@@ -214,7 +214,7 @@ class extends Component {
         @empty
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center space-y-3">
                 <h4 class="text-base font-bold text-neutral-900 dark:text-white">Henüz uyuşmazlık kaydınız yok</h4>
-                <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yolda veya teslim edilmiş ve ödemesi havuzda bekleyen sevkiyatlarınız için uyuşmazlık açabilirsiniz.</p>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yolda veya teslim edilmiş ve ödemesi teslimat onayı bekleyen sevkiyatlarınız için uyuşmazlık açabilirsiniz.</p>
             </div>
         @endforelse
     </div>
@@ -247,7 +247,7 @@ class extends Component {
                             @endforeach
                         </select>
                         @if($eligibleLoads->isEmpty())
-                            <p class="text-[11px] text-neutral-500 mt-1">Şu anda uyuşmazlık açılabilecek sevkiyatınız yok. Uyuşmazlık yalnız yolda veya teslim edilmiş ve ödemesi havuzda bekleyen sevkiyatlar için açılabilir.</p>
+                            <p class="text-[11px] text-neutral-500 mt-1">Şu anda uyuşmazlık açılabilecek sevkiyatınız yok. Uyuşmazlık yalnız yolda veya teslim edilmiş ve ödemesi teslimat onayı bekleyen sevkiyatlar için açılabilir.</p>
                         @endif
                         @error('selected_load_id') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
@@ -267,7 +267,7 @@ class extends Component {
                 </div>
 
                 <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
-                    Uyuşmazlık açıldığında havuzdaki navlun bedeli karar verilene kadar askıya alınır ve şoföre aktarılmaz.
+                    Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır ve şoföre tamamlanmaz.
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">

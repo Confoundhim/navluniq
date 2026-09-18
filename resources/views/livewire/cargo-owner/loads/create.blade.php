@@ -356,7 +356,7 @@ class extends Component {
                         <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>
                         <span>3. Adım: Navlun bedeli ve ilan özeti</span>
                     </h3>
-                    <p class="page-subtitle">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarı, teslimat onayına kadar güvenli havuzda tutulur.</p>
+                    <p class="page-subtitle">Şoförler bu bedeli referans alarak teklif verir. Kabul ettiğiniz teklif tutarını lisanslı ödeme kuruluşu üzerinden ödersiniz; ödeme teslimat onayınızla şoföre tamamlanır.</p>
                 </div>
 
                 <div class="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
@@ -407,7 +407,7 @@ class extends Component {
                     <label class="flex items-start gap-3 cursor-pointer">
                         <input type="checkbox" wire:model="terms_accepted" class="form-input h-4">
                         <span class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                            Navlun bedeli, teslimat onayına kadar güvenli havuzda tutulur. İlan bilgilerinin doğru olduğunu ve <a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">kullanıcı sözleşmesini</a> kabul ediyorum.
+                            Navlun ödemesi teslimat onayınızla şoföre tamamlanır. İlan bilgilerinin doğru olduğunu ve <a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" target="_blank" rel="noopener" class="text-brand-400 hover:underline">kullanıcı sözleşmesini</a> kabul ediyorum.
                         </span>
                     </label>
                     @error('terms_accepted') <span class="form-error">{{ $message }}</span> @enderror

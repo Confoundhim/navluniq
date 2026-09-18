@@ -28,7 +28,7 @@ class AccountService
             throw new RuntimeException('Devam eden ilan veya sevkiyatınız varken hesabınızı kapatamazsınız. Önce bunları tamamlayın ya da iptal edin.');
         }
         if ($pendingPayout) {
-            throw new RuntimeException('Ödenmemiş hakedişiniz varken hesabınız kapatılamaz. Ödeme tamamlandıktan sonra tekrar deneyin.');
+            throw new RuntimeException('Tamamlanmamış bir navlun ödemeniz varken hesabınız kapatılamaz. Ödeme tamamlandıktan sonra tekrar deneyin.');
         }
 
         DB::transaction(function () use ($user, $reason): void {
