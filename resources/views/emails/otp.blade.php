@@ -1,4 +1,4 @@
-<x-mail-base subject-line="Doğrulama kodunuz" :preheader="'Doğrulama kodunuz: '.$otpCode.' (5 dakika geçerli)'">
+<x-mail-base :message="$message ?? null" subject-line="Doğrulama kodunuz" :preheader="'Doğrulama kodunuz: '.$otpCode.' (5 dakika geçerli)'">
     <h1 style="margin:0 0 6px;font-size:20px;line-height:28px;font-weight:800;color:#18181b;">Doğrulama kodunuz</h1>
     <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#52525b;">Merhaba{{ $recipientName ? ' '.$recipientName : '' }},</p>
     <p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#3f3f46;">{{ $intro }}</p>

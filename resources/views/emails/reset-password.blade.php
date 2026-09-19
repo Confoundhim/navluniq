@@ -1,4 +1,4 @@
-<x-mail-base subject-line="Şifrenizi sıfırlayın" preheader="Şifre sıfırlama bağlantınız 60 dakika geçerlidir.">
+<x-mail-base :message="$message ?? null" subject-line="Şifrenizi sıfırlayın" preheader="Şifre sıfırlama bağlantınız 60 dakika geçerlidir.">
     <h1 style="margin:0 0 6px;font-size:20px;line-height:28px;font-weight:800;color:#18181b;">Şifrenizi sıfırlayın</h1>
     <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#52525b;">Merhaba{{ $recipientName ? ' '.$recipientName : '' }},</p>
     <p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#3f3f46;">Hesabınız için şifre sıfırlama talebi aldık. Yeni şifrenizi belirlemek için aşağıdaki düğmeye tıklayın. Bağlantı <strong>{{ $ttl }} dakika</strong> boyunca geçerlidir.</p>

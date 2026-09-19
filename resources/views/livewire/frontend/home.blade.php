@@ -510,15 +510,28 @@ new class extends Component {
     <!-- 9. BÖLÜM: GÜVENLİ ÖDEME PARTNERİMİZ -->
     <!-- ========================================================= -->
     <section class="max-w-7xl mx-auto px-6 md:px-12">
-        <div class="apple-glass rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 border border-neutral-200/50 shadow-apple-sm">
-            <div class="space-y-1 text-center md:text-left">
-                <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
-                <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
-                <p class="text-xs text-neutral-400">Ödemeler lisanslı ödeme kuruluşları ve bankalar üzerinden kredi kartı, banka kartı ya da havale ile yapılır; navlun ödemesi teslimat onayıyla tamamlanır.</p>
+        <div class="apple-glass rounded-3xl p-8 space-y-6 border border-neutral-200/50 shadow-apple-sm">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="space-y-1 text-center md:text-left">
+                    <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
+                    <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
+                    <p class="text-xs text-neutral-400 max-w-2xl">Ödemeler BDDK lisanslı ödeme kuruluşu <a href="https://www.iyzico.com" target="_blank" rel="noopener" class="font-semibold text-neutral-600 dark:text-neutral-300 hover:text-brand-500">iyzico</a> güvencesiyle kredi kartı ya da banka kartıyla, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; navlun ödemesi teslimat onayıyla şoföre tamamlanır.</p>
+                </div>
+                <div class="flex items-center space-x-3 text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-4 py-2 rounded-xl shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    <span>SSL ile şifreli bağlantı</span>
+                </div>
             </div>
-            <div class="flex items-center space-x-3 text-xs font-mono font-bold text-emerald-600 bg-emerald-500/10 px-4 py-2 rounded-xl">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                <span>SSL ile şifreli bağlantı</span>
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-5 pt-5 border-t border-neutral-200/60 dark:border-neutral-800">
+                <a href="https://www.iyzico.com" target="_blank" rel="noopener" class="shrink-0" title="iyzico ile Öde">
+                    <img src="/images/payment/iyzico-ile-ode.svg" alt="iyzico ile Öde" class="h-9 w-auto dark:hidden">
+                    <img src="/images/payment/iyzico-ile-ode-white.svg" alt="iyzico ile Öde" class="h-9 w-auto hidden dark:block">
+                </a>
+                <div class="flex flex-col sm:items-end gap-1.5">
+                    <img src="/images/payment/iyzico-band-colored.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-8 w-auto dark:hidden">
+                    <img src="/images/payment/iyzico-band-white.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-8 w-auto hidden dark:block">
+                    <span class="text-[11px] text-neutral-400">Mastercard, Visa, American Express ve Troy kartlarıyla tek çekim ödeme</span>
+                </div>
             </div>
         </div>
     </section>

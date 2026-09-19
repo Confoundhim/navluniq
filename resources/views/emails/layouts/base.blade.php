@@ -1,6 +1,21 @@
 @php
+    $message = $message ?? null;
     $company = \App\Support\Company::all();
-    $logoUrl = url('/images/logo-dark.png');
+    // Gönderim sırasında $message vardır: logolar iletiye gömülür (cid:), uzak görselleri engelleyen
+    // istemcilerde de görünür. Önizleme/render'da mutlak adres kullanılır.
+    $embed = function (string $file) use ($message) {
+        $path = public_path($file);
+        if ($message !== null && is_file($path)) {
+            try {
+                return $message->embed($path);
+            } catch (\Throwable) {
+            }
+        }
+
+        return url('/'.$file);
+    };
+    $logoUrl = $embed('images/logo-dark.png');
+    $symbolUrl = $embed('images/dark-symbol-logo.png');
     $siteUrl = rtrim((string) config('app.url'), '/');
     $social = array_filter([
         'Instagram' => \App\Models\CmsContent::getVal('social_instagram'),
@@ -65,7 +80,7 @@
                                                     <span style="color:#71717a;">Akıllı Lojistik Ağı</span>
                                                 </td>
                                                 <td align="right" valign="top" style="padding-top:20px;">
-                                                    <img src="{{ url('/images/dark-symbol-logo.png') }}" width="56" alt="NIQ" style="width:56px;height:auto;">
+                                                    <img src="{{ $symbolUrl }}" width="56" alt="NIQ" style="width:56px;height:auto;">
                                                 </td>
                                             </tr>
                                             <tr>

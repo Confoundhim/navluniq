@@ -1,4 +1,4 @@
-<x-mail-base :subject-line="$subjectLine" :preheader="$lines[0] ?? $subjectLine">
+<x-mail-base :message="$message ?? null" :subject-line="$subjectLine" :preheader="$lines[0] ?? $subjectLine">
     <h1 style="margin:0 0 6px;font-size:20px;line-height:28px;font-weight:800;color:#18181b;letter-spacing:-0.2px;">{{ $subjectLine }}</h1>
     <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#52525b;">Merhaba{{ $recipientName ? ' '.$recipientName : '' }},</p>
     @foreach($lines as $line)
