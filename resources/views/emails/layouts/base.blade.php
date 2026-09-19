@@ -107,6 +107,7 @@
                             {{ $company['name'] }}@if($company['address']) · {{ $company['address'] }}@endif<br>
                             @if($company['tax_office'] || $company['tax_no']){{ $company['tax_office'] }} VD · VKN {{ $company['tax_no'] }}@endif
                             @if($company['mersis_no']) · MERSİS {{ $company['mersis_no'] }}@endif
+                            @if($company['trade_registry_no']) · Ticaret Sicil {{ $company['trade_registry_no'] }}@endif
                             @if($etbis !== '') · ETBİS {{ $etbis }}@endif<br>
                             Bu e-posta navluniq.com üzerindeki hesabınızla ilgili işlem bildirimidir; otomatik gönderilmiştir.
                             Sorularınız için <a href="{{ $siteUrl }}/iletisim" style="color:#a1a1aa;">iletişim sayfamızı</a> kullanın.

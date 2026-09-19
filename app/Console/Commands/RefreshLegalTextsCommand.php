@@ -42,6 +42,10 @@ class RefreshLegalTextsCommand extends Command
             if (trim($html) === '') {
                 return true;
             }
+            // Künye metne gömülü (eski seed): sabit adres ya da eski vergi numarası geçiyorsa yenile.
+            if (preg_match('/Cevizlidere|6301481858/u', $html)) {
+                return true;
+            }
             $withToken += str_contains($html, '{{COMPANY_NAME}}') ? 1 : 0;
         }
 
