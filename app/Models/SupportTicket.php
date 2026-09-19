@@ -25,6 +25,8 @@ class SupportTicket extends Model
         'other' => 'Diğer',
     ];
 
+    public const ROLE_LABELS = ['cargo_owner' => 'Yük sahibi', 'driver' => 'Şoför', 'guest' => 'Ziyaretçi'];
+
     protected $fillable = [
         'user_id',
         'name',

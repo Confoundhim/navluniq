@@ -58,8 +58,11 @@ class DisputeService
         if ($driverUser = $load->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Sevkiyatınız için uyuşmazlık açıldı',
                 ['Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi. Navlun ödemesi karar verilene kadar askıya alındı. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'],
-                route('driver.disputes.index'), 'Savunma yap');
+                route('driver.disputes.index'), 'Savunma yap', 'dispute');
         }
+        $this->notifications->notifyAdmins('manage disputes', 'Yeni uyuşmazlık açıldı',
+            ["Sevkiyat #{$load->id} ({$load->pickup_location} → {$load->delivery_location}) için yük sahibi uyuşmazlık bildirdi; navlun ödemesi askıya alındı.", 'Şoför savunmasını sunduktan sonra karar bekliyor.'],
+            route('admin.disputes'), 'Uyuşmazlıkları incele', 'admin');
 
         return $dispute;
     }
@@ -80,6 +83,15 @@ class DisputeService
             'driver_defense' => mb_substr(trim($defense), 0, 3000),
             'driver_proof_photo_path' => $photoPath ?? $dispute->driver_proof_photo_path,
         ]);
+
+        if ($ownerUser = $load->cargoOwnerProfile?->user) {
+            $this->notifications->notify($ownerUser, 'Şoför savunmasını sundu',
+                ["Sevkiyat #{$load->id} için açtığınız uyuşmazlığa şoför savunma ve kanıt ekledi. Hakem ekibi iki tarafın belgelerini inceleyip karar verecek."],
+                route('cargo-owner.disputes.index'), 'Uyuşmazlığı görüntüle', 'dispute');
+        }
+        $this->notifications->notifyAdmins('manage disputes', 'Uyuşmazlık karar için hazır',
+            ["Sevkiyat #{$load->id} uyuşmazlığında şoför savunmasını sundu; iki tarafın beyanı ve kanıtları tamamlandı."],
+            route('admin.disputes'), 'Karar ver', 'admin');
     }
 
     /**
@@ -126,7 +138,7 @@ class DisputeService
         $load = $dispute->cargoLoad?->fresh();
         foreach (array_filter([$load?->cargoOwnerProfile?->user, $load?->driverProfile?->user]) as $user) {
             $this->notifications->notify($user, 'Uyuşmazlık karara bağlandı',
-                [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)]);
+                [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)], 'dispute');
         }
     }
 }

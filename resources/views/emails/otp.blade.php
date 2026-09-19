@@ -1,90 +1,12 @@
-<!DOCTYPE html>
-<html lang="tr">
-
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f5f5f7;
-            color: #1d1d1f;
-            margin: 0;
-            padding: 40px 20px;
-        }
-
-        .container {
-            max-width: 500px;
-            background-color: #ffffff;
-            border-radius: 24px;
-            padding: 40px;
-            margin: 0 auto;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
-            border: 1px solid #f5f5f7;
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo-iq {
-            color: #f97316;
-            /* Lojistik Turuncusu */
-        }
-
-        .content {
-            font-size: 14px;
-            line-height: 1.6;
-            color: #515154;
-            text-align: center;
-        }
-
-        .otp-box {
-            background-color: #f5f5f7;
-            border-radius: 16px;
-            padding: 20px;
-            font-size: 32px;
-            font-weight: bold;
-            letter-spacing: 6px;
-            text-align: center;
-            color: #1d1d1f;
-            margin: 30px 0;
-            border: 1px solid #e5e5ea;
-        }
-
-        .footer {
-            font-size: 11px;
-            color: #86868b;
-            text-align: center;
-            margin-top: 40px;
-            border-top: 1px solid #f5f5f7;
-            padding-top: 20px;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <div class="logo">
-            <span>Navlun</span><span class="logo-iq">IQ</span>
-        </div>
-        <div class="content">
-            <p>Merhaba,</p>
-            <p>{{ $intro }}</p>
-
-            <div class="otp-box">
-                {{ $otpCode }}
-            </div>
-
-            <p>{{ $warning }}</p>
-        </div>
-        <div class="footer">
-            © {{ date('Y') }} {{ \App\Support\Company::get('name') }}<br>
-            Bu e-posta otomatik olarak gönderilmiştir, lütfen yanıtlamayınız.
-        </div>
-    </div>
-</body>
-
-</html>
+<x-mail-base subject-line="Doğrulama kodunuz" :preheader="'Doğrulama kodunuz: '.$otpCode.' (5 dakika geçerli)'">
+    <h1 style="margin:0 0 6px;font-size:20px;line-height:28px;font-weight:800;color:#18181b;">Doğrulama kodunuz</h1>
+    <p style="margin:0 0 18px;font-size:14px;line-height:22px;color:#52525b;">Merhaba{{ $recipientName ? ' '.$recipientName : '' }},</p>
+    <p style="margin:0 0 12px;font-size:14px;line-height:22px;color:#3f3f46;">{{ $intro }}</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+        <tr>
+            <td align="center" class="otp" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:16px;padding:22px 12px;font-size:34px;line-height:40px;font-weight:800;letter-spacing:10px;color:#18181b;font-family:'SF Mono',Menlo,Consolas,monospace;">{{ $otpCode }}</td>
+        </tr>
+    </table>
+    <p style="margin:0 0 12px;font-size:13px;line-height:20px;color:#52525b;">Kod <strong>{{ $ttl }} dakika</strong> geçerlidir ve yalnız bir kez kullanılabilir. NavlunIQ ekibi sizden bu kodu asla telefonla ya da mesajla istemez; kimseyle paylaşmayın.</p>
+    <p style="margin:0;font-size:13px;line-height:20px;color:#71717a;">{{ $warning }}</p>
+</x-mail-base>

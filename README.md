@@ -73,7 +73,8 @@ bash /var/www/navluniq/deploy/update.sh
 
 Kurulumdan sonra `.env` içinde `MAIL_*` (OTP e-postaları için şart) doldurulup `php artisan config:cache`
 çalıştırılır. Şirket künyesi (unvan, adres, vergi, MERSİS, ETBİS) ve KDV oranı yönetici panelinden
-(Sistem Ayarları → Ödeme altyapısı) girilir; `.env` gerekmez. PayTR, NetGSM ve yapay zeka anahtarları
+(Sistem Ayarları → Ödeme altyapısı) girilir; `.env` gerekmez.
+E-posta gönderimi ve bildirim akışı için `docs/EPOSTA_VE_BILDIRIM.md` (SPF/DKIM/DMARC, deneme e-postası). PayTR, NetGSM ve yapay zeka anahtarları
 hazır olduğunda aynı dosyaya eklenir.
 
 Kuyruk kullanılmaz; e-postalar eşzamanlı gönderilir. Uygulama bir yük dengeleyici veya CDN arkasındaysa `bootstrap/app.php` içinde `trustProxies` tanımlanmalıdır; aksi halde güvenlik duvarı ve hız sınırlayıcı proxy IP'sini görür.

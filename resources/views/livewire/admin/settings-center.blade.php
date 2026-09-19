@@ -6,6 +6,8 @@ use App\Models\SettingRevision;
 use App\Services\PaymentService;
 use App\Support\Company;
 use App\Support\Settings;
+use App\Models\UserNotification;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\Artisan;
 use Livewire\Volt\Component;
 
@@ -58,6 +60,8 @@ new class extends Component {
 
     /** @var array<string, string> */
     public array $company = [];
+
+    public string $testEmail = '';
 
     public function mount(): void
     {
@@ -126,6 +130,37 @@ new class extends Component {
 
         $this->loadValues();
         session()->flash('success_message', $changed > 0 ? "{$changed} alan güncellendi; altbilgi, iletişim sayfası ve sözleşmeler yeni künyeyi gösterir." : 'Değişiklik yok.');
+    }
+
+    /** SMTP ve şablon doğrulaması: girilen adrese markalı deneme e-postası gönderir. */
+    public function sendTestMail(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+        $this->testEmail = trim($this->testEmail) ?: (string) auth()->user()->email;
+        $this->validate(['testEmail' => 'required|email|max:190']);
+
+        $error = app(NotificationService::class)->sendTest($this->testEmail);
+        ActivityLog::record('setting.mail_test', 'Deneme e-postası: '.$this->testEmail.($error ? ' (başarısız)' : ''), auth()->id(), null, ['error' => $error]);
+        if ($error) {
+            $this->addError('testEmail', 'Gönderim başarısız: '.mb_substr($error, 0, 300));
+
+            return;
+        }
+        session()->flash('success_message', $this->testEmail.' adresine deneme e-postası gönderildi; gelen kutusunu (ve spam klasörünü) kontrol edin.');
+    }
+
+    /** Başarısız bildirim e-postalarını hemen yeniden dener. */
+    public function retryFailedMail(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            return;
+        }
+        $sent = app(NotificationService::class)->retryFailedMail(100);
+        session()->flash('success_message', "{$sent} e-posta yeniden gönderildi.");
     }
 
     /** Beş yasal metni koddaki güncel şablonla yeniler (künye yer tutucuları panelden dolar). */
@@ -293,6 +328,18 @@ new class extends Component {
             'limitLabels' => self::LIMIT_LABELS,
             'defaults' => Settings::DEFAULTS,
             'companyLabels' => Company::LABELS,
+            'mail' => [
+                'mailer' => (string) config('mail.default'),
+                'host' => (string) config('mail.mailers.smtp.host'),
+                'port' => (string) config('mail.mailers.smtp.port'),
+                'encryption' => (string) (config('mail.mailers.smtp.encryption') ?: config('mail.mailers.smtp.scheme') ?: 'tls'),
+                'username' => (string) config('mail.mailers.smtp.username'),
+                'from' => (string) config('mail.from.address'),
+                'from_name' => (string) config('mail.from.name'),
+                'stats' => NotificationService::mailStats(),
+                'failed' => UserNotification::query()->with('user')->where('mail_status', UserNotification::MAIL_FAILED)->latest('id')->limit(10)->get(),
+                'recent' => UserNotification::query()->with('user')->latest('id')->limit(12)->get(),
+            ],
             'companyExtra' => self::COMPANY_EXTRA_KEYS,
             'payment' => [
                 'provider' => $gateway->label(),
@@ -312,7 +359,7 @@ new class extends Component {
 <div class="max-w-5xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
-        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı'];
+        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı', 'mail' => 'E-posta ve bildirim'];
     @endphp
 
     @if (session()->has('success_message'))
@@ -482,6 +529,91 @@ new class extends Component {
                     @endforeach
                 </div>
             @endforeach
+        </div>
+    @endif
+
+    @if($activeTab === 'mail')
+        @php $mailOk = $mail['mailer'] === 'smtp' && $mail['host'] !== '' && $mail['from'] !== '' && ! str_contains($mail['from'], 'example'); @endphp
+        <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Gönderim altyapısı</h2>
+                <span class="badge {{ $mailOk ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $mailOk ? 'SMTP tanımlı' : 'SMTP eksik' }}</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Yöntem</span><span class="font-bold">{{ $mail['mailer'] }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">SMTP sunucusu</span><span class="font-bold break-all">{{ $mail['host'] ?: '—' }}{{ $mail['host'] ? ':'.$mail['port'] : '' }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Gönderici</span><span class="font-bold break-all">{{ $mail['from'] ?: '—' }}</span><span class="text-[11px] text-neutral-400 block">{{ $mail['from_name'] }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Son 24 saat</span><span class="font-bold text-emerald-600">{{ $mail['stats']['sent'] }} gönderildi</span><span class="text-[11px] block {{ $mail['stats']['failed'] ? 'text-rose-500 font-semibold' : 'text-neutral-400' }}">{{ $mail['stats']['failed'] }} başarısız bekliyor</span></div>
+            </div>
+            <p class="text-[11px] text-neutral-400 leading-relaxed">SMTP bilgileri (MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS) sunucudaki .env dosyasında tutulur; gönderici adresi navluniq.com alan adında olmalı ve alan adında SPF, DKIM ve DMARC kayıtları tanımlı olmalıdır (docs/EPOSTA_VE_BILDIRIM.md). Doğrulama kodları anında gönderilir; diğer bildirimler uygulama içine yazılır, e-posta hata verirse 10 dakikada bir en fazla 4 kez yeniden denenir.</p>
+            <form wire:submit="sendTestMail" class="flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div class="flex-1">
+                    <label class="form-label">Deneme e-postası gönder</label>
+                    <input type="email" wire:model="testEmail" class="{{ $input }}" placeholder="{{ auth()->user()->email }}">
+                    @error('testEmail')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                </div>
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Gönder</button>
+                @if($mail['stats']['failed'] > 0)
+                    <button type="button" wire:click="retryFailedMail" wire:loading.attr="disabled" class="btn-apple-secondary py-2.5 px-5 text-xs">Başarısızları yeniden dene</button>
+                @endif
+            </form>
+        </div>
+
+        <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Hangi olayda kime ne gönderiliyor</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                @foreach([
+                    'Kayıt doğrulandı' => 'Hoş geldiniz + ilk adımlar (şoför: belgeler, yük sahibi: ilan)',
+                    'Giriş / rol değişimi / kayıt' => 'Tek kullanımlık doğrulama kodu (5 dk)',
+                    'Şifremi unuttum' => 'Markalı sıfırlama bağlantısı (60 dk); değişince güvenlik uyarısı',
+                    'Belgeler yüklendi' => 'Kullanıcıya "alındı"; KYC ekibine "inceleme bekliyor"',
+                    'Belge onay / ret' => 'Kullanıcıya sonuç ve gerekçe',
+                    'Yeni teklif' => 'Yük sahibine',
+                    'Teklif kabul / ret / süre doldu / geri çekildi' => 'Şoföre (kabul edilmeyenler dahil); geri çekme yük sahibine',
+                    'İlan iptali' => 'Teklif vermiş tüm şoförlere',
+                    'Navlun ödemesi alındı' => 'Yük sahibine ve şoföre',
+                    'Yola çıktı / teslim kanıtı / onay' => 'Karşı tarafa; otomatik onayda yük sahibine de',
+                    'Hakediş ödendi / yapılamadı' => 'Şoföre; aktarım hatası finans ekibine',
+                    'Uyuşmazlık açıldı / savunma / karar' => 'Taraflara ve hakem ekibine',
+                    'Destek talebi' => 'Talep sahibine onay; destek ekibine bildirim; yanıt talep sahibine',
+                    'Premium' => 'Etkinleşti; bitişe 3 gün kala hatırlatma; sona erdi',
+                    'Değerlendirme' => 'Değerlendirilen tarafa',
+                    'Hesap kapatma' => 'Kapatma onayı',
+                ] as $event => $who)
+                    <div class="flex gap-2 py-1 border-b border-neutral-100 dark:border-neutral-800/60"><span class="font-semibold text-neutral-800 dark:text-neutral-100 w-56 shrink-0">{{ $event }}</span><span>{{ $who }}</span></div>
+                @endforeach
+            </div>
+        </div>
+
+        <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son bildirimler</h2>
+            <div class="responsive-scroll">
+                <table class="w-full text-left text-xs">
+                    <thead><tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/60"><th class="py-2 pr-4">Zaman</th><th class="py-2 pr-4">Kime</th><th class="py-2 pr-4">Başlık</th><th class="py-2 pr-4">Tür</th><th class="py-2 pr-4">E-posta</th><th class="py-2">Okundu</th></tr></thead>
+                    <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @forelse($mail['recent'] as $n)
+                            <tr>
+                                <td class="py-2 pr-4 whitespace-nowrap text-neutral-500">{{ $n->created_at->format('d.m H:i') }}</td>
+                                <td class="py-2 pr-4 max-w-[10rem] truncate">{{ $n->user?->full_name ?? '—' }}</td>
+                                <td class="py-2 pr-4 max-w-xs truncate">{{ $n->title }}</td>
+                                <td class="py-2 pr-4 text-neutral-500">{{ $n->typeLabel() }}</td>
+                                <td class="py-2 pr-4"><span class="badge {{ $n->mail_status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' : ($n->mail_status === 'failed' ? 'bg-rose-500/10 text-rose-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500') }}" title="{{ $n->mail_error }}">{{ $n->mailStatusLabel() }}</span></td>
+                                <td class="py-2 text-neutral-500">{{ $n->read_at ? $n->read_at->format('d.m H:i') : '—' }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="6" class="py-6 text-center text-neutral-500">Henüz bildirim yok.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if($mail['failed']->isNotEmpty())
+                <div class="rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 space-y-1">
+                    <div class="font-semibold text-rose-700 dark:text-rose-300">Başarısız e-postalar (son 10)</div>
+                    @foreach($mail['failed'] as $f)
+                        <div class="text-[11px] text-neutral-600 dark:text-neutral-300">{{ $f->created_at->format('d.m H:i') }} · {{ $f->user?->email }} · {{ $f->title }} · deneme {{ $f->mail_attempts }}/{{ \App\Models\UserNotification::MAX_MAIL_ATTEMPTS }} · <span class="text-rose-600">{{ mb_substr((string) $f->mail_error, 0, 140) }}</span></div>
+                    @endforeach
+                </div>
+            @endif
         </div>
     @endif
 

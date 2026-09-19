@@ -142,10 +142,10 @@ new class extends Component {
         $lines = ['Konu: '.($ticket->subject ?: (SupportTicket::CATEGORIES[$ticket->category] ?? $ticket->category)), 'Yanıtımız:', trim($this->reply)];
 
         if ($ticket->user) {
-            app(NotificationService::class)->notify($ticket->user, $subject, $lines);
+            app(NotificationService::class)->notify($ticket->user, $subject, $lines, null, null, 'support');
         } else {
             try {
-                Mail::to($ticket->email)->send(new SystemNoticeMail($subject, $lines));
+                Mail::to($ticket->email, $ticket->name)->send(new SystemNoticeMail($subject, $lines, null, null, $ticket->name));
             } catch (\Throwable $e) {
                 Log::warning('Destek yanıtı e-postası gönderilemedi.', ['ticket_id' => $ticket->id, 'error' => $e->getMessage()]);
             }

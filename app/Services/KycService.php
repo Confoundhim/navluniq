@@ -74,6 +74,17 @@ class KycService
 
             return $document;
         });
+
+        // Gerekli belgelerin tamamı yeni yüklendiyse: kullanıcıya "alındı", inceleme ekibine "bekliyor".
+        $profile = ($role === 'driver' ? $user->driverProfile : $user->cargoOwnerProfile)?->fresh();
+        if ($profile && $profile->kyc_status === 'pending' && $profile->kyc_submitted_at?->gt(now()->subMinute())) {
+            $this->notifications->notify($user, 'Belgeleriniz alındı',
+                ['Gerekli belgelerinizin tamamı yüklendi ve inceleme sırasına alındı. Ekibimiz genellikle 24 saat içinde sonucu bildirir.', 'Eksik ya da okunaksız bir belge olursa gerekçesiyle birlikte haber vereceğiz.'],
+                route($role === 'driver' ? 'driver.profile.index' : 'cargo-owner.profile.index'), 'Belgelerimi görüntüle', 'kyc');
+            $this->notifications->notifyAdmins('verify kyc', 'Yeni belge incelemesi bekliyor',
+                [$user->full_name.' ('.($role === 'driver' ? 'şoför' : 'yük sahibi').') gerekli belgelerinin tamamını yükledi.', 'KYC Evrak Merkezi\'nden belgeleri inceleyip onaylayın ya da gerekçesiyle reddedin.'],
+                route('admin.kyc'), 'KYC Evrak Merkezi', 'admin');
+        }
     }
 
     /** Gerekli belgelerin tamamı yüklendiyse profili "pending" (inceleme) durumuna alır. */
@@ -144,11 +155,15 @@ class KycService
         $profile = array_key_exists($document->document_type, KycDocument::DRIVER_TYPES) ? $user->driverProfile : $user->cargoOwnerProfile;
 
         if ($decision === 'rejected') {
+            $profileRoute = array_key_exists($document->document_type, KycDocument::DRIVER_TYPES) ? 'driver.profile.index' : 'cargo-owner.profile.index';
             $this->notifications->notify($user, 'Belgeniz reddedildi',
-                [$document->label().' belgeniz reddedildi.', 'Gerekçe: '.($notes ?: 'Belirtilmedi'), 'Lütfen belgeyi yeniden yükleyin.']);
+                [$document->label().' belgeniz reddedildi.', 'Gerekçe: '.($notes ?: 'Belirtilmedi'), 'Lütfen belgeyi yeniden yükleyin; yeni yükleme inceleme sırasına alınır.'],
+                route($profileRoute), 'Belgeyi yeniden yükle', 'kyc');
         } elseif ($profile?->kyc_status === 'approved') {
+            $isDriver = array_key_exists($document->document_type, KycDocument::DRIVER_TYPES);
             $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
-                ['Tüm belgeleriniz onaylandı. Artık platformun tüm özelliklerini kullanabilirsiniz.']);
+                ['Tüm belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzundaki yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
+                route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
         }
     }
 }

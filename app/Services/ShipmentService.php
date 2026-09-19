@@ -47,7 +47,7 @@ class ShipmentService
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
             $this->notifications->notify($ownerUser, 'Yükünüz yola çıktı',
                 ['Şoför yükü teslim aldı ve yola çıktı. Canlı konumu sevkiyat sayfasından takip edebilirsiniz.'],
-                route('cargo-owner.shipments.show', $shipment->load_id), 'Sevkiyatı takip et');
+                route('cargo-owner.shipments.show', $shipment->load_id), 'Sevkiyatı takip et', 'shipment');
         }
     }
 
@@ -97,7 +97,7 @@ class ShipmentService
             $hours = max(1, Settings::int('delivery_auto_approval_hours'));
             $this->notifications->notify($ownerUser, 'Teslimat kanıtı yüklendi',
                 ["Şoför teslimatı tamamladı ve kanıt yükledi. Lütfen {$hours} saat içinde teslimatı onaylayın; aksi halde ödeme otomatik olarak serbest bırakılır."],
-                route('cargo-owner.shipments.show', $shipment->load_id), 'Teslimatı onayla');
+                route('cargo-owner.shipments.show', $shipment->load_id), 'Teslimatı onayla', 'shipment');
         }
 
         return $evidence;
@@ -131,8 +131,16 @@ class ShipmentService
 
         if ($driverUser = $shipment->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',
-                ['Yük sahibi teslimatı onayladı. Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.'],
-                route('driver.wallet.index'), 'Cüzdanı görüntüle');
+                [($automatic ? 'Teslimat, yük sahibi onay süresi içinde itiraz etmediği için otomatik onaylandı.' : 'Yük sahibi teslimatı onayladı.').' Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.', 'Sevkiyat sayfasından yük sahibini değerlendirebilirsiniz.'],
+                route('driver.wallet.index'), 'Cüzdanı görüntüle', 'shipment');
+        }
+        if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
+            $this->notifications->notify($ownerUser, $automatic ? 'Teslimat otomatik onaylandı' : 'Teslimatı onayladınız',
+                [$automatic
+                    ? 'Teslimat kanıtı yüklendikten sonra onay süresi içinde itiraz edilmediği için sevkiyat otomatik onaylandı ve navlun ödemesi şoföre tamamlanıyor.'
+                    : 'Sevkiyat tamamlandı; navlun ödemesi şoföre tamamlanıyor.',
+                    'Sevkiyat sayfasından şoförü değerlendirebilir, faturalarınıza ödemeler sayfasından ulaşabilirsiniz.'],
+                route('cargo-owner.shipments.show', $shipment->load_id), 'Şoförü değerlendir', 'shipment');
         }
     }
 

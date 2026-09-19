@@ -78,6 +78,8 @@ final class PaymentReadiness
         // 6) E-posta ve bildirim
         $mailFrom = (string) config('mail.from.address');
         $checks[] = self::item('Bildirim', 'Gönderici e-posta', filled($mailFrom) && ! str_contains($mailFrom, 'example'), $mailFrom ?: 'Boş', 'MAIL_FROM_ADDRESS ve SMTP ayarlarını yapın.');
+        $smtpOk = config('mail.default') === 'smtp' && filled(config('mail.mailers.smtp.host'));
+        $checks[] = self::item('Bildirim', 'SMTP sunucusu tanımlı', $smtpOk, $smtpOk ? (string) config('mail.mailers.smtp.host') : 'Tanımsız ya da log sürücüsü', 'MAIL_HOST/PORT/USERNAME/PASSWORD girin; E-posta ve bildirim sekmesinden deneme gönderin.');
 
         return $checks;
     }

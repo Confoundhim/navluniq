@@ -231,7 +231,7 @@ new class extends Component {
 
         $this->segmentQuery()->select(['id', 'email', 'first_name', 'last_name'])->chunkById(100, function ($users) use (&$sent, $notifications, $lines): void {
             foreach ($users as $user) {
-                $notifications->notify($user, $this->subject, $lines);
+                $notifications->notify($user, $this->subject, $lines, null, null, 'general');
                 $sent++;
             }
         });

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Mail\PasswordResetMail;
 use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Mail;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -82,6 +84,31 @@ class User extends Authenticatable
     /**
      * Kullanıcının tam adı ve soyadı birleşimi.
      */
+    public function userNotifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class)->latest('id');
+    }
+
+    public function unreadNotificationCount(): int
+    {
+        return $this->userNotifications()->whereNull('read_at')->count();
+    }
+
+    /** Silinmiş/anonimleştirilmiş hesaplar ve boş adresler e-posta almaz. */
+    public function canReceiveMail(): bool
+    {
+        $email = (string) $this->email;
+
+        return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false && ! str_ends_with($email, '@hesap.kapatildi');
+    }
+
+    /** Laravel'in varsayılan şifre sıfırlama e-postası yerine markalı NavlunIQ şablonu. */
+    public function sendPasswordResetNotification($token): void
+    {
+        $url = route('password.reset', ['token' => $token, 'email' => $this->email]);
+        Mail::to($this->email)->send(new PasswordResetMail($this, $url));
+    }
+
     public function getFullNameAttribute(): string
     {
         return trim("{$this->first_name} {$this->last_name}");

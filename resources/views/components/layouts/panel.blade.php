@@ -6,6 +6,7 @@
     'dashboardRoute' => 'home',
     'primaryAction' => null,
     'nav' => [],
+    'notificationsRoute' => 'driver.notifications.index',
 ])
 @php
     $user = auth()->user();
@@ -115,6 +116,7 @@
             </button>
             <h1 class="flex-1 min-w-0 truncate text-base md:text-lg font-semibold text-neutral-900 dark:text-white">{{ $title }}</h1>
             <div class="flex items-center gap-2 shrink-0">
+                <livewire:notifications.bell :index-route="$notificationsRoute" />
                 <button type="button" @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500 bg-brand-500/10' : 'text-neutral-600 dark:text-neutral-300'" class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
                     <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M2.5 18.5l5-13 5 13M4.8 13.5h5.4M13.5 18.5l3-8 3 8M14.8 15.8h3.4"/></svg>
                 </button>

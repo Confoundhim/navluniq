@@ -103,6 +103,9 @@ class PayoutService
         if (! $result->succeeded) {
             $payout->update(['status' => 'pending', 'failure_reason' => mb_substr((string) $result->failureMessage, 0, 500)]);
             Log::warning('Ödeme kuruluşu aktarımı başarısız; manuel sürece düştü.', ['payout' => $payout->id, 'error' => $result->failureMessage]);
+            $this->notifications->notifyAdmins('manage payouts', 'Hakediş aktarımı başarısız',
+                ["Hakediş #{$payout->id} ödeme kuruluşu üzerinden aktarılamadı: ".($result->failureMessage ?: 'sebep belirtilmedi'), 'Kayıt manuel sürece düştü; Finans ekranından banka transferiyle tamamlayın.'],
+                route('admin.finance'), 'Finans ekranı', 'admin');
 
             return false;
         }
@@ -153,7 +156,7 @@ class PayoutService
         if ($driverUser = $payout->user) {
             $this->notifications->notify($driverUser, 'Ödemeniz hesabınıza geçti',
                 [number_format((float) $payout->net_amount, 2, ',', '.').' ₺ tutarındaki navlun ödemeniz banka hesabınıza geçti. Referans: '.$reference],
-                route('driver.wallet.index'), 'Cüzdanı görüntüle');
+                route('driver.wallet.index'), 'Cüzdanı görüntüle', 'payout');
         }
     }
 
@@ -161,6 +164,12 @@ class PayoutService
     {
         $payout->update(['status' => 'failed', 'reference_no' => mb_substr(trim($reason), 0, 120)]);
         ActivityLog::record('payout.failed', "Hakediş #{$payout->id} başarısız: {$reason}", $admin->id, $payout);
+
+        if ($driverUser = $payout->user) {
+            $this->notifications->notify($driverUser, 'Ödemeniz yapılamadı',
+                ['Hakedişiniz banka tarafından tamamlanamadı: '.mb_substr(trim($reason), 0, 200), 'Lütfen cüzdan sayfanızdan IBAN ve hesap sahibi bilgilerinizi kontrol edin; finans ekibimiz düzeltme sonrası ödemeyi yeniden gönderecek.'],
+                route('driver.wallet.index'), 'IBAN bilgilerimi kontrol et', 'payout');
+        }
     }
 
     /** Şoför cüzdanı: bekleyen ve ödenmiş hakedişler. */

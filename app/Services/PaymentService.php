@@ -248,12 +248,12 @@ class PaymentService
             if ($driverUser = $load->driverProfile?->user) {
                 $this->notifications->notify($driverUser, 'Navlun ödemesi yapıldı',
                     ['Yük sahibi navlun ödemesini yaptı. Artık sevkiyatı başlatabilirsiniz.'],
-                    route('driver.shipments.show', $load->id), 'Sevkiyata git');
+                    route('driver.shipments.show', $load->id), 'Sevkiyata git', 'payment');
             }
             if ($ownerUser = $load->cargoOwnerProfile?->user) {
                 $this->notifications->notify($ownerUser, 'Ödemeniz alındı',
                     ['Navlun ödemesi teslimat onayınızla şoföre tamamlanacaktır.'],
-                    route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı takip et');
+                    route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı takip et', 'payment');
             }
         }
     }

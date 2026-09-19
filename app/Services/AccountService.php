@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Mail\SystemNoticeMail;
 use App\Models\Load;
 use App\Models\Payout;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -31,6 +34,9 @@ class AccountService
             throw new RuntimeException('Tamamlanmamış bir navlun ödemeniz varken hesabınız kapatılamaz. Ödeme tamamlandıktan sonra tekrar deneyin.');
         }
 
+        $farewellEmail = $user->canReceiveMail() ? $user->email : null;
+        $farewellName = $user->first_name;
+
         DB::transaction(function () use ($user, $reason): void {
             $user->consents()->whereNull('revoked_at')->update(['revoked_at' => now()]);
             $user->bankAccounts()->delete();
@@ -52,6 +58,18 @@ class AccountService
 
             $user->delete();
         });
+
+        if ($farewellEmail) {
+            try {
+                Mail::to($farewellEmail, $farewellName)->send(new SystemNoticeMail('Hesabınız kapatıldı',
+                    ['NavlunIQ hesabınız talebiniz üzerine '.now()->format('d.m.Y H:i').' tarihinde kapatıldı; kişisel verileriniz anonimleştirildi.',
+                        'Yasal saklama süresi gereken fatura ve işlem kayıtları KVKK ve vergi mevzuatı uyarınca süresi boyunca saklanır.',
+                        'Bu işlemi siz yapmadıysanız lütfen hemen destek ekibimize ulaşın.'],
+                    null, null, $farewellName));
+            } catch (\Throwable $e) {
+                Log::warning('Hesap kapatma e-postası gönderilemedi.', ['email' => $farewellEmail, 'error' => $e->getMessage()]);
+            }
+        }
     }
 
     /** OTP doğrulaması yapılmamış taslak hesapları temizler (zamanlanmış görev). */

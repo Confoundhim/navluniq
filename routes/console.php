@@ -1,11 +1,11 @@
 <?php
 
 use App\Services\AccountService;
+use App\Services\OfferService;
 use App\Services\ScrapedLoadService;
+use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
 use App\Services\TelegramPublisher;
-use App\Services\OfferService;
-use App\Services\ShipmentService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -29,6 +29,10 @@ Artisan::command('scraped-loads:publish-telegram', function (TelegramPublisher $
     $this->info('Telegram kanalına gönderilen ilan sayısı: '.$telegram->publishDue());
 })->purpose('Ücretsiz üyelere açılan dış kaynak ilanlarını Telegram kanalına gönderir');
 
+Artisan::command('subscriptions:remind', function (SubscriptionService $subscriptions) {
+    $this->info('Premium bitiş hatırlatması gönderilen: '.$subscriptions->remindExpiring(3));
+})->purpose('Bitişine 3 gün kalan premium üyelere hatırlatma gönderir');
+
 Artisan::command('subscriptions:expire', function (SubscriptionService $subscriptions) {
     $this->info('Süresi dolan abonelik sayısı: '.$subscriptions->expireDue());
 })->purpose('Dönemi biten premium abonelikleri kapatır');
@@ -39,6 +43,8 @@ Artisan::command('scraped-loads:purge-expired', function (ScrapedLoadService $lo
 
 Schedule::command('offers:expire')->hourly();
 Schedule::command('subscriptions:expire')->hourly();
+Schedule::command('subscriptions:remind')->dailyAt('09:00');
+Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
 Schedule::command('scraped-loads:publish-telegram')->everyMinute()->withoutOverlapping();

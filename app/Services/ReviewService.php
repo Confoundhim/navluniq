@@ -32,13 +32,23 @@ class ReviewService
             throw new RuntimeException('Bu sevkiyatı zaten değerlendirdiniz.');
         }
 
-        return Review::create([
+        $review = Review::create([
             'load_id' => $load->id,
             'reviewer_id' => $reviewer->id,
             'reviewee_id' => $revieweeId,
             'rating' => max(1, min(5, $rating)),
             'comment' => $comment ? mb_substr(trim($comment), 0, 1000) : null,
         ]);
+
+        if ($reviewee = User::find($revieweeId)) {
+            $isDriver = $reviewee->id === $driverUserId;
+            app(NotificationService::class)->notify($reviewee, 'Yeni değerlendirme aldınız',
+                ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için ".str_repeat('★', $review->rating).str_repeat('☆', 5 - $review->rating).' ('.$review->rating.'/5) puan aldınız.'.($review->comment ? ' Yorum: '.$review->comment : ''),
+                    'Değerlendirmeler profilinizde görünür ve gelecekteki tekliflerinizde güven puanınızı etkiler.'],
+                route($isDriver ? 'driver.shipments.show' : 'cargo-owner.shipments.show', $load->id), 'Sevkiyatı görüntüle', 'review');
+        }
+
+        return $review;
     }
 
     public function hasReviewed(Load $load, User $reviewer): bool
