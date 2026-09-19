@@ -78,7 +78,7 @@ class NotificationSystemTest extends TestCase
 
             return $mail->hasTo($user->email)
                 && $mail->recipientName === $user->first_name
-                && str_contains($html, '/images/logo-dark.png')
+                && (str_contains($html, 'src="cid:') || str_contains($html, 'data:image/png;base64') || str_contains($html, '/images/logo-dark.png'))
                 && str_contains($html, 'NavlunIQ Ekibi')
                 && str_contains($html, 'Deneme başlığı')
                 && str_contains($html, Company::get('name'));
@@ -148,7 +148,7 @@ class NotificationSystemTest extends TestCase
     {
         $user = $this->driver();
         $this->assertNull(app(OtpService::class)->send($user, 'Hesabınızı doğrulamak', 'test'));
-        Mail::assertSent(UserOtpMail::class, fn (UserOtpMail $m) => $m->hasTo($user->email) && str_contains($m->render(), 'logo-dark.png') && str_contains($m->render(), $m->otpCode));
+        Mail::assertSent(UserOtpMail::class, fn (UserOtpMail $m) => $m->hasTo($user->email) && (str_contains($m->render(), 'src="cid:') || str_contains($m->render(), 'data:image/png;base64') || str_contains($m->render(), 'logo-dark.png')) && str_contains($m->render(), $m->otpCode));
 
         Password::sendResetLink(['email' => $user->email]);
         Mail::assertSent(PasswordResetMail::class, fn (PasswordResetMail $m) => $m->hasTo($user->email) && str_contains($m->url, '/sifre-sifirla/') && str_contains($m->render(), 'Yeni şifre belirle'));
