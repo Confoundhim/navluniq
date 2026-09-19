@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\CmsContent;
+use Illuminate\Support\Facades\Crypt;
 
 /**
  * Yönetim panelinden düzenlenen çalışma zamanı ayarları (komisyon oranları, kaynak izinleri vb.).
@@ -30,16 +31,42 @@ final class Settings
         'telegram_bot_token' => '',
         'telegram_channel_id' => '',            // @kanaladi veya -100... sayısal kimlik
         'telegram_show_full_phone' => 0,        // 0: maskeli numara + siteye bağlantı
+
+        // E-posta (SMTP) — panelden; boşsa .env MAIL_* kullanılır
+        'mail_host' => 'mail.kurumsaleposta.com',
+        'mail_port' => 587,
+        'mail_encryption' => 'tls',             // tls (587) | ssl (465) | none
+        'mail_username' => 'info@navluniq.com',
+        'mail_password' => '',                  // şifreli saklanır
+        'mail_from_address' => 'info@navluniq.com',
+        'mail_from_name' => 'NavlunIQ',
+
+        // Ödeme kuruluşu — panelden; boşsa .env PAYMENT_PROVIDER
+        'payment_provider' => '',               // paytr | iyzico
+        'iyzico_api_key' => '',
+        'iyzico_secret_key' => '',              // şifreli saklanır
+        'iyzico_sandbox' => 1,                  // 1: sandbox-api.iyzipay.com
+        'iyzico_marketplace' => 0,              // 1: pazaryeri (alt üye işyeri) ürünü aktif
     ];
 
-    /** Yalnız değeri gizlenerek günlüğe yazılacak anahtarlar. */
-    public const SECRET_KEYS = ['telegram_bot_token'];
+    /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
+    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key'];
+
+    /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
+    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key'];
 
     public static function get(string $key, mixed $default = null): mixed
     {
         $value = CmsContent::getVal($key);
+        if (($value === null || $value === '') || ! in_array($key, self::ENCRYPTED_KEYS, true)) {
+            return $value === null || $value === '' ? ($default ?? self::DEFAULTS[$key] ?? null) : $value;
+        }
 
-        return $value === null || $value === '' ? ($default ?? self::DEFAULTS[$key] ?? null) : $value;
+        try {
+            return Crypt::decryptString((string) $value);
+        } catch (\Throwable) {
+            return $default ?? self::DEFAULTS[$key] ?? null;
+        }
     }
 
     public static function float(string $key): float
@@ -64,6 +91,9 @@ final class Settings
 
     public static function set(string $key, mixed $value, ?int $updatedBy = null): void
     {
+        if ($value !== null && $value !== '' && in_array($key, self::ENCRYPTED_KEYS, true)) {
+            $value = Crypt::encryptString((string) $value);
+        }
         CmsContent::setVal($key, $value === null ? null : (string) $value, $updatedBy);
     }
 }

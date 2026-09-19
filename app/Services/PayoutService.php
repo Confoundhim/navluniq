@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\DriverProfile;
 use App\Models\Invoice;
 use App\Models\Load;
 use App\Models\Payout;
@@ -87,10 +88,61 @@ class PayoutService
      * Etkin ödeme kuruluşu alt üye işyeri aktarımını destekliyorsa ve şoför kayıtlıysa hakedişi aktarır.
      * Başarılıysa payout otomatik "paid" olur; aksi halde manuel süreçte kalır.
      */
+    /**
+     * Pazaryeri modelinde şoförü ödeme kuruluşuna alt üye işyeri olarak kaydeder (bir kez).
+     * Kayıtlı IBAN yoksa ya da kuruluş reddederse false döner; hakediş manuel sürece düşer.
+     */
+    public function ensureSubMerchant(DriverProfile $driver): bool
+    {
+        $gateway = $this->gateways->active();
+        if (! $gateway->supportsSubMerchants()) {
+            return false;
+        }
+        if ($driver->payout_provider_ref && $driver->payout_provider === $gateway->id()) {
+            return true;
+        }
+
+        $user = $driver->user;
+        $account = $user?->defaultBankAccount;
+        if (! $user || ! $account) {
+            return false;
+        }
+
+        try {
+            $ref = $gateway->registerSubMerchant([
+                'external_id' => 'DRV-'.$driver->id,
+                'name' => $user->first_name,
+                'surname' => $user->last_name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'iban' => app(BankAccountService::class)->decrypt($account),
+                'identity' => '',
+                'address' => 'Türkiye',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Alt üye işyeri kaydı başarısız.', ['driver' => $driver->id, 'error' => $e->getMessage()]);
+
+            return false;
+        }
+
+        if (! $ref) {
+            return false;
+        }
+
+        $driver->update(['payout_provider_ref' => $ref, 'payout_provider' => $gateway->id()]);
+        ActivityLog::record('payout.submerchant', "Şoför #{$driver->id} ödeme kuruluşuna alt üye işyeri olarak kaydedildi ({$gateway->id()})", null, $driver);
+
+        return true;
+    }
+
     public function releaseViaGateway(Payout $payout): bool
     {
         $gateway = $this->gateways->active();
         $driver = $payout->user?->driverProfile;
+        if ($driver && $gateway->supportsSubMerchants() && ! $driver->payout_provider_ref) {
+            $this->ensureSubMerchant($driver);
+            $driver->refresh();
+        }
         if (! $gateway->supportsSubMerchants() || ! $driver?->payout_provider_ref || $driver->payout_provider !== $gateway->id()) {
             return false;
         }

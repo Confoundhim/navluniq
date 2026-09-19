@@ -19,5 +19,6 @@ final class WebhookResult
         public readonly ?string $failureMessage = null,
         public readonly string $ackBody = 'OK', // sağlayıcıya dönülecek yanıt gövdesi
         public readonly string $rejectBody = 'FAILED',
+        public readonly bool $redirectUser = false, // true: bildirim kullanıcının tarayıcısından geldi, sonuç sayfasına yönlendir
     ) {}
 }

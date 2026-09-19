@@ -159,6 +159,15 @@ class extends Component {
             <p class="text-[11px] text-neutral-500 leading-relaxed">Navlun ödemesi lisanslı ödeme kuruluşu üzerinden yapılır ve teslimat onayınızla şoföre tamamlanır. Ödeme yalnız ödeme kuruluşunun sunucu bildirimi doğrulandığında alınmış sayılır.</p>
         </div>
 
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                <div class="flex items-center gap-3">
+                    <img src="/images/payment/iyzico-ile-ode.svg" alt="iyzico ile Öde" class="h-7 w-auto dark:hidden">
+                    <img src="/images/payment/iyzico-ile-ode-white.svg" alt="iyzico ile Öde" class="h-7 w-auto hidden dark:block">
+                    <span class="text-[11px] text-neutral-500 dark:text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme lisanslı ödeme kuruluşu iyzico'nun güvenli sayfasında 3D Secure ile alınır.</span>
+                </div>
+                <img src="/images/payment/iyzico-band-colored.svg" alt="Mastercard, Visa, American Express, Troy" class="h-6 w-auto shrink-0 dark:hidden">
+                <img src="/images/payment/iyzico-band-white.svg" alt="Mastercard, Visa, American Express, Troy" class="h-6 w-auto shrink-0 hidden dark:block">
+            </div>
         @if(! $payable)
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
                 <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Bu ilan ödeme adımında değil</h3>
