@@ -32,6 +32,10 @@ final class Settings
         'telegram_channel_id' => '',            // @kanaladi veya -100... sayısal kimlik
         'telegram_show_full_phone' => 0,        // 0: maskeli numara + siteye bağlantı
 
+        // Ödeme kuruluşu / mağaza incelemesi için test hesapları: listedeki e-postalar sabit kodla giriş yapar
+        'review_login_emails' => '',            // virgülle ayrılmış e-postalar
+        'review_login_code' => '',              // 6 haneli sabit kod; boşsa özellik kapalı
+
         // E-posta (SMTP) — panelden; boşsa .env MAIL_* kullanılır
         'mail_host' => 'mail.kurumsaleposta.com',
         'mail_port' => 587,

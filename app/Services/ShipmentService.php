@@ -132,7 +132,7 @@ class ShipmentService
         if ($driverUser = $shipment->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',
                 [($automatic ? 'Teslimat, yük sahibi onay süresi içinde itiraz etmediği için otomatik onaylandı.' : 'Yük sahibi teslimatı onayladı.').' Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.', 'Sevkiyat sayfasından yük sahibini değerlendirebilirsiniz.'],
-                route('driver.wallet.index'), 'Cüzdanı görüntüle', 'shipment');
+                route('driver.wallet.index'), 'Ödemelerimi görüntüle', 'shipment');
         }
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
             $this->notifications->notify($ownerUser, $automatic ? 'Teslimat otomatik onaylandı' : 'Teslimatı onayladınız',

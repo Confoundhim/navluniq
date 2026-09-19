@@ -213,7 +213,8 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show')->whereNumber('loadId');
     Volt::route('/premium', 'driver.premium.index')->name('premium.index');
     Volt::route('/premium/odeme', 'driver.premium.checkout')->name('premium.checkout');
-    Volt::route('/cuzdan', 'driver.wallet.index')->name('wallet.index');
+    Volt::route('/odemelerim', 'driver.wallet.index')->name('wallet.index');
+    Route::get('/cuzdan', fn () => redirect()->route('driver.wallet.index', status: 301));
     Volt::route('/uyusmazliklar', 'driver.disputes.index')->name('disputes.index');
     Volt::route('/araclarim', 'driver.vehicles.index')->name('vehicles.index');
     Volt::route('/profil', 'driver.profile.index')->name('profile.index');

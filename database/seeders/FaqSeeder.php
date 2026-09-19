@@ -29,7 +29,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 1,
                 'question' => 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
-                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden kredi kartı, banka kartı ya da havale ile öder; ödeme, lisanslı ödeme kuruluşu nezdinde teslimat onayına bağlı olarak işlenir; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki cüzdan ekranından izlenir.',
+                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla öder; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki Ödemelerim ekranından izlenir.',
             ],
             [
                 'order_num' => 2,
@@ -54,7 +54,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 6,
                 'question' => 'Dış kaynaklı ilanlar sisteme nasıl derlenir?',
-                'answer' => 'Yalnız kullanım ve paylaşım izni alınmış kaynaklardan (web siteleri ve izinli gruplar) gelen ilan mesajları toplanır. Mesajlar önce otomatik olarak rota, yük cinsi, tonaj ve fiyat alanlarına ayrıştırılır, ardından operasyon ekibimiz her ilanı kontrol edip onaylar veya reddeder. Sadece onaylanan ilanlar şoför havuzuna düşer ve "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; NavlunIQ güvenli havuz sistemi yalnız platform içi ilanlarda geçerlidir.',
+                'answer' => 'Yalnız kullanım ve paylaşım izni alınmış kaynaklardan (web siteleri ve izinli gruplar) gelen ilan mesajları toplanır. Mesajlar önce otomatik olarak rota, yük cinsi, tonaj ve fiyat alanlarına ayrıştırılır, ardından operasyon ekibimiz her ilanı kontrol edip onaylar veya reddeder. Sadece onaylanan ilanlar şoför ilan listesine düşer ve "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; NavlunIQ\'nun teslimat onaylı ödeme sistemi yalnız platform içi ilanlarda geçerlidir.',
             ],
             [
                 'order_num' => 7,
@@ -84,12 +84,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 12,
                 'question' => 'Komisyonlar ve faturalar nasıl işler?',
-                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve cüzdan hareketlerinde açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
+                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve Ödemelerim sayfasında açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
             ],
             [
                 'order_num' => 13,
                 'question' => 'Yük sahibi olarak bir ilanı nasıl iptal edebilirim?',
-                'answer' => 'İlan henüz teklif almadıysa ya da teklif kabul edilmiş ancak ödeme yapılmamışsa ilanı panelinizden tek adımda iptal edebilirsiniz; bekleyen teklifler otomatik olarak reddedilir. Ödeme güvenli havuza alındıktan veya şoför yola çıktıktan sonra iptal yalnız destek ekibi üzerinden, tarafların mutabakatı ya da uyuşmazlık kararıyla yapılır; iade bu karara göre gerçekleşir.',
+                'answer' => 'İlan henüz teklif almadıysa ya da teklif kabul edilmiş ancak ödeme yapılmamışsa ilanı panelinizden tek adımda iptal edebilirsiniz; bekleyen teklifler otomatik olarak reddedilir. Navlun ödemesi alındıktan veya şoför yola çıktıktan sonra iptal yalnız destek ekibi üzerinden, tarafların mutabakatı ya da uyuşmazlık kararıyla yapılır; iade bu karara göre gerçekleşir.',
             ],
             [
                 'order_num' => 14,

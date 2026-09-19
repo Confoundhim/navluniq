@@ -41,6 +41,11 @@ Pazaryeri ürünü ("Pazaryeri ürünü aktif" kutusu): şoför ilk navlun ödem
 kaydedilir, navlun kalemi `subMerchantKey` ile gönderilir, teslimat onayında kalem onayı (item approve) ile
 tutar şoföre aktarılır. Sandbox anahtarlarıyla test modunda deneyip canlıya geçerken test modunu kapatın.
 
+İnceleme (test) hesapları: ödeme kuruluşu siteyi içeriden görmek isterse Sistem Ayarları → Genel'de
+"İnceleme hesapları e-postaları" ve "sabit doğrulama kodu" doldurulur; listedeki hesaplar e-posta almadan
+şifre + bu sabit kodla giriş yapar. İnceleme bitince kodu silin. Sitede "cüzdan/bakiye" ifadesi
+kullanılmaz (şoför sayfası "Ödemelerim"); `faq:refresh --if-stale` eski SSS metnini yeniler.
+
 Site kriterleri (iyzico başvurusu): Hakkımızda, SSL, Teslimat ve İade Şartları, Gizlilik, Mesafeli Satış
 sayfaları; altbilgide ve ödeme sayfalarında "iyzico ile Öde" + Mastercard/Visa/Amex/Troy logoları
 (`public/images/payment`).

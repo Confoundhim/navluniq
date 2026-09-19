@@ -208,7 +208,7 @@ class PayoutService
         if ($driverUser = $payout->user) {
             $this->notifications->notify($driverUser, 'Ödemeniz hesabınıza geçti',
                 [number_format((float) $payout->net_amount, 2, ',', '.').' ₺ tutarındaki navlun ödemeniz banka hesabınıza geçti. Referans: '.$reference],
-                route('driver.wallet.index'), 'Cüzdanı görüntüle', 'payout');
+                route('driver.wallet.index'), 'Ödemelerimi görüntüle', 'payout');
         }
     }
 
@@ -219,12 +219,12 @@ class PayoutService
 
         if ($driverUser = $payout->user) {
             $this->notifications->notify($driverUser, 'Ödemeniz yapılamadı',
-                ['Hakedişiniz banka tarafından tamamlanamadı: '.mb_substr(trim($reason), 0, 200), 'Lütfen cüzdan sayfanızdan IBAN ve hesap sahibi bilgilerinizi kontrol edin; finans ekibimiz düzeltme sonrası ödemeyi yeniden gönderecek.'],
+                ['Ödemeniz banka tarafından tamamlanamadı: '.mb_substr(trim($reason), 0, 200), 'Lütfen Ödemelerim sayfasından IBAN ve hesap sahibi bilgilerinizi kontrol edin; finans ekibimiz düzeltme sonrası ödemeyi yeniden gönderecek.'],
                 route('driver.wallet.index'), 'IBAN bilgilerimi kontrol et', 'payout');
         }
     }
 
-    /** Şoför cüzdanı: bekleyen ve ödenmiş hakedişler. */
+    /** Şoför ödemeleri özeti: bekleyen ve ödenmiş tutarlar. */
     public function walletSummary(User $driverUser): array
     {
         $base = Payout::query()->where('user_id', $driverUser->id);

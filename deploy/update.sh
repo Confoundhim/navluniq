@@ -57,7 +57,8 @@ log "Roller ve izinler"
 php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder --quiet
 # Sözleşme metinleri: künye yer tutucusu taşımayan eski biçim varsa güncel şablonla bir kez yenilenir; sonrası panelden.
 php artisan legal:refresh --if-stale --no-interaction || true
-# SSS panelden düzenlenebildiği için otomatik yenilenmez: php artisan db:seed --class=FaqSeeder --force
+# SSS: ödeme kuruluşu kurallarına aykırı eski ifade (cüzdan/havuz/bloke/escrow) içeren metin varsa güncel seed ile yenilenir.
+php artisan faq:refresh --if-stale --no-interaction || true
 
 log "PHP sınırları"
 PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
@@ -79,6 +80,11 @@ if [[ -f /root/update.sh ]] && ! cmp -s "$APP_DIR/deploy/update.sh" /root/update
     cp "$APP_DIR/deploy/update.sh" /root/update.sh
     ok "/root/update.sh güncellendi (bir sonraki çalıştırmada geçerli)"
 fi
+
+log "Zamanlayıcı (her dakika)"
+SCHED_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+{ crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$SCHED_LINE"; } | crontab -u www-data -
+ok "www-data crontab: schedule:run (otomatik onay, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
 
 log "Gece yedeği (03:00)"
 BACKUP_LINE="0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"

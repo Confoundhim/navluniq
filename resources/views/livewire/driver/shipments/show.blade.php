@@ -281,7 +281,7 @@ class extends Component {
                                 @else
                                     <div>Ödeme kaydı henüz oluşmadı.</div>
                                 @endif
-                                <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Cüzdana git</a>
+                                <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Ödemelerime git</a>
                             </div>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_DISPUTED)
                             <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">
