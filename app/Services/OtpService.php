@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\UserOtpMail;
 use App\Models\User;
+use App\Support\Settings;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -25,8 +26,28 @@ class OtpService
      * Kod üretir, hash'leyerek kullanıcıya yazar ve e-posta ile gönderir.
      * Başarısızlıkta kullanıcıya gösterilecek hata mesajını döner, başarıda null.
      */
+    /** Yönetici panelinde tanımlı inceleme (test) hesabı mı: e-posta listede ve sabit kod tanımlı. */
+    public static function isReviewAccount(User $user): bool
+    {
+        $code = Settings::string('review_login_code');
+        if (! preg_match('/^\d{6}$/', $code)) {
+            return false;
+        }
+        $emails = array_filter(array_map(fn ($e) => mb_strtolower(trim($e)), explode(',', Settings::string('review_login_emails'))));
+
+        return in_array(mb_strtolower((string) $user->email), $emails, true);
+    }
+
     public function send(User $user, string $purpose, string $context = 'generic'): ?string
     {
+        if (self::isReviewAccount($user)) {
+            // İnceleme hesabı: e-posta gönderilmez, panelde tanımlı sabit kod kabul edilir.
+            $user->forceFill(['otp_code' => Hash::make(Settings::string('review_login_code')), 'otp_expires_at' => now()->addMinutes(30)])->save();
+            Log::info('İnceleme hesabı için sabit doğrulama kodu kullanıldı.', ['user_id' => $user->id, 'context' => $context]);
+
+            return null;
+        }
+
         $sendKey = "otp-send:{$context}:{$user->id}:".request()->ip();
 
         if (RateLimiter::tooManyAttempts($sendKey, self::MAX_SENDS_PER_MINUTE)) {

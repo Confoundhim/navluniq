@@ -14,7 +14,7 @@
         ['Onaylı dış kaynak ilanları', '20 dakika gecikmeli', 'Yayınlandığı anda'],
         ['Dış kaynak ilanlarda iletişim bilgisi', 'Kısmen gizli', 'Tamamı görünür'],
         ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
-        ['Cüzdan, fatura ve destek talepleri', 'Dahil', 'Dahil'],
+        ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
     ];
 @endphp
 
@@ -56,7 +56,7 @@
                 </div>
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Platform içi tüm yük ilanlarını anında görün, sınırsız teklif verin</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, cüzdan ve teslimat kayıtları</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
                 </ul>

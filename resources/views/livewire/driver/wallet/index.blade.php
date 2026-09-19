@@ -13,7 +13,7 @@ use Livewire\WithPagination;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Cüzdan ve Ödemeler')]
+#[Title('Ödemelerim')]
 class extends Component {
     use WithPagination;
 
@@ -69,7 +69,7 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="page-title">Cüzdan ve Ödemelerim</h2>
+        <h2 class="page-title">Ödemelerim</h2>
         <p class="page-subtitle">Navlun ödemeleriniz, teslimat onayından sonra lisanslı ödeme kuruluşu aracılığıyla kayıtlı IBAN adresinize yapılır.</p>
     </div>
 

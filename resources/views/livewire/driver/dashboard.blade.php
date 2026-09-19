@@ -109,7 +109,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçecek ödeme</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($wallet['pending'] ?? 0), 2, ',', '.') }} ₺</div>
-            <a href="{{ route('driver.wallet.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Cüzdana git</a>
+            <a href="{{ route('driver.wallet.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Ödemelerime git</a>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçen toplam ödeme</div>
