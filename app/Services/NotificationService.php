@@ -59,7 +59,8 @@ class NotificationService
     public function sendMail(UserNotification $notification): bool
     {
         $user = $notification->user;
-        if (! $user || ! $user->canReceiveMail()) {
+        // İnceleme (test) hesaplarının e-posta adresi gerçek değildir; e-posta gönderilmez.
+        if (! $user || ! $user->canReceiveMail() || OtpService::isReviewAccount($user)) {
             $notification->forceFill(['mail_status' => UserNotification::MAIL_SKIPPED])->save();
 
             return false;
