@@ -63,8 +63,13 @@ class ReviewAccountsCommand extends Command
 
             $owner = $this->upsertUser($ownerEmail, '05000000001', 'İnceleme', 'Yük Sahibi', $password, 'cargo_owner');
             $owner->syncRoles(['cargo_owner']);
+            // Biçimsel olarak geçerli deneme TCKN'si; başka profilde kullanılmışsa boş bırakılır (alan benzersiz).
+            $tc = '20000000428';
+            if (CargoOwnerProfile::query()->where('tc_no', $tc)->where('user_id', '!=', $owner->id)->exists()) {
+                $tc = null;
+            }
             CargoOwnerProfile::updateOrCreate(['user_id' => $owner->id], [
-                'type' => 'individual', 'tc_no' => '10000000146', 'nvi_verified' => false, 'gib_verified' => false,
+                'type' => 'individual', 'tc_no' => $tc, 'nvi_verified' => false, 'gib_verified' => false,
                 'kyc_status' => 'approved', 'kyc_submitted_at' => now(), 'kyc_verified_at' => now(),
                 'kyc_notes' => 'İnceleme hesabı: belgeler komutla onaylandı.',
             ]);
