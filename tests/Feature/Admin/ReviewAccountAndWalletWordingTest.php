@@ -7,6 +7,7 @@ use App\Mail\UserOtpMail;
 use App\Models\DriverProfile;
 use App\Models\Faq;
 use App\Models\User;
+use App\Services\NotificationService;
 use App\Services\OtpService;
 use App\Support\Settings;
 use Database\Seeders\FaqSeeder;
@@ -75,5 +76,37 @@ class ReviewAccountAndWalletWordingTest extends TestCase
 
         $this->artisan('faq:refresh', ['--if-stale' => true])->assertSuccessful();
         $this->assertFalse(RefreshFaqCommand::isStale());
+    }
+
+    public function test_review_accounts_command_creates_ready_accounts_and_static_code(): void
+    {
+        $this->artisan('review:accounts', ['--code' => '135790'])->assertSuccessful();
+
+        $owner = User::query()->where('email', 'iyzico.yuksahibi@navluniq.com')->first();
+        $driver = User::query()->where('email', 'iyzico.sofor@navluniq.com')->first();
+        $this->assertNotNull($owner);
+        $this->assertNotNull($driver);
+        $this->assertSame('approved', $owner->cargoOwnerProfile->kyc_status);
+        $this->assertSame('approved', $driver->driverProfile->kyc_status);
+        $this->assertTrue($driver->driverProfile->activeVehicle()->exists());
+        $this->assertSame(1, $owner->cargoOwnerProfile->loads()->count());
+        $this->assertSame('135790', Settings::string('review_login_code'));
+        $this->assertTrue(OtpService::isReviewAccount($owner));
+        $this->assertTrue(OtpService::isReviewAccount($driver));
+
+        // Giriş: sabit kod, e-posta yok; bildirim e-postası da gönderilmez.
+        $otp = app(OtpService::class);
+        $this->assertNull($otp->send($driver, 'Giriş', 'login'));
+        $this->assertNull($otp->verify($driver->fresh(), '135790', 'login'));
+        $n = app(NotificationService::class)->notify($driver, 'Deneme', ['x']);
+        $this->assertSame('skipped', $n->fresh()->mail_status);
+        Mail::assertNothingSent();
+
+        // Tekrar çalıştırmak güvenli; --remove temizler.
+        $this->artisan('review:accounts', ['--code' => '135790'])->assertSuccessful();
+        $this->assertSame(1, User::query()->where('email', 'iyzico.sofor@navluniq.com')->count());
+        $this->artisan('review:accounts', ['--remove' => true])->assertSuccessful();
+        $this->assertSame(0, User::query()->where('email', 'iyzico.sofor@navluniq.com')->count(), 'Hesap kapatılmış (soft delete) olmalı');
+        $this->assertSame('', Settings::string('review_login_code'));
     }
 }

@@ -145,6 +145,7 @@ new class extends Component {
             'company.tax_office' => 'required|string|max:120',
             'company.tax_no' => ['required', 'regex:/^\d{10,11}$/'],
             'company.mersis_no' => ['nullable', 'regex:/^\d{16}$/'],
+            'company.trade_registry_no' => 'nullable|string|max:20',
             'company.etbis_code' => 'nullable|string|max:60',
             'company.payment_vat_rate' => 'required|numeric|min:0|max:100',
         ], [

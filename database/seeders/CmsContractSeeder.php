@@ -131,7 +131,7 @@ HTML;
     <div class="p-4 bg-neutral-50 dark:bg-neutral-900/60 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 1: Taraflar ve Tanımlar</h3>
         <ul class="space-y-1.5 text-xs">
-            <li><strong>1.1 Hizmet Sağlayıcı:</strong> Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara adresinde mukim <strong>{{COMPANY_NAME}}</strong> (“NavlunIQ”).</li>
+            <li><strong>1.1 Hizmet Sağlayıcı:</strong> {{COMPANY_ADDRESS}} adresinde mukim <strong>{{COMPANY_NAME}}</strong> (“NavlunIQ”, Ticaret Sicil No {{COMPANY_TRADE_REGISTRY_NO}}, MERSİS {{COMPANY_MERSIS_NO}}).</li>
             <li><strong>1.2 Sürücü (Şoför):</strong> Ticari taşımacılık yapmaya yetkili olan ve platform aracılığıyla yük taşıma teklifi sunan gerçek kişi kullanıcıyı ifade eder.</li>
             <li><strong>1.3 Gönderici (Yük Sahibi):</strong> Platform üzerinden navlun ilanı yayınlayarak yükünün taşınmasını talep eden gerçek veya tüzel kişi kullanıcıyı ifade eder.</li>
         </ul>

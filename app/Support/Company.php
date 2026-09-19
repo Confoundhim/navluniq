@@ -19,16 +19,18 @@ final class Company
         'tax_office' => 'Vergi dairesi',
         'tax_no' => 'Vergi numarası',
         'mersis_no' => 'MERSİS numarası',
+        'trade_registry_no' => 'Ticaret sicil numarası',
     ];
 
     public const DEFAULTS = [
         'name' => 'NAVLUNIQ TEKNOLOJİ LİMİTED ŞİRKETİ',
-        'address' => 'Cevizlidere Mah. Mevlana Blv. No: 221 /109 Çankaya, Ankara / Türkiye',
+        'address' => 'Cevizlidere Mah. Mevlana Blv. No: 221 İç Kapı No: 109 Çankaya / Ankara',
         'phone' => '+90 850 304 04 00',
         'email' => 'info@navluniq.com',
         'tax_office' => 'Başkent Vergi Dairesi',
-        'tax_no' => '6301481858',
-        'mersis_no' => '',
+        'tax_no' => '6301483181',
+        'mersis_no' => '0630148318100001',
+        'trade_registry_no' => '547805',
     ];
 
     /** Sözleşme metinlerinde kullanılan yer tutucular → künye anahtarı. */
@@ -39,6 +41,8 @@ final class Company
         '{{COMPANY_ADDRESS}}' => 'address',
         '{{COMPANY_EMAIL}}' => 'email',
         '{{COMPANY_PHONE}}' => 'phone',
+        '{{COMPANY_MERSIS_NO}}' => 'mersis_no',
+        '{{COMPANY_TRADE_REGISTRY_NO}}' => 'trade_registry_no',
     ];
 
     public static function get(string $key): string

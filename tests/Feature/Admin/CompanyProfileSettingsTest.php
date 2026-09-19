@@ -28,7 +28,7 @@ class CompanyProfileSettingsTest extends TestCase
     public function test_company_info_comes_from_defaults_then_panel_and_fills_contract_tokens(): void
     {
         $this->assertSame(Company::DEFAULTS['name'], Company::get('name'));
-        $this->assertSame('', Company::get('mersis_no'));
+        $this->assertSame('0630148318100001', Company::get('mersis_no'));
 
         CmsContent::setVal('company_name', 'Panel Lojistik A.Ş.');
         CmsContent::setVal('company_mersis_no', '0123456789012345');

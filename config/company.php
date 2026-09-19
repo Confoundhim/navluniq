@@ -7,6 +7,7 @@ return [
     'tax_office' => env('COMPANY_TAX_OFFICE'),
     'tax_no' => env('COMPANY_TAX_NO'),
     'mersis_no' => env('COMPANY_MERSIS_NO'),
+    'trade_registry_no' => env('COMPANY_TRADE_REGISTRY_NO'),
     'address' => env('COMPANY_ADDRESS'),
     'phone' => env('COMPANY_PHONE'),
     'email' => env('COMPANY_EMAIL'),

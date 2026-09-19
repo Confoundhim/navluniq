@@ -316,15 +316,15 @@ class PaymentInfrastructureTest extends TestCase
         $checks = PaymentReadiness::checks();
         $byLabel = collect($checks)->keyBy('label');
         $this->assertTrue($byLabel['Şirket unvanı']['ok'], 'Unvan koddaki varsayılandan dolu gelmeli');
-        $this->assertFalse($byLabel['MERSİS numarası']['ok']);
+        $this->assertTrue($byLabel['MERSİS numarası']['ok']);
+        $this->assertTrue($byLabel['Ticaret sicil numarası']['ok']);
         $this->assertFalse($byLabel['HTTPS adres']['ok']);
         $this->assertTrue($byLabel['Anahtarlar tanımlı']['ok']);
-        $this->assertNotNull($byLabel['MERSİS numarası']['fix']);
+        $this->assertNotNull($byLabel['HTTPS adres']['fix']);
 
-        CmsContent::setVal('company_mersis_no', '0123456789012345');
         CmsContent::setVal('company_name', 'Panelden Girilen A.Ş.');
         $this->assertSame('Panelden Girilen A.Ş.', Company::get('name'));
-        $this->assertTrue(collect(PaymentReadiness::checks())->keyBy('label')['MERSİS numarası']['ok']);
+        $this->assertSame('6301483181', Company::get('tax_no'));
         $summary = PaymentReadiness::summary($checks);
         $this->assertLessThan($summary['total'], $summary['ok']);
     }
