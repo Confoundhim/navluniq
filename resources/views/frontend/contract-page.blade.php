@@ -42,7 +42,7 @@
                 @click="activeTab = 'iade-politikasi'; window.history.pushState(null, '', '/sozlesmeler/iade-politikasi')"
                 class="px-4 py-2.5 rounded-xl font-bold transition-all text-xs"
                 :class="activeTab === 'iade-politikasi' ? 'bg-white dark:bg-neutral-800 text-neutral-950 dark:text-white shadow-apple-sm' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'">
-                İade ve İptal Politikası
+                Teslimat ve İade Şartları
             </button>
         </div>
 

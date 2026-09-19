@@ -26,6 +26,10 @@ trap 'php artisan up --quiet >/dev/null 2>&1 || true; rm -f "$0"' EXIT
 
 log "Bakım modu"
 php artisan down --retry=15 --quiet || true
+# Takılı kalmış PHP-FPM istekleri açık işlem/tablo kilidi bırakabilir; migrate bu kilidi beklerken
+# "ilerlemiyor" görünür. Bakım modunda FPM yeniden başlatılır, kilitler serbest kalır.
+PHP_FPM="$(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}' | head -n1)"
+[[ -n "$PHP_FPM" ]] && systemctl restart "$PHP_FPM"
 
 log "Kod (${APP_BRANCH})"
 git fetch --quiet origin "$APP_BRANCH"
@@ -40,7 +44,12 @@ npm ci --silent --no-audit --no-fund
 npm run build --silent
 
 log "Veritabanı"
-php artisan migrate --force --no-interaction
+if ! php artisan migrate --force --no-interaction; then
+    echo "Migration başarısız. Kilit bekleyen sorgular:"
+    mysql -e "SELECT id, user, time, state, LEFT(info, 120) AS info FROM information_schema.processlist WHERE command <> 'Sleep' ORDER BY time DESC LIMIT 10" 2>/dev/null || true
+    echo "Çözüm: yukarıdaki uzun süreli bağlantıyı 'mysql -e \"KILL <id>\"' ile sonlandırıp betiği yeniden çalıştırın."
+    exit 1
+fi
 # Araç tipi boş kalmış dış kaynak ilanlarını sınıflandırıcıyla doldur (yalnız boş olanlar; tekrar çalıştırmak güvenli).
 php artisan scraped-loads:classify --no-interaction || true
 

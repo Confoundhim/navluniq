@@ -63,6 +63,30 @@ new class extends Component {
 
     public string $testEmail = '';
 
+    public const MAIL_KEYS = [
+        'mail_host' => 'SMTP sunucusu',
+        'mail_port' => 'Port',
+        'mail_encryption' => 'Şifreleme',
+        'mail_username' => 'Kullanıcı adı (e-posta)',
+        'mail_password' => 'Şifre',
+        'mail_from_address' => 'Gönderici adresi',
+        'mail_from_name' => 'Gönderici adı',
+    ];
+
+    /** @var array<string, string> */
+    public array $mailForm = [];
+
+    public const PAYMENT_KEYS = [
+        'payment_provider' => 'Ödeme kuruluşu',
+        'iyzico_api_key' => 'iyzico API anahtarı',
+        'iyzico_secret_key' => 'iyzico gizli anahtar',
+        'iyzico_sandbox' => 'iyzico test (sandbox) modu',
+        'iyzico_marketplace' => 'iyzico pazaryeri (alt üye işyeri) ürünü aktif',
+    ];
+
+    /** @var array<string, string> */
+    public array $paymentForm = [];
+
     public function mount(): void
     {
         abort_unless(auth()->user()->can('manage settings'), 403);
@@ -84,6 +108,17 @@ new class extends Component {
             $this->company[$key] = Company::get($key);
         }
         $this->company['etbis_code'] = (string) CmsContent::getVal('etbis_code', '');
+        foreach (array_keys(self::MAIL_KEYS) as $key) {
+            $this->mailForm[$key] = $key === 'mail_password' ? '' : (string) Settings::get($key);
+        }
+        $this->mailForm['mail_password_set'] = Settings::string('mail_password') !== '' ? '1' : '0';
+        foreach (array_keys(self::PAYMENT_KEYS) as $key) {
+            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
+                ? (Settings::bool($key) ? '1' : '0')
+                : ($key === 'iyzico_secret_key' ? '' : (string) Settings::get($key));
+        }
+        $this->paymentForm['payment_provider'] = \App\Payments\GatewayManager::selectedId();
+        $this->paymentForm['iyzico_secret_set'] = Settings::string('iyzico_secret_key') !== '' ? '1' : '0';
         $this->company['payment_vat_rate'] = number_format(Settings::float('payment_vat_rate'), 0, '.', '');
     }
 
@@ -130,6 +165,78 @@ new class extends Component {
 
         $this->loadValues();
         session()->flash('success_message', $changed > 0 ? "{$changed} alan güncellendi; altbilgi, iletişim sayfası ve sözleşmeler yeni künyeyi gösterir." : 'Değişiklik yok.');
+    }
+
+    /** SMTP ayarlarını panelden kaydeder; şifre boş bırakılırsa mevcut şifre korunur. */
+    public function saveMail(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+        foreach (self::MAIL_KEYS as $key => $label) {
+            $this->mailForm[$key] = trim((string) ($this->mailForm[$key] ?? ''));
+        }
+        $this->validate([
+            'mailForm.mail_host' => 'required|string|max:190',
+            'mailForm.mail_port' => 'required|integer|min:1|max:65535',
+            'mailForm.mail_encryption' => 'required|in:tls,ssl,none',
+            'mailForm.mail_username' => 'required|string|max:190',
+            'mailForm.mail_password' => 'nullable|string|max:190',
+            'mailForm.mail_from_address' => 'required|email|max:190',
+            'mailForm.mail_from_name' => 'required|string|max:80',
+        ]);
+
+        $changed = 0;
+        foreach (self::MAIL_KEYS as $key => $label) {
+            $value = $this->mailForm[$key];
+            if ($key === 'mail_password' && $value === '') {
+                continue; // boş bırakıldı: mevcut şifre korunur
+            }
+            $old = (string) Settings::get($key);
+            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+        }
+
+        $this->loadValues();
+        \App\Support\RuntimeMailConfig::apply();
+        session()->flash('success_message', $changed > 0 ? "{$changed} e-posta ayarı kaydedildi; aşağıdan deneme e-postası gönderin." : 'Değişiklik yok.');
+    }
+
+    /** Ödeme kuruluşu seçimi ve iyzico anahtarları (gizli anahtar boşsa mevcut korunur). */
+    public function savePayment(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+        foreach (self::PAYMENT_KEYS as $key => $label) {
+            $this->paymentForm[$key] = trim((string) ($this->paymentForm[$key] ?? ''));
+        }
+        $this->validate([
+            'paymentForm.payment_provider' => 'required|in:paytr,iyzico',
+            'paymentForm.iyzico_api_key' => 'nullable|string|max:190',
+            'paymentForm.iyzico_secret_key' => 'nullable|string|max:190',
+        ]);
+
+        $changed = 0;
+        foreach (self::PAYMENT_KEYS as $key => $label) {
+            $value = $this->paymentForm[$key];
+            if ($key === 'iyzico_secret_key' && $value === '') {
+                continue;
+            }
+            if (in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)) {
+                $value = $value === '1' ? '1' : '0';
+                $old = Settings::bool($key) ? '1' : '0';
+            } else {
+                $old = (string) Settings::get($key);
+            }
+            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+        }
+
+        $this->loadValues();
+        session()->flash('success_message', $changed > 0 ? "{$changed} ödeme ayarı kaydedildi." : 'Değişiklik yok.');
     }
 
     /** SMTP ve şablon doğrulaması: girilen adrese markalı deneme e-postası gönderir. */
@@ -336,6 +443,7 @@ new class extends Component {
                 'username' => (string) config('mail.mailers.smtp.username'),
                 'from' => (string) config('mail.from.address'),
                 'from_name' => (string) config('mail.from.name'),
+                'source' => \App\Support\RuntimeMailConfig::source(),
                 'stats' => NotificationService::mailStats(),
                 'failed' => UserNotification::query()->with('user')->where('mail_status', UserNotification::MAIL_FAILED)->latest('id')->limit(10)->get(),
                 'recent' => UserNotification::query()->with('user')->latest('id')->limit(12)->get(),
@@ -480,7 +588,22 @@ new class extends Component {
                 <span class="font-mono break-all">{{ $payment['webhook'] }}</span>
                 <span class="text-[11px] text-neutral-400 block">Eski adres de çalışır: {{ $payment['legacy_webhook'] }}</span>
             </div>
-            <p class="text-[11px] text-neutral-400">Yalnız ödeme kuruluşunun gizli anahtarları sunucudaki .env dosyasında tutulur (PAYTR_MERCHANT_ID/KEY/SALT, PAYTR_SANDBOX_MODE); bunlar sözleşme imzalanınca bir kez girilir. Diğer her şey bu sayfadan yönetilir. Yeni bir sağlayıcıyla anlaşıldığında yalnız bir adaptör eklenir; sipariş, fatura, defter ve bildirim akışı değişmez.</p>
+            <form wire:submit="savePayment" class="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <h3 class="text-xs font-bold text-neutral-900 dark:text-white">Ödeme kuruluşu ve anahtarlar</h3>
+                <p class="text-[11px] text-neutral-400">iyzico anahtarları iyzico üye işyeri panelinde Ayarlar → API anahtarları bölümündedir. Sözleşme öncesi sandbox anahtarlarıyla test modunda deneyin; canlıya geçerken canlı anahtarları girip test modunu kapatın.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><label class="form-label">Ödeme kuruluşu</label>
+                        <select wire:model="paymentForm.payment_provider" class="{{ $input }}"><option value="iyzico">iyzico (Ödeme Formu)</option><option value="paytr">PayTR (iFrame, anahtarlar .env)</option></select>
+                    </div>
+                    <div><label class="form-label">iyzico API anahtarı</label><input type="text" wire:model="paymentForm.iyzico_api_key" class="{{ $input }} font-mono" placeholder="sandbox-… ya da canlı anahtar"></div>
+                    <div><label class="form-label">iyzico gizli anahtar {{ ($paymentForm['iyzico_secret_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="paymentForm.iyzico_secret_key" class="{{ $input }} font-mono" placeholder="{{ ($paymentForm['iyzico_secret_set'] ?? '0') === '1' ? '••••••••' : 'secret key' }}"></div>
+                    <div class="space-y-2 pt-5">
+                        <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_sandbox" value="1" class="rounded"> Test (sandbox) modu</label>
+                        <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_marketplace" value="1" class="rounded"> Pazaryeri ürünü aktif (şoför ödemeleri iyzico üzerinden)</label>
+                    </div>
+                </div>
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Ödeme ayarlarını kaydet</button>
+            </form>
         </div>
 
         <form wire:submit="saveCompany" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
@@ -545,7 +668,26 @@ new class extends Component {
                 <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Gönderici</span><span class="font-bold break-all">{{ $mail['from'] ?: '—' }}</span><span class="text-[11px] text-neutral-400 block">{{ $mail['from_name'] }}</span></div>
                 <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Son 24 saat</span><span class="font-bold text-emerald-600">{{ $mail['stats']['sent'] }} gönderildi</span><span class="text-[11px] block {{ $mail['stats']['failed'] ? 'text-rose-500 font-semibold' : 'text-neutral-400' }}">{{ $mail['stats']['failed'] }} başarısız bekliyor</span></div>
             </div>
-            <p class="text-[11px] text-neutral-400 leading-relaxed">SMTP bilgileri (MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS) sunucudaki .env dosyasında tutulur; gönderici adresi navluniq.com alan adında olmalı ve alan adında SPF, DKIM ve DMARC kayıtları tanımlı olmalıdır (docs/EPOSTA_VE_BILDIRIM.md). Doğrulama kodları anında gönderilir; diğer bildirimler uygulama içine yazılır, e-posta hata verirse 10 dakikada bir en fazla 4 kez yeniden denenir.</p>
+            <p class="text-[11px] text-neutral-400 leading-relaxed">Gönderici adresi navluniq.com alan adında olmalı ve alan adında SPF, DKIM ve DMARC kayıtları tanımlı olmalıdır (docs/EPOSTA_VE_BILDIRIM.md). Doğrulama kodları anında gönderilir; diğer bildirimler uygulama içine yazılır, e-posta hata verirse 10 dakikada bir en fazla 4 kez yeniden denenir.</p>
+            <form wire:submit="saveMail" class="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-xs font-bold text-neutral-900 dark:text-white">SMTP ayarları (panelden)</h3>
+                    <span class="badge {{ $mail['source'] === 'panel' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">{{ $mail['source'] === 'panel' ? 'Panel ayarı kullanılıyor' : 'Sunucu .env kullanılıyor' }}</span>
+                </div>
+                <p class="text-[11px] text-neutral-400">Natro Kurumsal Posta için hazır: mail.kurumsaleposta.com, 587, TLS, info@navluniq.com. Yalnız posta kutusu şifresini girip kaydedin; sunucuda dosya düzenlemek gerekmez.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-1"><label class="form-label">SMTP sunucusu</label><input type="text" wire:model="mailForm.mail_host" class="{{ $input }}">@error('mailForm.mail_host')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div><label class="form-label">Port</label><input type="text" wire:model="mailForm.mail_port" class="{{ $input }}">@error('mailForm.mail_port')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div><label class="form-label">Şifreleme</label>
+                        <select wire:model="mailForm.mail_encryption" class="{{ $input }}"><option value="tls">TLS / STARTTLS (587)</option><option value="ssl">SSL (465)</option><option value="none">Yok</option></select>
+                    </div>
+                    <div><label class="form-label">Kullanıcı adı (e-posta)</label><input type="text" wire:model="mailForm.mail_username" class="{{ $input }}">@error('mailForm.mail_username')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div><label class="form-label">Şifre {{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="mailForm.mail_password" class="{{ $input }}" placeholder="{{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '••••••••' : 'Posta kutusu şifresi' }}"></div>
+                    <div><label class="form-label">Gönderici adı</label><input type="text" wire:model="mailForm.mail_from_name" class="{{ $input }}"></div>
+                    <div class="sm:col-span-3"><label class="form-label">Gönderici adresi</label><input type="email" wire:model="mailForm.mail_from_address" class="{{ $input }}">@error('mailForm.mail_from_address')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                </div>
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">SMTP ayarlarını kaydet</button>
+            </form>
             <form wire:submit="sendTestMail" class="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div class="flex-1">
                     <label class="form-label">Deneme e-postası gönder</label>

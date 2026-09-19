@@ -25,17 +25,19 @@ final class PaymentReadiness
         $checks = [];
 
         // 1) Ödeme kuruluşu
-        $checks[] = self::item('Ödeme kuruluşu', 'Sağlayıcı seçili', $selected->id() !== 'none', $selected->label(), 'Sunucu .env dosyasında PAYMENT_PROVIDER boş ya da tanımsız olmalı (varsayılan paytr).');
+        $checks[] = self::item('Ödeme kuruluşu', 'Sağlayıcı seçili', $selected->id() !== 'none', $selected->label(), 'Bu sekmedeki "Ödeme kuruluşu ve anahtarlar" formundan sağlayıcı seçin.');
         $checks[] = self::item('Ödeme kuruluşu', 'Anahtarlar tanımlı', $active->isConfigured(), $active->isConfigured() ? 'Etkin: '.$active->label() : 'Anahtarlar boş; kart tahsilatı kapalı',
-            'Sözleşme sonrası merchant anahtarlarını sunucu .env dosyasına yazın, php artisan config:cache çalıştırın.');
+            'iyzico: bu sekmedeki formdan API anahtarı ve gizli anahtarı girin. PayTR: sunucu .env (PAYTR_*).');
         $checks[] = self::item('Ödeme kuruluşu', 'Canlı mod', $active->isConfigured() && ! $active->isSandbox(), $active->isSandbox() ? 'Test (sandbox) modu' : 'Canlı',
-            'Canlıya geçerken PAYTR_SANDBOX_MODE=false (ya da sağlayıcının eşdeğeri).');
+            'Canlı anahtarları girip test (sandbox) modunu kapatın.');
         $checks[] = self::item('Ödeme kuruluşu', 'HTTPS adres', $https, $appUrl, 'APP_URL https:// ile başlamalı; SSL sertifikası kurulu olmalı.');
         $checks[] = self::item('Ödeme kuruluşu', 'Sunucu bildirimi (webhook) adresi', true, $appUrl.'/odeme/bildirim/'.$selected->id(), null);
         $checks[] = self::item('Ödeme kuruluşu', 'Sonuç sayfaları', true, $appUrl.'/odeme/sonuc/{sipariş}/basarili · …/basarisiz', null);
+        $logos = file_exists(public_path('images/payment/iyzico-band-colored.svg')) && file_exists(public_path('images/payment/iyzico-ile-ode.svg'));
+        $checks[] = self::item('Ödeme kuruluşu', 'Kart markaları ve "iyzico ile Öde" logoları', $logos, $logos ? 'Altbilgi ve ödeme sayfalarında' : 'Eksik', 'public/images/payment altındaki logo dosyaları eksik.');
         $checks[] = self::item('Ödeme kuruluşu', 'Pazaryeri (alt üye işyeri) aktarımı', $active->supportsSubMerchants(),
             $active->supportsSubMerchants() ? 'Destekleniyor; şoför ödemeleri kuruluş üzerinden' : 'Desteklenmiyor; şoför ödemeleri finans ekibince banka transferiyle',
-            'Pazaryeri ürünü olan bir sağlayıcı adaptörü eklendiğinde otomatik aktarım açılır.');
+            'iyzico pazaryeri sözleşmesi imzalanınca formdaki "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
 
         // 2) Şirket bilgileri (sitede görünür olmalı)
         foreach (Company::LABELS as $key => $label) {

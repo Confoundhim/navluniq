@@ -30,9 +30,24 @@ Uygulama yalnız `App\Payments\Contracts\PaymentGateway` arayüzünü bilir. Sa�
 
 Pazaryeri (alt üye işyeri) ürünü olan sağlayıcıda `supportsSubMerchants()` true döner; şoför `payout_provider_ref` ile kaydedilir ve hakedişler `transferToSubMerchant` ile otomatik aktarılır. Desteklenmiyorsa finans ekibi Finans ve Muhasebe ekranından banka transferini işaretler.
 
+## iyzico
+
+`IyzicoGateway` (Ödeme Formu): anahtarlar panelden (Sistem Ayarları → Ödeme altyapısı → "Ödeme kuruluşu ve
+anahtarlar"; gizli anahtar veritabanında şifreli) ya da `.env` `IYZICO_API_KEY` / `IYZICO_SECRET_KEY`.
+Akış: initialize → kullanıcı iyzico sayfasına yönlendirilir → iyzico kullanıcıyı `POST /odeme/bildirim/iyzico`
+adresine `token` ile döndürür → token sunucudan sorgulanır → sipariş "paid" → kullanıcı sonuç sayfasına
+yönlendirilir. iyzico panelinde webhook adresi olarak aynı adres girilebilir (JSON, `iyziEventType`).
+Pazaryeri ürünü ("Pazaryeri ürünü aktif" kutusu): şoför ilk navlun ödemesinde IBAN'ıyla alt üye işyeri olarak
+kaydedilir, navlun kalemi `subMerchantKey` ile gönderilir, teslimat onayında kalem onayı (item approve) ile
+tutar şoföre aktarılır. Sandbox anahtarlarıyla test modunda deneyip canlıya geçerken test modunu kapatın.
+
+Site kriterleri (iyzico başvurusu): Hakkımızda, SSL, Teslimat ve İade Şartları, Gizlilik, Mesafeli Satış
+sayfaları; altbilgide ve ödeme sayfalarında "iyzico ile Öde" + Mastercard/Visa/Amex/Troy logoları
+(`public/images/payment`).
+
 ## Ödeme kuruluşu başvurusu
 
-Yönetici paneli → Sistem Ayarları → **Ödeme altyapısı** sekmesindeki hazırlık listesi (30 madde) yeşil olmalı:
+Yönetici paneli → Sistem Ayarları → **Ödeme altyapısı** sekmesindeki hazırlık listesi (31 madde) yeşil olmalı:
 şirket künyesi, ETBİS kodu ve KDV oranı (aynı sekmedeki "Şirket künyesi" formu; .env gerekmez, künye değişince altbilgi/iletişim/sözleşmeler kendiliğinden güncellenir), beş yasal sayfa, "havuz/bloke/escrow" ifadesi yok, HTTPS, fiyat ve KDV, gönderici e-posta.
 
 Başvuruda iş modelini şöyle anlatın: "Yük sahipleri ile belgeleri doğrulanmış şoförleri buluşturan dijital platform. Yük sahibi navlun bedelini lisanslı ödeme kuruluşu üzerinden öder; ödeme teslimat onayına bağlı olarak şoföre tamamlanır (pazaryeri / alt üye işyeri modeli). Ayrıca şoförlere aylık premium üyelik (dijital hizmet, KDV dahil) satılır."

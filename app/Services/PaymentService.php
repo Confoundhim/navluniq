@@ -8,6 +8,7 @@ use App\Models\PaymentOrder;
 use App\Models\User;
 use App\Payments\Contracts\PaymentGateway;
 use App\Payments\Data\Checkout;
+use App\Payments\Data\WebhookResult;
 use App\Payments\GatewayManager;
 use App\Support\Settings;
 use Illuminate\Http\Request;
@@ -136,17 +137,33 @@ class PaymentService
             ? 'NavlunIQ Premium şoför üyeliği (1 ay)'
             : 'Navlun bedeli #'.$order->load_id.' '.($load?->pickup_location).' - '.($load?->delivery_location);
 
-        return $gateway->createCheckout($order, [
+        $context = [
             'ip' => (string) $request->ip(),
             'ok_url' => route('payment.result', ['order' => $order->public_id, 'outcome' => 'basarili']),
             'fail_url' => route('payment.result', ['order' => $order->public_id, 'outcome' => 'basarisiz']),
             'description' => $description,
             'address' => $load?->cargoOwnerProfile?->company_title ?: ($load?->pickup_location ?: 'Türkiye'),
-        ]);
+            'city' => $load?->pickup_location ? trim((string) explode('/', (string) $load->pickup_location)[0]) : 'İstanbul',
+            'identity_number' => (string) ($order->user?->cargoOwnerProfile?->tc_no ?? ''),
+        ];
+
+        // Pazaryeri: navlun kalemi şoförün alt üye işyerine bağlanır; platform payı (hizmet bedelleri) NavlunIQ'da kalır.
+        if ($order->purpose === self::PURPOSE_ESCROW && $gateway->supportsSubMerchants() && $load?->driverProfile) {
+            $driver = $load->driverProfile;
+            app(PayoutService::class)->ensureSubMerchant($driver);
+            $driver->refresh();
+            if ($driver->payout_provider_ref && $driver->payout_provider === $gateway->id()) {
+                $context['sub_merchant_ref'] = $driver->payout_provider_ref;
+                $context['sub_merchant_price'] = round((float) $load->price * (1 - $driver->commissionRate() / 100), 2);
+            }
+        }
+
+        return $gateway->createCheckout($order, $context);
     }
 
     /**
-     * Sunucu bildirimi. Sağlayıcıya dönülecek [gövde, HTTP kodu] çifti döndürür.
+     * Sunucu bildirimi. Sağlayıcıya dönülecek [gövde, HTTP kodu, yönlendirme] üçlüsü döndürür;
+     * yönlendirme yalnız bildirim kullanıcının tarayıcısından geliyorsa (iyzico callback) doludur.
      * Aynı bildirim ikinci kez gelirse çift işlem yapılmaz (provider_event_id benzersiz).
      */
     public function handleWebhook(string $providerId, Request $request): array
@@ -158,14 +175,16 @@ class PaymentService
             Log::warning('Ödeme bildirimi imza doğrulaması başarısız.', ['provider' => $providerId, 'merchant_oid' => $result->merchantOid]);
 
             // Sağlayıcılar "OK" dışındaki her yanıtta bildirimi yineler; 200 ile açık bir ret gövdesi dönülür.
-            return [$result->rejectBody, 200];
+            $order = $result->merchantOid !== '' ? PaymentOrder::query()->where('merchant_oid', $result->merchantOid)->first() : null;
+
+            return [$result->rejectBody, 200, $this->resultRedirect($result, $order, false)];
         }
 
         $order = PaymentOrder::query()->where('merchant_oid', $result->merchantOid)->first();
         if (! $order) {
             Log::warning('Ödeme bildirimi bilinmeyen sipariş.', ['provider' => $providerId, 'merchant_oid' => $result->merchantOid]);
 
-            return [$result->ackBody, 200];
+            return [$result->ackBody, 200, $result->redirectUser ? route('home') : null];
         }
 
         $payloadJson = json_encode($result->payload, JSON_UNESCAPED_UNICODE) ?: '{}';
@@ -222,7 +241,19 @@ class PaymentService
             $this->afterPaid($order->fresh());
         }
 
-        return [$result->ackBody, 200];
+        return [$result->ackBody, 200, $this->resultRedirect($result, $order, $result->status === 'success')];
+    }
+
+    private function resultRedirect(WebhookResult $result, ?PaymentOrder $order, bool $ok): ?string
+    {
+        if (! $result->redirectUser) {
+            return null;
+        }
+        if (! $order) {
+            return route('home');
+        }
+
+        return route('payment.result', ['order' => $order->public_id, 'outcome' => $ok ? 'basarili' : 'basarisiz']);
     }
 
     private function afterPaid(PaymentOrder $order): void

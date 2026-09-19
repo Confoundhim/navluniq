@@ -51,11 +51,17 @@ return [
         'claude_model' => env('CLAUDE_MODEL', 'claude-haiku-4-5'),
     ],
 
-    // Etkin ödeme kuruluşu: paytr (GatewayManager::REGISTRY). Anahtarlar boşsa ödeme kapalı kalır.
+    // Etkin ödeme kuruluşu: iyzico | paytr (GatewayManager::REGISTRY); panel ayarı önceliklidir. Anahtarlar boşsa ödeme kapalı kalır.
     'payment' => [
-        'provider' => env('PAYMENT_PROVIDER', 'paytr'),
+        'provider' => env('PAYMENT_PROVIDER', 'iyzico'),
     ],
 
+    // iyzico: anahtarlar panelden (Sistem Ayarları → Ödeme altyapısı) ya da .env
+    'iyzico' => [
+        'api_key' => env('IYZICO_API_KEY'),
+        'secret_key' => env('IYZICO_SECRET_KEY'),
+        'sandbox' => env('IYZICO_SANDBOX_MODE', true),
+    ],
     'paytr' => [
         'merchant_id' => env('PAYTR_MERCHANT_ID'),
         'merchant_key' => env('PAYTR_MERCHANT_KEY'),

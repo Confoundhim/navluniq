@@ -61,6 +61,8 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                // CLI (migrate vb.) tablo meta kilidinde sonsuza dek beklemesin; MariaDB varsayılanı 86400 sn.
+                PDO::MYSQL_ATTR_INIT_COMMAND => PHP_SAPI === 'cli' ? 'SET SESSION lock_wait_timeout=120' : null,
             ]) : [],
         ],
 

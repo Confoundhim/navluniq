@@ -3,28 +3,45 @@
 namespace App\Payments;
 
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Gateways\IyzicoGateway;
 use App\Payments\Gateways\NullGateway;
 use App\Payments\Gateways\PaytrGateway;
+use App\Support\Settings;
 
 /**
  * Etkin ödeme kuruluşunu seçer. PAYMENT_PROVIDER ile seçilen sağlayıcı anahtarları girilmemişse
  * NullGateway döner; böylece hiçbir ödeme sahte "başarılı" olmaz.
- * Yeni sağlayıcı eklemek: adaptör yaz, REGISTRY'e ekle, .env'de PAYMENT_PROVIDER'ı değiştir.
+ * Sağlayıcı panelden (payment_provider ayarı) ya da .env PAYMENT_PROVIDER ile seçilir.
+ * Yeni sağlayıcı eklemek: adaptör yaz, REGISTRY'e ekle.
  */
 class GatewayManager
 {
     /** @var array<string, class-string<PaymentGateway>> */
     public const REGISTRY = [
         'paytr' => PaytrGateway::class,
+        'iyzico' => IyzicoGateway::class,
     ];
+
+    public const LABELS = ['paytr' => 'PayTR', 'iyzico' => 'iyzico'];
+
+    /** Seçili sağlayıcı kimliği: panel ayarı → .env → paytr. */
+    public static function selectedId(): string
+    {
+        try {
+            $panel = Settings::string('payment_provider');
+        } catch (\Throwable) {
+            $panel = '';
+        }
+
+        return $panel !== '' ? $panel : (string) config('services.payment.provider', 'iyzico');
+    }
 
     /** @var array<string, PaymentGateway> */
     private array $instances = [];
 
     public function active(): PaymentGateway
     {
-        $id = (string) config('services.payment.provider', 'paytr');
-        $gateway = $this->gateway($id);
+        $gateway = $this->gateway(self::selectedId());
 
         return $gateway->isConfigured() ? $gateway : new NullGateway;
     }
@@ -32,7 +49,7 @@ class GatewayManager
     /** Anahtar girilmemiş olsa da seçilen sağlayıcıyı döndürür (durum ekranı için). */
     public function selected(): PaymentGateway
     {
-        return $this->gateway((string) config('services.payment.provider', 'paytr'));
+        return $this->gateway(self::selectedId());
     }
 
     public function gateway(string $id): PaymentGateway

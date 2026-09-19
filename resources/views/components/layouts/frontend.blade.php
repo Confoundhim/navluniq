@@ -301,14 +301,26 @@
                     <li><a href="{{ route('contracts', 'kullanici-sozlesmesi') }}" class="hover:text-brand-500 transition-colors">Kullanıcı Sözleşmesi</a></li>
                     <li><a href="{{ route('contracts', 'gizlilik-politikasi') }}" class="hover:text-brand-500 transition-colors">Gizlilik Politikası</a></li>
                     <li><a href="{{ route('contracts', 'mesafeli-satis') }}" class="hover:text-brand-500 transition-colors">Mesafeli Satış Sözleşmesi</a></li>
-                    <li><a href="{{ route('contracts', 'iade-politikasi') }}" class="hover:text-brand-500 transition-colors">İade Politikası</a></li>
+                    <li><a href="{{ route('contracts', 'iade-politikasi') }}" class="hover:text-brand-500 transition-colors">Teslimat ve İade Şartları</a></li>
                 </ul>
             </div>
 
         </div>
 
+        <!-- Güvenli ödeme: iyzico ile Öde + kart markaları (ödeme kuruluşu başvuru kriteri) -->
+        <div class="max-w-7xl mx-auto pt-8 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-2 text-[11px] text-neutral-400">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <span>Ödemeler 256-bit SSL ile lisanslı ödeme kuruluşu üzerinden alınır; kart bilgileri NavlunIQ'da saklanmaz.</span>
+            </div>
+            <a href="https://www.iyzico.com" target="_blank" rel="noopener" title="iyzico ile Öde · Mastercard, Visa, American Express, Troy" class="shrink-0">
+                <img src="/images/payment/iyzico-band-colored.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto dark:hidden">
+                <img src="/images/payment/iyzico-band-white.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto hidden dark:block">
+            </a>
+        </div>
+
         <!-- Alt Telif & Sosyal Medya -->
-        <div class="max-w-7xl mx-auto pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-neutral-400 text-[11px]">
+        <div class="max-w-7xl mx-auto pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-neutral-400 text-[11px]">
             <div>© {{ date('Y') }} NavlunIQ. Tüm Hakları Saklıdır.</div>
             <div class="flex items-center space-x-4">
                 @if($ig = \App\Models\CmsContent::getVal('social_instagram'))<a href="{{ $ig }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">Instagram</a>@endif

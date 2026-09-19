@@ -45,7 +45,10 @@ bozulmaz. Her e-postanın düz metin sürümü de vardır (`emails/text/*`).
 
 ## Sunucu ayarları
 
-`.env` içinde:
+Tercih edilen yol: Yönetici → Sistem Ayarları → **E-posta ve bildirim** → "SMTP ayarları (panelden)".
+Natro Kurumsal Posta için değerler hazır gelir (mail.kurumsaleposta.com, 587, TLS, info@navluniq.com);
+yalnız posta kutusu şifresi girilir. Şifre veritabanında şifreli tutulur ve `.env` yerine geçer;
+`config:cache` gerekmez. Panelde şifre boşsa `.env` ayarları kullanılır:
 
 ```
 MAIL_MAILER=smtp
