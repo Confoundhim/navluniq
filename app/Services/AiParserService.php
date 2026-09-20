@@ -762,6 +762,27 @@ TXT;
         return $decoded;
     }
 
+    /** Metinde geçen ilk iki farklı ili (yazım sırasıyla, yakın eşleme olmadan) döndürür. */
+    public static function firstTwoProvinces(string $text): array
+    {
+        $found = [];
+        foreach (preg_split('/[\s,\/;:()]+/u', $text) ?: [] as $word) {
+            $word = trim($word, '.-!?');
+            if (mb_strlen($word) < 3 || preg_match('/\d/u', $word)) {
+                continue;
+            }
+            $province = TurkishCities::fromText($word, fuzzy: false);
+            if ($province !== null && ! in_array($province, $found, true)) {
+                $found[] = $province;
+                if (count($found) === 2) {
+                    break;
+                }
+            }
+        }
+
+        return $found;
+    }
+
     private function parseWithRegex(string $message): array
     {
         // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
@@ -776,6 +797,10 @@ TXT;
         $dativeForm = isset($route[2]) && preg_match('/^(?:dan|den|tan|ten)$/iu', $route[2]) === 1; // "Ankaradan İzmire": varış yönelme eki taşır
         $pickup = $this->tidyLocation($route[1] ?? null);
         $delivery = $this->tidyLocation($route[3] ?? null, $dativeForm);
+        // "Denizli Bursa 8 ton…", "Samsun Trabzon kamyonet…": bağlaçsız yazımda metindeki ilk iki il sırayla kalkış/varış.
+        if (! $pickup || ! $delivery) {
+            [$pickup, $delivery] = self::firstTwoProvinces($routeText) + [null, null];
+        }
         if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('regex_required_fields_missing');
         }
