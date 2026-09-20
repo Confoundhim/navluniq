@@ -134,6 +134,38 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame('TIR', $load->fresh()->vehicleLabel());
     }
 
+    public function test_per_ton_prices_are_detected_and_labelled_separately(): void
+    {
+        $parser = app(AiParserService::class);
+        $bulk = $parser->parseCheap('Yarın yükleme sarıgöl bölgesinden dinar kısa damper dorse tırlar Dökme üzüm 1000+kdv 05321765518');
+        $this->assertSame([1000.0, 'per_ton'], [$bulk['price'], $bulk['price_unit']]);
+        $explicit = $parser->parseCheap('Ankara - İzmir 24 ton hububat ton başı 1.250 tl tenteli 0532 123 45 67');
+        $this->assertSame([1250.0, 'per_ton'], [$explicit['price'], $explicit['price_unit']]);
+        $basar = $parser->parseCheap('Mersin - Konya kömür 950+basar damperli 0532 123 45 67');
+        $this->assertSame([950.0, 'per_ton'], [$basar['price'], $basar['price_unit']]);
+        $total = $parser->parseCheap('Bursa - Konya 10 palet tekstil 28+kdv tenteli 0532 123 45 67');
+        $this->assertSame([28000.0, 'total'], [$total['price'], $total['price_unit']]);
+        $plain = $parser->parseCheap('Bursa - Konya 24 ton üzüm 45.000 tl tenteli 0532 123 45 67');
+        $this->assertSame([45000.0, 'total'], [$plain['price'], $plain['price_unit']]);
+
+        $std = app(LoadStandardizer::class)->standardize('Mersin - Konya kömür 950+basar damperli 0532 123 45 67', $basar);
+        $this->assertSame(['per_ton', 'TRY'], [$std['price_unit'], $std['currency']]);
+
+        config()->set('services.scraper.token', 't');
+        Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup', 'source_jid' => 'notif:grup', 'source_type' => 'notification',
+            'raw_message' => 'Mersin - Konya kömür 950+basar damperli 0532 123 45 67', 'sender_phone' => null, 'message_id' => 'pt1']);
+        $this->assertSame('created', $r['status']);
+        $load = ScrapedLoad::first();
+        $this->assertSame('950 ₺/ton', $load->priceLabel());
+        $this->assertTrue($load->isPerTon());
+
+        $load->forceFill(['price' => 1200.5, 'currency' => 'USD', 'price_unit' => 'total'])->save();
+        $this->assertSame('1.200,50 $', $load->fresh()->priceLabel());
+        $load->forceFill(['price' => null])->save();
+        $this->assertNull($load->fresh()->priceLabel());
+    }
+
     public function test_short_province_names_resolve_to_canonical_province(): void
     {
         $this->assertSame(3, TurkishLocations::resolve('Afyon')['province_code']);

@@ -168,16 +168,17 @@ class extends Component {
                 </div>
 
                 @forelse($recentLoads as $load)
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div class="space-y-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                            <div class="text-neutral-500 dark:text-neutral-400">
-                                {{ $load->goods_type }} · {{ \App\Models\DriverVehicle::getVehicleTypes()[$load->vehicle_type] ?? $load->vehicle_type }}
-                                @if($load->weight) · {{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg @endif
-                                · Yükleme {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }}
-                            </div>
+                    @php $kg = (int) ($load->weight ?? 0); $lp = (float) ($load->price ?? 0); @endphp
+                    <div class="load-card">
+                        <div class="load-card-main">
+                            <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ \App\Support\VehicleTypes::label($load->vehicle_type) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif</div>
+                            <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
                         </div>
-                        <div class="text-neutral-900 dark:text-white tabular-nums font-bold text-base shrink-0">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
+                        <div class="load-card-side sm:min-h-0">
+                            <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
+                            <a href="{{ route('driver.loads.index') }}" wire:navigate class="load-card-action">Teklif ver</a>
+                        </div>
                     </div>
                 @empty
                     <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz açık ilan yok.</div>

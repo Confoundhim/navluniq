@@ -593,6 +593,9 @@ class AiParserService
         foreach (['weight', 'price', 'goods_type'] as $key) {
             if (empty($out[$key]) && ! empty($ai[$key])) {
                 $out[$key] = $ai[$key];
+                if ($key === 'price') {
+                    $out['price_unit'] = $ai['price_unit'] ?? null;
+                }
             }
         }
         $ruleKeyword = ($out['vehicle_type_source'] ?? null) === 'keyword';
@@ -674,6 +677,7 @@ class AiParserService
             'vehicle_flexible' => (bool) ($data['vehicle_flexible'] ?? false),
             'weight' => $this->positiveInteger($data['weight_kg'] ?? null),
             'price' => $this->positiveDecimal($data['price_try'] ?? null),
+            'price_unit' => ! empty($data['price_per_ton']) ? 'per_ton' : 'total',
             'goods_type' => $goodsKey ? GoodsCatalog::label($goodsKey) : self::cleanText($data['goods'] ?? null, 120),
             'goods_category' => $goodsKey,
             'urgent' => (bool) ($data['urgent'] ?? false),
@@ -777,7 +781,7 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 {$vehicles}
 "tenteli", "dorse", "çekici", "mega", "lowbed" → tir. "Kapalı kasa kamyon" → tonaja göre kamyon. "Panelvan" → orta_panelvan (uzun yazıyorsa uzun_panelvan).
 4. weight_kg: kilogram tam sayı ("24 tn" → 24000, "12,5 ton" → 12500, "800 kg" → 800). "Basar tonaj" = aracın taşıyabildiği azami tonaj, yük tonajı sayılır. Palet adedi tonaj değildir.
-5. price_try: Türk lirası ("45 bin" → 45000, "38.000 tl" → 38000, "45k" → 45000). KDV notu fiyatı değiştirmez. Yoksa null.
+5. price_try: Türk lirası ("45 bin" → 45000, "38.000 tl" → 38000, "45k" → 45000). KDV notu fiyatı değiştirmez. Yoksa null. price_per_ton: fiyat ton başına ise true ("ton başı 1200", "tonu 950", "+basar", dökme yükte "1000+kdv"), toplam navlun ise false.
 6. goods_category: yalnız şu anahtarlardan biri ya da null: {$goods}. goods: mesajdaki yük tanımı kısa metin.
 7. phones: o ilana ait TÜM Türkiye cep numaraları, 10 hane "5xxxxxxxxx" biçiminde (0 ve +90 atılır). Bir ilanda birden fazla kişi/numara olabilir ("Ahmet 0532…, Mehmet 0533…"); hepsini sırayla yaz. Sabit hat ve yabancı numaraları yazma.
 8. urgent: acil/hemen/bugün gibi ifadeler varsa true. pickup_date_text: yükleme zamanı ifadesi ("yarın", "pazartesi", "12.05") aynen.
@@ -810,13 +814,14 @@ TXT;
                 'vehicle_flexible' => ['type' => 'boolean'],
                 'weight_kg' => $nullable('integer'),
                 'price_try' => $nullable('number'),
+                'price_per_ton' => ['type' => 'boolean'],
                 'goods' => $nullable('string'),
                 'goods_category' => ['anyOf' => [['type' => 'string', 'enum' => array_keys(GoodsCatalog::labels())], ['type' => 'null']]],
                 'urgent' => ['type' => 'boolean'],
                 'pickup_date_text' => $nullable('string'),
                 'notes' => $nullable('string'),
             ],
-            'required' => ['post_type', 'confidence', 'phones', 'excerpt', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'notes'],
+            'required' => ['post_type', 'confidence', 'phones', 'excerpt', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'price_per_ton', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'notes'],
             'additionalProperties' => false,
         ];
 
@@ -1162,6 +1167,7 @@ TXT;
             $price = [1 => $m[1]];
             $currency = str_contains($m[0], '€') || stripos($m[0], 'eur') !== false ? 'EUR' : 'USD';
         }
+        $priceValue = $this->positiveDecimal(isset($price[1]) ? str_replace(' ', '', (string) $price[1]) : null);
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|ton|tn)(?!\p{L})/iu', $message, $weight);
         $weightKg = $this->positiveDecimal($weight[1] ?? null);
         if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {
@@ -1179,12 +1185,37 @@ TXT;
             'delivery_location' => $delivery,
             'goods_type' => self::cleanText($goods[1] ?? null, 120),
             'weight' => $weightKg !== null ? (int) round($weightKg) : null,
-            'price' => $this->positiveDecimal(isset($price[1]) ? str_replace(' ', '', (string) $price[1]) : null),
+            'price' => $priceValue,
+            'price_unit' => $priceValue !== null ? self::priceUnitFromText($message, $priceValue) : null,
             'currency' => $currency,
             'vehicle_type' => ($vehicle = VehicleTypes::detect($message, $weightKg !== null ? (int) round($weightKg) : null))['type'],
             'vehicle_type_source' => $vehicle['source'],
             'parsed_by_llm' => 'regex_verified',
         ];
+    }
+
+    /** Dökme/ağırlığa göre fiyatlanan yükler: ton başına fiyat yazımı yaygındır. */
+    public const BULK_GOODS_PATTERN = '/\b(?:dökme|dokme|damper|danper|basar|tonaj|kömür|komur|mucur|kum|çakıl|cakil|maden|tuz|gübre|gubre|hububat|buğday|bugday|arpa|mısır|misir|silaj|saman|pancar|klinker|çimento|cimento|kireç|kirec|taş|tas|toprak|üzüm|uzum|cüruf|curuf|kül|kul|talaş|talas|yonca|hurda|demir|rulo|bims|tuğla|tugla|kiremit|mermer|blok)\b/iu';
+
+    /**
+     * Fiyat birimi: "total" (toplam navlun) ya da "per_ton" (ton başına). Ton başına sayılanlar: açık yazım
+     * ("ton başı 1200", "tonu 950", "1000 tl/ton"), "+basar" / "+tonajlı" (kantar tonajıyla ödenir) ve dökme yüklerde
+     * 5.000'in altındaki "+kdv" / satır sonu "+" tutarları ("dökme üzüm 1000+kdv").
+     */
+    public static function priceUnitFromText(string $message, float $price): string
+    {
+        $lower = mb_strtolower(str_replace(['İ', 'I'], ['i', 'ı'], $message));
+        if (preg_match('/\b(?:ton\s*(?:başı|basi|başına|basina|fiyat[ıi]?)|tonu|tona|ton\s*ücreti|ton\s*ucreti)\b|(?:tl|₺|lira)?\s*\/\s*ton\b|\btl\s*ton\b/u', $lower)) {
+            return 'per_ton';
+        }
+        if (preg_match('/\+\s*(?:basar|tonajl[ıi])\b/u', $lower)) {
+            return 'per_ton';
+        }
+        if ($price < 5000 && preg_match('/\d\s*(?:tl|₺)?\s*\+\s*(?:kdv|$)/mu', $lower) && preg_match(self::BULK_GOODS_PATTERN, $lower)) {
+            return 'per_ton';
+        }
+
+        return 'total';
     }
 
     /**

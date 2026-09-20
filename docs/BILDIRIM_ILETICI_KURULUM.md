@@ -249,6 +249,14 @@ model **Otomatik** (qwen3 önce seçilir). "Bağlantıyı sına" ile örnek ilan
 
 Belleği az sunucularda `llama3.2:3b` (~2,5 GB) çalışır ama Türkçe isabeti düşer; `qwen3:4b` önerilir.
 
+## Fiyat birimi: toplam mı, ton başına mı?
+
+Dökme yüklerde ("dökme üzüm 1000+kdv", "kömür 950+basar", "ton başı 1.250 tl") fiyat ton başınadır. Kural bunu ayırt eder
+ve kayıtta `price_unit` = `per_ton` olarak tutar; listelerde "1.000 ₺/ton" yazar. Toplam navlun ("45.000 tl", "28+kdv" = 28.000)
+`total` olarak kalır. Ton başına sayılanlar: açık yazım (ton başı, tonu, tl/ton), "+basar" / "+tonajlı" ve dökme yük sözcüğü
+(dökme, damper, kömür, kum, hububat, üzüm, gübre…) ile birlikte 5.000'in altındaki "+kdv" tutarları. Yönetici düzenleme
+penceresinde fiyatın yanındaki "Toplam / Ton başına" seçimiyle düzeltilebilir; yapay zeka da `price_per_ton` alanıyla bildirir.
+
 ## Aynı ilanın iki gruptan gelmesi
 
 Aynı metin iki gruptan aynı saniyede gelince iletici her grubu ayrı istek olarak yollar. İki istek yan yana işlenirken tekrar
