@@ -5,6 +5,7 @@ namespace Tests\Feature\Services;
 use App\Console\Commands\AnalyzeIntakeSamplesCommand;
 use App\Models\AiLexicon;
 use App\Models\AiTemplate;
+use App\Models\AiTokenStat;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Models\User;
@@ -213,7 +214,21 @@ class LocalLearningTest extends TestCase
         $this->assertStringContainsString("palet var\n0534", $messages[2]);
         $this->artisan('intake:analyze', ['file' => $file])->assertSuccessful()
             ->expectsOutputToContain('Mesaj: 3');
-        unlink($file);
+
+        $dir = sys_get_temp_dir().'/wa-'.uniqid();
+        mkdir($dir);
+        rename($file, $dir.'/grup.txt');
+        file_put_contents($dir.'/diger.txt', "20.09.2026 16:00 - Can: Bursa - Konya 10 ton frigo lazım 0533 222 22 22\n20.09.2026 16:01 - Ece: E-fatura kesiyoruz gider fişi düzenliyoruz 0534 444 44 44\n20.09.2026 16:02 - Efe: Arkadaşlar bu akşam toplantı var herkes gelsin lütfen geç kalmayın önemli konular konuşulacak\n");
+        $before = app(LocalClassifier::class)->stats();
+        $this->artisan('intake:analyze', ['file' => $dir, '--learn' => true])->assertSuccessful()
+            ->expectsOutputToContain('Mesaj: 6')
+            ->expectsOutputToContain('Yerel sınıflandırıcı öğrendi: 3 ilan, 1 ilan-değil');
+        $after = app(LocalClassifier::class)->stats();
+        $this->assertSame([$before['docs_load'] + 3, $before['docs_other'] + 1], [$after['docs_load'], $after['docs_other']]);
+        $this->assertGreaterThan(0, AiTokenStat::query()->where('token', 'frigo')->value('load_count'));
+        $this->assertGreaterThan(0, AiTokenStat::query()->where('token', 'fatura')->value('other_count'));
+        array_map('unlink', glob($dir.'/*.txt'));
+        rmdir($dir);
     }
 
     public function test_rule_only_candidates_need_strong_evidence_or_local_confidence_for_auto_approval(): void

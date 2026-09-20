@@ -935,7 +935,7 @@ new class extends Component {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yerel sınıflandırıcı</h2>
-                <p class="text-[11px] text-neutral-400">Dış servise bağlı değildir. Siz "Yayınla" dedikçe ilan örneği, "Reddet" dedikçe ilan-değil örneği öğrenir; yapay zeka doğrulamalı otomatik onaylar da ilan örneğidir. Her sınıfta en az {{ \App\Services\LocalClassifier::MIN_DOCS }} örnek olunca karar vermeye başlar; dış yapay zeka kotası dolduğunda otomatik onayı bu karar sürdürür.</p>
+                <p class="text-[11px] text-neutral-400">Dış servise bağlı değildir. Siz "Yayınla" dedikçe ilan örneği, "Reddet" dedikçe ilan-değil örneği öğrenir; yapay zeka doğrulamalı otomatik onaylar da ilan örneğidir. Her sınıfta en az {{ \App\Services\LocalClassifier::MIN_DOCS }} örnek olunca karar vermeye başlar; dış yapay zeka kotası dolduğunda otomatik onayı bu karar sürdürür. "İlan değil" diye eleme en az {{ \App\Services\LocalClassifier::MIN_OTHER_DOCS_FOR_FILTER }} ret örneğinden sonra başlar. Grup dışa aktarımlarından toplu öğretmek için sunucuda <code>php artisan intake:analyze /klasör --learn</code> (belgede anlatılır).</p>
                 @if($classifier)
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-emerald-600">{{ $classifier['docs_load'] }}</div><div class="text-[10px] text-neutral-400">ilan örneği</div></div>

@@ -19,6 +19,12 @@ class LocalClassifier
     /** Her sınıfta en az bu kadar örnek yoksa karar vermez (null). */
     public const MIN_DOCS = 15;
 
+    /** Eleme (ilan değil diye atma) için bu kadar ilan-değil örneği gerekir; azken sadece güven puanı üretir. */
+    public const MIN_OTHER_DOCS_FOR_FILTER = 50;
+
+    /** Sözcük oranları bu kadar sanal belgeyle genel orana çekilir: küçük sınıfta birkaç örnek aşırı kanıt sayılmaz. */
+    private const SHRINK_DOCS = 20;
+
     public const MAX_TOKENS = 80;
 
     /**
@@ -70,6 +76,62 @@ class LocalClassifier
         }
     }
 
+    /**
+     * Toplu öğrenme (grup dışa aktarımı gibi binlerce örnek): sayaçlar bellekte toplanır, veritabanına parça parça yazılır.
+     * Aynı metin tekrar tekrar sayılmaz. Öğrenilen örnek sayısını döndürür.
+     *
+     * @param  iterable<string>  $texts
+     */
+    public function trainMany(iterable $texts, bool $isLoad): int
+    {
+        $delta = [];
+        $docs = 0;
+        $seen = [];
+        foreach ($texts as $text) {
+            $tokens = self::tokens($text);
+            if ($tokens === []) {
+                continue;
+            }
+            $key = implode(' ', $tokens);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $docs++;
+            foreach ($tokens as $token) {
+                $delta[$token] = ($delta[$token] ?? 0) + 1;
+            }
+        }
+        if ($docs === 0) {
+            return 0;
+        }
+        $col = $isLoad ? 'load_count' : 'other_count';
+        $other = $isLoad ? 'other_count' : 'load_count';
+        try {
+            DB::transaction(function () use ($delta, $col, $other, $isLoad, $docs): void {
+                foreach (array_chunk(array_keys($delta), 500) as $chunk) {
+                    $existing = AiTokenStat::query()->whereIn('token', $chunk)->get()->keyBy('token');
+                    $rows = [];
+                    foreach ($chunk as $token) {
+                        $row = $existing->get($token);
+                        $rows[] = [
+                            'token' => $token,
+                            $col => (int) ($row?->{$col} ?? 0) + $delta[$token],
+                            $other => (int) ($row?->{$other} ?? 0),
+                        ];
+                    }
+                    AiTokenStat::query()->upsert($rows, ['token'], ['load_count', 'other_count']);
+                }
+                $key = $isLoad ? 'ai_local_docs_load' : 'ai_local_docs_other';
+                Settings::set($key, Settings::int($key) + $docs);
+            });
+        } catch (Throwable) {
+            return 0;
+        }
+
+        return $docs;
+    }
+
     /** İlan olma olasılığı (0-1); yeterli örnek yoksa null. */
     public function score(string $text): ?float
     {
@@ -87,21 +149,31 @@ class LocalClassifier
         } catch (Throwable) {
             return null;
         }
-        $logLoad = log($docsLoad / ($docsLoad + $docsOther));
-        $logOther = log($docsOther / ($docsLoad + $docsOther));
+        // Sınıf öncülü kullanılmaz (dengeli): binlerce ilan örneğine karşı birkaç ret, her metni "ilan" yapmasın.
+        // Her sözcük için oran sanal belgelerle genel orana çekilir, katkı ±2 ile sınırlanır; 3'ten az görülen sözcük sayılmaz.
+        $diff = 0.0;
+        $total = $docsLoad + $docsOther;
         foreach ($tokens as $token) {
             $row = $stats->get($token);
             $l = (int) ($row?->load_count ?? 0);
             $o = (int) ($row?->other_count ?? 0);
-            if ($l === 0 && $o === 0) {
-                continue; // bilinmeyen sözcük karar değiştirmez
+            if ($l + $o < 3) {
+                continue; // bilinmeyen / nadir sözcük karar değiştirmez
             }
-            $logLoad += log(($l + 1) / ($docsLoad + 2));
-            $logOther += log(($o + 1) / ($docsOther + 2));
+            $base = ($l + $o) / $total;
+            $rateLoad = ($l + self::SHRINK_DOCS * $base) / ($docsLoad + self::SHRINK_DOCS);
+            $rateOther = ($o + self::SHRINK_DOCS * $base) / ($docsOther + self::SHRINK_DOCS);
+            $diff += max(-2.0, min(2.0, log($rateLoad) - log($rateOther)));
         }
-        $diff = max(-40.0, min(40.0, $logLoad - $logOther));
+        $diff = max(-40.0, min(40.0, $diff));
 
         return round(1 / (1 + exp(-$diff)), 4);
+    }
+
+    /** Eleme için yeterli ilan-değil örneği var mı? */
+    public function canFilter(): bool
+    {
+        return Settings::int('ai_local_docs_other') >= self::MIN_OTHER_DOCS_FOR_FILTER;
     }
 
     /** @return array{docs_load:int, docs_other:int, tokens:int, ready:bool} */

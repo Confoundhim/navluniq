@@ -18,10 +18,43 @@ final class TextPrep
     /** Satır başındaki ok = madde işareti ("➡️ANKARA KAPALI TIR"); bağlaç değildir */
     private const LEADING_ARROWS = '/^[ \t]*'.self::ARROW_CHARS.'+[ \t]*/mu';
 
+    /**
+     * Süslü unicode yazı tiplerini düz harfe indirger: küçük büyük harfler (ꜱᴇʀɪ̇ɴ ɴᴀᴋʟɪ̇ʏᴀᴛ), matematiksel kalın/italik/
+     * el yazısı harfler (𝐆𝐈𝐃𝐄𝐑 𝐅𝐈𝐒𝐈) ve tam genişlik harfler. Birleşik aksanlar (ɢ̆ → ğ, ᴄ̧ → ç, ᴜ̈ → ü) bileşik harfe dönüşür.
+     */
+    public static function foldFonts(string $text): string
+    {
+        if (! preg_match('/[\x{1D00}-\x{1D7F}\x{0250}-\x{02AF}\x{A730}-\x{A73F}\x{FF21}-\x{FF5A}\x{1D400}-\x{1D7FF}\x{01EB}]/u', $text)) {
+            return $text;
+        }
+        $t = strtr($text, self::SMALL_CAPS);
+        $t = preg_replace_callback('/[\x{1D400}-\x{1D6A3}]/u', function (array $m): string {
+            $cp = mb_ord($m[0]) - 0x1D400;
+            $i = $cp % 52;
+
+            return chr($i < 26 ? 65 + $i : 97 + $i - 26);
+        }, $t) ?? $t;
+        $t = preg_replace_callback('/[\x{FF21}-\x{FF3A}\x{FF41}-\x{FF5A}]/u', fn (array $m): string => chr(mb_ord($m[0]) - 0xFEE0), $t) ?? $t;
+        // "i" + üstte nokta (İ'nin küçük harf dönüşümü) ve "I" + nokta → i/İ; kalan birleşik aksanlar bileşik harfe (NFC)
+        $t = str_replace(["i\u{0307}", "I\u{0307}"], ['i', 'İ'], $t);
+        if (class_exists(\Normalizer::class)) {
+            $t = \Normalizer::normalize($t, \Normalizer::FORM_C) ?: $t;
+        }
+
+        return $t;
+    }
+
+    /** Küçük büyük harf (small capitals) → düz harf. */
+    private const SMALL_CAPS = [
+        'ᴀ' => 'a', 'ʙ' => 'b', 'ᴄ' => 'c', 'ᴅ' => 'd', 'ᴇ' => 'e', 'ꜰ' => 'f', 'ɢ' => 'g', 'ʜ' => 'h', 'ɪ' => 'i', 'ᴊ' => 'j',
+        'ᴋ' => 'k', 'ʟ' => 'l', 'ᴍ' => 'm', 'ɴ' => 'n', 'ᴏ' => 'o', 'ᴘ' => 'p', 'ǫ' => 'q', 'ʀ' => 'r', 'ꜱ' => 's', 'ᴛ' => 't',
+        'ᴜ' => 'u', 'ᴠ' => 'v', 'ᴡ' => 'w', 'ʏ' => 'y', 'ᴢ' => 'z', 'ᴓ' => 'ö',
+    ];
+
     public static function prepare(string $text): string
     {
         // Görünüm seçicileri (U+FE0F) ve yön işaretleri atılır; "➡️" ile "➡" aynı karakter olur
-        $t = str_replace(["\r\n", "\r", "\u{200E}", "\u{200F}", "\u{202F}", "\u{00A0}", "\u{FE0F}", "\u{FE0E}", "\u{2060}", "\u{FEFF}"], ["\n", "\n", '', '', ' ', ' ', '', '', '', ''], $text);
+        $t = str_replace(["\r\n", "\r", "\u{200E}", "\u{200F}", "\u{202F}", "\u{00A0}", "\u{FE0F}", "\u{FE0E}", "\u{2060}", "\u{FEFF}"], ["\n", "\n", '', '', ' ', ' ', '', '', '', ''], self::foldFonts($text));
         // Kesme/backtick işaretleri ("Tarsus'tan", "BİMS`DEN", "Adapazarın,dan") sözcüğe bitişir
         $t = preg_replace('/(?<=\p{L})[’\'‘`´,](?=(?:dan|den|tan|ten|ya|ye|a|e|na|ne|dan|de|da)\b)/iu', '', $t) ?? $t;
         $t = preg_replace('/(?<=\p{L})[’\'‘`´]\s?(?=\p{L})/u', '', $t) ?? $t;

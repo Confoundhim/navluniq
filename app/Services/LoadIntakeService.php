@@ -44,7 +44,7 @@ class LoadIntakeService
      */
     public function intake(array $payload): array
     {
-        $raw = trim((string) $payload['raw_message']);
+        $raw = trim(TextPrep::foldFonts((string) $payload['raw_message']));
         $sourceId = (string) ($payload['source_jid'] ?? $payload['group_name']);
         $sourceType = (string) ($payload['source_type'] ?? 'whatsapp');
         $messageId = (string) ($payload['message_id'] ?? '');
@@ -276,7 +276,7 @@ class LoadIntakeService
         // Yerel sınıflandırıcı (dış servisten bağımsız): yapay zeka bakmadıysa ve yeterince öğrenmişse çok düşük olasılıklı
         // metni eler; olasılık kayda yazılır (otomatik onay yapay zeka ulaşılamadığında bunu kullanır).
         $local = Settings::bool('scraper_local_enabled') ? $this->classifier->score($text) : null;
-        if ($local !== null && $ai['data'] === null && $local < 0.15) {
+        if ($local !== null && $ai['data'] === null && $local < 0.15 && $this->classifier->canFilter()) {
             return $this->result(200, false, 'filtered', 'Yerel sınıflandırıcı: ilan değil.', null, 'local_not_load') + ['excerpt' => $text];
         }
 
@@ -770,11 +770,14 @@ class LoadIntakeService
      * İlan olmayan ama telefonlu ve rota içerebilen mesajlar: boş araç ilanı (şoför yük arıyor), şoför/eleman ilanı,
      * fatura/fiş reklamı, satılık/kiralık araç. Yük gruplarındaki 9.000 mesajdan derlendi.
      */
-    public const NOT_LOAD_PATTERN = '/(?<!\p{L})(?:e-?fatura|e-?arşiv|e-?arsiv|gider fişi|gider fisi|utts|sgk yapılır|sgk yapilir|kdv açığ|kdv acig|beyanname|iş ilanı|is ilani|eleman aran|arkadaşlar aran|arkadaslar aran|şoför aran|sofor aran|şoför arıyor|sofor ariyor|şoför lazım|sofor lazim|şoförüm|soforum|iş arıyorum|is ariyorum|iş bakıyorum|boştayım|bostayim|boşum\b|bosum\b|boş\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse|\d+\s*teker)|boşta\b|bosta\b|yük arıyor|yuk ariyor|yük bakıyor|yuk bakiyor|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
+    public const NOT_LOAD_PATTERN = '/(?<!\p{L})(?:e-?fatura|e-?arşiv|e-?arsiv|gider fişi|gider fisi|utts|sgk yapılır|sgk yapilir|kdv açığ|kdv acig|beyanname|iş ilanı|is ilani|eleman aran|arkadaşlar aran|arkadaslar aran|şoför aran|sofor aran|şoför arıyor|sofor ariyor|şoför lazım|sofor lazim|şoförüm|soforum|iş arıyorum|is ariyorum|iş bakıyorum|boştayım|bostayim|boşum\b|bosum\b|boş\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse|\d+\s*teker)(?!\s*(?:girecek|gerek|lazım|lazim|ihtiyaç|ihtiyac|aranıyor|araniyor|arıyoruz|ariyoruz|olan|varsa|arayabilir|arasın|arasin))|boşta\b(?!\s*(?:olan|varsa|arkadaş|arkadas|araç|arac))|bosta\b(?!\s*(?:olan|varsa))|yük arıyor|yuk ariyor|yük bakıyor|yuk bakiyor|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
 
     public static function isNotLoadPattern(string $text): bool
     {
-        return preg_match(self::NOT_LOAD_PATTERN, $text) === 1;
+        // PCRE büyük İ/I harflerini küçük i/ı ile eşleştirmez; Türkçe küçük harfe çevrilip bakılır ("BOŞ ARAÇ GİRECEK")
+        $lower = mb_strtolower(str_replace(['İ', 'I'], ['i', 'ı'], $text));
+
+        return preg_match(self::NOT_LOAD_PATTERN, $lower) === 1;
     }
 
     public static function looksLikeLoad(string $text): bool

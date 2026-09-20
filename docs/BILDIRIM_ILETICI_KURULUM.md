@@ -161,7 +161,8 @@ yapay zekasız çözer:
 
 - **Biçim temizliği** (`TextPrep`): *kalın*/_eğik_ işaretleri, süs satırları (➖➖➖, ━━━, 🔥🔥) blok ayırıcı olur, emoji oklar
   (➡️ 👉 ▶ 🔹 🟰 ➤ »), "…", "__", "--》", ">>" ve iki yer adı arasındaki boşluksuz emoji (MERSİN📍MİDYAT) bağlaç sayılır,
-  harf aralıklı sözcükler ("T I R", "O R D U") birleşir. Kiril/Arap alfabesi mesajlar elenir.
+  harf aralıklı sözcükler ("T I R", "O R D U") birleşir, süslü yazı tipleri (ꜱᴇʀɪ̇ɴ ɴᴀᴋʟɪ̇ʏᴀᴛ, 𝐆𝐈𝐃𝐄𝐑 𝐅𝐈𝐒𝐈) düz harfe
+  iner. Kiril/Arap alfabesi mesajlar elenir.
 - **Rota**: "X - Y", "X ➡️ Y", "X'den Y'ye", "Xden Y", "X, Y" (iki uç da yer ise), "X yükler / Y iner-boşaltır-teslim",
   "X yüklemeli" başlığı altında liste (her varış satırı ayrı ilan; başlık boş satırdan sonra da geçerlidir), tek satırda
   "BOLU YÜKLER ANTALYA BOŞALTIR", "İstanbul Arnavutköy Şırnak Silopi 🚛 TIR" (il+ilçe çiftleri), "Denizli - şehir içi".
@@ -201,6 +202,21 @@ Her sınıfta 15 örnek olunca karar vermeye başlar:
   (varsayılan %90) üstündeyse aday kendiliğinden yayınlanır. 3 saatten uzun süre yapay zeka bekleyen aday "ulaşılamadı; elle kontrol" der.
 - "Geçmişten yeniden öğren" düğmesi sayaçları sıfırlayıp tüm yayınlanmış/reddedilmiş adaylardan yeniden öğrenir
   (komut: `php artisan ai:learn --rebuild`).
+- **Grup dışa aktarımlarından toplu öğretme.** Sözlük sekmesindeki sayaçlar yalnızca sitede verilen kararları sayar; kural
+  katmanına gömülen 9.000 mesaj oraya yazılmaz. Aynı dosyalarla sınıflandırıcıyı da beslemek için .txt dosyalarını sunucuya
+  atıp (`scp .\WhatsApp_Sohbetleri.zip root@SUNUCU:/root/`, `unzip -o /root/WhatsApp_Sohbetleri.zip -d /root/wa`) şunu çalıştırın:
+
+  ```bash
+  cd /var/www/navluniq && php artisan intake:analyze /root/wa --learn
+  ```
+
+  Kuralın telefon + kalkış + varışla tam çözdüğü her parça "ilan", sabit kalıpla elenen mesajlar (e-fatura, şoför ilanı,
+  boş araç) "ilan değil" örneği olur; aynı sözcük dizisi bir kez sayılır. Numarası profilde olan ilanlar olumsuz örnek
+  sayılmaz. 9.000 mesaj sunucuda 3-5 dakika sürer; sonunda "Yerel sınıflandırıcı öğrendi: … ilan, … ilan-değil" satırı
+  görünür ve Sözlük sekmesindeki sayaçlar yükselir. Dosyaları işiniz bitince silin: `rm -rf /root/wa /root/WhatsApp_Sohbetleri.zip`.
+- Sınıflandırıcı sınıf öncülü kullanmaz: binlerce ilan örneğine karşı birkaç ret, her metni "ilan" saymaz; her sözcüğün
+  katkısı sınırlıdır ve 3'ten az görülen sözcük sayılmaz. "İlan değil" diye **eleme** en az 50 ilan-değil örneğinden sonra
+  başlar; ondan önce yalnızca güven puanı üretir (otomatik onay için).
 
 Ayarlar: Sistem Ayarları → Dış kaynak → "Yerel öğrenen sınıflandırıcı" (açık/kapalı) ve "en düşük yerel güven (%)".
 
