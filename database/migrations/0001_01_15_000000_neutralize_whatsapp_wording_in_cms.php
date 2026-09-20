@@ -23,8 +23,6 @@ return new class extends Migration
         'WhatsApp gruplarında' => 'gruplarda',
         'WhatsApp grupları' => 'ilan grupları',
         'WhatsApp grubu' => 'ilan grubu',
-        'WhatsApp destek hattından mesaj gönderebilirsiniz' => 'mesaj hattından yazabilirsiniz',
-        'WhatsApp destek hattı' => 'mesaj hattı',
     ];
 
     public function up(): void
@@ -42,7 +40,7 @@ return new class extends Migration
                 if (! Schema::hasColumn($table, $column)) {
                     continue;
                 }
-                DB::table($table)->where(fn ($q) => $q->where($column, 'like', '%WhatsApp grup%')->orWhere($column, 'like', '%WhatsApp destek%'))->orderBy('id')->select(['id', $column])->chunk(100, function ($rows) use ($table, $column): void {
+                DB::table($table)->where($column, 'like', '%WhatsApp grup%')->orderBy('id')->select(['id', $column])->chunk(100, function ($rows) use ($table, $column): void {
                     foreach ($rows as $row) {
                         $new = strtr((string) $row->{$column}, self::REPLACEMENTS);
                         if ($new !== (string) $row->{$column}) {
