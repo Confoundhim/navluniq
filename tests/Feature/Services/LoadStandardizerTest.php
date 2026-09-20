@@ -4,9 +4,11 @@ namespace Tests\Feature\Services;
 
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\ScrapedLoadService;
+use App\Support\TurkishLocations;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -130,5 +132,17 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame('Bursa → İzmir', $load->fresh()->routeLabel());
         $this->assertSame('10 ton', $load->fresh()->weightLabel());
         $this->assertSame('TIR', $load->fresh()->vehicleLabel());
+    }
+
+    public function test_short_province_names_resolve_to_canonical_province(): void
+    {
+        $this->assertSame(3, TurkishLocations::resolve('Afyon')['province_code']);
+        $this->assertSame('Afyonkarahisar', TurkishLocations::resolve('Afyonkarahisar')['province']);
+        $this->assertSame(46, TurkishLocations::resolve('Maraş')['province_code']);
+
+        $parsed = app(AiParserService::class)->parseCheap("Denizli'den Afyon'a 3 adet kapalı tır ihtiyaç nakliyesi dolgundur cep numarası 0545 391 68 33");
+        $this->assertSame(['Denizli', 'Afyonkarahisar', '5453916833'], [$parsed['pickup_location'], $parsed['delivery_location'], $parsed['sender_phone']]);
+        $std = app(LoadStandardizer::class)->standardize('x', $parsed);
+        $this->assertSame([20, 3, []], [$std['pickup_province_code'], $std['delivery_province_code'], (array) ($std['metadata']['warnings'] ?? [])]);
     }
 }
