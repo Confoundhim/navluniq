@@ -61,7 +61,6 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
 // Bildirim iletici (MacroDroid) kurulum sayfası: gizli kodu bilen telefon sahibi kendi kurar.
 Route::middleware('throttle:30,1')->group(function () {
     Route::get('/kurulum/telefon/{code}', [PhoneSetupController::class, 'show'])->where('code', '[a-f0-9]{16,64}')->name('phone-setup.show');
-    Route::get('/kurulum/telefon/{code}/NavlunIQ.macro', [PhoneSetupController::class, 'macro'])->where('code', '[a-f0-9]{16,64}')->name('phone-setup.macro');
 });
 
 // Giriş, kayıt ve şifre sıfırlama (yalnız oturumu olmayan ziyaretçiler)

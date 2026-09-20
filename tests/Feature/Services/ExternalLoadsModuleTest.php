@@ -13,11 +13,9 @@ use App\Services\ScrapedLoadService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -323,57 +321,45 @@ class ExternalLoadsModuleTest extends TestCase
         Settings::set('scraper_auto_approve', '1');
         $clean = $this->candidate($source);
         $conflicted = $this->candidate($source, ['parse_metadata' => ['ai_conflict' => $merged['ai_conflict']]]);
-        $lowConfidence = $this->candidate($source, ['parse_confidence' => 0.3]);
+        $lowConfidence = $this->candidate($source, ['parse_confidence' => 0.3, 'ai_status' => 'done']);
         $service = app(ScrapedLoadService::class);
-        $this->assertNull($service->autoApprovalBlocker($clean));
+        $this->assertNull($service->autoApprovalBlocker($clean), 'Yapay zeka anahtarsızken kural yeterli');
         $this->assertStringContainsString('farklı il', (string) $service->autoApprovalBlocker($conflicted));
         $this->assertStringContainsString('güveni düşük', (string) $service->autoApprovalBlocker($lowConfidence));
+
+        // Yapay zeka açık ve anahtarlıyken: doğrulama zorunlu (varsayılan %75).
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        $waiting = $this->candidate($source, ['ai_status' => 'pending']);
+        $unchecked = $this->candidate($source, ['ai_status' => 'skipped']);
+        $failed = $this->candidate($source, ['ai_status' => 'failed']);
+        $weak = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.6]);
+        $strong = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.9]);
+        $this->assertStringContainsString('bekleniyor', (string) $service->autoApprovalBlocker($waiting));
+        $this->assertStringContainsString('doğrulayamadı', (string) $service->autoApprovalBlocker($unchecked));
+        $this->assertStringContainsString('doğrulayamadı', (string) $service->autoApprovalBlocker($failed));
+        $this->assertStringContainsString('%60', (string) $service->autoApprovalBlocker($weak));
+        $this->assertNull($service->autoApprovalBlocker($strong));
+        $this->assertSame(1, $service->autoApproveDue(), 'Yalnız yapay zekası güçlü aday otomatik yayınlanır');
+        $this->assertSame('public', $strong->fresh()->visibility);
+
+        Settings::set('scraper_auto_approve_min_confidence', '50');
+        $this->assertNull($service->autoApprovalBlocker($weak->fresh()));
+        Settings::set('scraper_auto_approve_require_ai', '0');
+        $this->assertNull($service->autoApprovalBlocker($waiting->fresh()), 'Zorunluluk kapalıysa beklemez');
     }
 
-    public function test_setup_page_and_macro_download_carry_the_current_token(): void
+    public function test_setup_page_shows_manual_steps_and_dies_when_link_is_regenerated(): void
     {
-        Storage::fake('local');
         $this->get('/kurulum/telefon/'.str_repeat('a', 24))->assertNotFound();
         $url = ScrapedLoadService::setupUrl();
-        $this->get($url)->assertOk()->assertSee('Telefon kurulumu')->assertSee('Hazır makro dosyası henüz yüklenmemiş')->assertSee(ScrapedLoadService::apiToken());
+        $this->get($url)->assertOk()->assertSee('Telefon kurulumu')->assertSee('2. Makroyu kurun')->assertSee('application/x-www-form-urlencoded')
+            ->assertSee(ScrapedLoadService::apiToken())->assertSee('ulaşabiliyor muyum');
         $this->get($url.'/NavlunIQ.macro')->assertNotFound();
 
-        $oldToken = 'eskianahtar1234567890';
-        $export = json_encode(['m_name' => 'NavlunIQ', 'm_actionList' => [['m_classType' => 'HttpRequestAction', 'm_urlToOpen' => 'http://eski.example/api/v1/webhook/notification', 'm_body' => '{"title":"{not_title}","text":"{notification}","token":"'.$oldToken.'"}']]]);
-        $info = ScrapedLoadService::storeMacroTemplate($export);
-        $this->assertSame($oldToken, $info['token']);
-
-        $download = $this->get($url.'/NavlunIQ.macro')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="NavlunIQ.macro"');
-        $content = $download->getContent();
-        $this->assertStringNotContainsString($oldToken, $content);
-        $this->assertStringContainsString(ScrapedLoadService::apiToken(), $content);
-        $decoded = json_decode($content, true);
-        $this->assertNotNull($decoded, 'Yamalanan dosya geçerli JSON kalmalı');
-        $this->assertSame(url('/api/v1/webhook/notification'), $decoded['m_actionList'][0]['m_urlToOpen'], 'Adres (kaçışlı JSON içinde de) güncel siteye çevrilir');
-        $this->assertStringNotContainsString('eski.example', $content);
-        $this->get($url)->assertOk()->assertSee('NavlunIQ.macro dosyasını indir');
-
-        // Anahtar yenilenince indirilen dosya yeni anahtarı taşır; bağlantı yenilenince eski kod ölür.
-        $new = ScrapedLoadService::regenerateApiToken();
-        $this->assertStringContainsString($new, $this->get($url.'/NavlunIQ.macro')->getContent());
         ScrapedLoadService::regenerateSetupCode();
         $this->get($url)->assertNotFound();
-
-        $this->expectException(\InvalidArgumentException::class);
-        ScrapedLoadService::storeMacroTemplate('{"m_name":"başka makro"}');
-    }
-
-    public function test_admin_uploads_macro_template_from_panel(): void
-    {
-        $this->actingAs($this->admin());
-        Storage::fake('local');
-        $file = UploadedFile::fake()->createWithContent('NavlunIQ.macro', json_encode(['m_actionList' => [['m_body' => '{"token":"abcdefgh12345678"}', 'm_url' => 'https://navluniq.com/api/v1/webhook/notification']]]));
-        Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('macroFile', $file)->call('uploadMacro')->assertHasNoErrors()
-            ->assertSee('NavlunIQ.macro indir');
-        $this->assertTrue(ScrapedLoadService::hasMacroTemplate());
-        $this->assertSame('abcdefgh12345678', Settings::string('macrodroid_template_token'));
-
-        Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('macroFile', UploadedFile::fake()->createWithContent('x.macro', 'bu json değil'))->call('uploadMacro')->assertHasErrors('macroFile');
+        $this->get(ScrapedLoadService::setupUrl())->assertOk();
     }
 
     public function test_provider_test_button_explains_errors_and_rate_limit_cooldown_is_short(): void
@@ -499,9 +485,5 @@ tenteli tır 0532 123 45 67","ticker":"","app":"WhatsApp","token":"'.$token.'"}'
         $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => ''], ['Accept' => 'application/json'])->assertStatus(401);
         $this->assertStringContainsString('Gelen gövde', (string) IntakeEvent::latest('id')->first()->excerpt);
 
-        // Form alanlı makro dışa aktarımında anahtar 48 karakterlik dizgeden bulunur.
-        Storage::fake('local');
-        $export = json_encode(['m_actionList' => [['m_urlToOpen' => 'https://navluniq.com/api/v1/webhook/notification', 'm_params' => [['m_name' => 'token', 'm_value' => $token]]]]]);
-        $this->assertSame($token, ScrapedLoadService::storeMacroTemplate($export)['token']);
     }
 }

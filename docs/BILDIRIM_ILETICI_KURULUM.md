@@ -3,18 +3,15 @@
 WhatsApp'a hiçbir cihaz bağlanmaz. Telefonda çalışan MacroDroid uygulaması, seçili grupların
 bildirim metnini NavlunIQ'ya iletir; sunucu tekrarları eler, ilanı ayrıştırır ve onay kuyruğuna alır.
 
-## 1. En kolay yol: kurulum bağlantısı (tek dokunuş)
+## 1. Kurulum bağlantısı
 
 Panel → **Dış Kaynak İlanları → Kaynaklar ve telefon** → "Kurulum bağlantısı". Bu bağlantıyı (ya da QR'ı) telefon
-sahibine gönderin; sayfa adım adım anlatır, hazır **NavlunIQ.macro** dosyasını indirtir ve "Sunucuya son ulaşan istek"
-satırıyla kurulumun çalıştığını gösterir. Bağlantıyı bilen herkes kurabilir; **Bağlantıyı yenile** eski bağlantıyı öldürür.
+sahibine gönderin; sayfa kurulumu adım adım anlatır, MacroDroid'e girilecek adres ve alanları hazır verir,
+"Bu telefondan sunucuya ulaşabiliyor muyum? Sına" düğmesi ve "Sunucuya son ulaşan istek" satırıyla kurulumun
+çalıştığını gösterir. Bağlantıyı bilen herkes kurabilir; **Bağlantıyı yenile** eski bağlantıyı öldürür.
 
-Hazır dosya için bir kez, çalışan telefonda MacroDroid → makro → **Dışa aktar** ile alınan `.macro` dosyasını panele
-yükleyin. İndirilen kopya her zaman **güncel anahtarı ve adresi** taşır; anahtar yenilense bile telefona dosyayı yeniden
-yüklemek yeter. Şablon yüklenmemişse kurulum sayfası elle kurulum adımlarını ve gövdeyi gösterir.
-
-Adres + gövde hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon başına ayar
-yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez; olsa da olmasa da makro çalışır.
+Adres + alanlar hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon başına ayar
+yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez.
 
 ## 2. Sunucu: gizli anahtar (panelden)
 

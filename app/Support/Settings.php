@@ -25,6 +25,8 @@ final class Settings
         'scraper_auto_approve_require_price' => 0,
         'scraper_auto_approve_require_weight' => 0,
         'scraper_auto_approve_require_vehicle' => 0, // 1: araç tipi çözülemeyen aday otomatik onaylanmaz
+        'scraper_auto_approve_require_ai' => 1,      // 1: yapay zeka bakmadan / yeterli güven vermeden aday otomatik onaylanmaz
+        'scraper_auto_approve_min_confidence' => 75, // yapay zeka güveni (yüzde) bu değerin altındaysa elle kontrol
 
         // Bildirim iletici (telefon) bağlantı anahtarı: boşsa .env SCRAPER_API_TOKEN; o da boşsa panel üretir
         'scraper_api_token' => '',
@@ -52,8 +54,6 @@ final class Settings
         'ai_kimi_key' => '',
         'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
         'scraper_setup_code' => '',             // herkese açık telefon kurulum sayfasının gizli kodu
-        'macrodroid_template_token' => '',      // yüklenen .macro şablonundaki anahtar (indirmede güncel anahtarla değiştirilir)
-        'macrodroid_template_at' => '',
 
         // Telegram kanalı
         'telegram_post_enabled' => 0,           // 1: herkese açılan SİSTEM ilanları kanala gönderilir (dış kaynak gönderilmez)
@@ -82,7 +82,7 @@ final class Settings
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
-    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token', 'scraper_setup_code', 'macrodroid_template_token'];
+    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token', 'scraper_setup_code'];
 
     /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
     public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];

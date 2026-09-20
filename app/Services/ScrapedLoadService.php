@@ -12,7 +12,6 @@ use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -54,9 +53,7 @@ class ScrapedLoadService
         return $token;
     }
 
-    // ---- Telefon kurulum bağlantısı ve MacroDroid şablonu ----
-
-    public const MACRO_TEMPLATE_PATH = 'macrodroid/template.macro';
+    // ---- Telefon kurulum bağlantısı ----
 
     /** Herkese açık kurulum sayfasının gizli kodu (bağlantıyı bilen kurar; yenilenince eski bağlantı ölür). */
     public static function setupCode(): string
@@ -99,61 +96,6 @@ class ScrapedLoadService
         } catch (\Throwable) {
             return '';
         }
-    }
-
-    /**
-     * Telefondan dışa aktarılan MacroDroid makrosunu (.macro, JSON) şablon olarak saklar.
-     * İndirilirken içindeki anahtar ve adres güncel değerlerle değiştirilir.
-     *
-     * @return array{token:?string, url_found:bool}
-     */
-    public static function storeMacroTemplate(string $content, ?int $userId = null): array
-    {
-        $content = trim($content);
-        if ($content === '' || strlen($content) > 2_000_000 || json_decode($content) === null) {
-            throw new \InvalidArgumentException('Dosya MacroDroid dışa aktarımı (JSON) değil.');
-        }
-        $urlFound = (bool) preg_match('~api\\\\?/v1\\\\?/webhook\\\\?/notification~', $content);
-        if (! $urlFound) {
-            throw new \InvalidArgumentException('Makroda NavlunIQ bildirim adresi yok; önce telefonda çalışan makroyu dışa aktarın.');
-        }
-        $token = preg_match('~token\\\\*"\\s*:\\s*\\\\*"([A-Za-z0-9_\\-]{8,})~', $content, $m) ? $m[1]
-            : (preg_match('~\\b([a-f0-9]{48})\\b~', $content, $m) ? $m[1] : null); // form alanı kurulumunda 48 karakterlik anahtar
-        Storage::disk('local')->put(self::MACRO_TEMPLATE_PATH, $content);
-        Settings::set('macrodroid_template_token', $token ?? '', $userId);
-        Settings::set('macrodroid_template_at', now()->toDateTimeString(), $userId);
-        ActivityLog::record('scraper.macro_template_uploaded', 'MacroDroid şablonu yüklendi', $userId);
-
-        return ['token' => $token, 'url_found' => $urlFound];
-    }
-
-    public static function hasMacroTemplate(): bool
-    {
-        return Storage::disk('local')->exists(self::MACRO_TEMPLATE_PATH);
-    }
-
-    public static function deleteMacroTemplate(?int $userId = null): void
-    {
-        Storage::disk('local')->delete(self::MACRO_TEMPLATE_PATH);
-        Settings::set('macrodroid_template_token', '', $userId);
-        Settings::set('macrodroid_template_at', '', $userId);
-    }
-
-    /** Şablonun güncel anahtar ve adresle yamalanmış hâli; şablon yoksa null. */
-    public static function macroTemplate(): ?string
-    {
-        if (! self::hasMacroTemplate()) {
-            return null;
-        }
-        $content = (string) Storage::disk('local')->get(self::MACRO_TEMPLATE_PATH);
-        $oldToken = Settings::string('macrodroid_template_token');
-        if ($oldToken !== '') {
-            $content = str_replace($oldToken, self::apiToken(), $content);
-        }
-        $target = url('/api/v1/webhook/notification');
-        $content = preg_replace('~https?:(\\\\?/){2}[^"\\\\\\s]+?(\\\\?/)api(\\\\?/)v1(\\\\?/)webhook(\\\\?/)notification~', str_replace('/', '${1}', $target), $content) ?? $content;
-
-        return $content;
     }
 
     /** MacroDroid'e yapıştırılacak hazır istek gövdesi. */
@@ -375,8 +317,35 @@ class ScrapedLoadService
         if (! empty($meta['ai_conflict']) && empty($meta['admin_edited'])) {
             return 'kural ve yapay zeka farklı il buldu; elle kontrol';
         }
-        if ($load->parse_confidence !== null && (float) $load->parse_confidence < 0.5 && empty($meta['admin_edited'])) {
-            return 'yapay zeka güveni düşük; elle kontrol';
+        if (empty($meta['admin_edited'])) {
+            if ($blocker = $this->aiApprovalBlocker($load)) {
+                return $blocker;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Yapay zeka doğrulaması: ayar açıkken ve yapay zeka kullanılabilirken aday ancak yapay zeka bakıp
+     * yeterli güven verdiyse kendiliğinden yayınlanır. Yapay zeka kapalı/anahtarsızsa uygulanmaz.
+     */
+    private function aiApprovalBlocker(ScrapedLoad $load): ?string
+    {
+        $parser = app(AiParserService::class);
+        $minConfidence = max(0, min(100, Settings::int('scraper_auto_approve_min_confidence'))) / 100;
+        if (! Settings::bool('scraper_auto_approve_require_ai') || ! $parser->isEnabled() || ! $parser->isConfigured()) {
+            // Zorunlu değilse yine de belirgin düşük güven elle kontrole düşer.
+            return $load->ai_status === 'done' && $load->parse_confidence !== null && (float) $load->parse_confidence < 0.5 ? 'yapay zeka güveni düşük; elle kontrol' : null;
+        }
+        if ($load->ai_status === 'pending') {
+            return 'yapay zeka doğrulaması bekleniyor';
+        }
+        if ($load->ai_status === 'failed' || ($load->ai_status !== 'done' && $parser->mode() === 'always')) {
+            return 'yapay zeka doğrulayamadı; elle kontrol';
+        }
+        if ($load->ai_status === 'done' && ($load->parse_confidence === null || (float) $load->parse_confidence < $minConfidence)) {
+            return 'yapay zeka güveni düşük (%'.(int) round((float) $load->parse_confidence * 100).'); elle kontrol';
         }
 
         return null;

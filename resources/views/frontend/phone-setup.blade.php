@@ -31,13 +31,8 @@
             </li>
 
             <li class="apple-glass rounded-3xl p-5 md:p-6 space-y-3">
-                <h2 class="font-bold text-neutral-900 dark:text-white">2. Hazır makroyu indirip içe aktarın</h2>
-                @if($hasTemplate)
-                    <p class="text-neutral-500 dark:text-neutral-400">Aşağıdaki düğme, bağlantı anahtarı içinde hazır olan makro dosyasını indirir. İndirme bitince bildirimden dosyaya dokunun; "MacroDroid ile aç" seçin ve <strong>İçe aktar</strong> deyin. Açılmazsa MacroDroid → sol menü → <strong>Makroları dışa/içe aktar → İçe aktar</strong> yolundan <em>NavlunIQ.macro</em> dosyasını seçin.</p>
-                    <a href="{{ $downloadUrl }}" class="btn-apple-brand inline-flex py-3 px-6 text-sm">NavlunIQ.macro dosyasını indir</a>
-                    <p class="text-[11px] text-neutral-400">İçe aktarınca makroyu <strong>etkin</strong> yapın (sağdaki anahtar yeşil olmalı). Başka ayar gerekmez.</p>
-                @else
-                    <p class="text-neutral-500 dark:text-neutral-400">Hazır makro dosyası henüz yüklenmemiş. Makroyu elle kurun: MacroDroid → <strong>Makro ekle</strong>.</p>
+                <h2 class="font-bold text-neutral-900 dark:text-white">2. Makroyu kurun</h2>
+                <p class="text-neutral-500 dark:text-neutral-400">MacroDroid → <strong>Makro ekle</strong>. Bir tetikleyici, bir eylem; kısıt yok. Bitince makroyu <strong>etkin</strong> yapın (sağdaki anahtar yeşil).</p>
                     <div class="text-xs space-y-2 text-neutral-600 dark:text-neutral-300">
                         <p><strong>Tetikleyici:</strong> Bildirim → "Bildirim alındı" → uygulama <strong>WhatsApp</strong> (WhatsApp Business kullanılıyorsa onu da seçin) → metin filtresi boş.</p>
                         <p><strong>Eylem:</strong> Bağlantı → <strong>HTTP İsteği</strong> → Yöntem <strong>POST</strong>.</p>
@@ -57,7 +52,6 @@
                             <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('setup-body').textContent).then(()=>this.textContent='Gövde kopyalandı')" class="btn-apple-secondary py-2 px-4 text-xs">JSON gövdeyi kopyala</button>
                         </div>
                     </div>
-                @endif
             </li>
 
             <li class="apple-glass rounded-3xl p-5 md:p-6 space-y-2">

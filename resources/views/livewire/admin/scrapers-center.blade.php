@@ -12,7 +12,6 @@ use App\Support\VehicleTypes;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
-use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 /**
@@ -20,10 +19,7 @@ use Livewire\WithPagination;
  * Toplu işlemler, filtreler, yapay zeka ile yeniden çözümleme, telefon bağlantı anahtarı.
  */
 new class extends Component {
-    use WithFileUploads, WithPagination;
-
-    /** Telefondan dışa aktarılan MacroDroid makrosu (.macro) */
-    public $macroFile = null;
+    use WithPagination;
 
     #[Url(as: 'sekme')]
     public string $activeTab = 'queue';
@@ -414,32 +410,6 @@ new class extends Component {
         session()->flash('success_message', 'Kurulum bağlantısı yenilendi; eski bağlantı artık açılmaz.');
     }
 
-    public function uploadMacro(): void
-    {
-        if (! $this->can()) {
-            return;
-        }
-        $this->validate(['macroFile' => 'required|file|max:2048'], ['macroFile.required' => 'Önce .macro dosyasını seçin.', 'macroFile.max' => 'Dosya 2 MB\'tan küçük olmalı.']);
-        try {
-            $info = ScrapedLoadService::storeMacroTemplate((string) file_get_contents($this->macroFile->getRealPath()), auth()->id());
-        } catch (\InvalidArgumentException $e) {
-            $this->addError('macroFile', $e->getMessage());
-
-            return;
-        }
-        $this->macroFile = null;
-        session()->flash('success_message', $info['token'] ? 'Makro şablonu yüklendi; kurulum bağlantısından indirilen dosya her zaman güncel anahtarı taşır.' : 'Makro şablonu yüklendi ancak içinde anahtar bulunamadı; indirilen dosyada anahtar değiştirilemez. Makroda gövdeyi paneldeki metinle güncelleyip yeniden dışa aktarın.');
-    }
-
-    public function removeMacro(): void
-    {
-        if (! $this->can()) {
-            return;
-        }
-        ScrapedLoadService::deleteMacroTemplate(auth()->id());
-        session()->flash('success_message', 'Makro şablonu kaldırıldı; kurulum sayfası elle kurulum adımlarını gösterir.');
-    }
-
     public function with(): array
     {
         $service = app(ScrapedLoadService::class);
@@ -464,7 +434,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(), 'macro' => ['has' => false, 'at' => '', 'token_ok' => false],
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(),
         ];
 
         if ($this->activeTab === 'events') {
@@ -482,7 +452,6 @@ new class extends Component {
             $data['setupQr'] = ScrapedLoadService::setupQrSvg();
             $data['pingUrl'] = ScrapedLoadService::pingUrl();
             $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
-            $data['macro'] = ['has' => ScrapedLoadService::hasMacroTemplate(), 'at' => Settings::string('macrodroid_template_at'), 'token_ok' => Settings::string('macrodroid_template_token') !== ''];
         } else {
             $data['queue'] = $this->currentQuery()->paginate(20);
             if ($this->activeTab === 'queue') {
@@ -718,7 +687,7 @@ new class extends Component {
     @if($activeTab === 'sources')
         <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs" x-data="{ copied: '' , copy(text, key) { navigator.clipboard.writeText(text).then(() => { this.copied = key; setTimeout(() => this.copied = '', 2000); }); } }">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Telefon bağlantısı (MacroDroid)</h2>
-            <p class="text-[11px] text-neutral-400">Bu adres ve gövde hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; anahtar gövdenin içinde hazırdır, başka ayar gerekmez. En kolayı: aşağıdaki <strong>kurulum bağlantısını</strong> telefon sahibine gönderin (ya da QR'ı okutun); sayfa adım adım anlatır ve hazır makro dosyasını indirtir.</p>
+            <p class="text-[11px] text-neutral-400">Bu adres ve gövde hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; anahtar gövdenin içinde hazırdır, başka ayar gerekmez. En kolayı: aşağıdaki <strong>kurulum bağlantısını</strong> telefon sahibine gönderin (ya da QR'ı okutun); sayfa kurulumu adım adım anlatır ve alanları hazır verir.</p>
 
             <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start p-4 rounded-2xl bg-brand-50/60 dark:bg-brand-950/20 border border-brand-200/50 dark:border-brand-900/40">
                 <div class="space-y-2 min-w-0">
@@ -728,24 +697,6 @@ new class extends Component {
                         <button type="button" @click="copy(@js($setupUrl), 'setup')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'setup' ? 'Kopyalandı' : 'Bağlantıyı kopyala'"></button>
                         <a href="https://wa.me/?text={{ urlencode('NavlunIQ ilan iletici kurulumu (5 dk): '.$setupUrl) }}" target="_blank" rel="noopener" class="btn-secondary py-2 px-3 text-xs">WhatsApp ile gönder</a>
                         <button type="button" wire:click="regenerateSetupCode" wire:confirm="Eski bağlantı artık açılmaz. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline">Bağlantıyı yenile</button>
-                    </div>
-                    <div class="pt-2 space-y-2">
-                        <span class="font-bold text-neutral-900 dark:text-white">Hazır makro dosyası</span>
-                        @if($macro['has'])
-                            <p class="text-[11px] text-neutral-500">Yüklü ({{ $macro['at'] }}). {{ $macro['token_ok'] ? 'İndirilen dosya her zaman güncel anahtarı ve adresi taşır; anahtarı yenileseniz de telefona yeniden yükleme yeter.' : 'Dosyada anahtar bulunamadı; telefondaki makro gövdesini paneldekiyle güncelleyip yeniden dışa aktarın.' }}</p>
-                            <div class="flex flex-wrap gap-3">
-                                <a href="{{ route('phone-setup.macro', ['code' => \App\Services\ScrapedLoadService::setupCode()]) }}" class="btn-secondary py-2 px-3 text-xs">NavlunIQ.macro indir</a>
-                                <button type="button" wire:click="removeMacro" wire:confirm="Şablon kaldırılsın mı?" class="text-red-600 font-semibold hover:underline">Kaldır</button>
-                            </div>
-                        @else
-                            <p class="text-[11px] text-neutral-500">Çalışan telefonda MacroDroid → makro → <strong>Dışa aktar</strong> ile alınan <em>.macro</em> dosyasını bir kez yükleyin; kurulum sayfası bunu diğer telefonlara güncel anahtarla indirtir.</p>
-                        @endif
-                        <form wire:submit="uploadMacro" class="flex flex-wrap items-center gap-2">
-                            <input type="file" wire:model="macroFile" accept=".macro,.json,.txt,application/json" class="text-[11px] file:mr-2 file:rounded-lg file:border-0 file:bg-neutral-100 dark:file:bg-neutral-800 file:px-3 file:py-1.5 file:text-xs file:font-semibold">
-                            <button type="submit" wire:loading.attr="disabled" class="btn-secondary py-2 px-3 text-xs">{{ $macro['has'] ? 'Şablonu değiştir' : 'Şablonu yükle' }}</button>
-                            <span wire:loading wire:target="macroFile,uploadMacro" class="text-[11px] text-neutral-400">Yükleniyor…</span>
-                        </form>
-                        @error('macroFile') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                     </div>
                 </div>
                 <div class="justify-self-center md:justify-self-end w-36 h-36 p-2 bg-white rounded-2xl border border-neutral-200/60 [&>svg]:w-full [&>svg]:h-full" title="Telefonla okutun">{!! $setupQr !!}</div>
