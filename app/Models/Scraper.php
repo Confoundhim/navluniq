@@ -20,10 +20,13 @@ class Scraper extends Model
         'last_success_at',
         'last_failure_at',
         'last_error',
+        'messages_since_deleted',
+        'last_message_at',
     ];
 
     protected $casts = [
         'last_scraped_at' => 'datetime',
+        'last_message_at' => 'datetime',
         'is_active' => 'boolean',
     ];
 

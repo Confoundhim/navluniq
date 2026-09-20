@@ -365,9 +365,34 @@ new class extends Component {
             return;
         }
         if ($scraper = Scraper::query()->find($scraperId)) {
+            $scraper->forceFill(['is_active' => false, 'messages_since_deleted' => 0])->save();
             $scraper->delete();
             ActivityLog::record('scraper.deleted', "Kaynak silindi: {$scraper->name}", auth()->id());
-            session()->flash('success_message', 'Kaynak silindi; mevcut ilan adayları korunur.');
+            session()->flash('success_message', 'Kaynak "Silinenler" listesine taşındı; gelen mesajları yok sayılır ve sayılır. Oradan geri alabilir ya da kalıcı silebilirsiniz.');
+        }
+    }
+
+    public function restoreSource(int $scraperId): void
+    {
+        if (! $this->can()) {
+            return;
+        }
+        if ($scraper = Scraper::onlyTrashed()->find($scraperId)) {
+            $scraper->restore();
+            $scraper->forceFill(['is_active' => false, 'messages_since_deleted' => 0])->save();
+            ActivityLog::record('scraper.restored', "Kaynak geri alındı: {$scraper->name}", auth()->id());
+            session()->flash('success_message', "\"{$scraper->name}\" geri alındı; onay bekliyor. Aktif edince mesajlar işlenir.");
+        }
+    }
+
+    public function purgeSource(int $scraperId): void
+    {
+        if (! $this->can()) {
+            return;
+        }
+        if ($scraper = Scraper::withTrashed()->find($scraperId)) {
+            $n = app(ScrapedLoadService::class)->purgeSource($scraper, auth()->id());
+            session()->flash('success_message', "\"{$scraper->name}\" ve ondan gelen {$n} aday kalıcı silindi; grup hiç okunmamış gibi.");
         }
     }
 
@@ -439,7 +464,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'macro' => ['has' => false, 'at' => '', 'token_ok' => false],
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(), 'macro' => ['has' => false, 'at' => '', 'token_ok' => false],
         ];
 
         if ($this->activeTab === 'events') {
@@ -451,6 +476,7 @@ new class extends Component {
             $data['events'] = $q->paginate(30);
         } elseif ($this->activeTab === 'sources') {
             $data['sources'] = Scraper::query()->withCount('scrapedLoads')->latest('id')->paginate(15);
+            $data['deletedSources'] = Scraper::onlyTrashed()->withCount('scrapedLoads')->latest('deleted_at')->limit(50)->get();
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
             $data['setupUrl'] = ScrapedLoadService::setupUrl();
             $data['setupQr'] = ScrapedLoadService::setupQrSvg();
@@ -790,5 +816,40 @@ new class extends Component {
                 <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $sources->links() }}</div>
             </div>
         </div>
+
+        @if($deletedSources->isNotEmpty())
+            <div class="apple-glass rounded-3xl overflow-hidden">
+                <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50">
+                    <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Silinen kaynaklar</h2>
+                    <p class="text-[11px] text-neutral-400">Bu gruplardan gelen mesajlar yok sayılır ama sayılır. Mesaj atmaya devam eden grubu <strong>Geri al</strong> ile onaya alabilir; <strong>Kalıcı sil</strong> ile grubu ve ondan gelen tüm adayları hiç okunmamış gibi silebilirsiniz.</p>
+                </div>
+                <div class="responsive-scroll">
+                    <table class="w-full text-left text-xs">
+                        <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                            @foreach($deletedSources as $source)
+                                <tr class="align-top">
+                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->deleted_at?->diffForHumans() }}</td>
+                                    <td class="p-4">
+                                        @if($source->messages_since_deleted > 0)
+                                            <span class="badge bg-amber-500/10 text-amber-600">{{ $source->messages_since_deleted }} mesaj</span>
+                                            <span class="text-[11px] text-neutral-400">son: {{ $source->last_message_at?->diffForHumans() }}</span>
+                                        @else
+                                            <span class="text-neutral-400">yok</span>
+                                        @endif
+                                    </td>
+                                    <td class="p-4">{{ $source->scraped_loads_count }}</td>
+                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                        <button type="button" wire:click="restoreSource({{ $source->id }})" class="text-emerald-600 font-semibold">Geri al</button>
+                                        <button type="button" wire:click="purgeSource({{ $source->id }})" wire:confirm="Kaynak ve ondan gelen {{ $source->scraped_loads_count }} aday kalıcı silinecek; geri alınamaz. Devam edilsin mi?" class="text-red-600 font-semibold">Kalıcı sil</button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
     @endif
 </div>

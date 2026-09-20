@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ActivityLog;
 use App\Models\ScrapedLoad;
+use App\Models\Scraper;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use chillerlan\QRCode\Output\QRMarkupSVG;
@@ -191,6 +192,22 @@ class ScrapedLoadService
     }
 
     /** Belirtilen günden eski reddedilenleri kalıcı siler; sayısını döndürür. */
+    /** Kaynağı ve ondan gelen tüm adayları/ilanları kalıcı siler: grup hiç okunmamış gibi olur. */
+    public function purgeSource(Scraper $source, ?int $userId = null): int
+    {
+        $count = 0;
+        ScrapedLoad::query()->withTrashed()->where('scraper_id', $source->id)->orderBy('id')->chunkById(500, function ($loads) use (&$count): void {
+            foreach ($loads as $load) {
+                $load->forceDelete();
+                $count++;
+            }
+        });
+        ActivityLog::record('scraper.purged', "Kaynak kalıcı silindi: {$source->name} ({$count} aday ile)", $userId);
+        $source->forceDelete();
+
+        return $count;
+    }
+
     public function purgeRejected(?int $olderThanDays = null, ?int $userId = null): int
     {
         $days = $olderThanDays ?? max(0, Settings::int('scraper_rejected_retention_days'));

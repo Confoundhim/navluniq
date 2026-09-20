@@ -122,6 +122,31 @@ class LoadIntakeTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
     }
 
+    public function test_deleted_source_messages_are_ignored_but_counted(): void
+    {
+        $source = $this->activeSource();
+        $source->delete(); // panelden "Sil"
+        $intake = app(LoadIntakeService::class);
+
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'd1', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame('source_deleted', $r['status']);
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => self::AD.' tekrar', 'message_id' => 'd2', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame('source_deleted', $r['status']);
+
+        $trashed = Scraper::onlyTrashed()->where('source_identifier', '1203630000001@g.us')->first();
+        $this->assertNotNull($trashed, 'Kaynak silinmiş kalmalı; ikinci kayıt açılmamalı');
+        $this->assertSame(2, $trashed->messages_since_deleted);
+        $this->assertNotNull($trashed->last_message_at);
+        $this->assertSame(0, ScrapedLoad::count());
+        $this->assertSame(1, Scraper::withTrashed()->where('source_identifier', '1203630000001@g.us')->count());
+
+        // Geri alınınca onay bekler; aktif edilince aynı metin yeniden işlenebilir.
+        $trashed->restore();
+        $trashed->forceFill(['is_active' => true])->save();
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'd3', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame('created', $r['status']);
+    }
+
     public function test_turkish_city_helper_handles_suffixes_and_aliases(): void
     {
         $this->assertSame('İzmir', TurkishCities::fromText("İzmir'e"));

@@ -244,6 +244,25 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertSame(48, strlen(Settings::string('scraper_api_token')));
     }
 
+    public function test_deleted_sources_can_be_restored_or_purged_from_panel(): void
+    {
+        $this->actingAs($this->admin());
+        $source = $this->source();
+        $a = $this->candidate($source);
+        $b = $this->candidate($source);
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->call('deleteSource', $source->id)->assertSee('Silinen kaynaklar')->assertSee('Grup A');
+        $this->assertNotNull(Scraper::onlyTrashed()->find($source->id));
+        $this->assertSame(2, ScrapedLoad::count(), 'Silme adayları korur');
+
+        $c->call('restoreSource', $source->id)->assertDontSee('Silinen kaynaklar');
+        $this->assertFalse(Scraper::find($source->id)->is_active, 'Geri alınan kaynak onay bekler');
+
+        $c->call('deleteSource', $source->id)->call('purgeSource', $source->id);
+        $this->assertNull(Scraper::withTrashed()->find($source->id));
+        $this->assertSame(0, ScrapedLoad::withTrashed()->count(), 'Kalıcı silme adayları da siler');
+    }
+
     public function test_non_admin_cannot_use_bulk_actions(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
