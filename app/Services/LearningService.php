@@ -16,13 +16,19 @@ use Throwable;
  */
 class LearningService
 {
-    public function __construct(private readonly LocalClassifier $classifier) {}
+    public function __construct(private readonly LocalClassifier $classifier, private readonly TemplateMemory $templates) {}
 
-    public function onApproved(ScrapedLoad $load): void
+    public function onApproved(ScrapedLoad $load, bool $byAdmin = true): void
     {
         try {
             $this->classifier->train((string) $load->raw_message, true);
             $this->learnLocations((string) $load->raw_message, $load->pickup_location, $load->delivery_location, $load->id);
+            // Yönetici onayı en güçlü doğrulamadır: gönderenin kalıbı öğrenilir (sonraki aynı kalıp yapay zekasız okunur).
+            $phone = $load->plainPhone();
+            if ($byAdmin && $phone && $load->pickup_province_code && $load->delivery_province_code) {
+                $goodsKey = array_search((string) $load->goods_type, GoodsCatalog::labels(), true);
+                $this->templates->learn($phone, (string) $load->raw_message, $load->pickup_location, $load->delivery_location, $load->vehicle_type, $goodsKey !== false ? (string) $goodsKey : null, true, 1.0, $load->id);
+            }
         } catch (Throwable) {
         }
     }
@@ -31,6 +37,10 @@ class LearningService
     {
         try {
             $this->classifier->train((string) $load->raw_message, false);
+            $templateId = (int) (((array) $load->meta('ai', []))['template_id'] ?? 0);
+            if ($templateId > 0) {
+                $this->templates->forget($templateId); // kalıp yanlış çözmüş: bir daha uygulanmasın
+            }
         } catch (Throwable) {
         }
     }

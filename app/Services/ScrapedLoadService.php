@@ -281,7 +281,7 @@ class ScrapedLoadService
             $userId,
             $load
         );
-        app(LearningService::class)->onApproved($load);
+        app(LearningService::class)->onApproved($load, byAdmin: ! $auto);
     }
 
     public function reject(ScrapedLoad $load, ?int $userId = null): void
@@ -360,6 +360,19 @@ class ScrapedLoadService
         }
         if ($load->ai_status === 'failed' || ($load->ai_status !== 'done' && $parser->mode() === 'always')) {
             return 'yapay zeka doğrulayamadı; elle kontrol';
+        }
+        if ($load->ai_status !== 'done') {
+            // Kural yeterli sayıldı, yapay zeka çağrılmadı ("Kural eksik bırakınca" kipi): yerel sınıflandırıcı öğrenmişse
+            // onun kararı gerekir; öğrenmemişse kural kanıtı güçlü olmalı (il çifti + araç adı ya da tonaj ya da fiyat).
+            $local = $this->localConfidence($load);
+            if ($local !== null) {
+                return 'yerel güven düşük (%'.(int) round($local * 100).'); elle kontrol';
+            }
+            $strong = $load->pickup_province_code && $load->delivery_province_code
+                && (in_array($load->vehicle_type_source, ['keyword', 'admin'], true) || (int) $load->weight > 0 || (float) $load->price > 0);
+            if (! $strong) {
+                return 'kural kanıtı zayıf (araç adı, tonaj ya da fiyat yok); elle kontrol';
+            }
         }
         if ($load->ai_status === 'done' && ($load->parse_confidence === null || (float) $load->parse_confidence < $minConfidence)) {
             return 'yapay zeka güveni düşük (%'.(int) round((float) $load->parse_confidence * 100).'); elle kontrol';

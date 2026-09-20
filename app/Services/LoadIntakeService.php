@@ -35,7 +35,7 @@ class LoadIntakeService
     /** Bir mesajdan en fazla bu kadar ilan adayı açılır (kötü niyetli/uzun listelere karşı). */
     public const MAX_ADS_PER_MESSAGE = 15;
 
-    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer, private readonly LocalClassifier $classifier) {}
+    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer, private readonly LocalClassifier $classifier, private readonly TemplateMemory $templates) {}
 
     /**
      * @param  array{group_name:string, raw_message:string, sender_phone?:?string, message_id?:?string, source_jid?:?string, source_type?:string}  $payload
@@ -139,6 +139,22 @@ class LoadIntakeService
 
                     continue;
                 }
+                // Şablon hafızası: aynı numaranın daha önce doğrulanmış kalıbı varsa yapay zekaya gitmeden çözülür.
+                $phone = $parsed['sender_phone'] ?? null;
+                if (is_string($phone) && ! $mayHoldSeveral) {
+                    $sig = TemplateMemory::signature($segment['text']);
+                    $template = $this->templates->find($phone, $sig['hash']);
+                    if ($template !== null && ! $template->is_load) {
+                        $results[$i] = $this->result(200, false, 'filtered', 'Şablon: bu gönderenin bu kalıbı ilan değil.', null, 'template_not_load') + ['excerpt' => $segment['text']];
+
+                        continue;
+                    }
+                    if ($template !== null && ($applied = $this->templates->apply($template, $sig, $parsed)) !== null) {
+                        $results[$i] = $this->processSegment($segment + ['parsed' => $applied, 'template' => $template], $ctx);
+
+                        continue;
+                    }
+                }
                 $pending[$i] = $segment + ['parsed' => $parsed];
             }
 
@@ -149,6 +165,13 @@ class LoadIntakeService
                 if ($aiData !== null) {
                     $ads = array_values(array_filter((array) ($aiData['ads'] ?? []), fn ($a) => is_array($a) && ($a['is_load'] ?? false)));
                     if ($ads === [] && ($aiData['is_load'] ?? true) === false && (float) ($aiData['confidence'] ?? 0) >= 0.8) {
+                        // Gönderenin bu kalıbı "ilan değil" olarak öğrenilir; aynı kalıp bir daha yapay zekaya sorulmaz.
+                        foreach ($pending as $segment) {
+                            if (is_string($segment['parsed']['sender_phone'] ?? null)) {
+                                $this->templates->learn($segment['parsed']['sender_phone'], $segment['text'], null, null, null, null, false, (float) $aiData['confidence']);
+                            }
+                        }
+
                         return $this->result(200, false, 'filtered', 'Yapay zeka: yük ilanı değil.', null, 'ai_not_load');
                     }
                     if ($ads !== []) {
@@ -213,7 +236,11 @@ class LoadIntakeService
         }
         $ai = ['status' => 'skipped', 'data' => null];
 
-        if (isset($segment['ai'])) {
+        if (isset($segment['template'])) {
+            // Şablon hafızası: aynı gönderenin doğrulanmış kalıbı; yapay zeka doğrulaması sayılır.
+            $ai = ['status' => 'done', 'data' => ['provider' => 'template', 'model' => null, 'is_load' => true, 'confidence' => (float) $segment['template']->confidence,
+                'notes' => 'Aynı gönderenin daha önce doğrulanmış ilan kalıbı', 'template_id' => $segment['template']->id]];
+        } elseif (isset($segment['ai'])) {
             // Yapay zeka öncelikli kip: bu ilanın alanları mesajın tamamına yapılan çağrıdan geldi.
             $ai = ['status' => 'done', 'data' => $segment['ai']];
             $parsed = $this->parser->merge($parsed, $segment['ai']);
@@ -228,8 +255,13 @@ class LoadIntakeService
             }
         }
 
-        // Yapay zeka yüksek güvenle "bu bir yük ilanı değil" dediyse (sohbet, araç satışı, iş ilanı…) elenir.
+        // Yapay zeka yüksek güvenle "bu bir yük ilanı değil" dediyse (sohbet, araç satışı, iş ilanı…) elenir;
+        // aynı gönderenin bu kalıbı bir daha yapay zekaya sorulmaz.
         if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8) {
+            if (is_string($parsed['sender_phone'] ?? null)) {
+                $this->templates->learn($parsed['sender_phone'], $text, null, null, null, null, false, (float) $ai['data']['confidence']);
+            }
+
             return $this->result(200, false, 'filtered', 'Yapay zeka: yük ilanı değil.', null, 'ai_not_load') + ['excerpt' => $text];
         }
         // Yerel sınıflandırıcı (dış servisten bağımsız): yapay zeka bakmadıysa ve yeterince öğrenmişse çok düşük olasılıklı
@@ -299,7 +331,7 @@ class LoadIntakeService
             'ai_status' => $ai['status'],
             'ai_checked_at' => in_array($ai['status'], ['done', 'failed'], true) ? now() : null,
             'parse_metadata' => array_merge($std['metadata'], array_filter([
-                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'ad_index', 'ad_count'])) : null,
+                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'ad_index', 'ad_count', 'template_id'])) : null,
                 'ai_conflict' => $parsed['ai_conflict'] ?? null,
                 // Aynı ilandaki diğer numaralar (şifreli); ilk numara ana kolonda.
                 'extra_phones_enc' => $extraPhones !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extraPhones) : null,
@@ -310,6 +342,12 @@ class LoadIntakeService
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30),
         ]);
+
+        // Yapay zeka yüksek güvenle çözdüyse bu gönderenin kalıbı öğrenilir; sonraki aynı kalıp yapay zekasız okunur.
+        if (($ai['data']['provider'] ?? null) !== 'template' && $ai['status'] === 'done' && (float) ($ai['data']['confidence'] ?? 0) >= 0.8
+            && empty($parsed['ai_conflict']) && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
+            $this->templates->learn($phone, $text, $std['pickup_location'], $std['delivery_location'], $std['vehicle_type'], $ai['data']['goods_category'] ?? null, true, (float) $ai['data']['confidence'], $scrapedLoad->id);
+        }
 
         return $this->result(201, true, 'created', 'İlan adayı kaydedildi.', $scrapedLoad->id) + ['excerpt' => $text];
     }

@@ -112,14 +112,11 @@ bir yeniden dener. Varsayılan sıra ücretsiz katmanlardan başlar:
 |---|---|---|---|
 | 1 | Google Gemini (Flash-Lite / Flash) | Kart istemez; günlük istek sınırı modele göre (Flash-Lite daha yüksek) | aistudio.google.com/apikey |
 | 2 | Groq (Llama 3.3 70B) | Kart istemez; günlük ~1.000 istek, çok hızlı | console.groq.com/keys |
-| 3 | Cerebras (Llama 3.3 70B) | Kart istemez; günlük ~1 milyon jeton | cloud.cerebras.ai |
-| 4 | OpenRouter (":free" modeller) | Kartsız günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000 | openrouter.ai/keys |
-| 5 | Mistral (Small) | Deneme katmanı, telefon doğrulaması ister; aylık ~1 milyar jeton | console.mistral.ai |
-| 6 | Moonshot Kimi | Ücretli ama çok ucuz; deneme kredisi | platform.moonshot.ai |
-| 7 | OpenAI (ChatGPT API) | Ücretli; ChatGPT'nin ücretsiz uygulaması API vermez | platform.openai.com |
 
-Kota rakamları sağlayıcıların o günkü politikasına bağlıdır; panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
-ve kota dolduysa uyarı görünür. İlk 2-3 sağlayıcıya anahtar girmek günde binlerce ilanı ücretsiz karşılar.
+Panelde yalnız bu ikisi görünür; Cerebras, OpenRouter, Mistral, OpenAI, Kimi, Claude ve xAI denemede ya ücretli çıktı
+ya da kullanılamaz kotalar verdi (kod içinde gizli dururlar). Panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
+ve kota dolduysa uyarı görünür. Hacim büyüyünce Google'da faturalandırmayı açıp Flash-Lite'ı ücretli katmanda kullanmak
+en ucuz yoldur (1.000 ilan ≈ 0,2-0,35 $).
 
 **Hatasız içerik güvencesi.** Kuralın kesin çözdüğü il ile yapay zekanın bulduğu il farklıysa ilan otomatik yayınlanmaz;
 kuyrukta "kural ve yapay zeka farklı il buldu; elle kontrol" uyarısıyla bekler (filtre: "Kural / yapay zeka çelişen").
@@ -157,6 +154,14 @@ sizin kararlarınızdan öğrenen iki parça vardır; ikisi de **Dış Kaynak İ
 
 Kuyrukta bir adayın **ilini düzelttiğinizde** mesajdaki çözülemeyen yer adı kendiliğinden sözlüğe girer ("öğrenildi").
 Araç tipini ya da yükü düzelttiğinizde sekmeye bir **öneri** düşer; mesajdaki sözcüğü yazıp "Öğret" derseniz kalıcı olur.
+
+**Şablon hafızası.** Yük gruplarındaki ilanların çoğu aynı komisyoncuların her gün aynı kalıpla attığı ilanlardır.
+Bir gönderenin (numara) bir kalıbı yapay zeka (güven ≥ %80, kuralla çelişmeden) ya da yönetici onayıyla bir kez
+doğrulanınca kalıp saklanır: yer adları `{yer}`, sayılar `{n}`, telefon `{tel}` olur; hangi yer adının kalkış, hangisinin
+varış olduğu sırayla bilinir. Aynı numaradan **aynı kalıba uyan** sonraki ilan yapay zekasız çözülür (kuyrukta
+"Çözümleme: şablon"), yapay zeka doğrulaması sayılır ve otomatik onaya girer. Kalıba uymayan mesaj yine yapay zekaya
+gider; kalıp kişiye özeldir (başka numara aynı kalıpla yazsa yapay zekaya gider). Yapay zekanın "ilan değil" dediği
+kalıp da öğrenilir ve aynı gönderenden bir daha sorulmaz. Kalıptan çözülen bir adayı **reddederseniz kalıp silinir**.
 
 **2. Yerel sınıflandırıcı (ilan mı, değil mi).** Naive Bayes; veritabanında sözcük sayaçları tutar. "Yayınla" dediğiniz
 her aday ve yapay zeka doğrulamalı otomatik onaylar ilan örneği, "Reddet" dediğiniz her aday ilan-değil örneğidir.

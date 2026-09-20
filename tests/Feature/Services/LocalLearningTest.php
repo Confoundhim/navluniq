@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Services;
 
+use App\Console\Commands\AnalyzeIntakeSamplesCommand;
 use App\Models\AiLexicon;
+use App\Models\AiTemplate;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Models\User;
@@ -185,5 +187,107 @@ class LocalLearningTest extends TestCase
         $load = ScrapedLoad::first();
         $this->assertSame(['ollama', 'done', 'Ankara'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]);
         $this->assertSame('qwen3:4b', AiParserService::pickModel('ollama', ['llama3.2:3b', 'qwen3:4b', 'nomic-embed-text']));
+    }
+
+    public function test_rule_playground_and_sample_analyzer_work_without_ai(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin->fresh());
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'lexicon')
+            ->set('tryText', "Ankara - İzmir 24 ton tenteli tır 0532 111 11 11\n\nBursa - Konya 10 ton 0533 222 22 22")
+            ->call('tryRules');
+        $result = $c->get('tryResult');
+        $this->assertSame('ön elemeyi geçti', $result[0]['gate']);
+        $this->assertCount(3, $result);
+        $this->assertSame([true, false], [$result[1]['needs_ai'] === false, $result[2]['needs_ai']]); // ikincide araç adı yok → yapay zeka
+        $this->assertSame('tir', $result[1]['vehicle']);
+        Http::assertNothingSent();
+
+        $file = tempnam(sys_get_temp_dir(), 'wa');
+        file_put_contents($file, "20.09.2026 15:06 - Ahmet: Ankara - İzmir 24 ton tenteli tır 0532 111 11 11\n20.09.2026 15:07 - Mehmet: Hayırlı işler arkadaşlar\n20.09.2026 15:08 - Ali: <Medya dahil edilmedi>\n20.09.2026 15:09 - Veli: Ostimden Aliağaya palet var\n0534 333 33 33\n");
+        $messages = AnalyzeIntakeSamplesCommand::parseExport((string) file_get_contents($file));
+        $this->assertCount(3, $messages);
+        $this->assertStringContainsString("palet var\n0534", $messages[2]);
+        $this->artisan('intake:analyze', ['file' => $file])->assertSuccessful()
+            ->expectsOutputToContain('Mesaj: 3');
+        unlink($file);
+    }
+
+    public function test_rule_only_candidates_need_strong_evidence_or_local_confidence_for_auto_approval(): void
+    {
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_ai', '1');
+        Settings::set('ai_parse_mode', 'fill_gaps');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        $source = $this->source();
+        $service = app(ScrapedLoadService::class);
+
+        $weak = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'weight', 'weight' => null]);
+        $this->assertStringContainsString('kural kanıtı zayıf', $service->autoApprovalBlocker($weak));
+        $strong = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']);
+        $this->assertNull($service->autoApprovalBlocker($strong));
+        $withLocal = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'parse_metadata' => ['local_confidence' => 0.5]]);
+        $this->assertStringContainsString('yerel güven düşük', $service->autoApprovalBlocker($withLocal));
+    }
+
+    public function test_template_memory_parses_repeat_senders_without_ai(): void
+    {
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Settings::set('ai_groq_model', 'llama-test');
+        Settings::set('ai_provider', 'groq');
+        $this->source();
+        $intake = app(LoadIntakeService::class);
+        // Komisyoncu kalıbı: varış önce yazılıyor ve yalnız ilçe adları var; kural yönü/ili çözemez, yapay zeka doğrusunu verir.
+        $ad = ['post_type' => 'load', 'confidence' => 0.93, 'phones' => ['5321111111'], 'excerpt' => null, 'pickup' => ['province' => 'Ankara', 'district' => 'Polatlı'], 'delivery' => ['province' => 'İzmir', 'district' => 'Aliağa'], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => 45000, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null];
+        Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['post_type' => 'load', 'confidence' => 0.93, 'notes' => null, 'ads' => [$ad]])]]]])]);
+
+        $first = $intake->intake(['group_name' => 'Grup A', 'raw_message' => "🚚 YÜK VAR\nVarış: Aliağa\nÇıkış: Polatlı\n24 ton tenteli tır 45.000 tl\n0532 111 11 11", 'message_id' => 't1', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame('created', $first['status']);
+        Http::assertSentCount(1);
+        $this->assertSame(1, AiTemplate::count());
+        $tpl = AiTemplate::first();
+        $this->assertSame([1, 0, 'tir'], [$tpl->pickup_index, $tpl->delivery_index, $tpl->vehicle_type]);
+
+        // Ertesi gün aynı komisyoncu aynı kalıpla başka rota ve fiyat atar: yapay zeka çağrılmaz, yön kalıptan bilinir.
+        $second = $intake->intake(['group_name' => 'Grup A', 'raw_message' => "🚚 YÜK VAR\nVarış: Gebze\nÇıkış: Çumra\n12 ton tenteli tır 30.000 tl\n0532 111 11 11", 'message_id' => 't2', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame('created', $second['status']);
+        Http::assertSentCount(1);
+        $load = ScrapedLoad::orderByDesc('id')->first();
+        $this->assertSame(['Konya Çumra', 'Kocaeli Gebze', 'template', 'done', 'template'], [$load->pickup_location, $load->delivery_location, $load->parsed_by_llm, $load->ai_status, $load->parse_metadata['ai']['provider']]);
+        $this->assertSame(30000.0, (float) $load->price);
+        $this->assertSame(1, $tpl->fresh()->uses);
+
+        // Başka numara aynı kalıp: kalıp kişiye özeldir, yapay zekaya gider.
+        $intake->intake(['group_name' => 'Grup A', 'raw_message' => "🚚 YÜK VAR\nVarış: Gebze\nÇıkış: Çumra\n12 ton tenteli tır 30.000 tl\n0533 222 22 22", 'message_id' => 't3', 'source_jid' => 'notif:grup-a']);
+        Http::assertSentCount(2);
+
+        // Yönetici kalıptan gelen adayı reddederse kalıp silinir.
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        app(ScrapedLoadService::class)->reject($load, $admin->id);
+        $this->assertSame(0, AiTemplate::whereKey($tpl->id)->count());
+    }
+
+    public function test_not_load_template_filters_repeat_chatter_without_ai(): void
+    {
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Settings::set('ai_groq_model', 'llama-test');
+        Settings::set('ai_provider', 'groq');
+        $this->source();
+        $intake = app(LoadIntakeService::class);
+        Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['post_type' => 'other', 'confidence' => 0.95, 'notes' => 'satılık araç', 'ads' => []])]]]])]);
+
+        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Satılık 2019 model tenteli dorse temiz bakımlı 0532 111 11 11', 'message_id' => 'n1', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame(['filtered', 'ai_not_load'], [$r['status'], $r['reason']]);
+        Http::assertSentCount(1);
+
+        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Satılık 2021 model tenteli dorse temiz bakımlı 0532 111 11 11', 'message_id' => 'n2', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame(['filtered', 'template_not_load'], [$r['status'], $r['reason']]);
+        Http::assertSentCount(1);
     }
 }
