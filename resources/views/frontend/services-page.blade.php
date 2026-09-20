@@ -16,7 +16,7 @@
             <div class="apple-glass rounded-3xl p-8 md:p-10 space-y-4 border-l-4 border-l-brand-500 shadow-apple-sm">
                 <span class="font-bold text-brand-500 text-sm">1. NavlunIQ İlan Aboneliği</span>
                 <p class="text-neutral-500 leading-relaxed">
-                    İzinli WhatsApp grupları ve web mecralarından derlenip ayrıştırılan yük ilanlarına tek panelden erişin.
+                    İzinli gruplar ve web mecralarından derlenip ayrıştırılan yük ilanlarına tek panelden erişin.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-2">
                     <span class="p-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl font-bold">Otomatik İlan Tarama ve Filtreleme</span>

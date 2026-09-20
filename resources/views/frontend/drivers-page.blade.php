@@ -26,7 +26,7 @@
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
                 <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Tek Ekranda Tüm İlanlar</h4>
-                <p class="text-neutral-500 leading-relaxed">Onlarca WhatsApp grubundaki dağınık mesajlar yapay zeka ile ayrıştırılır; rota, yük türü, tonaj ve uygun araç tipi standart bir ilan kartı olarak önünüze gelir.</p>
+                <p class="text-neutral-500 leading-relaxed">Onlarca gruptaki ve web sitesindeki dağınık ilan mesajları yapay zeka ile ayrıştırılır; rota, yük türü, tonaj ve uygun araç tipi standart bir ilan kartı olarak önünüze gelir.</p>
             </div>
         </div>
 

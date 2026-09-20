@@ -30,7 +30,7 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">2</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Filtre Ayarlarınızı Yapın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Araç tipinize, çalıştığınız illere ve konumunuza göre filtrelerinizi bir kez kaydedin; platform ilanları ve WhatsApp gruplarından derlenen onaylı ilanlar her girişte size göre listelenir.</p>
+                    <p class="text-neutral-500 leading-relaxed">Araç tipinize, çalıştığınız illere ve konumunuza göre filtrelerinizi bir kez kaydedin; platform ilanları ve gruplardan derlenen onaylı ilanlar her girişte size göre listelenir.</p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">3</div>

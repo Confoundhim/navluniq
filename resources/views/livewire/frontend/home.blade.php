@@ -33,8 +33,8 @@ new class extends Component {
         $this->ownerTitle = CmsContent::getVal('slider_owner_title', 'Ödemeleriniz NavlunIQ ile Güvende!');
         $this->ownerDesc = CmsContent::getVal('slider_owner_desc', 'Gerçek Zamanlı Eşleşme ve Kontrollü Ödeme Süreci. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Ödemeleriniz teslimat onaylı güvenli ödeme akışıyla, yükleriniz belgeleri doğrulanmış güvenilir şoförlerle korunur.');
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
-        $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. WhatsApp gruplarında paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
-        $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli WhatsApp gruplarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
+        $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. Gruplarda ve webde paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
+        $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
 
         // Veritabanı Sayaçları
         $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
@@ -178,7 +178,7 @@ new class extends Component {
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Dış Kaynak İlanları</span>
                 <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white">{{ number_format($webLoadsCount) }}</div>
-                <span class="text-[10px] text-brand-500 font-bold">WhatsApp gruplarından derlenen</span>
+                <span class="text-[10px] text-brand-500 font-bold">Gruplardan ve webden derlenen</span>
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Başarılı Sevkiyat</span>
