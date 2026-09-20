@@ -9,6 +9,7 @@ use App\Support\Company;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -40,6 +41,16 @@ class CompanyProfileSettingsTest extends TestCase
         // Sözleşme sayfası yer tutucuyu değil künyeyi gösterir.
         CmsContent::setVal('contract_kvkk', '<p>Veri sorumlusu: {{COMPANY_NAME}}</p>');
         $this->get('/sozlesmeler/kvkk')->assertOk()->assertSee('Veri sorumlusu: Panel Lojistik A.Ş.')->assertDontSee('{{COMPANY_NAME}}');
+    }
+
+    public function test_admin_can_test_an_ai_provider_from_settings(): void
+    {
+        $this->actingAs($this->admin());
+        Settings::set('ai_gemini_key', 'AIza-test');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '5321234567', 'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null])]]]]]])]);
+
+        Volt::test('admin.settings-center')->set('activeTab', 'scraper')->assertSee('Bağlantıyı sına')
+            ->call('testAiProvider', 'gemini')->assertSee('Çalışıyor:')->assertSee('Ankara Ostim → İzmir');
     }
 
     public function test_legal_refresh_reseeds_only_stale_texts(): void

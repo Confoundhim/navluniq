@@ -456,6 +456,14 @@ new class extends Component {
         session()->flash('success_message', $changed > 0 ? "{$changed} ayar güncellendi." : 'Değişiklik yok.');
     }
 
+    /** @var array<string, array{ok:bool, message:string}> */
+    public array $aiTest = [];
+
+    public function testAiProvider(string $provider): void
+    {
+        $this->aiTest[$provider] = app(\App\Services\AiParserService::class)->testProvider($provider);
+    }
+
     public function sendTelegramTest(): void
     {
         if (! auth()->user()?->can('manage settings')) {
@@ -478,7 +486,8 @@ new class extends Component {
         return [
             'scraperKeys' => self::SCRAPER_KEYS,
             'aiUsage' => \App\Models\AiProviderUsage::query()->whereDate('usage_date', now()->toDateString())->get()
-                ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture())]])->all(),
+                ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture()), 'resets' => $u->quota_resets_at?->diffForHumans(null, true) ?? '']])->all(),
+            'aiErrors' => app(\App\Services\AiParserService::class)->lastErrors(),
             'generalKeys' => self::GENERAL_KEYS,
             'limitLabels' => self::LIMIT_LABELS,
             'defaults' => Settings::DEFAULTS,
@@ -639,10 +648,16 @@ new class extends Component {
                             <div class="flex flex-wrap items-center gap-2 mb-2">
                                 <span class="font-bold text-neutral-900 dark:text-white">{{ $loop->iteration }}. {{ $prov['label'] }}</span>
                                 <span class="badge {{ $set ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">{{ $set ? 'anahtar kayıtlı' : 'anahtar yok' }}</span>
-                                @if($usage)<span class="text-[11px] text-neutral-400">Bugün: {{ $usage['requests'] }} çağrı · {{ $usage['failures'] }} hata{{ $usage['quota'] ? ' · kota doldu, yarın denenir' : '' }}</span>@endif
+                                @if($usage)<span class="text-[11px] text-neutral-400">Bugün: {{ $usage['requests'] }} çağrı · {{ $usage['failures'] }} hata{{ $usage['quota'] ? ' · sınır aşıldı, '.$usage['resets'].' sonra yeniden denenir' : '' }}</span>@endif
+                                @if($set)<button type="button" wire:click="testAiProvider('{{ $pk }}')" wire:loading.attr="disabled" class="btn-secondary py-1 px-2.5 text-[11px]">Bağlantıyı sına</button>@endif
                                 <a href="{{ $prov['site'] }}" target="_blank" rel="noopener" class="text-[11px] text-brand-600 hover:underline ml-auto">Anahtar al →</a>
                             </div>
                             <p class="text-[11px] text-neutral-400 mb-2">{{ $prov['free'] }}</p>
+                            @if(($aiTest[$pk] ?? null) !== null)
+                                <p class="text-[11px] font-semibold mb-2 {{ $aiTest[$pk]['ok'] ? 'text-emerald-600' : 'text-rose-600' }}">{{ $aiTest[$pk]['ok'] ? 'Çalışıyor: ' : 'Hata: ' }}{{ $aiTest[$pk]['message'] }}</p>
+                            @elseif(isset($aiErrors[$pk]))
+                                <p class="text-[11px] text-rose-600 mb-2">Son hata ({{ \Illuminate\Support\Carbon::parse($aiErrors[$pk]['at'])->diffForHumans() }}): {{ \App\Services\AiParserService::humanizeError($aiErrors[$pk]['message']) }}</p>
+                            @endif
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_model'] }}</label>
                                     <select wire:model="scraper.ai_{{ $pk }}_model" class="{{ $input }}">@foreach($prov['models'] as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>

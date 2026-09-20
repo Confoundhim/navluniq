@@ -205,7 +205,8 @@ new class extends Component {
             return;
         }
         $ok = app(ScrapedLoadService::class)->reparseWithAi($load, $parser, true);
-        session()->flash($ok ? 'success_message' : 'error_message', $ok ? "#{$load->id} yapay zeka ile yeniden çözümlendi." : "#{$load->id} çözümlenemedi; sağlayıcı yanıt vermedi (kota/ağ). 5 dakika içinde otomatik yeniden denenir.");
+        $errors = collect($parser->lastErrors())->map(fn ($e, $p) => (AiParserService::PROVIDERS[$p]['label'] ?? $p).': '.AiParserService::humanizeError($e['message']))->implode(' · ');
+        session()->flash($ok ? 'success_message' : 'error_message', $ok ? "#{$load->id} yapay zeka ile yeniden çözümlendi." : "#{$load->id} çözümlenemedi. ".($errors !== '' ? $errors : 'Sağlayıcı yanıt vermedi (kota/ağ).').' Ayarlar → Yapay zeka bölümünde "Bağlantıyı sına" ile ayrıntı görebilirsiniz; 5 dakika içinde otomatik yeniden denenir.');
     }
 
     // ---- Toplu işlemler ----

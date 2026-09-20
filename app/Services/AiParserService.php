@@ -9,6 +9,7 @@ use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
 use App\Support\VehicleTypes;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -194,6 +195,7 @@ class AiParserService
                     default => $this->callOpenAiCompatible($message, $provider),
                 };
                 $this->recordUsage($provider, true, false, $data['_usage'] ?? []);
+                $this->rememberError($provider, null);
                 unset($data['_usage']);
 
                 return ['status' => 'done', 'data' => $this->normalizeAi($data, $provider)];
@@ -202,12 +204,102 @@ class AiParserService
                 $quota = str_contains($msg, '429') || str_contains(strtolower($msg), 'quota');
                 $retryable = $quota || str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection');
                 $anyRetryable = $anyRetryable || $retryable;
-                $this->recordUsage($provider, false, $quota);
+                $this->recordUsage($provider, false, $quota, [], $quota ? self::cooldownSeconds($msg) : null);
+                $this->rememberError($provider, $msg);
                 Log::warning('Yapay zeka çözümlemesi başarısız; sıradaki sağlayıcı denenecek.', ['provider' => $provider, 'model' => $this->model($provider), 'error' => $msg, 'retry' => $retryable]);
             }
         }
 
         return ['status' => $anyRetryable || $tried === 0 ? 'pending' : 'failed', 'data' => null];
+    }
+
+    /**
+     * 429 gövdesindeki bekleme süresi: Groq "try again in 3.5s / 2m10s", Gemini "retryDelay: 30s".
+     * Bulunamazsa 5 dakika (dakikalık hız sınırı gün boyu kilitlemesin); günlük kota mesajında saatler döner.
+     */
+    public static function cooldownSeconds(string $message): int
+    {
+        $seconds = 0;
+        if (preg_match_all('/(\d+(?:\.\d+)?)\s*(ms|h|m|s)(?=\d|[^a-z]|$)/i', $message, $m, PREG_SET_ORDER)) {
+            foreach ($m as $part) {
+                $n = (float) $part[1];
+                $seconds += match (strtolower($part[2])) {
+                    'h' => $n * 3600, 'm' => $n * 60, 'ms' => $n / 1000, default => $n
+                };
+            }
+        }
+        if (preg_match('/(\d+)\s*(saat|hour)/iu', $message, $h)) {
+            $seconds = max($seconds, (int) $h[1] * 3600);
+        }
+
+        return (int) max(10, min(86400, $seconds > 0 ? ceil($seconds) + 5 : 300));
+    }
+
+    /** Sağlayıcının son hatası (panelde gösterilir); null başarıyı işler. */
+    private function rememberError(string $provider, ?string $message): void
+    {
+        $key = 'ai:last_error:'.$provider;
+        $message === null ? Cache::forget($key) : Cache::put($key, ['message' => mb_substr($message, 0, 300), 'at' => now()->toDateTimeString()], now()->addDays(3));
+    }
+
+    /** @return array<string, array{message:string, at:string}> */
+    public function lastErrors(): array
+    {
+        $out = [];
+        foreach (array_keys(self::PROVIDERS) as $provider) {
+            if ($e = Cache::get('ai:last_error:'.$provider)) {
+                $out[$provider] = $e;
+            }
+        }
+
+        return $out;
+    }
+
+    /** Sağlayıcıyı küçük bir örnek ilanla dener; paneldeki "Bağlantıyı sına" düğmesi. */
+    public function testProvider(string $provider): array
+    {
+        if (! array_key_exists($provider, self::PROVIDERS)) {
+            return ['ok' => false, 'message' => 'Bilinmeyen sağlayıcı.'];
+        }
+        if ($this->apiKey($provider) === '') {
+            return ['ok' => false, 'message' => 'Anahtar girilmemiş.'];
+        }
+        $started = microtime(true);
+        try {
+            $sample = "Ankara Ostim'den İzmir'e 24 ton palet yük, tenteli tır lazım 0532 123 45 67";
+            $data = match (self::PROVIDERS[$provider]['kind']) {
+                'gemini' => $this->callGemini($sample, $provider),
+                'claude' => $this->callClaude($sample, $provider),
+                default => $this->callOpenAiCompatible($sample, $provider),
+            };
+            $this->rememberError($provider, null);
+            $norm = $this->normalizeAi($data, $provider);
+
+            return ['ok' => true, 'message' => sprintf('%s · %s → %s · %d ms', $this->model($provider), $norm['pickup_location'] ?? '?', $norm['delivery_location'] ?? '?', (int) ((microtime(true) - $started) * 1000))];
+        } catch (Throwable $e) {
+            $this->rememberError($provider, $e->getMessage());
+
+            return ['ok' => false, 'message' => self::humanizeError($e->getMessage())];
+        }
+    }
+
+    /** Sağlayıcı hatasını yöneticiye anlaşılır cümleye çevirir. */
+    public static function humanizeError(string $msg): string
+    {
+        $lower = strtolower($msg);
+
+        return match (true) {
+            str_starts_with($msg, 'quota_429') => 'Hız/kota sınırı (429). '.trim(substr($msg, 10)),
+            str_contains($lower, 'api key not valid') || str_contains($lower, 'invalid api key') || str_contains($lower, 'invalid_api_key') || str_starts_with($msg, 'provider_http_401') => 'Anahtar geçersiz (401). Anahtarı sağlayıcı panelinden yeniden kopyalayın.',
+            str_contains($lower, 'api_key_service_blocked') || str_contains($lower, 'permission_denied') || str_starts_with($msg, 'provider_http_403') => 'Anahtar bu servise kapalı (403). Google anahtarı Haritalar için kısıtlanmış olabilir; aistudio.google.com/apikey adresinden Gemini için yeni anahtar alın.',
+            str_starts_with($msg, 'provider_http_404') => 'Model bulunamadı (404). Ayarlardan başka bir model seçin. '.trim(substr($msg, 18)),
+            str_starts_with($msg, 'provider_http_400') => 'İstek reddedildi (400). '.trim(substr($msg, 18)),
+            str_starts_with($msg, 'provider_http_5') => 'Sağlayıcı geçici olarak yanıt vermiyor (5xx); biraz sonra yeniden denenir.',
+            str_contains($lower, 'curl') || str_contains($lower, 'timed out') || str_contains($lower, 'connection') => 'Sunucudan sağlayıcıya bağlanılamadı (ağ/zaman aşımı): '.mb_substr($msg, 0, 160),
+            str_contains($msg, 'invalid_provider_json') => 'Sağlayıcı geçerli JSON döndürmedi; model değiştirmeyi deneyin.',
+            str_contains($msg, 'refusal') => 'Model yanıtı reddetti.',
+            default => mb_substr($msg, 0, 200),
+        };
     }
 
     /**
@@ -388,7 +480,7 @@ TXT;
 
         $response = Http::timeout(45)->withHeaders($headers)->post('https://api.anthropic.com/v1/messages', $body);
         if ($response->status() === 429) {
-            throw new RuntimeException('quota_429');
+            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
         if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
@@ -433,7 +525,7 @@ TXT;
             ],
         ]);
         if ($response->status() === 429) {
-            throw new RuntimeException('quota_429');
+            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
         if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
@@ -459,10 +551,10 @@ TXT;
             ]
         );
         if ($response->status() === 429) {
-            throw new RuntimeException('quota_429');
+            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
         if (! $response->successful()) {
-            throw new RuntimeException('provider_http_'.$response->status());
+            throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
         }
         $text = (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '');
         $decoded = json_decode($this->cleanJsonString($text), true);
@@ -618,7 +710,7 @@ TXT;
         return (float) $v;
     }
 
-    private function recordUsage(string $provider, bool $success, bool $quota, array $tokens = []): void
+    private function recordUsage(string $provider, bool $success, bool $quota, array $tokens = [], ?int $cooldownSeconds = null): void
     {
         try {
             $usage = AiProviderUsage::firstOrCreate(['provider' => $provider, 'usage_date' => now()->toDateString()]);
@@ -631,7 +723,7 @@ TXT;
                 $usage->increment('failure_count');
             }
             if ($quota) {
-                $usage->update(['quota_exhausted' => true, 'quota_resets_at' => now()->addDay()->startOfDay()]);
+                $usage->update(['quota_exhausted' => true, 'quota_resets_at' => now()->addSeconds($cooldownSeconds ?? 300)]);
             }
         } catch (Throwable) {
             // Ayrıştırma sonucunu telemetri arızası nedeniyle bozma.
