@@ -177,7 +177,7 @@ class LocalLearningTest extends TestCase
         $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var tır lazım 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
 
         $this->assertSame('created', $r['status']);
-        Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b');
+        Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b' && str_ends_with($req['messages'][1]['content'], '/no_think'));
         Http::assertSentCount(1);
         $load = ScrapedLoad::first();
         $this->assertSame(['ollama', 'done', 'Ankara'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]);
