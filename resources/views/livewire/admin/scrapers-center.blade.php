@@ -722,6 +722,7 @@ new class extends Component {
                                 <td class="p-3 max-w-xs text-neutral-500"><span title="{{ $load->raw_message }}">{{ \Illuminate\Support\Str::limit($load->raw_message, 140) }}</span></td>
                                 <td class="p-3">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
+                                    @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
                                     @if($activeTab === 'queue')
                                         <div class="text-[11px] mt-1 {{ $blocker ? 'text-amber-600' : 'text-emerald-600' }}">{{ $autoApprove ? 'Otomatik onay: ' : 'Otomatik onay kapalı · ' }}{{ $blocker ? ($blockerLabels[$blocker] ?? $blocker) : 'uygun' }}</div>
                                     @endif

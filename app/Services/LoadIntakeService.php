@@ -11,6 +11,7 @@ use App\Support\Settings;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\VehicleClassifier;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
@@ -44,7 +45,29 @@ class LoadIntakeService
      */
     public function intake(array $payload): array
     {
+        // Aynı metin iki gruptan aynı saniyede gelince (bildirim iletici her grubu ayrı yollar) iki istek yan yana
+        // işlenir ve tekrar denetimi henüz yazılmamış kaydı göremezdi. Mesaj başına kilit: ikinci istek ilkinin
+        // bitmesini bekler, sonra kaydı bulur ve "tekrar" der. Kilit alınamazsa (aşırı bekleme) kilitsiz devam edilir.
         $raw = trim(TextPrep::foldFonts((string) $payload['raw_message']));
+        $lock = Cache::lock('intake:lock:'.hash('sha256', self::normalizeText($raw)), self::LOCK_TTL_SECONDS);
+        try {
+            return $lock->block(self::LOCK_WAIT_SECONDS, fn () => $this->intakeUnlocked($payload, $raw));
+        } catch (LockTimeoutException) {
+            return $this->intakeUnlocked($payload, $raw);
+        }
+    }
+
+    /** Tek kayıt bu kilidi bekler; yapay zeka çağrısı dahil bir mesajın işlenmesi bundan uzun sürmez. */
+    public const LOCK_TTL_SECONDS = 90;
+
+    public const LOCK_WAIT_SECONDS = 25;
+
+    /**
+     * @param  array{group_name:string, raw_message:string, sender_phone?:?string, message_id?:?string, source_jid?:?string, source_type?:string}  $payload
+     * @return array{code:int, success:bool, message:string, status:string, scraped_load_id?:int, reason?:string, created_ids?:list<int>, segments?:list<array>}
+     */
+    private function intakeUnlocked(array $payload, string $raw): array
+    {
         $sourceId = (string) ($payload['source_jid'] ?? $payload['group_name']);
         $sourceType = (string) ($payload['source_type'] ?? 'whatsapp');
         $messageId = (string) ($payload['message_id'] ?? '');

@@ -249,6 +249,16 @@ model **Otomatik** (qwen3 önce seçilir). "Bağlantıyı sına" ile örnek ilan
 
 Belleği az sunucularda `llama3.2:3b` (~2,5 GB) çalışır ama Türkçe isabeti düşer; `qwen3:4b` önerilir.
 
+## Aynı ilanın iki gruptan gelmesi
+
+Aynı metin iki gruptan aynı saniyede gelince iletici her grubu ayrı istek olarak yollar. İki istek yan yana işlenirken tekrar
+denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınlanabiliyordu. İki koruma var:
+
+- **Mesaj kilidi:** aynı metin için ikinci istek ilkinin bitmesini bekler, sonra kaydı bulur ve "başka kaynaktan alındı"
+  diyerek sayaca yazar.
+- **Yayın anı denetimi:** "Yayınla" ya da otomatik onay sırasında aynı metin (7 gün) ya da aynı numara + il çifti (48 saat)
+  zaten yayındaysa aday yayınlanmaz, "tekrar (#N yayında)" diye reddedilir ve görüldüğü grup yayındaki ilanın sayacına eklenir.
+
 ## Sorun giderme
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?

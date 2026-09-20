@@ -261,6 +261,11 @@ class ScrapedLoadService
         if (! $load->pickup_location || ! $load->delivery_location) {
             throw new RuntimeException('Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
         }
+        // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz.
+        if ($twin = $this->publishedDuplicateOf($load)) {
+            $this->markDuplicate($load, $twin, $userId);
+            throw new RuntimeException("Aynı ilan zaten yayında (#{$twin->id}); bu aday tekrar olarak işaretlendi.");
+        }
         // Yayın öncesi son standartlaştırma: eski kayıtlar ve sonradan iyileşen sözlükler için.
         app(LoadStandardizer::class)->restandardize($load);
         $load->refresh();
@@ -294,11 +299,50 @@ class ScrapedLoadService
         }
     }
 
+    /**
+     * Bu adayla aynı metni (7 gün) ya da aynı numara + il çiftini (48 saat) taşıyan, yayındaki başka ilan.
+     */
+    public function publishedDuplicateOf(ScrapedLoad $load): ?ScrapedLoad
+    {
+        $query = ScrapedLoad::query()->where('visibility', 'public')->whereKeyNot($load->id);
+
+        return $query->where(function ($q) use ($load): void {
+            $q->whereRaw('1 = 0');
+            if ($load->normalized_hash) {
+                $q->orWhere(fn ($w) => $w->where('normalized_hash', $load->normalized_hash)
+                    ->where('created_at', '>=', now()->subDays(LoadIntakeService::TEXT_DEDUPE_DAYS)));
+            }
+            if ($load->route_key) {
+                $q->orWhere(fn ($w) => $w->where('route_key', $load->route_key)
+                    ->where('created_at', '>=', now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)));
+            }
+        })->orderBy('id')->first();
+    }
+
+    /** Adayı tekrar olarak reddeder; görüldüğü kaynak yayındaki ilanın sayacına eklenir. */
+    private function markDuplicate(ScrapedLoad $load, ScrapedLoad $twin, ?int $userId): void
+    {
+        $sources = array_values(array_unique(array_filter(array_merge(
+            (array) ($twin->seen_sources ?? []), [$twin->scraper?->name], (array) ($load->seen_sources ?? []), [$load->scraper?->name]
+        ))));
+        $twin->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources))])->save();
+        $load->update([
+            'status' => 'rejected', 'visibility' => 'private',
+            'parse_metadata' => array_merge((array) $load->parse_metadata, ['duplicate_of' => $twin->id]),
+        ]);
+        ActivityLog::record('scraped_load.duplicate', "Dış kaynak ilanı #{$load->id} yayındaki #{$twin->id} ilanının tekrarı; reddedildi", $userId, $load);
+    }
+
     /** Otomatik onay kriterlerini sağlamıyorsa nedenini, sağlıyorsa null döndürür. */
     public function autoApprovalBlocker(ScrapedLoad $load): ?string
     {
         if ($load->visibility === 'public' || $load->status === 'rejected') {
             return 'durum';
+        }
+        if ($twin = $this->publishedDuplicateOf($load)) {
+            $this->markDuplicate($load, $twin, null);
+
+            return "tekrar (#{$twin->id} yayında)";
         }
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
