@@ -41,6 +41,8 @@ return [
 
     'ai' => [
         'active_provider' => env('ACTIVE_AI_PROVIDER', 'gemini'),
+        // Sunucuda çalışan yerel model (Ollama) yalnız bu bayrakla açılabilir; küçük sunucularda işlemciyi kilitler.
+        'allow_local_models' => (bool) env('AI_ALLOW_LOCAL_MODELS', false),
         'gemini_key' => env('GEMINI_API_KEY'),
         'gemini_model' => env('GEMINI_MODEL', ''),
         'groq_key' => env('GROQ_API_KEY'),

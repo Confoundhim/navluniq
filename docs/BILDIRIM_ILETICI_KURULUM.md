@@ -172,6 +172,10 @@ Ayarlar: Sistem Ayarları → Dış kaynak → "Yerel öğrenen sınıflandırı
 
 ## Yerel model (Ollama): dış servise hiç bağlı olmayan yapay zeka
 
+> **Şu an kapalı.** 2 çekirdek / 6 GB'lık sunucuda model işlemciyi kilitleyip siteyi yavaşlattığı için kaldırıldı.
+> Panelde görünmez; yalnız `.env` içine `AI_ALLOW_LOCAL_MODELS=true` yazılırsa (GPU'lu ya da büyük sunucuda) açılabilir.
+> Kaldırmak için: `systemctl disable --now ollama; rm -rf /etc/systemd/system/ollama.service /etc/systemd/system/ollama.service.d /usr/local/bin/ollama /usr/local/lib/ollama /usr/share/ollama; userdel ollama`.
+
 Sözlük ve sınıflandırıcı "ilan mı / hangi il" sorularını çözer; alanları (araç, tonaj, fiyat, yük, aciliyet) serbest
 metinden anlamak için yine bir dil modeli gerekir. Bunu da sunucuda çalıştırabilirsiniz: kota yok, anahtar yok,
 veri dışarı çıkmaz. Açıkken zincirin başındadır; yanıt veremezse dış sağlayıcılara düşülür.

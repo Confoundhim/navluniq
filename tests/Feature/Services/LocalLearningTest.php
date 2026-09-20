@@ -161,9 +161,12 @@ class LocalLearningTest extends TestCase
     public function test_local_ollama_model_is_first_in_chain_when_enabled(): void
     {
         $parser = app(AiParserService::class);
-        $this->assertNotContains('ollama', $parser->chain());
-
         Settings::set('ai_ollama_enabled', '1');
+        $this->assertNotContains('ollama', $parser->chain(), 'Sunucu bayrağı yokken panel ayarı yerel modeli açamaz');
+        $this->assertArrayNotHasKey('ollama', AiParserService::visibleProviders());
+
+        config()->set('services.ai.allow_local_models', true);
+        $this->assertArrayHasKey('ollama', AiParserService::visibleProviders());
         Settings::set('ai_ollama_model', 'qwen3:4b');
         Settings::set('ai_parse_mode', 'always');
         Settings::set('ai_gemini_key', 'AIza-test'); // dış sağlayıcı da var; yerel önce
