@@ -122,6 +122,20 @@ class LoadIntakeTest extends TestCase
         Http::assertSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
     }
 
+    public function test_deleted_source_is_restored_as_pending_instead_of_crashing(): void
+    {
+        $source = $this->activeSource();
+        $source->delete(); // panelden "Sil"
+        $intake = app(LoadIntakeService::class);
+
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'd1', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame('source_pending', $r['status']);
+        $restored = Scraper::where('source_identifier', '1203630000001@g.us')->first();
+        $this->assertNotNull($restored, 'Silinmiş kaynak geri getirilmeli');
+        $this->assertFalse($restored->is_active);
+        $this->assertSame(1, Scraper::withTrashed()->where('source_identifier', '1203630000001@g.us')->count());
+    }
+
     public function test_turkish_city_helper_handles_suffixes_and_aliases(): void
     {
         $this->assertSame('İzmir', TurkishCities::fromText("İzmir'e"));

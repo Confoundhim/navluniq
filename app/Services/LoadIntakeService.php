@@ -64,10 +64,18 @@ class LoadIntakeService
             }
 
             // 3) Kaynak onaylı değilse hiçbir ayrıştırma yapılmaz; kota harcanmaz.
-            $scraper = Scraper::firstOrCreate(
+            // Panelden silinmiş (yumuşak silinmiş) kaynak yeniden mesaj atarsa geri getirilir ve onay bekler;
+            // aksi hâlde aynı tanımlayıcıyla ikinci kayıt tekil kısıta takılır.
+            $scraper = Scraper::withTrashed()->firstOrNew(
                 ['source_identifier' => $sourceId],
                 ['name' => (string) $payload['group_name'], 'type' => $sourceType, 'is_active' => false]
             );
+            if ($scraper->exists && $scraper->trashed()) {
+                $scraper->restore();
+                $scraper->forceFill(['is_active' => false, 'name' => (string) $payload['group_name']])->save();
+            } elseif (! $scraper->exists) {
+                $scraper->save();
+            }
             if (! $scraper->is_active) {
                 Cache::forget($seenKey); // kaynak açıldığında aynı metin yeniden gelebilsin
 
