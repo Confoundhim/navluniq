@@ -560,7 +560,7 @@ new class extends Component {
         if ($this->activeTab === 'lexicon') {
             $data['lexicon'] = AiLexicon::query()->where('status', 'active')->orderBy('kind')->orderByDesc('hits')->orderBy('term')->get();
             $data['suggestions'] = AiLexicon::query()->where('status', 'suggested')->latest('id')->limit(50)->get();
-            $data['classifier'] = app(LocalClassifier::class)->stats();
+            $data['classifier'] = app(LocalClassifier::class)->stats() + ['templates' => \App\Models\AiTemplate::query()->count(), 'template_uses' => (int) \App\Models\AiTemplate::query()->sum('uses')];
         }
 
         if ($this->activeTab === 'events') {
@@ -698,7 +698,7 @@ new class extends Component {
                                     </div>
                                     <div class="mt-1 flex flex-wrap items-center gap-1">
                                         @if($load->vehicle_type)
-                                            <span class="badge {{ in_array($load->vehicle_type_source, ['keyword', 'ai', 'admin'], true) ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200' }}" title="Kaynak: {{ ['keyword' => 'araç adı', 'hint' => 'kasa ipucu', 'weight' => 'tonaj', 'pallet' => 'palet adedi', 'volume' => 'hacim', 'goods' => 'yük türünden çıkarım', 'ai' => 'yapay zeka', 'admin' => 'yönetici'][$load->vehicle_type_source] ?? $load->vehicle_type_source }}">{{ $load->vehicleLabel() }}</span>
+                                            <span class="badge {{ in_array($load->vehicle_type_source, ['keyword', 'ai', 'admin'], true) ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200' }}" title="Kaynak: {{ ['keyword' => 'araç adı', 'hint' => 'kasa ipucu', 'weight' => 'tonaj', 'pallet' => 'palet adedi', 'volume' => 'hacim', 'goods' => 'yük türünden çıkarım', 'ai' => 'yapay zeka', 'admin' => 'yönetici', 'template' => 'doğrulanmış kalıp'][$load->vehicle_type_source] ?? $load->vehicle_type_source }}">{{ $load->vehicleLabel() }}</span>
                                         @else
                                             <span class="badge bg-amber-500/10 text-amber-600">Araç tipi yok</span>
                                         @endif
@@ -708,7 +708,7 @@ new class extends Component {
                                         @if($load->meta('pickup_note'))<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Yükleme: {{ $load->meta('pickup_note') }}</span>@endif
                                     </div>
                                     <div class="mt-1 text-[11px] text-neutral-400">
-                                        Çözümleme: <span class="font-semibold {{ str_contains((string) $load->parsed_by_llm, 'claude') || str_contains((string) $load->parsed_by_llm, 'gemini') ? 'text-violet-600' : '' }}">{{ ['regex_verified' => 'kural', 'regex' => 'kural'][$load->parsed_by_llm] ?? ($load->parsed_by_llm ?: '—') }}</span>
+                                        Çözümleme: <span class="font-semibold {{ str_contains((string) $load->parsed_by_llm, 'claude') || str_contains((string) $load->parsed_by_llm, 'gemini') ? 'text-violet-600' : '' }}">{{ ['regex_verified' => 'kural', 'regex' => 'kural', 'template' => 'şablon (doğrulanmış kalıp)'][$load->parsed_by_llm] ?? ($load->parsed_by_llm ?: '—') }}</span>
                                         @if($load->parse_confidence !== null) · güven %{{ number_format((float) $load->parse_confidence * 100, 0) }}@endif
                                         @if(! empty($aiMeta['notes'])) · <span title="{{ $aiMeta['notes'] }}">{{ \Illuminate\Support\Str::limit($aiMeta['notes'], 60) }}</span>@endif
                                         @if($load->ai_status === 'pending') · <span class="text-amber-600">yapay zeka sırada</span>@endif
@@ -797,7 +797,7 @@ new class extends Component {
                             <tr class="align-top">
                                 <td class="p-3 whitespace-nowrap text-neutral-500">{{ $e->created_at->format('d.m H:i:s') }}</td>
                                 <td class="p-3">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
-                                <td class="p-3"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
+                                <td class="p-3"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
                                 <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300"><span title="{{ $e->excerpt }}">{{ \Illuminate\Support\Str::limit($e->excerpt, 160) }}</span></td>
                                 <td class="p-3 whitespace-nowrap">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
                             </tr>
@@ -943,6 +943,7 @@ new class extends Component {
                         <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-neutral-900 dark:text-white">{{ $classifier['tokens'] }}</div><div class="text-[10px] text-neutral-400">öğrenilen sözcük</div></div>
                     </div>
                     <div class="badge {{ $classifier['ready'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $classifier['ready'] ? 'Karar veriyor' : 'Henüz yeterli örnek yok' }}</div>
+                    <p class="text-[11px] text-neutral-400 pt-1"><strong class="text-neutral-700 dark:text-neutral-200">Şablon hafızası:</strong> {{ $classifier['templates'] }} doğrulanmış gönderen kalıbı, {{ $classifier['template_uses'] }} kez yapay zekasız çözüm. Aynı numaradan aynı kalıpla gelen ilan bir kez doğrulanınca (yapay zeka ya da sizin onayınız) sonrakiler kalıptan okunur; reddettiğiniz bir kalıp silinir.</p>
                 @endif
                 <button type="button" wire:click="rebuildClassifier" wire:confirm="Sayaçlar sıfırlanıp yayınlanan / reddedilen tüm adaylardan yeniden öğrenilecek." class="btn-secondary py-1.5 px-3 text-xs">Geçmişten yeniden öğren</button>
             </div>

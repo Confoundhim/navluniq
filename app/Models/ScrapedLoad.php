@@ -154,7 +154,7 @@ class ScrapedLoad extends Model
         if (! VehicleTypes::isValid($this->vehicle_type)) {
             return null;
         }
-        $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin'], true) || $this->vehicle_type === 'tir';
+        $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template'], true) || $this->vehicle_type === 'tir';
 
         return $exact ? VehicleTypes::label($this->vehicle_type) : VehicleTypes::label($this->vehicle_type).' ve üzeri';
     }

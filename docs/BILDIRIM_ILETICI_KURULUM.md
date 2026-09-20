@@ -155,6 +155,14 @@ sizin kararlarınızdan öğrenen iki parça vardır; ikisi de **Dış Kaynak İ
 Kuyrukta bir adayın **ilini düzelttiğinizde** mesajdaki çözülemeyen yer adı kendiliğinden sözlüğe girer ("öğrenildi").
 Araç tipini ya da yükü düzelttiğinizde sekmeye bir **öneri** düşer; mesajdaki sözcüğü yazıp "Öğret" derseniz kalıcı olur.
 
+**Şablon hafızası.** Yük gruplarındaki ilanların çoğu aynı komisyoncuların her gün aynı kalıpla attığı ilanlardır.
+Bir gönderenin (numara) bir kalıbı yapay zeka (güven ≥ %80, kuralla çelişmeden) ya da yönetici onayıyla bir kez
+doğrulanınca kalıp saklanır: yer adları `{yer}`, sayılar `{n}`, telefon `{tel}` olur; hangi yer adının kalkış, hangisinin
+varış olduğu sırayla bilinir. Aynı numaradan **aynı kalıba uyan** sonraki ilan yapay zekasız çözülür (kuyrukta
+"Çözümleme: şablon"), yapay zeka doğrulaması sayılır ve otomatik onaya girer. Kalıba uymayan mesaj yine yapay zekaya
+gider; kalıp kişiye özeldir (başka numara aynı kalıpla yazsa yapay zekaya gider). Yapay zekanın "ilan değil" dediği
+kalıp da öğrenilir ve aynı gönderenden bir daha sorulmaz. Kalıptan çözülen bir adayı **reddederseniz kalıp silinir**.
+
 **2. Yerel sınıflandırıcı (ilan mı, değil mi).** Naive Bayes; veritabanında sözcük sayaçları tutar. "Yayınla" dediğiniz
 her aday ve yapay zeka doğrulamalı otomatik onaylar ilan örneği, "Reddet" dediğiniz her aday ilan-değil örneğidir.
 Her sınıfta 15 örnek olunca karar vermeye başlar:

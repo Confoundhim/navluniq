@@ -281,7 +281,7 @@ class ScrapedLoadService
             $userId,
             $load
         );
-        app(LearningService::class)->onApproved($load);
+        app(LearningService::class)->onApproved($load, byAdmin: ! $auto);
     }
 
     public function reject(ScrapedLoad $load, ?int $userId = null): void
