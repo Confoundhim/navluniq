@@ -17,6 +17,24 @@ use Illuminate\Support\Facades\Log;
  */
 class NotificationWebhookController extends Controller
 {
+    /**
+     * Bağlantı sınaması: telefonun tarayıcısından açılan GET isteği. Ağ + anahtar doğruysa Canlı akışa
+     * "Bağlantı sınaması" düşer; böylece sorun telefon tarafında (MacroDroid tetikleyicisi) mı, ağda mı anlaşılır.
+     */
+    public function ping(Request $request): JsonResponse
+    {
+        $expected = ScrapedLoadService::apiToken();
+        $token = (string) ($request->header('X-Scraper-Token') ?: $request->query('token', ''));
+        if ($expected === '' || $token === '' || ! hash_equals($expected, $token)) {
+            IntakeEvent::record('unauthorized', ['title' => 'Bağlantı sınaması', 'excerpt' => 'Tarayıcıdan açılan sınama bağlantısı', 'reason' => $token === '' ? 'token_missing' : 'token_mismatch']);
+
+            return response()->json(['ok' => false, 'error' => 'Anahtar hatalı.'], 401);
+        }
+        IntakeEvent::record('ping', ['title' => 'Bağlantı sınaması', 'source_name' => 'Telefon', 'excerpt' => mb_substr((string) $request->userAgent(), 0, 200)]);
+
+        return response()->json(['ok' => true, 'message' => 'Sunucuya ulaştınız; Canlı akışta "Bağlantı sınaması" satırı görünmeli.', 'server_time' => now()->toDateTimeString()]);
+    }
+
     public function handle(Request $request, LoadIntakeService $intake): JsonResponse
     {
         $expectedToken = ScrapedLoadService::apiToken();
@@ -24,6 +42,14 @@ class NotificationWebhookController extends Controller
             Log::critical('Bildirim webhook güvenlik anahtarı yapılandırılmamış.');
 
             return response()->json(['error' => 'Servis yapılandırılmamış.'], 503);
+        }
+
+        // MacroDroid mesaj metnini JSON'a olduğu gibi gömer; metinde tırnak ya da satır sonu varsa JSON bozulur
+        // ve tüm alanlar boş okunur. Bozuk JSON alanları düzenli ifadeyle kurtarılır.
+        $repaired = false;
+        if ($request->isJson() && $request->json()->all() === [] && trim((string) $request->getContent()) !== '') {
+            $request->merge(self::repairJson((string) $request->getContent()));
+            $repaired = true;
         }
 
         // Başlık ya da gövde alanı; bazı otomasyon uygulamaları özel başlık gönderemez.
@@ -45,7 +71,7 @@ class NotificationWebhookController extends Controller
 
         $parsed = NotificationIntakeParser::parse($validated);
         if ($parsed['skipped'] !== null) {
-            IntakeEvent::record('skipped', ['title' => $validated['title'] ?? null, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped']]);
+            IntakeEvent::record('skipped', ['title' => $validated['title'] ?? null, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped'].($repaired ? ' (json_repaired)' : '')]);
 
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
@@ -74,5 +100,20 @@ class NotificationWebhookController extends Controller
             'summary' => $summary,
             'results' => array_map(fn (array $r) => ['status' => $r['status'], 'message' => $r['message'], 'scraped_load_id' => $r['scraped_load_id'] ?? null], $results),
         ]);
+    }
+
+    /** Bozuk JSON gövdesinden bilinen alanları çıkarır (değer içinde tırnak/satır sonu olsa da). */
+    public static function repairJson(string $raw): array
+    {
+        $keys = 'title|text|text_big|ticker|app|token|posted_at';
+        $out = [];
+        if (preg_match_all('/"('.$keys.')"\s*:\s*"(.*?)"\s*(?=,\s*"(?:'.$keys.')"\s*:|\s*}\s*$)/su', $raw, $m, PREG_SET_ORDER)) {
+            foreach ($m as $hit) {
+                $value = str_replace(['\\n', '\\"', '\\/'], ["\n", '"', '/'], $hit[2]);
+                $out[$hit[1]] = $value;
+            }
+        }
+
+        return $out;
     }
 }

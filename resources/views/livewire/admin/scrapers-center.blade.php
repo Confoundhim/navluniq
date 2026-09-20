@@ -439,7 +439,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'macro' => ['has' => false, 'at' => '', 'token_ok' => false],
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'macro' => ['has' => false, 'at' => '', 'token_ok' => false],
         ];
 
         if ($this->activeTab === 'events') {
@@ -454,6 +454,8 @@ new class extends Component {
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
             $data['setupUrl'] = ScrapedLoadService::setupUrl();
             $data['setupQr'] = ScrapedLoadService::setupQrSvg();
+            $data['pingUrl'] = ScrapedLoadService::pingUrl();
+            $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
             $data['macro'] = ['has' => ScrapedLoadService::hasMacroTemplate(), 'at' => Settings::string('macrodroid_template_at'), 'token_ok' => Settings::string('macrodroid_template_token') !== ''];
         } else {
             $data['queue'] = $this->currentQuery()->paginate(20);
@@ -723,13 +725,24 @@ new class extends Component {
                 <div class="justify-self-center md:justify-self-end w-36 h-36 p-2 bg-white rounded-2xl border border-neutral-200/60 [&>svg]:w-full [&>svg]:h-full" title="Telefonla okutun">{!! $setupQr !!}</div>
             </div>
 
+            <div class="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40">
+                <span class="font-bold text-neutral-900 dark:text-white">Sorun giderme</span>
+                <span class="text-[11px] text-neutral-500">Telefon istek atmıyor gibi görünüyorsa: bu bağlantıyı <strong>telefonun tarayıcısında</strong> açın; Canlı akışa "Bağlantı sınaması" düşerse ağ ve anahtar tamamdır, sorun MacroDroid tetikleyicisindedir (bildirim erişimi, sessize alınmış grup, kendi yazdığınız mesaj bildirim üretmez).</span>
+                <button type="button" @click="copy(@js($pingUrl), 'ping')" class="btn-secondary py-2 px-3 text-xs" x-text="copied === 'ping' ? 'Kopyalandı' : 'Sınama bağlantısını kopyala'"></button>
+                <a href="{{ $pingUrl }}" target="_blank" rel="noopener" class="text-brand-600 font-semibold hover:underline text-xs">Buradan aç</a>
+            </div>
+
             <details class="text-xs">
-                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum için adres ve gövde</summary>
+                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum için adres ve alanlar</summary>
+                <p class="text-[11px] text-neutral-500 mt-2">Önerilen: içerik türü <strong>application/x-www-form-urlencoded</strong>, "Parametreler" bölümüne şu alanlar (mesajdaki tırnak/satır sonu JSON'u bozabilir, form alanlarını bozamaz):</p>
+                <table class="text-[11px] font-mono mt-1">
+                    @foreach($phoneParams as $k => $v)<tr><td class="pr-3 font-bold">{{ $k }}</td><td class="break-all">{{ $v }}</td></tr>@endforeach
+                </table>
                 <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 items-center mt-3">
                     <span class="text-neutral-400">Adres (POST)</span>
                     <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $webhookUrl }}</code>
                     <button type="button" @click="copy(@js($webhookUrl), 'url')" class="btn-secondary py-2 px-3 text-xs" x-text="copied === 'url' ? 'Kopyalandı' : 'Kopyala'"></button>
-                    <span class="text-neutral-400">Gövde (JSON)</span>
+                    <span class="text-neutral-400">Alternatif: JSON gövde</span>
                     <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $tokenBody }}</code>
                     <button type="button" @click="copy(@js($tokenBody), 'body')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'body' ? 'Kopyalandı' : 'Kopyala'"></button>
                 </div>

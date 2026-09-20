@@ -18,6 +18,7 @@ class IntakeEvent extends Model
         'skipped' => 'Atlandı',
         'unauthorized' => 'Anahtar hatalı',
         'failed' => 'İşlenemedi',
+        'ping' => 'Bağlantı sınaması (telefon sunucuya ulaştı)',
     ];
 
     protected $fillable = ['source_name', 'status', 'reason', 'title', 'excerpt', 'scraped_load_id', 'ip', 'created_at'];

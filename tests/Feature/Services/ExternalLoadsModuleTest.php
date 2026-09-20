@@ -436,4 +436,39 @@ class ExternalLoadsModuleTest extends TestCase
 
         $this->assertArrayHasKey('gemini-3.5-flash-lite', $parser->modelOptions('gemini'));
     }
+
+    public function test_ping_link_and_broken_json_repair_and_form_params(): void
+    {
+        Http::fake();
+        $token = ScrapedLoadService::apiToken();
+
+        $this->get('/api/v1/webhook/notification/ping?token=yanlis')->assertStatus(401);
+        $this->assertSame('unauthorized', IntakeEvent::latest('id')->first()->status);
+        $this->get(ScrapedLoadService::pingUrl())->assertOk()->assertJsonPath('ok', true);
+        $this->assertSame('ping', IntakeEvent::latest('id')->first()->status);
+        $this->assertStringContainsString('telefon sunucuya ulaştı', IntakeEvent::latest('id')->first()->statusLabel());
+
+        Scraper::create(['name' => 'Grup A', 'type' => 'notification', 'source_identifier' => 'notif:grup-a', 'is_active' => true]);
+
+        // Mesajda tırnak ve satır sonu: MacroDroid'in ürettiği JSON bozuk gelir, alanlar yine okunur.
+        $broken = '{"title":"Grup A","text":"Ahmet: "ACİL" Ankara\'dan İzmir\'e 24 ton palet
+tenteli tır 0532 123 45 67","ticker":"","app":"WhatsApp","token":"'.$token.'"}';
+        $this->assertNull(json_decode($broken), 'Örnek gövde gerçekten bozuk JSON olmalı');
+        $response = $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], $broken);
+        $response->assertOk()->assertJsonPath('status', 'created');
+        $this->assertSame('created', IntakeEvent::latest('id')->first()->status);
+        $this->assertSame(1, ScrapedLoad::count());
+
+        // Form alanları (önerilen kurulum) doğrudan çalışır.
+        $params = ScrapedLoadService::phoneRequestParams();
+        $this->assertSame($token, $params['token']);
+        $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => 'Mehmet: Bursa Antalya 8 ton mobilya kamyon 0544 222 33 44', 'app' => 'WhatsApp', 'token' => $token], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('status', 'created');
+        $this->assertSame(2, ScrapedLoad::count());
+
+        // Form alanlı makro dışa aktarımında anahtar 48 karakterlik dizgeden bulunur.
+        Storage::fake('local');
+        $export = json_encode(['m_actionList' => [['m_urlToOpen' => 'https://navluniq.com/api/v1/webhook/notification', 'm_params' => [['m_name' => 'token', 'm_value' => $token]]]]]);
+        $this->assertSame($token, ScrapedLoadService::storeMacroTemplate($export)['token']);
+    }
 }
