@@ -18,7 +18,7 @@ use Illuminate\Console\Command;
  */
 class AnalyzeIntakeSamplesCommand extends Command
 {
-    protected $signature = 'intake:analyze {file : WhatsApp dışa aktarımı ya da boş satırla ayrılmış mesaj dosyası} {--limit=0 : En fazla bu kadar mesaj} {--show=15 : Örnek satır sayısı}';
+    protected $signature = 'intake:analyze {file : WhatsApp dışa aktarımı (.txt), boş satırla ayrılmış mesaj dosyası ya da .txt dosyalarını içeren klasör} {--limit=0 : En fazla bu kadar mesaj} {--show=15 : Örnek satır sayısı} {--learn : Kuralın tam çözdüğü parçaları ilan, elenenleri ilan-değil örneği olarak yerel sınıflandırıcıya öğret}';
 
     protected $description = 'Örnek grup mesajlarını kural hattından geçirip ön eleme ve çözümleme raporu üretir (yapay zeka çağrılmaz)';
 
@@ -30,7 +30,19 @@ class AnalyzeIntakeSamplesCommand extends Command
 
             return self::FAILURE;
         }
-        $messages = self::parseExport((string) file_get_contents($path));
+        $files = is_dir($path) ? (glob(rtrim($path, '/').'/*.txt') ?: []) : [$path];
+        if ($files === []) {
+            $this->error("Klasörde .txt dosyası yok: {$path}");
+
+            return self::FAILURE;
+        }
+        $messages = [];
+        foreach ($files as $file) {
+            $messages = array_merge($messages, self::parseExport((string) file_get_contents($file)));
+        }
+        $learn = (bool) $this->option('learn');
+        $positives = [];
+        $negatives = [];
         if (($limit = (int) $this->option('limit')) > 0) {
             $messages = array_slice($messages, 0, $limit);
         }
@@ -43,6 +55,7 @@ class AnalyzeIntakeSamplesCommand extends Command
         $unresolved = [];
         $samples = ['route_missing' => [], 'no_logistics_signal' => [], 'rule_full' => [], 'vehicle_missing' => []];
         foreach ($messages as $raw) {
+            $raw = TextPrep::foldFonts($raw);
             $norm = LoadIntakeService::normalizeText($raw);
             if (isset($seen[$norm])) {
                 $stats['duplicate_text']++;
@@ -51,18 +64,22 @@ class AnalyzeIntakeSamplesCommand extends Command
             }
             $seen[$norm] = true;
             if (! LoadIntakeService::hasPhone($raw)) {
-                $stats['phone_missing']++;
+                $stats['phone_missing']++; // numarası profilde olan ilanlar da buraya düşer; ilan-değil örneği sayılmaz
 
                 continue;
             }
             if (Lexicon::isNotLoad($raw) || TextPrep::isForeignScript($raw) || LoadIntakeService::isNotLoadPattern($raw)) {
                 $stats['lexicon_not_load']++;
+                if (! TextPrep::isForeignScript($raw)) {
+                    $negatives[] = $raw;
+                }
 
                 continue;
             }
             if (! LoadIntakeService::looksLikeLoad($raw)) {
                 $stats['no_logistics_signal']++;
                 $samples['no_logistics_signal'][] = $raw;
+                $negatives[] = $raw;
 
                 continue;
             }
@@ -102,6 +119,7 @@ class AnalyzeIntakeSamplesCommand extends Command
                 if (($std['pickup_province_code'] || ! empty($intl['pickup'])) && ($std['delivery_province_code'] || ! empty($intl['delivery']))) {
                     $stats['rule_full']++;
                     $samples['rule_full'][] = $segment['text'];
+                    $positives[] = $segment['text'];
                 } else {
                     $stats['route_missing']++;
                     $samples['route_missing'][] = $segment['text'];
@@ -125,6 +143,14 @@ class AnalyzeIntakeSamplesCommand extends Command
         ]);
         $aiShare = $stats['segments'] > 0 ? (int) round(100 * ($stats['segments'] - $stats['rule_full']) / $stats['segments']) : 0;
         $this->info("Yapay zekaya gitmesi gereken parça oranı (kural eksik bırakınca kipi): ~%{$aiShare}");
+
+        if ($learn) {
+            $learnedLoad = $classifier->trainMany($positives, true);
+            $learnedOther = $classifier->trainMany($negatives, false);
+            $st = $classifier->stats();
+            $this->line('');
+            $this->info("Yerel sınıflandırıcı öğrendi: {$learnedLoad} ilan, {$learnedOther} ilan-değil örneği. Toplam: {$st['docs_load']} ilan / {$st['docs_other']} ilan-değil, {$st['tokens']} sözcük.");
+        }
 
         arsort($unresolved);
         if ($unresolved !== []) {
