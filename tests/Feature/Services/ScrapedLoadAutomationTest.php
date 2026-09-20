@@ -87,6 +87,48 @@ class ScrapedLoadAutomationTest extends TestCase
         $this->assertSame(['Grup A', 'Grup B', 'Grup C'], $load->seen_sources);
     }
 
+    public function test_publishing_a_candidate_whose_twin_is_already_public_marks_it_duplicate(): void
+    {
+        $source = $this->source();
+        $other = Scraper::create(['name' => 'Grup B', 'type' => 'notification', 'source_identifier' => 'notif:grup-b', 'is_active' => true]);
+        $hash = hash('sha256', 'ayni-metin');
+        $published = $this->candidate($source, ['visibility' => 'public', 'normalized_hash' => $hash, 'route_key' => '5321234567|ankara|izmir']);
+        $twin = $this->candidate($other, ['normalized_hash' => $hash, 'route_key' => '5321234567|ankara|izmir', 'seen_sources' => ['Grup B']]);
+        $service = app(ScrapedLoadService::class);
+
+        // Aynı anda gelen iki grup mesajı iki aday açtıysa ikincisi yayına alınmaz; yayındakinin sayacına yazılır.
+        $this->assertSame("tekrar (#{$published->id} yayında)", $service->autoApprovalBlocker($twin));
+        $this->assertSame(['rejected', 'private', $published->id], [$twin->fresh()->status, $twin->fresh()->visibility, $twin->fresh()->meta('duplicate_of')]);
+        $this->assertSame(['Grup A', 'Grup B'], $published->fresh()->seen_sources);
+        $this->assertSame(2, $published->fresh()->duplicate_count);
+
+        // Elle "Yayınla" da aynı numara + rota 48 saat içinde yayındaysa reddedilir.
+        $sameRoute = $this->candidate($other, ['normalized_hash' => hash('sha256', 'baska-metin'), 'route_key' => '5321234567|ankara|izmir', 'raw_message' => 'Ankaradan İzmire 24 ton yük var 0532 123 45 67']);
+        try {
+            $service->approve($sameRoute, null);
+            $this->fail('Tekrar yayınlanmamalıydı');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString("zaten yayında (#{$published->id})", $e->getMessage());
+        }
+        $this->assertSame('rejected', $sameRoute->fresh()->status);
+        $this->assertSame(1, ScrapedLoad::where('visibility', 'public')->count());
+    }
+
+    public function test_intake_holds_a_per_message_lock_and_releases_it(): void
+    {
+        Cache::flush();
+        Http::fake();
+        Scraper::create(['name' => 'Grup A', 'type' => 'notification', 'source_identifier' => 'notif:a', 'is_active' => true]);
+        $text = "Ankara'dan İzmir'e 24 ton palet 0532 123 45 67";
+        $key = 'intake:lock:'.hash('sha256', LoadIntakeService::normalizeText($text));
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'source_jid' => 'notif:a', 'message_id' => 'm1', 'raw_message' => $text]);
+        $this->assertSame('created', $r['status']);
+        $lock = Cache::lock($key, 5);
+        $this->assertTrue($lock->get(), 'işlem bitince kilit bırakılmalı');
+        $lock->release();
+    }
+
     public function test_external_loads_are_never_posted_to_telegram(): void
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 5]])]);
