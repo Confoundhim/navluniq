@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Invoice;
 use App\Models\PaymentOrder;
 use App\Models\Subscription;
@@ -30,6 +31,62 @@ class SubscriptionService
     public function monthlyPrice(): float
     {
         return round(Settings::float('premium_monthly_price'), 2);
+    }
+
+    public const PLAN_PREMIUM_GIFT = 'premium_gift';
+
+    /**
+     * Yönetici hediyesi / test premium'u: mevcut süre bitmediyse üzerine eklenir. Ödeme kaydı yoktur;
+     * abonelik "premium_gift" planıyla ve 0 tutarla izlenir, kullanıcıya bildirim gider.
+     */
+    public function grantPremium(User $user, int $days, ?User $admin = null, string $note = ''): Subscription
+    {
+        $profile = $user->driverProfile;
+        if (! $profile) {
+            throw new RuntimeException('Premium yalnız şoför profili olan kullanıcıya tanımlanır.');
+        }
+        $days = max(1, min(3660, $days));
+
+        $subscription = DB::transaction(function () use ($user, $profile, $days, $admin, $note): Subscription {
+            $start = $profile->premium_until && $profile->premium_until->isFuture() ? $profile->premium_until->copy() : now();
+            $end = $start->copy()->addDays($days);
+            $profile->update(['premium_until' => $end]);
+
+            $subscription = Subscription::create([
+                'user_id' => $user->id,
+                'plan_code' => self::PLAN_PREMIUM_GIFT,
+                'provider' => 'manual',
+                'status' => 'active',
+                'amount' => 0,
+                'currency' => 'TRY',
+                'interval' => 'custom',
+                'current_period_starts_at' => $start,
+                'current_period_ends_at' => $end,
+            ]);
+            ActivityLog::record('subscription.gifted', "Premium hediye: {$days} gün → kullanıcı #{$user->id} (".$end->format('d.m.Y').' tarihine kadar)'.($note !== '' ? " · {$note}" : ''), $admin?->id, $subscription);
+
+            return $subscription;
+        });
+
+        $this->notifications->notify($user, 'Premium üyelik hediye edildi',
+            ["Hesabınıza {$days} günlük premium üyelik tanımlandı; ".$profile->fresh()->premium_until->format('d.m.Y H:i').' tarihine kadar geçerli.',
+                'Yeni ilanları herkesten 20 dakika önce görür, anında bildirim alırsınız; dış kaynak ilanlarında numaranın tamamı görünür.'],
+            route('driver.premium.index'), 'Premium sayfam', 'subscription');
+
+        return $subscription;
+    }
+
+    /** Premium'u hemen bitirir (hediye ya da test süresi geri alınır). */
+    public function revokePremium(User $user, ?User $admin = null): void
+    {
+        $profile = $user->driverProfile;
+        if (! $profile || ! $profile->premium_until || $profile->premium_until->isPast()) {
+            return;
+        }
+        $profile->update(['premium_until' => now()]);
+        Subscription::query()->where('user_id', $user->id)->where('status', 'active')->update(['status' => 'cancelled', 'cancelled_at' => now(), 'ended_at' => now()]);
+        ActivityLog::record('subscription.revoked', "Premium kaldırıldı → kullanıcı #{$user->id}", $admin?->id);
+        $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi', ['Premium üyeliğiniz yönetici tarafından sonlandırıldı; hesabınız standart üyeliğe döndü.'], route('driver.premium.index'), 'Premium sayfam', 'subscription', sendMail: false);
     }
 
     /** Şoför için premium ödeme emri; ödeme ekranı PaymentService::checkout ile açılır. */

@@ -128,6 +128,9 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/dashboard', function () {
             return view('admin.dashboard');
         })->name('admin.dashboard');
+        Route::get('/users', function () {
+            return view('admin.users-page');
+        })->name('admin.users');
         Route::get('/kyc', function () {
             return view('admin.kyc-page');
         })->name('admin.kyc');
