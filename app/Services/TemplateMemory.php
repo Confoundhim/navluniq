@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AiTemplate;
+use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
@@ -47,6 +48,9 @@ class TemplateMemory
                 if ($resolved === null && mb_strlen($word) >= 4) {
                     $r = TurkishLocations::resolve($word);
                     $resolved = $r !== null && ($r['district'] ?? null) !== null ? $r : null; // tek başına ilçe adı
+                    if ($resolved === null && ($f = ForeignPlaces::match($word)) !== null) {
+                        $resolved = ['province' => $f['label'], 'district' => null, 'province_code' => 0];
+                    }
                 }
                 if ($resolved !== null) {
                     $label = $resolved['province'].(($resolved['district'] ?? null) && $resolved['district'] !== 'Merkez' ? ' '.$resolved['district'] : '');
@@ -89,11 +93,20 @@ class TemplateMemory
         }
         $indexOf = function (?string $label) use ($sig): ?int {
             $target = is_string($label) && $label !== '' ? TurkishLocations::resolve($label) : null;
+            if ($target === null && is_string($label) && ($f = ForeignPlaces::match($label)) !== null) {
+                foreach ($sig['locations'] as $i => $loc) {
+                    if ($loc['province_code'] === 0 && $loc['label'] === $f['label']) {
+                        return $i;
+                    }
+                }
+
+                return null;
+            }
             if ($target === null) {
                 return null;
             }
             foreach ($sig['locations'] as $i => $loc) {
-                if ($loc['province_code'] === (int) $target['province_code']) {
+                if ($loc['province_code'] === (int) $target['province_code'] && $loc['province_code'] !== 0) {
                     return $i;
                 }
             }

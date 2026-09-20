@@ -7,6 +7,7 @@ use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Support\Lexicon;
+use App\Support\TextPrep;
 use App\Support\TurkishLocations;
 use Illuminate\Console\Command;
 
@@ -40,7 +41,7 @@ class AnalyzeIntakeSamplesCommand extends Command
             'rule_full' => 0, 'route_missing' => 0, 'vehicle_missing' => 0, 'local_low' => 0, 'local_high' => 0, 'duplicate_text' => 0];
         $seen = [];
         $unresolved = [];
-        $samples = ['route_missing' => [], 'no_logistics_signal' => [], 'rule_full' => []];
+        $samples = ['route_missing' => [], 'no_logistics_signal' => [], 'rule_full' => [], 'vehicle_missing' => []];
         foreach ($messages as $raw) {
             $norm = LoadIntakeService::normalizeText($raw);
             if (isset($seen[$norm])) {
@@ -54,7 +55,7 @@ class AnalyzeIntakeSamplesCommand extends Command
 
                 continue;
             }
-            if (Lexicon::isNotLoad($raw)) {
+            if (Lexicon::isNotLoad($raw) || TextPrep::isForeignScript($raw) || LoadIntakeService::isNotLoadPattern($raw)) {
                 $stats['lexicon_not_load']++;
 
                 continue;
@@ -73,6 +74,11 @@ class AnalyzeIntakeSamplesCommand extends Command
             foreach (LoadIntakeService::splitSegments($raw) as $segment) {
                 $stats['segments']++;
                 $parsed = $parser->parseCheap($segment['text']);
+                if (($parsed['success'] ?? false) !== true && $segment['phones'] === []) {
+                    $stats['segment_phone_missing'] = ($stats['segment_phone_missing'] ?? 0) + 1;
+
+                    continue;
+                }
                 if (($parsed['success'] ?? false) !== true) {
                     $stats['route_missing']++;
                     $samples['route_missing'][] = $segment['text'];
@@ -90,10 +96,15 @@ class AnalyzeIntakeSamplesCommand extends Command
                 $std = $standardizer->standardize($segment['text'], $parsed);
                 if ($std['vehicle_type'] === null) {
                     $stats['vehicle_missing']++;
+                    $samples['vehicle_missing'][] = $segment['text'];
                 }
-                if ($std['pickup_province_code'] && $std['delivery_province_code'] && $std['vehicle_type'] !== null) {
+                $intl = (array) ($std['metadata']['international'] ?? []);
+                if (($std['pickup_province_code'] || ! empty($intl['pickup'])) && ($std['delivery_province_code'] || ! empty($intl['delivery']))) {
                     $stats['rule_full']++;
                     $samples['rule_full'][] = $segment['text'];
+                } else {
+                    $stats['route_missing']++;
+                    $samples['route_missing'][] = $segment['text'];
                 }
             }
         }
@@ -101,13 +112,14 @@ class AnalyzeIntakeSamplesCommand extends Command
         $this->table(['Ölçüt', 'Adet'], [
             ['Aynı metin tekrarı (elenir)', $stats['duplicate_text']],
             ['Telefon yok (elenir)', $stats['phone_missing']],
-            ['Sözlük "ilan değil" (elenir)', $stats['lexicon_not_load']],
+            ['İlan değil: sözlük / sabit kalıp (boş araç, şoför ilanı, reklam) / yabancı alfabe (elenir)', $stats['lexicon_not_load']],
             ['Lojistik işaret yok (elenir)', $stats['no_logistics_signal']],
             ['Aday mesaj', $stats['candidate']],
             ['  → ayrılan ilan parçası', $stats['segments']],
-            ['  → kural tam çözdü (il çifti + araç)', $stats['rule_full']],
+            ['  → kural tam çözdü (telefon + kalkış/varış ili)', $stats['rule_full']],
             ['  → rota çözülemedi (yapay zeka gerekir)', $stats['route_missing']],
-            ['  → araç tipi yok', $stats['vehicle_missing']],
+            ['  → parçada numara yok', $stats['segment_phone_missing'] ?? 0],
+            ['  → araç tipi metinde yok (yapay zeka da bilemez; tonaj/yükten çıkarım)', $stats['vehicle_missing']],
             ['  → yerel sınıflandırıcı ≥ %90', $stats['local_high']],
             ['  → yerel sınıflandırıcı < %15', $stats['local_low']],
         ]);
@@ -122,7 +134,7 @@ class AnalyzeIntakeSamplesCommand extends Command
                 $this->line(sprintf('  %3d × %s', $n, $term));
             }
         }
-        foreach (['no_logistics_signal' => 'Lojistik işaret bulunamayan (telefonlu) mesajlar', 'route_missing' => 'Rota çözülemeyen parçalar'] as $key => $title) {
+        foreach (['no_logistics_signal' => 'Lojistik işaret bulunamayan (telefonlu) mesajlar', 'route_missing' => 'Rota çözülemeyen parçalar', 'vehicle_missing' => 'Araç tipi çözülemeyen parçalar'] as $key => $title) {
             if ($samples[$key] === []) {
                 continue;
             }
@@ -152,12 +164,19 @@ class AnalyzeIntakeSamplesCommand extends Command
         if (! $isExport) {
             return array_values(array_filter(array_map('trim', preg_split('/\n[ \t]*\n+/u', $content) ?: [])));
         }
+        $stamp = '/^\[?\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\]?\s*-?\s*/u'; // tarih-saat ile başlayan her satır sınırdır
         foreach (explode("\n", $content) as $line) {
             if (preg_match($header, $line, $m)) {
                 if ($current !== null) {
                     $messages[] = $current;
                 }
                 $current = trim($m[2]);
+            } elseif (preg_match($stamp, $line)) {
+                // Sistem satırı ("X kişisini ekledi", "ayrıldı", "kullanıcı adını değiştirdi"): mesaj değildir, önceki mesaja da eklenmez.
+                if ($current !== null) {
+                    $messages[] = $current;
+                }
+                $current = null;
             } elseif ($current !== null) {
                 $current .= "\n".$line;
             }

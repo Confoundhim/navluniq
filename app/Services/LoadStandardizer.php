@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ScrapedLoad;
+use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
@@ -24,7 +25,7 @@ class LoadStandardizer
 {
     /**
      * @param  array<string, mixed>  $parsed  AiParserService çıktısı
-     * @return array<string, mixed>  scraped_loads kolonları + warnings + metadata
+     * @return array<string, mixed> scraped_loads kolonları + warnings + metadata
      */
     public function standardize(string $raw, array $parsed): array
     {
@@ -34,12 +35,13 @@ class LoadStandardizer
         // Konumlar
         $pickup = $this->location($parsed['pickup_location'] ?? null);
         $delivery = $this->location($parsed['delivery_location'] ?? null);
-        if ($pickup['province_code'] === null) {
+        if ($pickup['province_code'] === null && empty($pickup['foreign'])) {
             $warnings[] = 'pickup_unresolved';
         }
-        if ($delivery['province_code'] === null) {
+        if ($delivery['province_code'] === null && empty($delivery['foreign'])) {
             $warnings[] = 'delivery_unresolved';
         }
+        $international = array_filter(['pickup' => ! empty($pickup['foreign']), 'delivery' => ! empty($delivery['foreign'])]);
         if ($pickup['province_code'] !== null && $pickup['province_code'] === $delivery['province_code'] && $pickup['district'] === $delivery['district']) {
             $warnings[] = 'same_route_ends';
         }
@@ -95,6 +97,7 @@ class LoadStandardizer
             'price' => $price,
             'warnings' => $warnings,
             'metadata' => array_filter([
+                'international' => $international !== [] ? $international : null,
                 'goods_category' => $goods['key'] ?? null,
                 'goods_traits' => $goods['traits'] ?? [],
                 'vehicle_confidence' => $vehicle['confidence'],
@@ -145,6 +148,11 @@ class LoadStandardizer
         }
         $r = TurkishLocations::resolve($text);
         if ($r === null) {
+            // Yurt dışı yer (Erbil, Zaho, Bazargan…): il kodu yok ama koordinat ve "international" işareti var
+            if (($f = ForeignPlaces::match($text)) !== null) {
+                return ['label' => $f['label'], 'province_code' => null, 'district' => null, 'lat' => $f['lat'], 'lng' => $f['lng'], 'foreign' => true];
+            }
+
             return ['label' => $this->titleCase($text), 'province_code' => null, 'district' => null, 'lat' => null, 'lng' => null];
         }
 

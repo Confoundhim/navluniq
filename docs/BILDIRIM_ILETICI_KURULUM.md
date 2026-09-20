@@ -155,6 +155,35 @@ sizin kararlarınızdan öğrenen iki parça vardır; ikisi de **Dış Kaynak İ
 Kuyrukta bir adayın **ilini düzelttiğinizde** mesajdaki çözülemeyen yer adı kendiliğinden sözlüğe girer ("öğrenildi").
 Araç tipini ya da yükü düzelttiğinizde sekmeye bir **öneri** düşer; mesajdaki sözcüğü yazıp "Öğret" derseniz kalıcı olur.
 
+**Kural katmanı: gerçek grup mesajlarıyla eğitildi.** 23 yük grubundan 9.000 mesajlık bir dışa aktarım üzerinde
+ölçülerek kurallar yazıldı (`php artisan intake:analyze dosya.txt` ile ölçüm tekrarlanabilir). Kural şu biçimleri
+yapay zekasız çözer:
+
+- **Biçim temizliği** (`TextPrep`): *kalın*/_eğik_ işaretleri, süs satırları (➖➖➖, ━━━, 🔥🔥) blok ayırıcı olur, emoji oklar
+  (➡️ 👉 ▶ 🔹 🟰 ➤ »), "…", "__", "--》", ">>" ve iki yer adı arasındaki boşluksuz emoji (MERSİN📍MİDYAT) bağlaç sayılır,
+  harf aralıklı sözcükler ("T I R", "O R D U") birleşir. Kiril/Arap alfabesi mesajlar elenir.
+- **Rota**: "X - Y", "X ➡️ Y", "X'den Y'ye", "Xden Y", "X, Y" (iki uç da yer ise), "X yükler / Y iner-boşaltır-teslim",
+  "X yüklemeli" başlığı altında liste (her varış satırı ayrı ilan; başlık boş satırdan sonra da geçerlidir), tek satırda
+  "BOLU YÜKLER ANTALYA BOŞALTIR", "İstanbul Arnavutköy Şırnak Silopi 🚛 TIR" (il+ilçe çiftleri), "Denizli - şehir içi".
+- **Yer adları**: 81 il + 973 ilçe kataloğu, kısaltmalar (K.Maraş, Ş.Urfa, Antep, İst, Anadolu/Avrupa yakası), ekli yazım
+  (Tarsus'tan, Aliağaya, Kızıltepeden), 6+ harfte yazım hatası (BALIKKESIR, ANAKRA), semt/sanayi/liman/OSB adları
+  (Hadımköy, İkitelli, Kemerburgaz, Ostim, Siteler, Gimat, Temelli, Koçhisar, Kazan, Çayırhan, Karabiga, Misis,
+  Şekerpınar, Velimeşe, Marport, Ambarlı…), sınır kapıları (Cilvegözü, Habur, Gürbulak, Kapıkule, Sarp, Öncüpınar,
+  Çobanbey) ve **yurt dışı varışlar** (Erbil, Zaho, Süleymaniye, Bazargan, Tebriz, Bakü, Tiflis, Kazakistan… "Erbil (Irak)"
+  etiketiyle; ilan otomatik onaya girer).
+- **Araç**: 13.60/1360/13-60 → TIR, 8.60 → 10 teker, kısa/sal dorse, 2-3 kapak, 40 ayak, tente/tenten/tnt, frigo/firgo/
+  firigo/termoking, damper(li)/danper, yüksek yan, kapalı/açık tır, ATS'li, üstten yükleme, "N metre" (3 m kamyonet,
+  6 m kamyon), dökme/basar tonaj/sınırsız damperli → tır. Metinde araç yoksa yapay zekaya sorulmaz; tonaj ve yükten çıkarılır.
+- **Tonaj ve fiyat**: "0-25 ton", "20 25 ton", "0,2 ton", "2.000 kg"; "950+BASAR", "900+TONAJLI", "1300+KDV", "28+kdv"
+  (=28.000), "40.000 peşin", "1 400 TL", "1800$", "1750 USD" (para birimi USD/EUR saklanır).
+- **Yük**: kömür (dökme/torbalı/çuvallı), dökme maden (klinker, pomza, mıcır, grit, cüruf), tuz, gübre/kemre, lastik,
+  tarım (saman, silaj, balya, yem, yonca, pancar), tahta cips, tavuk/yumurta, peçete/kağıt, meyve-sebze, demir-çelik…
+- **Ortak bağlam**: mesajın başındaki/sonundaki "KAPALI TIR", "13-60 TENTELİ-FRİGO", "ARAÇLAR DAMPER DORSE OLACAK",
+  "ÖDEME PEŞİN" satırları her ilana eklenir; sondaki tek numara tüm ilanlara yazılır.
+
+Ölçüm (9.056 mesaj): tekrar/telefonsuz/sohbet elemesi sonrası 4.967 aday mesaj → 16.400 ilan parçası; kural
+kalkış-varış-telefonu parçaların **%99'unda** çözdü. Yapay zeka yalnız kalan %1 ve yeni biçimler için gerekir.
+
 **Şablon hafızası.** Yük gruplarındaki ilanların çoğu aynı komisyoncuların her gün aynı kalıpla attığı ilanlardır.
 Bir gönderenin (numara) bir kalıbı yapay zeka (güven ≥ %80, kuralla çelişmeden) ya da yönetici onayıyla bir kez
 doğrulanınca kalıp saklanır: yer adları `{yer}`, sayılar `{n}`, telefon `{tel}` olur; hangi yer adının kalkış, hangisinin

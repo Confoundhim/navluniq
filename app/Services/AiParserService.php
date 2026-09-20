@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\AiProviderUsage;
+use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\Settings;
+use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
@@ -401,11 +403,12 @@ class AiParserService
         }
         $unresolved = fn ($v) => ! is_string($v) || $v === '' || TurkishLocations::resolve($v) === null;
 
-        // Eksik alan doldurma: telefon, güzergâh veya araç tipi kural ile çözülemediyse. Tonaj/fiyat ilanların
-        // çoğunda zaten yazmaz; yalnız bunlar için kota harcanmaz ("always" kipi her ilanı yapay zekaya gönderir).
-        return $unresolved($parsed['pickup_location'] ?? null)
-            || $unresolved($parsed['delivery_location'] ?? null)
-            || empty($parsed['vehicle_type'])
+        // Eksik alan doldurma: telefon ya da güzergâh kural ile çözülemediyse. Araç tipi, tonaj ve fiyat ilanların
+        // çoğunda yazmaz; metinde yoksa yapay zeka da uyduramaz, bunlar için kota harcanmaz ("always" kipi her ilanı gönderir).
+        $resolvableAbroad = fn ($v) => is_string($v) && $v !== '' && ForeignPlaces::match($v) !== null;
+
+        return ($unresolved($parsed['pickup_location'] ?? null) && ! $resolvableAbroad($parsed['pickup_location'] ?? null))
+            || ($unresolved($parsed['delivery_location'] ?? null) && ! $resolvableAbroad($parsed['delivery_location'] ?? null))
             || empty($parsed['sender_phone']);
     }
 
@@ -564,8 +567,13 @@ class AiParserService
                 $aiProvince = TurkishLocations::resolve((string) $ai[$key])['province_code'] ?? null;
                 if ($ruleProvince && $aiProvince && $ruleProvince !== $aiProvince) {
                     $conflicts[$key] = ['rule' => $out[$key], 'ai' => $ai[$key]];
-                } elseif ($ruleProvince && $aiProvince && mb_strlen((string) $ai[$key]) > mb_strlen((string) $out[$key])) {
-                    $out[$key] = $ai[$key]; // aynı il; yapay zeka ilçe/semt de verdi ("Ankara" → "Ankara Ostim")
+                } elseif ($ruleProvince && $aiProvince) {
+                    // Aynı il: ilçe/semt bilgisi olan taraf kazanır ("Ankara" → "Ankara Ostim"); ikisinde de varsa kural kalır.
+                    $ruleDistrict = TurkishLocations::resolve((string) $out[$key])['district'] ?? null;
+                    $aiDistrict = TurkishLocations::resolve((string) $ai[$key])['district'] ?? null;
+                    if ($ruleDistrict === null && $aiDistrict !== null) {
+                        $out[$key] = $ai[$key];
+                    }
                 }
             }
         }
@@ -1087,10 +1095,14 @@ TXT;
         $phones = self::phonesIn($message);
         $phone = $phones[0] ?? null;
 
-        // "Ankara'dan İzmir'e" yazımındaki kesme işaretleri rota eşlemesini bozmasın.
+        // Biçim işaretleri, emoji oklar, süs satırları temizlenir; kesme işaretleri rota eşlemesini bozmasın.
+        $message = TextPrep::prepare($message);
         $routeText = preg_replace("/[’'‘`]/u", '', $message) ?? $message;
         // Bağlaçtan önce ve sonra en fazla iki sözcük alınır ("Ankara Ostim" → "İzmir Aliağa").
-        $resolvable = fn (?string $v) => $v !== null && TurkishLocations::resolve($v) !== null;
+        // Kesin çözüm: birebir il/ilçe, yurt dışı yer ya da 6+ harfli il adında yazım hatası. İlçe adında yakın eşleme yok
+        // ("pres saman" → Kaman olmasın).
+        $resolvable = fn (?string $v) => $v !== null && (TurkishLocations::resolve($v, false) !== null || ForeignPlaces::match($v) !== null
+            || (mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && TurkishCities::fromText($v, fuzzy: true) !== null));
         // Bağlaç eşleşmeleri arasında iki ucu da çözülen ilki alınır ("Beykoz-Şanlıurfa … Bursa - Gaziantep" → Beykoz-Şanlıurfa).
         [$pickup, $delivery] = [null, null];
         foreach (self::connectorMatches($routeText) as $m) {
@@ -1102,15 +1114,30 @@ TXT;
                 [$pickup, $delivery] = [$m['pickup'], $m['delivery']];
             }
         }
-        // Bağlaç eşleşmesi il kataloğunda çözülmüyorsa ("VIP grubundan paylaşılmıştır") ya da hiç yoksa
-        // ("Denizli Bursa 8 ton…", "📍 Ankara 📦 İstanbul"): metindeki ilk iki il sırayla kalkış/varış.
+        // Bağlaç yoksa ya da çözülmüyorsa: satır rolleri ("X yükler / Y iner"), sonra metindeki ilk iki farklı yer
+        // (il ya da il+ilçe; "Denizli Bursa 8 ton…", "📍 Ankara 📦 İstanbul", "İstanbul Arnavutköy Şırnak Silopi").
         if (! $resolvable($pickup) || ! $resolvable($delivery)) {
-            $pair = self::firstTwoProvinces($routeText);
-            if (count($pair) === 2) {
-                [$pickup, $delivery] = $pair;
-            } elseif (! $resolvable($pickup) || ! $resolvable($delivery)) {
-                $pickup = $resolvable($pickup) ? $pickup : null;
-                $delivery = $resolvable($delivery) ? $delivery : null;
+            if (($byLines = self::routeFromLines($routeText)) !== null) {
+                [$pickup, $delivery] = $byLines;
+            } else {
+                $places = self::placesIn($routeText, 4);
+                $pair = null;
+                foreach ($places as $i => $p) {
+                    foreach (array_slice($places, $i + 1) as $q) {
+                        if ($q['label'] !== $p['label']) {
+                            $pair = [$p['label'], $q['label']];
+                            break 2;
+                        }
+                    }
+                }
+                if ($pair !== null) {
+                    [$pickup, $delivery] = $pair;
+                } elseif (count($places) === 1 && preg_match('/(?<!\p{L})(?:şehir\s*içi|sehir\s*ici|şehiriçi|il\s*içi|il\s*ici|dahili)(?!\p{L})/u', TurkishCities::lower($routeText))) {
+                    [$pickup, $delivery] = [$places[0]['label'], $places[0]['label']]; // şehir içi: kalkış = varış
+                } else {
+                    $pickup = $resolvable($pickup) ? $pickup : null;
+                    $delivery = $resolvable($delivery) ? $delivery : null;
+                }
             }
         }
         if (! $phone || ! $pickup || ! $delivery) {
@@ -1118,9 +1145,22 @@ TXT;
         }
 
         // "45.000 TL", "45000₺", "1.250,50 TL" ve "12,5 ton" gibi Türkçe sayı yazımları tanınır.
-        preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
-        if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv": KDV hariç tutar
-            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*\+\s*KDV/iu', $message, $price);
+        preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?: \d{3})+|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
+        if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv", "950+BASAR", "900+TONAJLI", "40.000 Peşin": KDV/basar tonaj hariç tutar
+            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*(?:\+\s*(?:KDV|BASAR|TONAJLI|TONAJLİ|KDV\s*HARİÇ)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+        }
+        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{3,5})\s*\+\s*$/mu', $message, $m)) { // "BOLU 1600+", "ORDU 1 TIR 2300+": satır sonunda "+" = KDV hariç fiyat
+            $price = [1 => $m[1]];
+        }
+        if (empty($price[1])) { // "28+kdv" = 28 bin (nakliyecinin "bin" düşürme alışkanlığı): 10-299 arası +kdv → ×1000
+            if (preg_match('/(?<![\d.,])(\d{2,3})\s*\+\s*KDV/iu', $message, $m)) {
+                $price = [1 => (string) ((int) $m[1] * 1000)];
+            }
+        }
+        $currency = 'TRY';
+        if (empty($price[1]) && preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,6})\s*(?:\$|USD|usd|dolar|DOLAR|€|EUR|euro|EURO)/u', $message, $m)) {
+            $price = [1 => $m[1]];
+            $currency = str_contains($m[0], '€') || stripos($m[0], 'eur') !== false ? 'EUR' : 'USD';
         }
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|ton|tn)(?!\p{L})/iu', $message, $weight);
         $weightKg = $this->positiveDecimal($weight[1] ?? null);
@@ -1139,7 +1179,8 @@ TXT;
             'delivery_location' => $delivery,
             'goods_type' => self::cleanText($goods[1] ?? null, 120),
             'weight' => $weightKg !== null ? (int) round($weightKg) : null,
-            'price' => $this->positiveDecimal($price[1] ?? null),
+            'price' => $this->positiveDecimal(isset($price[1]) ? str_replace(' ', '', (string) $price[1]) : null),
+            'currency' => $currency,
             'vehicle_type' => ($vehicle = VehicleTypes::detect($message, $weightKg !== null ? (int) round($weightKg) : null))['type'],
             'vehicle_type_source' => $vehicle['source'],
             'parsed_by_llm' => 'regex_verified',
@@ -1154,39 +1195,265 @@ TXT;
      */
     public static function connectorMatches(string $text): array
     {
+        $text = TextPrep::prepare($text);
         $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
-        $word = '\p{L}+(?:\.\p{L}+)*'; // "M.Kemalpaşa" gibi kısaltmalı yazımlar tek sözcük sayılır
-        $pattern = '/('.$word.'(?:\s+'.$word.')?)(?:\s*(->|→|>|-|–|—)\s*|\s*(dan|den|tan|ten)\s+)('.$word.'(?:\s+'.$word.')?)/iu';
+        $text = str_replace(['(', ')'], ' ', $text); // "Samsun (bafra) -> Antalya (kepez)"
+        $word = '(?:\p{L}\.)?\p{L}{2,}(?:\.\p{L}+)*'; // "M.Kemalpaşa" tek sözcük; tek harf ("İ.", "B.") başına eklenmedikçe sayılmaz
+        // Ek bağlaç: sözcüğe bitişik ("Ankaradan", en az 3 harften sonra) ya da ayrı yazılmış ("Diyarbakr dan"); "MADEN" gibi sözcük içi "den" sayılmaz.
+        $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
         if (! preg_match_all($pattern, $text, $all, PREG_SET_ORDER)) {
             return [];
         }
         $out = [];
         foreach ($all as $m) {
             $dative = ($m[3] ?? '') !== '';
-            $out[] = ['pickup' => self::tidyLocation($m[1]), 'delivery' => self::tidyLocation($m[4], $dative)];
+            $connector = $m[2] ?? '';
+            $pickup = self::tidyLocation($m[1]);
+            $delivery = self::tidyLocation($m[4], $dative);
+            if ($pickup === null || $delivery === null) {
+                continue;
+            }
+            // "/" ve "," zayıf bağlaçtır ("ANKARA/SİNCAN" il/ilçe): yalnız iki uç da FARKLI yer olarak çözülüyorsa rota sayılır.
+            if (in_array($connector, ['/', ','], true)) {
+                $a = TurkishLocations::resolve($pickup, false);
+                $b = TurkishLocations::resolve($delivery, false);
+                if ($a === null || $b === null || ($a['province_code'] === $b['province_code'] && (($a['district'] ?? null) === null || ($b['district'] ?? null) === null))) {
+                    continue; // "Tekkeköy / Samsun", "ANKARA/SİNCAN": ilçe + kendi ili, rota değil
+                }
+            }
+            $out[] = ['pickup' => $pickup, 'delivery' => $delivery];
         }
 
         return $out;
     }
 
     /**
-     * Metindeki ilk çözülebilen rota: [kalkış ili, varış ili] (kanonik il adları). Bağlaç kalıbı yoksa
-     * metindeki ilk iki il alınır. Bulunamazsa null.
+     * Metindeki yer adları (il ya da ilçe; "İstanbul Arnavutköy" gibi il+ilçe bir yer) yazım sırasıyla.
+     * Tek başına ilçe adı yalnız yakın eşleme olmadan ve 4+ harfse sayılır (sohbet sözcükleriyle karışmasın).
+     *
+     * @return list<array{label:string, province_code:int, province:string, district:?string, text:string}>
+     */
+    public static function placesIn(string $text, int $limit = PHP_INT_MAX): array
+    {
+        $text = TextPrep::prepare($text);
+        $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
+        $words = array_values(array_filter(preg_split('/[\s,\/;:()+>|]+/u', $text) ?: [], fn ($w) => $w !== ''));
+        $found = [];
+        $skipUntil = -1;
+        foreach ($words as $i => $word) {
+            if ($i <= $skipUntil) {
+                continue;
+            }
+            $w = preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $word) ?? $word; // "AFYON‼", "*Bursa*", "(Söke)"
+            if (mb_strlen($w) < 3 || preg_match('/\d/u', $w) || in_array(TurkishCities::lower($w), self::PLACE_NOISE, true)) {
+                continue;
+            }
+            // Önce birebir il, sonra birebir ilçe; yazım hatalı il adı yalnız 6+ harfte ve ilçe olarak da çözülmüyorsa
+            // yakın eşlenir ("BALIKKESIR", "ANAKRA"; ama "SİLOPİ" Sinop değil Şırnak Silopi'dir)
+            $province = TurkishCities::fromText($w, fuzzy: false);
+            if ($province === null && mb_strlen($w) >= 6 && (TurkishLocations::resolve($w, false)['district'] ?? null) === null && ForeignPlaces::match($w) === null) {
+                $province = TurkishCities::fromText($w, fuzzy: true);
+            }
+            $resolved = null;
+            if ($province !== null) {
+                $resolved = TurkishLocations::resolve($province);
+                // İl adından sonra ilçe: "İstanbul Arnavutköy", "Ankara Kazan", "Kars Göle"
+                $next = isset($words[$i + 1]) ? (preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $words[$i + 1]) ?? $words[$i + 1]) : null;
+                if ($next !== null && mb_strlen($next) >= 3 && ! preg_match('/\d/u', $next) && TurkishCities::fromText($next, fuzzy: false) === null) {
+                    $withDistrict = TurkishLocations::resolve($province.' '.$next, false);
+                    if ($withDistrict !== null && ($withDistrict['district'] ?? null) !== null) {
+                        $resolved = $withDistrict;
+                        $skipUntil = $i + 1;
+                    }
+                }
+            } elseif (mb_strlen($w) >= 4 || in_array(TurkishCities::ascii($w), self::SHORT_DISTRICTS, true)) {
+                $r = TurkishLocations::resolve($w, false);
+                $next = isset($words[$i + 1]) ? (preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $words[$i + 1]) ?? $words[$i + 1]) : null;
+                if (($r === null || ($r['district'] ?? null) === null) && $next !== null && mb_strlen($next) >= 3 && ! preg_match('/\d/u', $next)) {
+                    // İki sözcüklü ilçe/semt adı ("Çoban Bey", "Mustafa Kemalpaşa", "Sultan Beyli")
+                    $two = TurkishLocations::resolve($w.' '.$next, false);
+                    // Eşleşen ilçe adı ilk sözcükle başlamalı ("Çoban Bey" → Çobanbey, "Mustafa Kemalpaşa"); "Boşaltma Arsin" gibi
+                    // ikinci sözcüğün tek başına ilçe olduğu durumlar ilk sözcüğe bağlanmaz.
+                    if ($two !== null && ($two['district'] ?? null) !== null && TurkishCities::fromText($w, fuzzy: false) === null
+                        && (str_starts_with(TurkishCities::ascii($two['district']), TurkishCities::ascii($w)) || TurkishLocations::resolve($next, false) === null)) {
+                        $r = $two;
+                        $skipUntil = $i + 1;
+                    }
+                }
+                if ($r !== null && ($r['district'] ?? null) !== null) {
+                    $resolved = $r;
+                    // "Tekkeköy / Samsun": ilçeden sonra kendi ili yazılmışsa il ayrı yer sayılmaz
+                    if ($next !== null && TurkishCities::fromText($next, fuzzy: false) === $r['province']) {
+                        $skipUntil = max($skipUntil, $i + 1);
+                    }
+                } elseif (($f = ForeignPlaces::match($w)) !== null) {
+                    // Yurt dışı yer (Erbil, Zaho, Bazargan…): il kodu 0, etiket "Erbil (Irak)"
+                    $found[] = ['label' => $f['label'], 'province_code' => 0, 'province' => $f['label'], 'district' => null, 'text' => $w];
+                    if (count($found) >= $limit) {
+                        break;
+                    }
+
+                    continue;
+                }
+            }
+            if ($resolved === null) {
+                continue;
+            }
+            $label = $resolved['province'].(($resolved['district'] ?? null) && $resolved['district'] !== 'Merkez' ? ' '.$resolved['district'] : '');
+            $found[] = ['label' => $label, 'province_code' => (int) $resolved['province_code'], 'province' => $resolved['province'], 'district' => $resolved['district'] ?? null, 'text' => $w];
+            if (count($found) >= $limit) {
+                break;
+            }
+        }
+
+        return $found;
+    }
+
+    /** Üç harfli ama ilanlarda sık geçen gerçek ilçe adları (tek başına yer sayılır). */
+    public const SHORT_DISTRICTS = ['can', 'bor', 'mut', 'kas', 'ula', 'cat', 'has', 'kale'];
+
+    /** İlçe adıyla çakışan ama ilanlarda başka anlamda geçen sözcükler: tek başına yer sayılmaz. */
+    public const PLACE_NOISE = ['arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir'];
+
+    /**
+     * Satır rollerinden rota: "X yükler / yüklemeli / çıkış / Xden" satırı kalkış, "Y iner / indirmeli / boşaltır / teslim /
+     * varış" satırı varış. Yalnız kalkış bulunduysa sonraki satırdaki ilk yer varış, yalnız varış bulunduysa önceki satırdaki
+     * ilk yer kalkıştır.
+     *
+     * @return array{0:string,1:string}|null [kalkış etiketi, varış etiketi]
+     */
+    public static function routeFromLines(string $text): ?array
+    {
+        $lines = array_values(array_filter(array_map('trim', explode("\n", TextPrep::prepare($text))), fn ($l) => $l !== ''));
+        $pickup = null;
+        $pickupAt = null;
+        $delivery = null;
+        $deliveryAt = null;
+        foreach ($lines as $i => $line) {
+            $places = self::placesIn($line, 2);
+            if ($places === []) {
+                continue;
+            }
+            $isPickup = preg_match(self::PICKUP_VERBS, $line) === 1 || preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $line) === 1;
+            $isDelivery = preg_match(self::DELIVERY_VERBS, $line) === 1;
+            if ($isPickup && $isDelivery && count($places) >= 2 && $pickup === null && $delivery === null) {
+                // "BOLU YÜKLER ANTALYA BOŞALTIR": her fiilden önceki en yakın yer adı o role aittir
+                $lower = TurkishCities::lower($line);
+                preg_match(self::PICKUP_VERBS, $line, $pm, PREG_OFFSET_CAPTURE);
+                preg_match(self::DELIVERY_VERBS, $line, $dm, PREG_OFFSET_CAPTURE);
+                $before = function (int $offset) use ($places, $lower): ?string {
+                    $best = null;
+                    foreach ($places as $pl) {
+                        $pos = mb_strpos($lower, TurkishCities::lower($pl['text']));
+                        if ($pos !== false && strlen(mb_substr($lower, 0, $pos)) <= $offset) {
+                            $best = $pl['label'];
+                        }
+                    }
+
+                    return $best;
+                };
+                $pk = $before((int) ($pm[0][1] ?? 0));
+                $dl = $before((int) ($dm[0][1] ?? 0));
+                if ($pk !== null && $dl !== null && $pk !== $dl) {
+                    return [$pk, $dl];
+                }
+            }
+            if ($isPickup && ! $isDelivery && $pickup === null) {
+                $pickup = $places[0]['label'];
+                $pickupAt = $i;
+                if (isset($places[1]) && $delivery === null && ! self::samePlace($places[0], $places[1])) {
+                    $delivery = $places[1]['label']; // "Çorlu yükler- Muğla Menteşe"
+                    $deliveryAt = $i;
+                }
+            } elseif ($isDelivery && $delivery === null) {
+                $delivery = $places[0]['label'];
+                $deliveryAt = $i;
+            }
+        }
+        if ($pickup === null && $delivery === null) {
+            return null;
+        }
+        if ($pickup !== null && $delivery === null) {
+            foreach ($lines as $i => $line) {
+                if ($i <= $pickupAt) {
+                    continue;
+                }
+                foreach (self::placesIn($line, 3) as $pl) {
+                    if ($pl['label'] !== $pickup) {
+                        return [$pickup, $pl['label']];
+                    }
+                }
+            }
+
+            return null;
+        }
+        if ($pickup === null && $delivery !== null) {
+            for ($i = $deliveryAt - 1; $i >= 0; $i--) {
+                foreach (self::placesIn($lines[$i], 3) as $pl) {
+                    if ($pl['label'] !== $delivery) {
+                        return [$pl['label'], $delivery];
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        return [$pickup, $delivery]; // aynı yer ("ankara lojistik üssü yükler / … iner"): şehir içi taşıma
+    }
+
+    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
+
+    public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|boşaltır|bosaltir|boşaltma|bosaltma|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
+
+    private static function samePlace(array $a, array $b): bool
+    {
+        return $a['label'] === $b['label'];
+    }
+
+    /**
+     * Metindeki ilk çözülebilen rota: [kalkış, varış] ("İl İlçe" etiketleri). Bağlaç kalıbı yoksa satır rolleri,
+     * o da yoksa metindeki ilk iki farklı yer alınır. Bulunamazsa null.
      *
      * @return array{0:string,1:string}|null
      */
     public static function routePair(string $text): ?array
     {
+        $prov = function (?string $v): ?string {
+            if ($v === null) {
+                return null;
+            }
+            $r = TurkishLocations::resolve($v, false);
+            if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && ($p = TurkishCities::fromText($v, fuzzy: true)) !== null) {
+                $r = TurkishLocations::resolve($p, false);
+            }
+            if ($r !== null) {
+                return $r['province'].(($r['district'] ?? null) ? '|'.$r['district'] : '');
+            }
+
+            return ForeignPlaces::match($v)['label'] ?? null;
+        };
+        $label = fn (string $v) => str_replace('|', ' ', $v);
         foreach (self::connectorMatches($text) as $m) {
-            $a = $m['pickup'] !== null ? TurkishLocations::resolve($m['pickup']) : null;
-            $b = $m['delivery'] !== null ? TurkishLocations::resolve($m['delivery']) : null;
-            if ($a && $b && $a['province'] !== $b['province']) {
-                return [$a['province'], $b['province']];
+            $a = $prov($m['pickup']);
+            $b = $prov($m['delivery']);
+            if ($a !== null && $b !== null && $a !== $b) {
+                return [$label($a), $label($b)];
             }
         }
-        $pair = self::provincesIn($text, 2);
+        if (($lines = self::routeFromLines($text)) !== null) {
+            return [$label((string) ($prov($lines[0]) ?? $lines[0])), $label((string) ($prov($lines[1]) ?? $lines[1]))];
+        }
+        $places = self::placesIn($text, 3);
+        foreach ($places as $i => $p) {
+            foreach (array_slice($places, $i + 1) as $q) {
+                if ($q['label'] !== $p['label']) {
+                    return [$p['label'], $q['label']];
+                }
+            }
+        }
 
-        return count($pair) === 2 ? $pair : null;
+        return null;
     }
 
     /** Yer adından "acil", "yük", "var" gibi dolgu sözcüklerini atar; il adını ekinden arındırır. */
@@ -1197,11 +1464,20 @@ TXT;
             return null;
         }
         $stop = ['acil', 'yük', 'yuk', 'var', 'lazım', 'lazim', 'palet', 'ton', 'tır', 'tir', 'kamyon', 'kamyonet', 'tenteli', 'komple', 'parsiyel',
-            'araç', 'arac', 'arayan', 'arayanlar', 'için', 'icin', 'ile', 've', 'mal', 'ürün', 'urun', 'çıkış', 'cikis', 'varış', 'varis',
+            'araç', 'arac', 'araclar', 'araçlar', 'arayan', 'arayanlar', 'için', 'icin', 'ile', 've', 'mal', 'ürün', 'urun', 'çıkış', 'cikis', 'varış', 'varis',
             'yükleme', 'yukleme', 'boşaltma', 'bosaltma', 'hazır', 'hazir', 'gidecek', 'gelecek', 'olan', 'yarın', 'yarin', 'bugün', 'bugun',
-            'sabah', 'akşam', 'aksam', 'yükü', 'yuku', 'nakliye', 'dorse', 'frigo', 'kasa'];
-        $words = preg_split('/\s+/u', $value) ?: [];
-        $isStop = fn (string $w) => in_array(TurkishCities::lower($w), $stop, true);
+            'sabah', 'akşam', 'aksam', 'yükü', 'yuku', 'nakliye', 'dorse', 'frigo', 'kasa',
+            'yükler', 'yukler', 'yüklemeli', 'yuklemeli', 'yüklemeler', 'yuklemeler', 'yüklenir', 'yuklenir', 'yüklemem', 'yuklemem', 'yükümüz', 'yukumuz',
+            'iner', 'inecek', 'indirmeli', 'indirme', 'boşaltır', 'bosaltir', 'teslim', 'teslimat', 'tampon', 'bölge', 'bolge',
+            'kapalı', 'kapali', 'açık', 'acik', 'tente', 'tenten', 'firgo', 'firigo', 'damper', 'damperli', 'damperlı', 'dökme', 'dokme',
+            'hemen', 'bugünkü', 'yarınki', 'pazartesi', 'salı', 'sali', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar',
+            'günü', 'gunu', 'saat', 'kadar', 'km', 'usd', 'tl', 'kdv', 'peşin', 'pesin', 'nokta', 'yer', 'civarı', 'civari', 'depo', 'depodan', 'depoma',
+            'osb', 'sanayi', 'termik', 'santral', 'liman', 'limanı', 'limani', 'fabrika', 'merkez', 'basar', 'tonaj', 'tonajlı', 'tonajli', 'uzun', 'kısa', 'kisa',
+            'adet', 'parça', 'parca', 'koli', 'hafif', 'ağır', 'agir', 'yüksek', 'yuksek', 'yan', 'tekstil', 'dorseli', 'tırlar', 'tirlar', 'boş', 'bos',
+            'yerde', 'yerinde', 'yerin', 'ödeme', 'odeme', 'sevkiyat', 'sevkiyatları', 'sevkiyatlari', 'sevkiyatlarımız', 'fatura', 'faturalı', 'faturali', 'kira', 'dolgun', 'günlük', 'gunluk', 'kotalı', 'kotali'];
+        $value = str_replace(['(', ')', '+', '/'], ' ', $value);
+        $words = array_values(array_filter(preg_split('/\s+/u', $value) ?: [], fn ($w) => $w !== ''));
+        $isStop = fn (string $w) => in_array(TurkishCities::lower($w), $stop, true) || preg_match('/^\d/u', $w) === 1;
         while ($words !== [] && $isStop($words[0])) {
             array_shift($words);
         }
@@ -1215,10 +1491,15 @@ TXT;
         $last = array_key_last($words);
         if ($stripDative && TurkishCities::fromText($words[$last]) === null) {
             $w = $words[$last];
+            $stripped = null;
             if (preg_match('/(ya|ye)$/iu', $w) && mb_strlen($w) > 5) {
-                $words[$last] = mb_substr($w, 0, -2);
+                $stripped = mb_substr($w, 0, -2);
             } elseif (preg_match('/[^aeıioöuüAEIİOÖUÜ](a|e)$/iu', $w) && mb_strlen($w) > 4) {
-                $words[$last] = mb_substr($w, 0, -1);
+                $stripped = mb_substr($w, 0, -1);
+            }
+            // Ek atılmış hali çözülüyorsa o ("Aliağaya" → Aliağa); asıl sözcük zaten bir yerse dokunulmaz ("Cizre" → "Cizr" olmaz).
+            if ($stripped !== null && (TurkishLocations::resolve($stripped, false) !== null || TurkishLocations::resolve($w, false) === null)) {
+                $words[$last] = $stripped;
             }
         }
 
