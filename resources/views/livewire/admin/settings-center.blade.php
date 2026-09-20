@@ -61,9 +61,15 @@ new class extends Component {
         'ai_mistral_key' => 'Mistral API anahtarı',
         'ai_claude_model' => 'Claude modeli',
         'ai_claude_key' => 'Claude API anahtarı',
+        'ai_openai_model' => 'OpenAI modeli',
+        'ai_openai_key' => 'OpenAI API anahtarı',
+        'ai_xai_model' => 'Grok modeli',
+        'ai_xai_key' => 'xAI API anahtarı',
+        'ai_kimi_model' => 'Kimi modeli',
+        'ai_kimi_key' => 'Moonshot API anahtarı',
     ];
 
-    public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key'];
+    public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
 
     public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'telegram_post_enabled'];
 
@@ -422,6 +428,12 @@ new class extends Component {
             'scraper.ai_openrouter_key' => 'nullable|string|max:200',
             'scraper.ai_mistral_key' => 'nullable|string|max:200',
             'scraper.ai_claude_key' => 'nullable|string|max:200',
+            'scraper.ai_openai_model' => 'nullable|string|max:120',
+            'scraper.ai_xai_model' => 'nullable|string|max:120',
+            'scraper.ai_kimi_model' => 'nullable|string|max:120',
+            'scraper.ai_openai_key' => 'nullable|string|max:200',
+            'scraper.ai_xai_key' => 'nullable|string|max:200',
+            'scraper.ai_kimi_key' => 'nullable|string|max:200',
         ], [
             'scraper.telegram_bot_token.regex' => 'Bot anahtarı "123456789:AA..." biçiminde olmalıdır.',
             'scraper.telegram_channel_id.regex' => 'Kanal kimliği "@kanaladi" ya da "-100..." biçiminde olmalıdır.',
@@ -636,7 +648,7 @@ new class extends Component {
             </div>
             <div class="space-y-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
                 <h3 class="section-title">Yapay zeka ile ilan çözümleme</h3>
-                <p class="text-[11px] text-neutral-400">Kural tabanlı çözümleme her ilanda ücretsiz çalışır. Yapay zeka; yazım hatalı, dağınık ya da eksik ilanları anlar (il/ilçe, araç, tonaj, fiyat, yük türü, "ilan değil" ayrımı) ve kuralla çelişirse ilanı elle kontrole düşürür. <strong>Anahtarı girilen sağlayıcılar sırayla denenir; günlük kotası dolan atlanır, ertesi gün yeniden denenir.</strong> Ücretsiz katmanlar için kart gerekmez. Anahtarlar veritabanında şifreli tutulur.</p>
+                <p class="text-[11px] text-neutral-400">Kural tabanlı çözümleme her ilanda ücretsiz çalışır. Yapay zeka; yazım hatalı, dağınık ya da eksik ilanları anlar (il/ilçe, araç, tonaj, fiyat, yük türü, "ilan değil" ayrımı) ve kuralla çelişirse ilanı elle kontrole düşürür. <strong>"Her ilanda" kipinde telefon numarası olan her mesaj yapay zekaya gider; ilan mı sohbet mi kararını ve tüm alanları yapay zeka verir, kural yalnız yedektir.</strong> Anahtarı girilen sağlayıcılar sırayla denenir; ücretsizler önce, hız/kota sınırına takılan atlanır. Ücretsiz katmanlar için kart gerekmez; ChatGPT'nin ücretsiz uygulaması API sunmaz, OpenAI/Grok/Kimi anahtarları ücretlidir. Anahtarlar veritabanında şifreli tutulur.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div><label class="form-label">{{ $scraperKeys['ai_parse_mode'] }}</label>
                         <select wire:model="scraper.ai_parse_mode" class="{{ $input }}">@foreach(\App\Services\AiParserService::MODES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>

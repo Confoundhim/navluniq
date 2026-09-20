@@ -74,8 +74,13 @@ class LoadIntakeService
                 return $this->result(202, false, 'source_pending', 'Kaynak yönetici onayı bekliyor.');
             }
 
-            // 4) İlan gibi görünmeyen sohbet mesajları yapay zekaya gitmez.
-            if (! self::looksLikeLoad($raw)) {
+            // 4) Telefonu olmayan mesaj ilan olarak kullanılamaz; yapay zekaya da gitmez (kota).
+            if (! self::hasPhone($raw) && empty($payload['sender_phone'])) {
+                return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
+            }
+            // Yapay zeka öncelikli kipte ("Her ilanda") ilan mı sohbet mi kararını yapay zeka verir; kural ön eleme yalnız
+            // yapay zeka kapalıyken/anahtarsızken uygulanır.
+            if (! $this->parser->aiFirst() && ! self::looksLikeLoad($raw)) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw));
             }
 
@@ -203,10 +208,14 @@ class LoadIntakeService
     }
 
     /** Telefon numarası ve en az bir lojistik işaret (rota, tonaj, fiyat ya da araç/yük sözcüğü) içermeli. */
+    public static function hasPhone(string $text): bool
+    {
+        return (bool) preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $text);
+    }
+
     public static function looksLikeLoad(string $text): bool
     {
-        $hasPhone = (bool) preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $text);
-        if (! $hasPhone) {
+        if (! self::hasPhone($text)) {
             return false;
         }
 

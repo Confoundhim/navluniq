@@ -47,15 +47,25 @@ class NotificationWebhookController extends Controller
         // MacroDroid mesaj metnini JSON'a olduğu gibi gömer; metinde tırnak ya da satır sonu varsa JSON bozulur
         // ve tüm alanlar boş okunur. Bozuk JSON alanları düzenli ifadeyle kurtarılır.
         $repaired = false;
-        if ($request->isJson() && $request->json()->all() === [] && trim((string) $request->getContent()) !== '') {
-            $request->merge(self::repairJson((string) $request->getContent()));
+        $raw = (string) $request->getContent();
+        if ($request->isJson() && $request->json()->all() === [] && trim($raw) !== '') {
+            $request->merge(self::repairJson($raw));
+            $repaired = true;
+        }
+        // Gövdeye "title = {not_title}" satırları olarak yapıştırılmış kurulum (form alanı yerine metin): yine okunur.
+        if ($request->input('token', '') === '' && preg_match('/(^|\n)\s*token\s*=/u', $raw)) {
+            $request->merge(self::parseKeyValueLines($raw));
             $repaired = true;
         }
 
         // Başlık ya da gövde alanı; bazı otomasyon uygulamaları özel başlık gönderemez.
         $providedToken = (string) ($request->header('X-Scraper-Token') ?: $request->input('token', ''));
         if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
-            IntakeEvent::record('unauthorized', ['title' => (string) $request->input('title', ''), 'excerpt' => (string) $request->input('text', ''), 'reason' => $providedToken === '' ? 'token_missing' : 'token_mismatch']);
+            IntakeEvent::record('unauthorized', [
+                'title' => (string) $request->input('title', ''),
+                'excerpt' => (string) ($request->input('text') ?: 'Gelen gövde: '.mb_substr(trim($raw) !== '' ? $raw : http_build_query($request->all()), 0, 200)),
+                'reason' => $providedToken === '' ? 'token_missing' : 'token_mismatch',
+            ]);
 
             return response()->json(['error' => 'Yetkisiz erişim.'], 401);
         }
@@ -100,6 +110,20 @@ class NotificationWebhookController extends Controller
             'summary' => $summary,
             'results' => array_map(fn (array $r) => ['status' => $r['status'], 'message' => $r['message'], 'scraped_load_id' => $r['scraped_load_id'] ?? null], $results),
         ]);
+    }
+
+    /** "title = …" satırlarından alanları okur; text alanı bir sonraki "alan =" satırına kadar çok satırlı olabilir. */
+    public static function parseKeyValueLines(string $raw): array
+    {
+        $keys = 'title|text|text_big|ticker|app|token|posted_at';
+        $out = [];
+        if (preg_match_all('/(?:^|\n)[ \t]*('.$keys.')[ \t]*=[ \t]*(.*?)(?=\n[ \t]*(?:'.$keys.')[ \t]*=|\z)/su', $raw, $m, PREG_SET_ORDER)) {
+            foreach ($m as $hit) {
+                $out[$hit[1]] = trim($hit[2]);
+            }
+        }
+
+        return $out;
     }
 
     /** Bozuk JSON gövdesinden bilinen alanları çıkarır (değer içinde tırnak/satır sonu olsa da). */
