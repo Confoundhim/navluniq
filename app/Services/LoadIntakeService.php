@@ -64,18 +64,22 @@ class LoadIntakeService
             }
 
             // 3) Kaynak onaylı değilse hiçbir ayrıştırma yapılmaz; kota harcanmaz.
-            // Panelden silinmiş (yumuşak silinmiş) kaynak yeniden mesaj atarsa geri getirilir ve onay bekler;
-            // aksi hâlde aynı tanımlayıcıyla ikinci kayıt tekil kısıta takılır.
+            // Panelden silinmiş kaynak: mesaj yok sayılır ama sayılır; yönetici "Silinenler" listesinde görüp
+            // geri alır ya da kalıcı siler. (Aynı tanımlayıcıyla ikinci kayıt açılmaz.)
             $scraper = Scraper::withTrashed()->firstOrNew(
                 ['source_identifier' => $sourceId],
                 ['name' => (string) $payload['group_name'], 'type' => $sourceType, 'is_active' => false]
             );
             if ($scraper->exists && $scraper->trashed()) {
-                $scraper->restore();
-                $scraper->forceFill(['is_active' => false, 'name' => (string) $payload['group_name']])->save();
-            } elseif (! $scraper->exists) {
+                Scraper::withTrashed()->whereKey($scraper->id)->update(['messages_since_deleted' => $scraper->messages_since_deleted + 1, 'last_message_at' => now()]);
+                Cache::forget($seenKey);
+
+                return $this->result(202, false, 'source_deleted', 'Kaynak silinmiş; mesaj yok sayıldı.');
+            }
+            if (! $scraper->exists) {
                 $scraper->save();
             }
+            $scraper->forceFill(['last_message_at' => now()])->saveQuietly();
             if (! $scraper->is_active) {
                 Cache::forget($seenKey); // kaynak açıldığında aynı metin yeniden gelebilsin
 

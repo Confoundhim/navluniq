@@ -19,6 +19,7 @@ class IntakeEvent extends Model
         'unauthorized' => 'Anahtar hatalı',
         'failed' => 'İşlenemedi',
         'ping' => 'Bağlantı sınaması (telefon sunucuya ulaştı)',
+        'source_deleted' => 'Silinmiş kaynaktan mesaj (yok sayıldı)',
     ];
 
     protected $fillable = ['source_name', 'status', 'reason', 'title', 'excerpt', 'scraped_load_id', 'ip', 'created_at'];

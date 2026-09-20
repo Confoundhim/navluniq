@@ -89,7 +89,9 @@ anında, diğerlerine 20 dakika sonra açılır.
 - **Reddedilenler**: kuyruğa geri alma, tek tek veya toplu **kalıcı silme**, "Tümünü temizle". Reddedilenler ayarlardaki
   saklama süresi (varsayılan 7 gün) sonunda kendiliğinden silinir.
 - **Canlı akış**: telefondan gelen isteklerin günlüğü (5 sn'de bir yenilenir).
-- **Kaynaklar ve telefon**: hazır MacroDroid gövdesi, anahtar yenileme, kaynak ekleme/aktif-pasif/silme.
+- **Kaynaklar ve telefon**: hazır MacroDroid gövdesi, anahtar yenileme, kaynak ekleme/aktif-pasif/silme. Silinen kaynak
+  "Silinen kaynaklar" listesine düşer; ondan gelen mesajlar yok sayılır ama sayılır ("silindikten sonra N mesaj"). Oradan
+  **Geri al** (onay bekleyen kaynak olur) ya da **Kalıcı sil** (grup ve ondan gelen tüm adaylar hiç okunmamış gibi silinir).
 - Üstteki rozetler: **Zamanlayıcı** (cron son 3 dakikada çalıştıysa yeşil; kırmızıysa otomatik onay, temizlik ve yapay zeka
   kuyruğu çalışmıyordur — sunucuda `bash /root/update.sh` cron'u yeniden kurar), **Otomatik onay**, **Yapay zeka**.
 - Dış kaynak ilanlar Telegram kanalına gönderilmez; kanal yalnız sistem ilanları içindir (docs/TELEGRAM_KANAL_KURULUM.md).
