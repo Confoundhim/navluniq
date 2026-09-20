@@ -81,14 +81,22 @@ if [[ -f /root/update.sh ]] && ! cmp -s "$APP_DIR/deploy/update.sh" /root/update
     ok "/root/update.sh güncellendi (bir sonraki çalıştırmada geçerli)"
 fi
 
+# Crontab satırını ekler/yeniler. Boru yerine geçici dosya kullanılır: "crontab -" bazı
+# kurulumlarda stdin'i terminalden bekleyip takılıyordu; dosya ile bu olmaz. Her adım en çok 20 sn.
+ensure_cron() {  # ensure_cron <kullanıcı> <eşleşme metni> <satır>
+    local user="$1" match="$2" line="$3" tmp
+    tmp="$(mktemp /tmp/navluniq-cron.XXXXXX)"
+    { timeout 20 crontab -u "$user" -l 2>/dev/null </dev/null | grep -vF "$match" || true; echo "$line"; } > "$tmp"
+    timeout 20 crontab -u "$user" "$tmp" </dev/null || echo "  ! $user crontab yazılamadı; elle ekleyin: $line"
+    rm -f "$tmp"
+}
+
 log "Zamanlayıcı (her dakika)"
-SCHED_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-{ crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$SCHED_LINE"; } | crontab -u www-data -
-ok "www-data crontab: schedule:run (otomatik onay, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
+ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+ok "www-data crontab: schedule:run (otomatik onay, ilan açılışı, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
 
 log "Gece yedeği (03:00)"
-BACKUP_LINE="0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
-{ crontab -l 2>/dev/null | grep -vF "deploy/backup.sh" || true; echo "$BACKUP_LINE"; } | crontab -
+ensure_cron root "deploy/backup.sh" "0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
 ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
 
 log "İzinler ve önbellekler"
