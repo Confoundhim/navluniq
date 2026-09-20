@@ -12,6 +12,19 @@ new
 #[Layout('components.layouts.driver')]
 #[Title('Premium Abonelik')]
 class extends Component {
+    /** Yeni ilan e-postasını aç/kapat (kontrol şoförde; uygulama içi bildirim her zaman devam eder). */
+    public function toggleLoadMail(): void
+    {
+        $profile = Auth::user()->driverProfile;
+        if (! $profile) {
+            return;
+        }
+        $prefs = (array) ($profile->preferences ?? []);
+        $prefs['notify_new_loads'] = ! \App\Services\LoadReleaseService::wantsLoadMail($profile);
+        $profile->update(['preferences' => $prefs]);
+        session()->flash('success_message', $prefs['notify_new_loads'] ? 'Yeni ilan e-postaları açıldı.' : 'Yeni ilan e-postaları kapatıldı; uygulama içi bildirimler devam eder.');
+    }
+
     public function with(): array
     {
         $user = Auth::user();
@@ -21,6 +34,7 @@ class extends Component {
             'profile' => $profile,
             'isPremium' => $profile?->isPremium() ?? false,
             'premiumUntil' => $profile?->premium_until,
+            'loadMail' => $profile ? \App\Services\LoadReleaseService::wantsLoadMail($profile) : true,
             'monthlyPrice' => Settings::float('premium_monthly_price'),
             'standardRate' => Settings::float('commission_standard_driver'),
             'paymentReady' => app(PaymentService::class)->isConfigured(),
@@ -87,7 +101,10 @@ class extends Component {
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Anında bildirim</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Aracınıza uygun yeni ilan yayınlandığı anda bildirim alırsınız; ilk teklifi siz verirsiniz.</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Aracınıza uygun yeni ilan yayınlandığı anda uygulama içi bildirim ve e-posta alırsınız; ilk teklifi siz verirsiniz.</div>
+                        <button type="button" wire:click="toggleLoadMail" class="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold {{ $loadMail ? 'text-emerald-600' : 'text-neutral-500' }} hover:underline">
+                            <span class="w-2 h-2 rounded-full {{ $loadMail ? 'bg-emerald-500' : 'bg-neutral-400' }}"></span>{{ $loadMail ? 'E-posta: açık · kapat' : 'E-posta: kapalı · aç' }}
+                        </button>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Dış kaynakta tam numara</div>

@@ -62,6 +62,8 @@ class CompanyProfileSettingsTest extends TestCase
         $this->assertStringContainsString('{{COMPANY_NAME}}', (string) CmsContent::getVal('contract_kvkk'));
         $this->assertStringContainsString('Dış Kaynak İlanları', (string) CmsContent::getVal('contract_kvkk'));
         $this->assertStringContainsString('3.3 Dış Kaynak İlanları', (string) CmsContent::getVal('contract_terms'));
+        $this->assertStringContainsString('4.4 Bildirimler ve E-posta Tercihi', (string) CmsContent::getVal('contract_terms'));
+        $this->assertStringContainsString('şoför panelinden her zaman kapatılıp açılabilir', (string) CmsContent::getVal('contract_kvkk'));
 
         // Dış kaynak maddesi olmayan (önceki sürüm) metin eski sayılır ve yenilenir.
         CmsContent::setVal('contract_terms', '<p>{{COMPANY_NAME}} eski sözleşme</p>');

@@ -76,19 +76,30 @@ class LoadReleaseService
                     if (! $profile->user || ! $this->vehicleFits($profile, $load)) {
                         continue;
                     }
+                    // E-posta yalnız premium şoföre ve tercihinde açıksa (Profil → Bildirim tercihleri / Premium sayfası).
+                    $mail = $premium && self::wantsLoadMail($profile);
                     $title = ($premium ? '⭐ Erken erişim: ' : 'Yeni ilan: ').$load->pickup_location.' → '.$load->delivery_location;
                     $lines = array_values(array_filter([
-                        $load->goods_type.($load->weight ? ' · '.number_format((int) $load->weight / 1000, 1, ',', '.').' ton' : '').' · '.(VehicleTypes::label($load->vehicle_type) ?? $load->vehicle_type),
+                        $load->goods_type.($load->weight ? ' · '.number_format((int) $load->weight / 1000, 1, ',', '.').' ton' : '').' · '.VehicleTypes::label($load->vehicle_type),
                         (float) $load->price > 0 ? 'Navlun: '.number_format((float) $load->price, 0, ',', '.').' ₺' : null,
                         $load->pickup_date ? 'Yükleme: '.$load->pickup_date->format('d.m.Y') : null,
                         $premium ? 'Premium üyelere '.$this->delayMinutes().' dakika önce açıldı; teklifinizi şimdi verin.' : null,
+                        $mail ? self::MAIL_OPT_OUT_LINE : null,
                     ]));
-                    $this->notifications->notify($profile->user, $title, $lines, route('driver.loads.index', ['ilan' => $load->id]), 'İlanı gör', 'load', sendMail: false);
+                    $this->notifications->notify($profile->user, $title, $lines, route('driver.loads.index', ['ilan' => $load->id]), 'İlanı gör', 'load', sendMail: $mail);
                     $sent++;
                 }
             });
 
         return $sent;
+    }
+
+    public const MAIL_OPT_OUT_LINE = 'Bu e-posta premium üyeliğinizin bir parçasıdır; kontrol sizde: şoför panelinizde Premium sayfasından veya Profil → Bildirim tercihleri\'nden yeni ilan e-postalarını istediğiniz zaman kapatıp yeniden açabilirsiniz. Uygulama içi bildirimler devam eder.';
+
+    /** Şoför yeni ilan e-postası istiyor mu? (varsayılan açık) */
+    public static function wantsLoadMail(DriverProfile $profile): bool
+    {
+        return (bool) (($profile->preferences ?? [])['notify_new_loads'] ?? true);
     }
 
     private function vehicleFits(DriverProfile $profile, Load $load): bool
