@@ -264,7 +264,8 @@ class ScrapedLoadService
         // Yayın öncesi son standartlaştırma: eski kayıtlar ve sonradan iyileşen sözlükler için.
         app(LoadStandardizer::class)->restandardize($load);
         $load->refresh();
-        if (! $load->pickup_province_code || ! $load->delivery_province_code) {
+        $intl = (array) $load->meta('international', []);
+        if ((! $load->pickup_province_code && empty($intl['pickup'])) || (! $load->delivery_province_code && empty($intl['delivery']))) {
             throw new RuntimeException('Kalkış ya da varış ili çözülemedi; ilanı düzenleyip ili seçin.');
         }
 
@@ -306,8 +307,9 @@ class ScrapedLoadService
             return 'rota eksik';
         }
         // İl kodu kayıtta yoksa kataloğa bakılır (eski kayıtlar onay sırasında standartlaştırılır).
-        $pickupOk = $load->pickup_province_code || TurkishLocations::resolve($load->pickup_location) !== null;
-        $deliveryOk = $load->delivery_province_code || TurkishLocations::resolve($load->delivery_location) !== null;
+        $intl = (array) $load->meta('international', []);
+        $pickupOk = $load->pickup_province_code || ! empty($intl['pickup']) || TurkishLocations::resolve($load->pickup_location) !== null;
+        $deliveryOk = $load->delivery_province_code || ! empty($intl['delivery']) || TurkishLocations::resolve($load->delivery_location) !== null;
         if (! $pickupOk || ! $deliveryOk) {
             return 'il çözülemedi';
         }

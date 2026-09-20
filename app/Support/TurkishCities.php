@@ -25,6 +25,10 @@ final class TurkishCities
         'gantep' => 'Gaziantep', 'ank' => 'Ankara', 'izm' => 'İzmir', 'istanbul' => 'İstanbul', 'stanbul' => 'İstanbul',
         'ıstanbul' => 'İstanbul', 'kmaras' => 'Kahramanmaraş', 'sanliurfa' => 'Şanlıurfa', 'diyarbekir' => 'Diyarbakır',
         'trabzon' => 'Trabzon', 'ada' => 'Adana', 'mrs' => 'Mersin', 'ist.' => 'İstanbul', 'izmir' => 'İzmir',
+        'kmaraş' => 'Kahramanmaraş', 'k.maraş' => 'Kahramanmaraş', 'k.maras' => 'Kahramanmaraş', 'kahramanmaras' => 'Kahramanmaraş', 'gaziantep' => 'Gaziantep',
+        'ş.urfa' => 'Şanlıurfa', 's.urfa' => 'Şanlıurfa', 'surfa' => 'Şanlıurfa', 'sanli' => 'Şanlıurfa', 'd.bakır' => 'Diyarbakır', 'd.bakir' => 'Diyarbakır', 'dbakir' => 'Diyarbakır',
+        'eskişehr' => 'Eskişehir', 'esk' => 'Eskişehir', 'ktahya' => 'Kütahya', 'a.karahisar' => 'Afyonkarahisar', 'akarahisar' => 'Afyonkarahisar',
+        'anadolu' => 'İstanbul', 'avrupa' => 'İstanbul', 'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
     ];
 
     private const SUFFIXES = ['ından', 'inden', 'undan', 'ünden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'ı', 'i', 'u', 'ü'];
@@ -47,7 +51,13 @@ final class TurkishCities
         if ($text === null || trim($text) === '') {
             return null;
         }
-        $first = strtok(trim(preg_replace("/[’'‘`]/u", '', $text) ?? $text), " \t\n,.;:-");
+        $clean = trim(preg_replace("/[’'‘`]/u", '', $text) ?? $text);
+        // Noktalı kısaltma ("K.Maraş", "Ş.Urfa", "D.Bakır") önce bütün olarak takma ad listesinde aranır
+        $dotted = strtok($clean, " \t\n,;:");
+        if ($dotted !== false && str_contains($dotted, '.') && isset(self::ALIASES[self::ascii(rtrim($dotted, '.'))])) {
+            return self::ALIASES[self::ascii(rtrim($dotted, '.'))];
+        }
+        $first = strtok($clean, " \t\n,.;:-");
         if ($first === false || $first === '') {
             return null;
         }
@@ -65,6 +75,9 @@ final class TurkishCities
                 $stem = substr($token, 0, -strlen($suffix));
                 if (strlen($stem) >= 3 && isset($map[$stem])) {
                     return $map[$stem];
+                }
+                if (strlen($stem) >= 3 && isset(self::ALIASES[$stem])) {
+                    return self::ALIASES[$stem]; // "antepe", "urfadan", "izmitten"
                 }
             }
         }

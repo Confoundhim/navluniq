@@ -8,6 +8,7 @@ use App\Support\GoodsCatalog;
 use App\Support\Lexicon;
 use App\Support\Phone;
 use App\Support\Settings;
+use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\VehicleClassifier;
 use Illuminate\Support\Facades\Cache;
@@ -106,9 +107,17 @@ class LoadIntakeService
             if (! self::hasPhone($raw) && $fallbackPhone === null) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
             }
+            // Kiril/Arap alfabesiyle yazılmış (Rusça, Arapça…) mesaj Türkiye ilanı değildir; kota harcamadan elenir.
+            if (TextPrep::isForeignScript($raw)) {
+                return $this->result(200, false, 'filtered', 'Yabancı alfabe; ilan değil.', null, 'foreign_script');
+            }
             // Yöneticinin öğrettiği "ilan değil" ifadesi (satılık, iş arıyorum…) her kipte kota harcamadan eler.
             if (Lexicon::isNotLoad($raw)) {
                 return $this->result(200, false, 'filtered', 'Sözlük: ilan değil ifadesi.', null, 'lexicon_not_load');
+            }
+            // Gruplardan öğrenilen sabit kalıplar: boş araç / şoför arayan / fatura reklamı / satılık → ilan değil.
+            if (self::isNotLoadPattern($raw)) {
+                return $this->result(200, false, 'filtered', 'İlan değil (boş araç, şoför/eleman ilanı, reklam).', null, 'not_load_pattern');
             }
             $aiFirst = $this->parser->aiFirst();
             // Yapay zeka öncelikli kipte ("Her ilanda") ilan mı sohbet mi kararını yapay zeka verir; kural ön eleme yalnız
@@ -325,7 +334,7 @@ class LoadIntakeService
             'weight' => $std['weight'],
             'price' => $std['price'],
             'currency' => 'TRY',
-            'status' => ($std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) ? 'parsed_success' : 'parsed_partial',
+            'status' => (($std['pickup_province_code'] !== null || ! empty($std['metadata']['international']['pickup'])) && ($std['delivery_province_code'] !== null || ! empty($std['metadata']['international']['delivery']))) ? 'parsed_success' : 'parsed_partial',
             'parsed_by_llm' => $parsed['parsed_by_llm'] ?? 'unknown',
             'parse_confidence' => $ai['data']['confidence'] ?? null,
             'ai_status' => $ai['status'],
@@ -345,7 +354,8 @@ class LoadIntakeService
 
         // Yapay zeka yüksek güvenle çözdüyse bu gönderenin kalıbı öğrenilir; sonraki aynı kalıp yapay zekasız okunur.
         if (($ai['data']['provider'] ?? null) !== 'template' && $ai['status'] === 'done' && (float) ($ai['data']['confidence'] ?? 0) >= 0.8
-            && empty($parsed['ai_conflict']) && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
+            && empty($parsed['ai_conflict']) && ($std['pickup_province_code'] !== null || ! empty($std['metadata']['international']['pickup']))
+            && ($std['delivery_province_code'] !== null || ! empty($std['metadata']['international']['delivery']))) {
             $this->templates->learn($phone, $text, $std['pickup_location'], $std['delivery_location'], $std['vehicle_type'], $ai['data']['goods_category'] ?? null, true, (float) $ai['data']['confidence'], $scrapedLoad->id);
         }
 
@@ -451,8 +461,11 @@ class LoadIntakeService
         if ($raw === '') {
             return [];
         }
+        $prepared = TextPrep::prepare($raw); // biçim işaretleri, emoji oklar ve süs satırları (blok ayırıcı) temizlenir
         $units = [];
-        foreach (preg_split('/\n[ \t]*\n+/u', $raw) ?: [] as $block) {
+        $carryHeader = null; // varışı olmayan başlık ("Çorlu yükler") boş satırdan sonraki bloklara taşınır
+        $carryPlace = null;
+        foreach (preg_split('/\n[ \t]*\n+/u', $prepared) ?: [] as $block) {
             $block = trim($block);
             if ($block === '') {
                 continue;
@@ -461,16 +474,56 @@ class LoadIntakeService
             $pair = null; // parçanın rotası [kalkış ili, varış ili]
             $provinces = []; // parçanın şimdiye kadarki farklı illeri (yazım sırasıyla)
             $hasPhone = false;
+            $header = null; // "X yükler / yüklemeli / Xden" başlık satırı: sonraki her varış satırı ayrı ilan
+            $headerPlace = null;
+            $destInCurrent = false;
+            $blockLines = preg_split('/\n/u', $block) ?: [];
+            $blockHasPairLine = array_filter($blockLines, fn ($l) => AiParserService::routePair($l) !== null) !== [];
+            if ($carryHeader !== null && ! $blockHasPairLine && AiParserService::placesIn($block, 1) !== []) {
+                $header = $carryHeader;
+                $headerPlace = $carryPlace;
+                $current[] = $carryHeader;
+            }
             foreach (preg_split('/\n/u', $block) ?: [] as $line) {
                 $lineProvinces = AiParserService::provincesIn($line, 2);
                 $linePair = AiParserService::routePair($line); // "Beykoz-Şanlıurfa" gibi ilçeli yazımlar da rota sayılır
                 $split = false;
+                $linePlaces = AiParserService::placesIn($line, 2);
+                // Başlık: "X yükler/yüklemeli/yükleme", "Xden", "X DAN", "NEVŞEHİR DENGE BİMSDEN" (son sözcük ayrılma ekli)
+                $isHeader = $linePair === null && $linePlaces !== [] && ! self::hasPhone($line)
+                    && (preg_match(AiParserService::PICKUP_VERBS, $line) === 1
+                        || preg_match('/^\p{L}+(?:dan|den|tan|ten)\s*$/iu', trim($line)) === 1
+                        || preg_match('/^\p{L}+(?:\s+\p{L}+){0,3}\s+(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*(?:\p{L}+\s*){0,2}$/iu', trim($line)) === 1
+                        || preg_match('/^(?:\p{L}+\s+){0,3}\p{L}{4,}(?:dan|den|tan|ten)\s*$/iu', trim($line)) === 1);
+                if ($isHeader) {
+                    // Yeni başlık: önceki başlığın son varışını kapat.
+                    if ($header !== null && $destInCurrent && $current !== []) {
+                        $units[] = self::unit(implode("\n", $current));
+                        $current = [];
+                        $pair = null;
+                        $provinces = [];
+                        $hasPhone = false;
+                    }
+                    $header = $line;
+                    $headerPlace = $linePlaces[0]['label'];
+                    $destInCurrent = false;
+                } elseif ($header !== null && $linePair === null && $linePlaces !== [] && $linePlaces[0]['label'] !== $headerPlace) {
+                    // Başlık altındaki varış satırı ("İSTANBUL ESENYURT", "DENİZLİ BOŞALTIR", "Çorlu damperli 15 araç")
+                    if ($destInCurrent) {
+                        $units[] = self::unit(implode("\n", $current));
+                        $current = [$header];
+                        $pair = null;
+                        $provinces = [];
+                        $hasPhone = false;
+                    }
+                    $destInCurrent = true;
+                }
                 if ($current !== [] && $pair !== null) {
                     // Parça zaten bir rota taşıyor: farklı rotalı satır ("Bursa-Konya 10 ton") yeni ilan;
                     // numarası da yazılmış tam bir ilandan sonra yeni bir il satırı ("📍 Bursa") yeni ilan.
-                    if ($linePair !== null && $linePair !== $pair) {
+                    if ($linePair !== null && self::pairDiffers($pair, $linePair)) {
                         $split = true;
-                    } elseif ($hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true) && ! in_array($lineProvinces[0], $pair, true)) {
+                    } elseif ($hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true) && ! in_array($lineProvinces[0], array_map(fn ($v) => (string) strtok($v, ' '), $pair), true)) {
                         $split = true;
                     }
                 } elseif ($current !== [] && count($provinces) >= 2 && $hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true)) {
@@ -482,6 +535,10 @@ class LoadIntakeService
                     $pair = null;
                     $provinces = [];
                     $hasPhone = false;
+                    if ($linePair !== null) {
+                        $header = null; // bağlaçlı rota satırları başlık düzenini bitirir
+                        $destInCurrent = false;
+                    }
                 }
                 $current[] = $line;
                 $pair ??= $linePair;
@@ -495,9 +552,33 @@ class LoadIntakeService
             if ($current !== []) {
                 $units[] = self::unit(implode("\n", $current));
             }
+            if ($header !== null && ! $destInCurrent) {
+                $carryHeader = $header; // "Çorlu yükler" + boş satır + varış listesi
+                $carryPlace = $headerPlace;
+            } elseif ($header !== null || $pair !== null) {
+                $carryHeader = null;
+                $carryPlace = null;
+            }
         }
+        // Yalnız numara/isim taşıyan parçalar ("0533 811 88 10 ⏎ 0535 250 50 47") ilan değildir: numaraları komşuya geçer.
+        $kept = [];
+        foreach ($units as $unit) {
+            $letters = preg_replace(AiParserService::PHONE_PATTERN, '', $unit['text']) ?? $unit['text'];
+            if (! $unit['route'] && AiParserService::placesIn($unit['text'], 1) === [] && mb_strlen(preg_replace('/[^\p{L}]/u', '', $letters) ?? '') < 12) {
+                $target = array_key_last($kept);
+                if ($target !== null) {
+                    $kept[$target] = self::join($kept[$target], $unit);
+                } else {
+                    $kept[] = $unit; // öndeyse sıradaki parçaya eklenir (aşağıdaki birleştirme)
+                }
+
+                continue;
+            }
+            $kept[] = $unit;
+        }
+        $units = $kept;
         if ($units === []) {
-            return [];
+            return [['text' => $raw, 'phones' => self::withFallback(AiParserService::phonesIn($raw), $fallbackPhone), 'index' => 0, 'count' => 1]];
         }
         if (count($units) === 1) {
             return [['text' => $raw, 'phones' => self::withFallback($units[0]['phones'], $fallbackPhone), 'index' => 0, 'count' => 1]];
@@ -549,6 +630,21 @@ class LoadIntakeService
             return [['text' => $raw, 'phones' => self::withFallback($final[0]['phones'], $fallbackPhone), 'index' => 0, 'count' => 1]];
         }
 
+        // Ortak bağlam: mesajın başındaki/sonundaki yer adı içermeyen satırlar ("KAPALI TIR", "13-60 TENTELİ-FRİGO",
+        // "ARAÇLAR DAMPER DORSE OLACAK", "ÖDEME PEŞİN") her ilana aittir; araç/yük/fiyat çıkarımı için her parçaya eklenir.
+        $shared = [];
+        foreach (preg_split('/\n[ \t]*\n+/u', $prepared) ?: [] as $block) {
+            $block = trim($block);
+            if ($block === '' || AiParserService::placesIn($block, 1) !== [] || AiParserService::routePair($block) !== null) {
+                continue;
+            }
+            $stripped = trim(preg_replace(AiParserService::PHONE_PATTERN, ' ', $block) ?? $block);
+            if (preg_match('/[\p{L}]{3,}/u', $stripped) && preg_match('/(?<!\p{L})(?:tır|tir|dorse|damper|tente|frigo|firgo|kapalı|kapali|açık|acik|teker|kamyon|kamyonet|panelvan|araç|arac|ton|palet|kdv|peşin|pesin|nakit|dökme|dokme|13[.,\/\- ]?60|1360|8[.,]60|uzun|kısa|kisa|basar|tonaj)(?!\p{L})/iu', $stripped)) {
+                $shared[] = $stripped;
+            }
+        }
+        $sharedText = implode("\n", array_unique($shared));
+
         // Numarasız rota parçaları en yakın numaralı parçanın numaralarını devralır (ortak irtibat).
         $count = count($final);
         $out = [];
@@ -556,16 +652,26 @@ class LoadIntakeService
             $phones = $unit['phones'];
             $inherited = false;
             if ($phones === []) {
-                foreach ([1, -1, 2, -2, 3, -3, 4, -4, 5, -5] as $offset) {
-                    if (isset($final[$i + $offset]) && $final[$i + $offset]['phones'] !== []) {
-                        $phones = $final[$i + $offset]['phones'];
-                        $inherited = true;
-                        break;
+                // En yakın numaralı parça (önce sonraki, sonra önceki; mesafe sınırsız: 10 bloklu listelerde numara sondadır)
+                for ($offset = 1; $offset < $count && ! $inherited; $offset++) {
+                    foreach ([$i + $offset, $i - $offset] as $j) {
+                        if (isset($final[$j]) && $final[$j]['phones'] !== []) {
+                            $phones = $final[$j]['phones'];
+                            $inherited = true;
+                            break;
+                        }
                     }
+                }
+                if (! $inherited && ($all = AiParserService::phonesIn($raw)) !== []) {
+                    $phones = $all;
+                    $inherited = true;
                 }
             }
             $phones = self::withFallback($phones, $fallbackPhone);
             $text = $unit['text'];
+            if ($sharedText !== '' && ! str_contains($text, $sharedText)) {
+                $text .= "\n".$sharedText;
+            }
             if ($inherited && $phones !== []) {
                 $text .= "\n☎️ ".implode(', ', array_map(fn (string $p) => Phone::format($p), $phones));
             }
@@ -573,6 +679,29 @@ class LoadIntakeService
         }
 
         return array_slice($out, 0, self::MAX_ADS_PER_MESSAGE);
+    }
+
+    /**
+     * İki rota farklı ilan mı? İller farklıysa evet. Aynı il çiftinde: iki satır da ilçe yazmış ve ilçeler farklıysa evet
+     * ("Bandırma → Hendek" / "Bandırma → Adapazarı"); biri ilçesiz, öteki ilçeliyse aynı ilanın ayrıntısıdır
+     * ("Ankara → İstanbul" / "Ankara Ostim yükleme İstanbul Kartal teslim").
+     */
+    private static function pairDiffers(array $a, array $b): bool
+    {
+        foreach ([0, 1] as $i) {
+            $pa = (string) strtok($a[$i], ' ');
+            $pb = (string) strtok($b[$i], ' ');
+            if ($pa !== $pb) {
+                return true;
+            }
+            $da = trim(mb_substr($a[$i], mb_strlen($pa)));
+            $db = trim(mb_substr($b[$i], mb_strlen($pb)));
+            if ($da !== '' && $db !== '' && $da !== $db) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function unit(string $text): array
@@ -637,12 +766,23 @@ class LoadIntakeService
         return (bool) preg_match(AiParserService::PHONE_PATTERN, $text);
     }
 
+    /**
+     * İlan olmayan ama telefonlu ve rota içerebilen mesajlar: boş araç ilanı (şoför yük arıyor), şoför/eleman ilanı,
+     * fatura/fiş reklamı, satılık/kiralık araç. Yük gruplarındaki 9.000 mesajdan derlendi.
+     */
+    public const NOT_LOAD_PATTERN = '/(?<!\p{L})(?:e-?fatura|e-?arşiv|e-?arsiv|gider fişi|gider fisi|utts|sgk yapılır|sgk yapilir|kdv açığ|kdv acig|beyanname|iş ilanı|is ilani|eleman aran|arkadaşlar aran|arkadaslar aran|şoför aran|sofor aran|şoför arıyor|sofor ariyor|şoför lazım|sofor lazim|şoförüm|soforum|iş arıyorum|is ariyorum|iş bakıyorum|boştayım|bostayim|boşum\b|bosum\b|boş\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse|\d+\s*teker)|boşta\b|bosta\b|yük arıyor|yuk ariyor|yük bakıyor|yuk bakiyor|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
+
+    public static function isNotLoadPattern(string $text): bool
+    {
+        return preg_match(self::NOT_LOAD_PATTERN, $text) === 1;
+    }
+
     public static function looksLikeLoad(string $text): bool
     {
         if (! self::hasPhone($text)) {
             return false;
         }
-        if (Lexicon::isNotLoad($text)) {
+        if (Lexicon::isNotLoad($text) || TextPrep::isForeignScript($text) || self::isNotLoadPattern($text)) {
             return false;
         }
         if (Lexicon::hasLoadSignal($text)) {
@@ -653,7 +793,9 @@ class LoadIntakeService
         $hasWeight = (bool) preg_match('/\d[\d.,]*\s*(?:kg|ton|tn|t|palet|koli|adet|m3)(?!\p{L})/iu', $text);
         // "Ankara-İzmir", "Ankaradan İzmire", "Diyarbakr dan Ankaraya", "Ankara → İzmir"
         $hasRoute = (bool) preg_match('/\p{L}{3,}\s*(?:->|→|>|-|–|—)\s*\p{L}{3,}|\p{L}{3,}\s*(?:dan|den|tan|ten)\s+\p{L}{3,}/iu', $text);
-        $hasKeyword = (bool) preg_match('/(?<!\p{L})(?:yük|yuk|yükü|nakliye|nakliyat|tır|tir|kamyon|kamyonet|dorse|tenteli|tente|parsiyel|komple|araç|arac|sevkiyat|yükleme|yukleme|teslim|palet|frigo|lowbed|kırkayak|panelvan|çekici|cekici|navlun|gidecek|taşınacak|tasinacak|lazım|lazim|aranıyor|araniyor|arayan|boşta|bosta|yükleyecek)(?!\p{L})/iu', $text);
+        $hasKeyword = (bool) preg_match('/(?<!\p{L})(?:yük|yuk|yükü|yükler|yukler|yüklemeli|yuklemeli|yüklenir|yuklenir|yüklemem|nakliye|nakliyat|tır|tir|kamyon|kamyonet|dorse|tenteli|tente|tenten|parsiyel|komple|araç|arac|sevkiyat|yükleme|yukleme|teslim|iner|indirmeli|boşaltır|bosaltir|palet|frigo|firgo|firigo|termokin|thermoking|lowbed|kırkayak|kirkayak|panelvan|çekici|cekici|navlun|gidecek|taşınacak|tasinacak|lazım|lazim|aranıyor|araniyor|arayan|boşta|bosta|yükleyecek|dökme|dokme|damper|damperli|kapalı|kapali|açık|acik|basar|tonaj|kdv|peşin|pesin|teker|dingil|koli|nokta|kapak)(?!\p{L})/iu', $text)
+            || (bool) preg_match('/(?<!\d)(?:13[.,\-\/ ]?60|1360|8[.,]60|860)(?!\d)/u', $text);
+        $hasRoute = $hasRoute || count(AiParserService::placesIn($text, 2)) === 2; // "Ankara Denizli ⏎ az parça": iki yer adı rota sayılır
         $norm = VehicleClassifier::normalize($text);
         $hasGoods = GoodsCatalog::detect($norm) !== null;
         $hasVehicle = VehicleClassifier::analyze($text)['type'] !== null;

@@ -21,6 +21,16 @@ final class VehicleClassifier
     private const NOUNS = [
         // TIR ailesi
         '/\btir(?:lar|lari|lik|la|i|a|e|in|im|dan|da|imiz|iniz|lara|larla|lardan|larda)?\b/' => ['tir', 10],
+        // "13.60", "1360", "13-60", "13/60": dorse uzunluğu = tır; "kısa dorse" (10-11 m), "sal dorse", "2 kapak", "40 ayak konteyner", "uzun araç"
+        '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])/' => ['tir', 10],
+        '/\bkisa\s+dorse\b|\bsal\s+dorse\b|\bsal\b(?=\s+(?:dorse|8\.60|860|damper))|\b\d\s*kapak\b|\b40\s*ayak\b|\b20\s*ayak\b|\bkonteyn[ie]r\b|\buzun\s+arac\b|\btirlik\b/' => ['tir', 9],
+        '/\btente(?:li|n|si|le|siz)?\b|\btnt\b|\btentli\b/' => ['tir', 7],
+        '/\bfr[iı]?[iı]?go(?:rifik|lu|dur|su|lar)?\b|\bfirgo\b|\bfirigo\b|\btermo\s?k[iı]ng?\b|\bthermo\s?king\b|\btermokin\b/' => ['tir', 6],
+        // "8.60 damperli", "8.60 kasa": 8.60 m kasa = 10 teker kamyon; "6.20/6.50 metre" = 6-8 teker; "3-4.5 metre" = kamyonet/panelvan
+        '/(?<![\d.,])(?:8[.,]60|860)(?![\d])/' => ['10_teker_kamyon', 9],
+        '/(?<![\d.,])(?:6[.,][2-5]\d?|7[.,]\d\d?)\s*(?:m|mt|metre|mtre)\b/' => ['8_teker_kamyon', 7],
+        '/(?<![\d.,])(?:4[.,][2-9]\d?|5[.,]\d\d?|6[.,]0\d?|[56])\s*(?:m|mt|metre|mtre)\b/' => ['6_teker_kamyon', 7],
+        '/(?<![\d.,])(?:2[.,]\d\d?|3[.,]?\d?\d?|4[.,]?[01]?)\s*(?:m|mt|metre|mtre)\b/' => ['kamyonet', 7],
         '/\bcekici(?:ler|li|yle|si|ye|den|de|m|miz)?\b/' => ['tir', 9],
         '/\bdorse(?:ler|li|yle|si|ye|den|de|m|miz|lik)?\b/' => ['tir', 9],
         '/\bkirk\s?ayak(?:lar|la|li|i|a|in)?\b/' => ['kirkayak', 10],
@@ -53,7 +63,12 @@ final class VehicleClassifier
         '/\btent(?:e|eli|elidir|eliler|esiz|elik)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => 'tir', 'score' => 6],
         '/\b(?:mega|lowbed|low\s?bed|lowbet|lobed|silobas|silo\s?bas|tanker|konteyn[ie]r|platform|jumbo\s+dorse|13[.,]60?)\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 6],
         '/\bfrigo(?:rifik|lu|dur)?\b|\bsogutucu(?:lu)?\b|\bsogutmali\b/' => ['family' => ['tir', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'orta_panelvan'], 'default' => 'tir', 'score' => 3],
-        '/\bdamper(?:li|le|i)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => '10_teker_kamyon', 'score' => 3],
+        '/\bdamper(?:li|le|i|ler|lidir|liler)?\b|\bdanper(?:li)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => '10_teker_kamyon', 'score' => 3],
+        // Dökme kömür/klinker/maden yükleri damperli tır ya da kırkayakla taşınır; "sınırsız damperli araç", "basar tonaj" → tır
+        '/\b(?:dokme|basar\s+tonaj|sinirsiz\s+damper\w*|tonajini\s+alir|serbest\s+tonaj)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
+        '/\byuksek\s+yan\b/' => ['family' => ['10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => '10_teker_kamyon', 'score' => 3],
+        '/\bkapali\s+(?:tir|arac|araclar|dorse)\b|\bacik\s+(?:tir|arac|araclar|dorse)\b|\bkapali\s*\/\s*acik\b|\bacik\s*\/\s*kapali\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 5],
+        '/\bats\s?li\b|\bustten\s+yukleme\b|\bmega\s+tente\w*\b|\btekstil\s+dorse\w*\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 4],
         '/\bkapali\s+kasa\b/' => ['family' => ['tir', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'uzun_panelvan', 'orta_panelvan'], 'default' => 'kamyonet', 'score' => 3],
         '/\bacik\s+kasa\b/' => ['family' => ['10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => 'kamyonet', 'score' => 3],
         '/\b(?:komple|tirlik|full\s+tir|full\s+arac|full\s+yuk|ftl)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
@@ -184,8 +199,10 @@ final class VehicleClassifier
     {
         $num = '(\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?)';
         // Aralık: "20-25 ton", "20/25 ton", "20 25 ton", "20 ile 25 ton"
-        if (preg_match('/(?<![\d.])'.$num.'\s*(?:-|\/|ile|ila|veya)\s*'.$num.'\s*(ton|tn|t|tonluk|tonu|tonlarda)(?!\p{L})/', $norm, $m)) {
-            $hi = max(self::toNumber($m[1]), self::toNumber($m[2]));
+        // "0-25 ton", "0-21-22 ton", "20 25 ton", "10 12 ton": aralığın üst sınırı
+        if (preg_match('/(?<![\d.])'.$num.'(?:\s*(?:-|\/|ile|ila|veya|\s)\s*'.$num.'){1,2}\s*(ton|tn|t|tonluk|tonu|tonlarda|tonlar)(?!\p{L})/', $norm, $m)) {
+            preg_match_all('/\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?/', $m[0], $nums);
+            $hi = max(array_map(fn ($n) => self::toNumber($n), $nums[0]));
 
             return $hi > 0 && $hi <= 60 ? (int) round($hi * 1000) : null;
         }

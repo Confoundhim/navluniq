@@ -96,7 +96,7 @@ class VehicleClassifierTest extends TestCase
         $this->assertSame('keyword', $r['source']);
         $this->assertSame(24000, $r['weight_kg']);
 
-        $this->assertSame('hint', VehicleClassifier::analyze('Tenteli lazım Ankara İzmir')['source']);
+        $this->assertSame('keyword', VehicleClassifier::analyze('Tenteli lazım Ankara İzmir')['source']);
         $this->assertSame('weight', VehicleClassifier::analyze('26 ton yük')['source']);
         $this->assertSame('pallet', VehicleClassifier::analyze('33 palet yük')['source']);
         $this->assertSame('volume', VehicleClassifier::analyze('90 m3 yük')['source']);

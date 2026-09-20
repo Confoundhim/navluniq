@@ -117,7 +117,10 @@ class LoadIntakeTest extends TestCase
         Settings::set('ai_groq_key', 'gsk-test');
         Settings::set('ai_groq_model', 'llama-test');
         Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['post_type' => 'other', 'confidence' => 0.95, 'sender_phone' => '5330000001', 'pickup' => null, 'delivery' => null, 'goods' => null, 'goods_category' => null, 'vehicle_type' => null, 'vehicle_flexible' => false, 'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => 'satılık araç ilanı'])]]]])]);
+        // "Satılık" gibi sabit kalıplar zaten kuralla elenir (kota yok); kalıba uymayan sohbette karar yapay zekanın.
         $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Satılık 2018 model kamyonet temiz 0533 000 00 01', 'message_id' => 'x3', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame(['filtered', 'not_load_pattern'], [$r['status'], $r['reason'] ?? null]);
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Arkadaşlar Ostimde çay içen var mı gelin 0533 000 00 01', 'message_id' => 'x4', 'source_jid' => '1203630000001@g.us']);
         $this->assertSame(['filtered', 'ai_not_load'], [$r['status'], $r['reason'] ?? null]);
         Http::assertSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
     }
@@ -178,7 +181,7 @@ class LoadIntakeTest extends TestCase
         $intake = app(LoadIntakeService::class);
         $this->activeSource();
 
-        $first = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Yükümüz hazır, Ostim çıkış Aliağa varış, palet, tenteli arayanlar 0532 123 45 67', 'message_id' => 'a1', 'source_jid' => '1203630000001@g.us']);
+        $first = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Yükümüz hazır, fabrikadan limana palet, tenteli arayanlar 0532 123 45 67', 'message_id' => 'a1', 'source_jid' => '1203630000001@g.us']);
         $this->assertSame('created', $first['status']);
         $this->assertSame('gemini', ScrapedLoad::first()->parsed_by_llm);
         Http::assertSentCount(1);
@@ -281,7 +284,7 @@ class LoadIntakeTest extends TestCase
         $this->assertCount(2, $r['created_ids']);
         Http::assertSentCount(1); // mesajın tamamı için tek çağrı
         $loads = ScrapedLoad::orderBy('id')->get();
-        $this->assertSame(['Ankara|İzmir', 'Diyarbakır|İstanbul'], $loads->map(fn ($l) => $l->pickup_location.'|'.$l->delivery_location)->all());
+        $this->assertSame(['Ankara Yenimahalle|İzmir', 'Diyarbakır|İstanbul'], $loads->map(fn ($l) => $l->pickup_location.'|'.$l->delivery_location)->all()); // Ostim → Yenimahalle
         $this->assertSame(['5321111111', '5332222222'], $loads[0]->allPhones());
         $this->assertSame(['5321111111', '5332222222'], $loads[1]->allPhones());
         $this->assertSame(['done', 'done'], $loads->pluck('ai_status')->all());
@@ -343,7 +346,7 @@ class LoadIntakeTest extends TestCase
         $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Ostimden Aliağaya tır lazım 0532 123 45 67', 'message_id' => 'g400', 'source_jid' => '1203630000001@g.us']);
 
         $this->assertSame('created', $r['status']);
-        $this->assertSame(['done', 'Ankara', 'İzmir'], [ScrapedLoad::first()->ai_status, ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]);
+        $this->assertSame(['done', 'Ankara Yenimahalle', 'İzmir Aliağa'], [ScrapedLoad::first()->ai_status, ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]); // kural ilçe/semti de çözer
         Http::assertSentCount(1);
     }
 }

@@ -121,7 +121,7 @@ class LocalLearningTest extends TestCase
             ->set('edit.vehicle_type', '6_teker_kamyon')
             ->call('saveEdit')->assertHasNoErrors();
 
-        $learned = AiLexicon::query()->where('kind', 'location')->where('term', 'busan sanayi')->first();
+        $learned = AiLexicon::query()->where('kind', 'location')->where('term', 'busan')->first(); // "sanayi" dolgu sözcüğü atılır
         $this->assertNotNull($learned);
         $this->assertSame(['Konya', 'learned', 'active'], [$learned->canonical, $learned->source, $learned->status]);
         $this->assertSame(42, TurkishLocations::resolve('Büsan sanayi')['province_code']);
@@ -185,7 +185,7 @@ class LocalLearningTest extends TestCase
         Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b' && str_ends_with($req['messages'][1]['content'], '/no_think'));
         Http::assertSentCount(1);
         $load = ScrapedLoad::first();
-        $this->assertSame(['ollama', 'done', 'Ankara'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]);
+        $this->assertSame(['ollama', 'done', 'Ankara Yenimahalle'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]); // Ostim → Yenimahalle
         $this->assertSame('qwen3:4b', AiParserService::pickModel('ollama', ['llama3.2:3b', 'qwen3:4b', 'nomic-embed-text']));
     }
 
@@ -282,11 +282,11 @@ class LocalLearningTest extends TestCase
         $intake = app(LoadIntakeService::class);
         Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['post_type' => 'other', 'confidence' => 0.95, 'notes' => 'satılık araç', 'ads' => []])]]]])]);
 
-        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Satılık 2019 model tenteli dorse temiz bakımlı 0532 111 11 11', 'message_id' => 'n1', 'source_jid' => 'notif:grup-a']);
+        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Dorse lastikleri 2019 yılında değişti temiz bakımlı ilgilenen arasın 0532 111 11 11', 'message_id' => 'n1', 'source_jid' => 'notif:grup-a']);
         $this->assertSame(['filtered', 'ai_not_load'], [$r['status'], $r['reason']]);
         Http::assertSentCount(1);
 
-        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Satılık 2021 model tenteli dorse temiz bakımlı 0532 111 11 11', 'message_id' => 'n2', 'source_jid' => 'notif:grup-a']);
+        $r = $intake->intake(['group_name' => 'Grup A', 'raw_message' => 'Dorse lastikleri 2021 yılında değişti temiz bakımlı ilgilenen arasın 0532 111 11 11', 'message_id' => 'n2', 'source_jid' => 'notif:grup-a']);
         $this->assertSame(['filtered', 'template_not_load'], [$r['status'], $r['reason']]);
         Http::assertSentCount(1);
     }
