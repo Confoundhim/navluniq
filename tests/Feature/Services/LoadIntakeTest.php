@@ -5,6 +5,7 @@ namespace Tests\Feature\Services;
 use App\Http\Middleware\FirewallMiddleware;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
 use App\Support\TurkishCities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,6 +62,23 @@ class LoadIntakeTest extends TestCase
         $this->assertSame('5321234567|ankara|izmir', ScrapedLoad::first()->route_key);
         $this->assertSame('İzmir Aliağa', ScrapedLoad::first()->delivery_location);
         Http::assertNothingSent();
+    }
+
+    public function test_bare_city_pairs_are_parsed_without_a_connector(): void
+    {
+        $parser = app(AiParserService::class);
+        $p = $parser->parseCheap("Denizli Bursa Kamyonete Parça Şimdi Yüklenir.\n05425297755");
+        $this->assertTrue($p['success']);
+        $this->assertSame(['Denizli', 'Bursa', '5425297755', 'kamyonet'], [$p['pickup_location'], $p['delivery_location'], $p['sender_phone'], $p['vehicle_type']]);
+
+        $p = $parser->parseCheap('Samsun Trabzon 1.5 ton hafif ticari 0533 000 11 22');
+        $this->assertSame(['Samsun', 'Trabzon'], [$p['pickup_location'], $p['delivery_location']]);
+
+        // Bağlaç varsa eski davranış korunur; ilçe adı ilin önüne geçmez.
+        $p = $parser->parseCheap("Ankara Ostim'den İzmir Aliağa'ya 24 ton 0532 123 45 67");
+        $this->assertSame(['Ankara Ostim', 'İzmir Aliağa'], [$p['pickup_location'], $p['delivery_location']]);
+        $this->assertSame(['Denizli', 'Bursa'], AiParserService::firstTwoProvinces('Denizli Bursa Denizli parça'));
+        $this->assertFalse($parser->parseCheap('Sadece Ankara 5 ton 0532 123 45 67')['success'], 'Tek il rota sayılmaz');
     }
 
     public function test_turkish_city_helper_handles_suffixes_and_aliases(): void
