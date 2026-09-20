@@ -663,12 +663,12 @@ new class extends Component {
                         <select wire:model="scraper.ai_parse_mode" class="{{ $input }}">@foreach(\App\Services\AiParserService::MODES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
                     </div>
                     <div><label class="form-label">{{ $scraperKeys['ai_provider'] }}</label>
-                        <select wire:model="scraper.ai_provider" class="{{ $input }}"><option value="">Otomatik (ücretsizden başlayan sıra)</option>@foreach(\App\Services\AiParserService::PROVIDERS as $k => $p)<option value="{{ $k }}">{{ $p['label'] }}</option>@endforeach</select>
+                        <select wire:model="scraper.ai_provider" class="{{ $input }}"><option value="">Otomatik (ücretsizden başlayan sıra)</option>@foreach(\App\Services\AiParserService::visibleProviders() as $k => $p)<option value="{{ $k }}">{{ $p['label'] }}</option>@endforeach</select>
                     </div>
                     <div><label class="form-label">{{ $scraperKeys['scraper_rejected_retention_days'] }}</label><input type="number" min="0" max="365" wire:model="scraper.scraper_rejected_retention_days" class="{{ $input }}">@error('scraper.scraper_rejected_retention_days')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
                 </div>
                 <div class="space-y-2">
-                    @foreach(\App\Services\AiParserService::PROVIDERS as $pk => $prov)
+                    @foreach(\App\Services\AiParserService::visibleProviders() as $pk => $prov)
                         @php
                             $set = ($scraper['ai_'.$pk.'_key_set'] ?? '0') === '1';
                             $usage = $aiUsage[$pk] ?? null;
