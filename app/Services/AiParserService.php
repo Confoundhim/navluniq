@@ -971,7 +971,8 @@ TXT;
             'response_format' => ['type' => 'json_object'],
             'messages' => [
                 ['role' => 'system', 'content' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun tek bir JSON nesnesi olarak ver, başka metin yazma: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)],
-                ['role' => 'user', 'content' => "İlan mesajı:\n".$message],
+                // Yerel model (Qwen3): "/no_think" düşünme kipini kapatır; işlemcide dakikalar süren akıl yürütme metni üretilmez.
+                ['role' => 'user', 'content' => "İlan mesajı:\n".$message.(! empty(self::PROVIDERS[$provider]['local']) ? "\n/no_think" : '')],
             ],
         ];
         $this->paceRequests($provider);
