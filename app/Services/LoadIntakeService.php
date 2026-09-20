@@ -407,27 +407,33 @@ class LoadIntakeService
                 continue;
             }
             $current = [];
+            $pair = null; // parçanın rotası [kalkış ili, varış ili]
             $provinces = []; // parçanın şimdiye kadarki farklı illeri (yazım sırasıyla)
             $hasPhone = false;
             foreach (preg_split('/\n/u', $block) ?: [] as $line) {
                 $lineProvinces = AiParserService::provincesIn($line, 2);
+                $linePair = AiParserService::routePair($line); // "Beykoz-Şanlıurfa" gibi ilçeli yazımlar da rota sayılır
                 $split = false;
-                if ($current !== [] && count($provinces) >= 2) {
-                    // Parça zaten bir il çifti taşıyor: farklı bir il çifti satırı ("Bursa-Konya 10 ton") yeni ilan;
+                if ($current !== [] && $pair !== null) {
+                    // Parça zaten bir rota taşıyor: farklı rotalı satır ("Bursa-Konya 10 ton") yeni ilan;
                     // numarası da yazılmış tam bir ilandan sonra yeni bir il satırı ("📍 Bursa") yeni ilan.
-                    if (count($lineProvinces) === 2 && $lineProvinces !== array_slice($provinces, 0, 2)) {
+                    if ($linePair !== null && $linePair !== $pair) {
                         $split = true;
-                    } elseif ($hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true)) {
+                    } elseif ($hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true) && ! in_array($lineProvinces[0], $pair, true)) {
                         $split = true;
                     }
+                } elseif ($current !== [] && count($provinces) >= 2 && $hasPhone && $lineProvinces !== [] && ! in_array($lineProvinces[0], $provinces, true)) {
+                    $split = true;
                 }
                 if ($split) {
                     $units[] = self::unit(implode("\n", $current));
                     $current = [];
+                    $pair = null;
                     $provinces = [];
                     $hasPhone = false;
                 }
                 $current[] = $line;
+                $pair ??= $linePair;
                 foreach ($lineProvinces as $province) {
                     if (! in_array($province, $provinces, true)) {
                         $provinces[] = $province;
@@ -522,7 +528,7 @@ class LoadIntakeService
     {
         $text = trim($text);
 
-        return ['text' => $text, 'phones' => AiParserService::phonesIn($text), 'route' => count(AiParserService::firstTwoProvinces($text)) === 2];
+        return ['text' => $text, 'phones' => AiParserService::phonesIn($text), 'route' => AiParserService::routePair($text) !== null];
     }
 
     private static function join(array $a, array $b): array
