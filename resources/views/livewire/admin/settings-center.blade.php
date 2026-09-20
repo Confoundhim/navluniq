@@ -410,12 +410,12 @@ new class extends Component {
             'scraper.scraper_rejected_retention_days' => 'required|integer|min:0|max:365',
             'scraper.ai_parse_mode' => 'required|in:off,fill_gaps,always',
             'scraper.ai_provider' => 'nullable|in:,'.implode(',', array_keys(\App\Services\AiParserService::PROVIDERS)),
-            'scraper.ai_gemini_model' => 'required|string|max:80',
-            'scraper.ai_groq_model' => 'required|string|max:80',
-            'scraper.ai_cerebras_model' => 'required|string|max:80',
-            'scraper.ai_openrouter_model' => 'required|string|max:80',
-            'scraper.ai_mistral_model' => 'required|string|max:80',
-            'scraper.ai_claude_model' => 'required|string|max:80',
+            'scraper.ai_gemini_model' => 'nullable|string|max:120',
+            'scraper.ai_groq_model' => 'nullable|string|max:120',
+            'scraper.ai_cerebras_model' => 'nullable|string|max:120',
+            'scraper.ai_openrouter_model' => 'nullable|string|max:120',
+            'scraper.ai_mistral_model' => 'nullable|string|max:120',
+            'scraper.ai_claude_model' => 'nullable|string|max:120',
             'scraper.ai_gemini_key' => 'nullable|string|max:200',
             'scraper.ai_groq_key' => 'nullable|string|max:200',
             'scraper.ai_cerebras_key' => 'nullable|string|max:200',
@@ -458,6 +458,16 @@ new class extends Component {
     /** @var array<string, array{ok:bool, message:string}> */
     public array $aiTest = [];
 
+    public function fetchAiModels(string $provider): void
+    {
+        $parser = app(\App\Services\AiParserService::class);
+        $models = $parser->listModels($provider, refresh: true);
+        \Illuminate\Support\Facades\Cache::forget('ai:auto_model:'.$provider);
+        session()->flash($models === [] ? 'error_message' : 'success_message', $models === []
+            ? (\App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider).': model listesi alınamadı; anahtarı ve "Bağlantıyı sına" sonucunu kontrol edin.'
+            : count($models).' model listelendi; "Otomatik" seçeneği şu an '.$parser->autoModel($provider).' kullanır.');
+    }
+
     public function testAiProvider(string $provider): void
     {
         $this->aiTest[$provider] = app(\App\Services\AiParserService::class)->testProvider($provider);
@@ -487,6 +497,9 @@ new class extends Component {
             'aiUsage' => \App\Models\AiProviderUsage::query()->whereDate('usage_date', now()->toDateString())->get()
                 ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture()), 'resets' => $u->quota_resets_at?->diffForHumans(null, true) ?? '']])->all(),
             'aiErrors' => app(\App\Services\AiParserService::class)->lastErrors(),
+            'aiModelOptions' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->mapWithKeys(fn ($p) => [$p => app(\App\Services\AiParserService::class)->modelOptions($p)])->all(),
+            'aiAuto' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->mapWithKeys(fn ($p) => [$p => (string) \Illuminate\Support\Facades\Cache::get('ai:auto_model:'.$p, '')])->all(),
+            'aiLive' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->filter(fn ($p) => is_array(\Illuminate\Support\Facades\Cache::get('ai:models:'.$p)))->mapWithKeys(fn ($p) => [$p => count(\Illuminate\Support\Facades\Cache::get('ai:models:'.$p))])->all(),
             'generalKeys' => self::GENERAL_KEYS,
             'limitLabels' => self::LIMIT_LABELS,
             'defaults' => Settings::DEFAULTS,
@@ -655,7 +668,11 @@ new class extends Component {
                             @endif
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_model'] }}</label>
-                                    <select wire:model="scraper.ai_{{ $pk }}_model" class="{{ $input }}">@foreach($prov['models'] as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+                                    <select wire:model="scraper.ai_{{ $pk }}_model" class="{{ $input }}">
+                                        <option value="">Otomatik{{ ($aiAuto[$pk] ?? '') !== '' ? ' (şu an: '.$aiAuto[$pk].')' : '' }}</option>
+                                        @foreach($aiModelOptions[$pk] ?? $prov['models'] as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach
+                                    </select>
+                                    @if($set)<button type="button" wire:click="fetchAiModels('{{ $pk }}')" wire:loading.attr="disabled" class="mt-1 text-[11px] text-brand-600 font-semibold hover:underline">Modelleri getir</button> <span class="text-[11px] text-neutral-400">{{ isset($aiLive[$pk]) ? $aiLive[$pk].' model listelendi' : 'Güncel listeyi sağlayıcıdan çeker; "Otomatik" en uygun olanı seçer.' }}</span>@endif
                                 </div>
                                 <div class="sm:col-span-2"><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_key'] }} {{ $set ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="scraper.ai_{{ $pk }}_key" class="{{ $input }} font-mono" placeholder="{{ $set ? '••••••••' : $prov['key_hint'] }}"></div>
                             </div>

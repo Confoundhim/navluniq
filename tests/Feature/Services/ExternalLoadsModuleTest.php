@@ -196,6 +196,7 @@ class ExternalLoadsModuleTest extends TestCase
 
         Settings::set('ai_claude_key', 'sk-test');
         Settings::set('ai_provider', 'claude');
+        Settings::set('ai_claude_model', 'claude-opus-5'); // sabit model: liste çağrısı sıralı sahte yanıtı tüketmesin
         Http::fakeSequence('api.anthropic.com/*')
             ->push(['error' => ['message' => 'rate limit']], 429)
             ->push(['stop_reason' => 'end_turn', 'content' => [['type' => 'text', 'text' => json_encode(['post_type' => 'load', 'confidence' => 0.5, 'sender_phone' => null, 'pickup' => null, 'delivery' => null, 'goods' => null, 'goods_category' => null, 'vehicle_type' => 'kirkayak', 'vehicle_flexible' => false, 'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null])]]]);
@@ -260,6 +261,8 @@ class ExternalLoadsModuleTest extends TestCase
         Settings::set('ai_parse_mode', 'always');
         Settings::set('ai_groq_key', 'gsk-test');
         Settings::set('ai_gemini_key', 'AIza-test');
+        Settings::set('ai_groq_model', 'llama-3.3-70b-versatile');
+        Settings::set('ai_gemini_model', 'gemini-2.5-flash-lite');
         Settings::set('ai_provider', 'groq'); // öncelik Groq, sonra varsayılan sıra (Gemini…)
         $ok = ['post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '0532 123 45 67', 'pickup' => ['province' => 'Ankara', 'district' => null], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null];
         Http::fake([
@@ -389,5 +392,48 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertSame([], $parser->exhaustedToday());
 
         $this->assertSame('Anahtar girilmemiş.', $parser->testProvider('mistral')['message']);
+    }
+
+    public function test_models_are_listed_live_and_auto_selected_with_404_self_repair(): void
+    {
+        // Tercih kalıpları: kararlı flash-lite en yeni sürüm; uygun olmayanlar (tts, embedding, preview) elenir.
+        $this->assertSame('gemini-3.5-flash-lite', AiParserService::pickModel('gemini', ['gemini-2.5-flash-lite', 'gemini-3.5-flash-lite-preview', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-2.5-flash-tts', 'gemini-embedding-001']));
+        $this->assertSame('gemini-3.5-flash', AiParserService::pickModel('gemini', ['gemini-3.5-flash', 'gemini-3.5-pro'], exclude: null));
+        $this->assertSame('llama-3.3-70b-versatile', AiParserService::pickModel('groq', ['whisper-large-v3', 'llama-guard-4-12b', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile']));
+        $this->assertSame('openai/gpt-oss-120b', AiParserService::pickModel('groq', ['whisper-large-v3', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'], exclude: 'llama-3.3-70b-versatile'));
+        $this->assertSame('meta-llama/llama-3.3-70b-instruct:free', AiParserService::pickModel('openrouter', ['openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-32b:free']));
+        $this->assertNull(AiParserService::pickModel('gemini', ['gemini-embedding-001']));
+
+        Settings::set('ai_provider', 'gemini');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        Settings::set('ai_gemini_model', 'gemini-2.5-flash-lite'); // sunucudaki eski ayar
+        $ok = ['post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '0532 123 45 67', 'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null];
+        Http::fake([
+            'generativelanguage.googleapis.com/v1beta/models?*' => Http::response(['models' => [
+                ['name' => 'models/gemini-3.5-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+                ['name' => 'models/gemini-3.5-flash', 'supportedGenerationMethods' => ['generateContent']],
+                ['name' => 'models/gemini-embedding-001', 'supportedGenerationMethods' => ['embedContent']],
+            ]]),
+            'generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent' => Http::response(['error' => ['code' => 404, 'message' => 'This model models/gemini-2.5-flash-lite is no longer available to new users. Please update your code to use models/gemini-3.5-flash-lite', 'status' => 'NOT_FOUND']], 404),
+            'generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($ok)]]]]]]),
+        ]);
+
+        $parser = app(AiParserService::class);
+        $this->assertSame(['gemini-3.5-flash', 'gemini-3.5-flash-lite'], $parser->listModels('gemini'));
+
+        $test = $parser->testProvider('gemini');
+        $this->assertTrue($test['ok'], $test['message']);
+        $this->assertStringContainsString('gemini-3.5-flash-lite', $test['message']);
+        $this->assertStringContainsString('otomatik seçilen güncel model', $test['message']);
+        $this->assertSame('', Settings::string('ai_gemini_model'), 'Kalkan model ayarı "Otomatik"e çevrilir');
+        $this->assertSame('gemini-3.5-flash-lite', $parser->model('gemini'));
+
+        // Sonraki çağrılar doğrudan güncel modele gider; kuyruk çözümlemesi de çalışır.
+        $result = $parser->enrich('Ankara İzmir 24 ton palet 0532 123 45 67');
+        $this->assertSame('done', $result['status']);
+        $this->assertSame('gemini-3.5-flash-lite', $result['data']['model']);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'gemini-3.5-flash-lite:generateContent'));
+
+        $this->assertArrayHasKey('gemini-3.5-flash-lite', $parser->modelOptions('gemini'));
     }
 }
