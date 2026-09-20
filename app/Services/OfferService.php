@@ -43,6 +43,9 @@ class OfferService
             if ($locked->status !== Load::STATUS_ACTIVE || $locked->visibility !== 'public') {
                 throw new RuntimeException('Bu ilan artık teklif kabul etmiyor.');
             }
+            if (! $driver->isPremium() && ! $locked->isAvailableToFree()) {
+                throw new RuntimeException('Bu ilan şu an premium üyelere erken erişimde; '.max(1, (int) ceil(now()->diffInSeconds($locked->available_to_free_at, false) / 60)).' dakika sonra herkese açılır.');
+            }
 
             $offer = Offer::query()->where('load_id', $locked->id)->where('driver_profile_id', $driver->id)->first();
 

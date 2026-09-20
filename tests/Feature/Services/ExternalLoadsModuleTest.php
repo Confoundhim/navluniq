@@ -3,6 +3,7 @@
 namespace Tests\Feature\Services;
 
 use App\Http\Middleware\FirewallMiddleware;
+use App\Models\AiProviderUsage;
 use App\Models\IntakeEvent;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
@@ -351,5 +352,42 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertSame('abcdefgh12345678', Settings::string('macrodroid_template_token'));
 
         Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('macroFile', UploadedFile::fake()->createWithContent('x.macro', 'bu json değil'))->call('uploadMacro')->assertHasErrors('macroFile');
+    }
+
+    public function test_provider_test_button_explains_errors_and_rate_limit_cooldown_is_short(): void
+    {
+        $this->assertSame(300, AiParserService::cooldownSeconds('Rate limit reached'));
+        $this->assertSame(10, AiParserService::cooldownSeconds('Rate limit reached for model. Please try again in 3.5s.'));
+        $this->assertSame(2 * 3600 + 10 * 60 + 5, AiParserService::cooldownSeconds('Limit 1000, Used 1000, Requested 1. Please try again in 2h10m0s.'));
+        $this->assertSame(35, AiParserService::cooldownSeconds('{"retryDelay": "30s"}'));
+
+        Settings::set('ai_gemini_key', 'AIza-test');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response(['error' => ['code' => 403, 'message' => 'Requests to this API generativelanguage.googleapis.com method are blocked.', 'status' => 'PERMISSION_DENIED', 'details' => [['reason' => 'API_KEY_SERVICE_BLOCKED']]]], 403),
+            'api.groq.com/*' => Http::response(['error' => ['message' => 'Rate limit reached for model llama-3.3-70b-versatile. Please try again in 12.5s.']], 429),
+        ]);
+        $parser = app(AiParserService::class);
+
+        $gemini = $parser->testProvider('gemini');
+        $this->assertFalse($gemini['ok']);
+        $this->assertStringContainsString('Haritalar için kısıtlanmış olabilir', $gemini['message']);
+
+        $groq = $parser->testProvider('groq');
+        $this->assertFalse($groq['ok']);
+        $this->assertStringContainsString('Hız/kota sınırı', $groq['message']);
+        $this->assertSame(['gemini', 'groq'], array_keys($parser->lastErrors()));
+
+        // Kuyruktan çözümleme: 403 kalıcı, 429 kısa süreli → aday bekler; Groq 18 sn sonra yeniden denenebilir, gün boyu kilitlenmez.
+        $result = $parser->enrich('Ankara İzmir 24 ton palet 0532 123 45 67');
+        $this->assertSame('pending', $result['status']);
+        $usage = AiProviderUsage::where('provider', 'groq')->first();
+        $this->assertTrue($usage->quota_exhausted);
+        $this->assertEqualsWithDelta(18, now()->diffInSeconds($usage->quota_resets_at), 2);
+        $this->assertSame(['groq'], $parser->exhaustedToday());
+        $this->travel(20)->seconds();
+        $this->assertSame([], $parser->exhaustedToday());
+
+        $this->assertSame('Anahtar girilmemiş.', $parser->testProvider('mistral')['message']);
     }
 }

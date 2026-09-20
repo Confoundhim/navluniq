@@ -301,7 +301,7 @@ new class extends Component {
                     <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">NavlunIQ İlan Aboneliği</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        İzinli WhatsApp gruplarından derlenen ilanlar yapay zeka ile ayrıştırılır ve standart ilan kartına dönüşür; premium üyeler herkesten 20 dakika önce görür.
+                        Premium üyeler yeni sistem ilanlarını ve onaylı dış kaynak ilanlarını herkesten 20 dakika önce görür, anında bildirim alır. Sistem ilanları herkese açıldığı anda Telegram kanalında da yayınlanır.
                     </p>
                 </div>
                 <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
@@ -342,7 +342,7 @@ new class extends Component {
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yükleri herkesten önce görün.</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Platform ilanlarına teklif vermek her zaman ücretsiz. Premium, dış kaynak ilanlara erken erişim ve doğrudan iletişim sağlar.</p>
+            <p class="text-xs sm:text-sm text-neutral-400">Teklif vermek her zaman ücretsiz. Premium üyeler yeni ilanları 20 dakika önce görür ve anında bildirim alır.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto items-stretch">
@@ -361,10 +361,10 @@ new class extends Component {
                     </div>
                 </div>
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Platform içi tüm ilanları anında görün, sınırsız teklif verin</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Yeni ilanlar 20 dakika sonra görünür</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Sistem ilanlarını Telegram kanalından da takip edin</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
             </div>
@@ -387,8 +387,9 @@ new class extends Component {
                     </div>
                     <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarını herkesten 20 dakika önce görün</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Dış kaynak ilanlarda iletişim bilgisinin tamamına erişin</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Yeni ilanları herkesten 20 dakika önce görün</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Dış kaynak ilanlarında numaranın tamamını görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
                     </ul>
                     <a href="{{ route('subscription') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Planları Karşılaştır</a>

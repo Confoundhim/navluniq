@@ -26,7 +26,7 @@ class LoadService
         $pickupGeo = TurkishLocations::resolve($data['pickup_location'] ?? null);
         $deliveryGeo = TurkishLocations::resolve($data['delivery_location'] ?? null);
 
-        return DB::transaction(function () use ($owner, $data, $eIrsaliyeFile, $pickupGeo, $deliveryGeo): Load {
+        $load = DB::transaction(function () use ($owner, $data, $eIrsaliyeFile, $pickupGeo, $deliveryGeo): Load {
             $load = Load::create([
                 'cargo_owner_profile_id' => $owner->id,
                 'source_type' => 'internal',
@@ -53,6 +53,8 @@ class LoadService
                 'status' => Load::STATUS_ACTIVE,
                 'escrow_status' => Load::ESCROW_PENDING,
                 'published_at' => now(),
+                // Premium şoförler anında görür; süre dolunca herkese ve Telegram kanalına açılır.
+                'available_to_free_at' => now()->addMinutes(app(LoadReleaseService::class)->delayMinutes()),
             ]);
 
             if ($eIrsaliyeFile) {
@@ -62,6 +64,9 @@ class LoadService
 
             return $load;
         });
+        app(LoadReleaseService::class)->onPublished($load);
+
+        return $load;
     }
 
     /** Tamamlanmış veya iptal edilmiş bir ilanı yeni tarihle yeniden yayınlar. */

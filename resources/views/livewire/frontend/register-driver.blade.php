@@ -223,7 +223,7 @@ new class extends Component {
         request()->session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
             ['Şoför hesabınız doğrulandı. Teklif verebilmek için ehliyet, SRC, psikoteknik, ruhsat ve kimlikli selfie belgelerinizi yükleyin; ekibimiz genellikle 24 saat içinde inceler.',
-             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilir, premium ile onaylı dış kaynak ilanlarını herkesten önce görebilirsiniz.'],
+             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilirsiniz; premium ile yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alırsınız.'],
             route('driver.profile.index'), 'Belgelerimi yükle', 'welcome');
         session()->flash('success', 'Şoför hesabınız doğrulandı.');
 

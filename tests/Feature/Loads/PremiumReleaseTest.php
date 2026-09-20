@@ -1,0 +1,142 @@
+<?php
+
+namespace Tests\Feature\Loads;
+
+use App\Models\CargoOwnerProfile;
+use App\Models\DriverProfile;
+use App\Models\DriverVehicle;
+use App\Models\Load;
+use App\Models\User;
+use App\Models\UserNotification;
+use App\Services\LoadReleaseService;
+use App\Services\LoadService;
+use App\Services\OfferService;
+use App\Support\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Livewire\Volt\Volt;
+use Tests\TestCase;
+
+class PremiumReleaseTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $owner;
+
+    private User $premium;
+
+    private User $free;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolesAndPermissionsSeeder::class);
+        Settings::set('scraper_free_delay_minutes', '20');
+        Settings::set('min_load_price', '1000');
+
+        $this->owner = User::factory()->create(['current_role' => 'cargo_owner']);
+        $this->owner->syncRoles(['cargo_owner']);
+        CargoOwnerProfile::create(['user_id' => $this->owner->id, 'type' => 'individual']);
+
+        $this->premium = $this->driver(premium: true);
+        $this->free = $this->driver(premium: false);
+    }
+
+    private function driver(bool $premium): User
+    {
+        $user = User::factory()->driver()->create();
+        $user->syncRoles(['driver']);
+        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved', 'premium_until' => $premium ? now()->addMonth() : null]);
+        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '06'.random_int(100, 999).'XY'.random_int(10, 99), 'brand' => 'Ford', 'model' => 'Cargo', 'vehicle_type' => 'tir', 'is_active' => true]);
+
+        return $user->fresh();
+    }
+
+    private function publish(): Load
+    {
+        return app(LoadService::class)->publish($this->owner->fresh()->cargoOwnerProfile, [
+            'pickup_location' => 'Ankara', 'delivery_location' => 'İzmir', 'pickup_date' => now()->addDay()->toDateString(),
+            'vehicle_type' => 'tir', 'goods_type' => 'Paletli Yük', 'weight' => 24000, 'price' => 45000,
+        ]);
+    }
+
+    public function test_new_system_load_is_premium_first_then_released_to_everyone_and_telegram(): void
+    {
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 9]])]);
+        Settings::set('telegram_post_enabled', '1');
+        Settings::set('telegram_bot_token', '123456:ABCDEF');
+        Settings::set('telegram_channel_id', '@navluniq');
+
+        $load = $this->publish();
+        $this->assertTrue($load->isEarlyAccess());
+        $this->assertEqualsWithDelta(20, now()->diffInMinutes($load->available_to_free_at), 1);
+
+        // Premium şoför anında bildirim alır ve ilanı görür; ücretsiz şoför ne bildirim alır ne ilanı görür.
+        $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count());
+        $this->assertStringContainsString('Erken erişim', UserNotification::where('user_id', $this->premium->id)->first()->title);
+        $this->assertSame(0, UserNotification::where('user_id', $this->free->id)->count());
+        $this->assertSame(1, Load::query()->openTo($this->premium->driverProfile)->count());
+        $this->assertSame(0, Load::query()->openTo($this->free->driverProfile)->count());
+        Http::assertNothingSent();
+
+        $this->actingAs($this->free);
+        Volt::test('driver.loads.index')->assertDontSee('Paletli Yük')->assertSee('önce premium üyelere açılır');
+        try {
+            app(OfferService::class)->submit($this->free->driverProfile, $load, 44000);
+            $this->fail('Ücretsiz şoför erken erişimde teklif verememeli');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('erken erişimde', $e->getMessage());
+        }
+
+        $this->actingAs($this->premium);
+        $pf = $this->premium->driverProfile;
+        Volt::test('driver.loads.index')->assertSee('Paletli Yük')->assertSee('Erken erişim');
+
+        // Süre dolunca: herkese açılır, ücretsiz şoföre bildirim, Telegram'a tek mesaj.
+        $this->assertSame(0, app(LoadReleaseService::class)->releaseDue(), 'Süre dolmadan açılmamalı');
+        $this->travel(21)->minutes();
+        $this->assertSame(1, app(LoadReleaseService::class)->releaseDue());
+        $this->assertSame(0, app(LoadReleaseService::class)->releaseDue(), 'İkinci kez işlenmemeli');
+
+        $load->refresh();
+        $this->assertNotNull($load->released_at);
+        $this->assertNotNull($load->telegram_posted_at);
+        $this->assertSame(1, UserNotification::where('user_id', $this->free->id)->count());
+        $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count(), 'Premium ikinci kez bildirilmez');
+        Http::assertSentCount(1);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'bot123456:ABCDEF/sendMessage')
+            && $r['chat_id'] === '@navluniq'
+            && str_contains($r['text'], 'Ankara → İzmir')
+            && str_contains($r['text'], '45.000 ₺')
+            && str_contains($r['text'], 'ilan-havuzu?ilan='.$load->id));
+
+        $this->actingAs($this->free);
+        $this->assertSame(1, Load::query()->openTo($this->free->driverProfile)->count());
+        app(OfferService::class)->submit($this->free->driverProfile, $load->fresh(), 44000);
+        $this->assertDatabaseCount('offers', 1);
+    }
+
+    public function test_zero_delay_releases_immediately_without_telegram_when_disabled(): void
+    {
+        Settings::set('scraper_free_delay_minutes', '0');
+        Http::fake();
+        $load = $this->publish();
+        $this->assertNotNull($load->fresh()->released_at);
+        $this->assertSame(1, UserNotification::where('user_id', $this->free->id)->count());
+        $this->assertSame(0, UserNotification::where('user_id', $this->premium->id)->count(), 'Gecikme yoksa yalnız herkese açılış bildirimi (ücretsiz)');
+        Http::assertNothingSent();
+    }
+
+    public function test_driver_with_too_small_vehicle_is_not_notified(): void
+    {
+        $small = User::factory()->driver()->create();
+        $small->syncRoles(['driver']);
+        $profile = DriverProfile::create(['user_id' => $small->id, 'kyc_status' => 'approved', 'premium_until' => now()->addMonth()]);
+        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34KUC01', 'brand' => 'Fiat', 'model' => 'Doblo', 'vehicle_type' => 'minivan', 'is_active' => true]);
+
+        $this->publish();
+        $this->assertSame(0, UserNotification::where('user_id', $small->id)->count());
+        $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count());
+    }
+}

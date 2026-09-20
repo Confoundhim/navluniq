@@ -205,7 +205,8 @@ new class extends Component {
             return;
         }
         $ok = app(ScrapedLoadService::class)->reparseWithAi($load, $parser, true);
-        session()->flash($ok ? 'success_message' : 'error_message', $ok ? "#{$load->id} yapay zeka ile yeniden çözümlendi." : "#{$load->id} çözümlenemedi; sağlayıcı yanıt vermedi (kota/ağ). 5 dakika içinde otomatik yeniden denenir.");
+        $errors = collect($parser->lastErrors())->map(fn ($e, $p) => (AiParserService::PROVIDERS[$p]['label'] ?? $p).': '.AiParserService::humanizeError($e['message']))->implode(' · ');
+        session()->flash($ok ? 'success_message' : 'error_message', $ok ? "#{$load->id} yapay zeka ile yeniden çözümlendi." : "#{$load->id} çözümlenemedi. ".($errors !== '' ? $errors : 'Sağlayıcı yanıt vermedi (kota/ağ).').' Ayarlar → Yapay zeka bölümünde "Bağlantıyı sına" ile ayrıntı görebilirsiniz; 5 dakika içinde otomatik yeniden denenir.');
     }
 
     // ---- Toplu işlemler ----
@@ -424,7 +425,6 @@ new class extends Component {
         $data = [
             'freeDelay' => $service->freeDelayMinutes(),
             'autoApprove' => Settings::bool('scraper_auto_approve'),
-            'telegramOn' => app(\App\Services\TelegramPublisher::class)->isConfigured() && Settings::bool('telegram_post_enabled'),
             'schedulerAge' => $schedulerAge,
             'schedulerOk' => $schedulerAge !== null && $schedulerAge < 180,
             'ai' => ['enabled' => $parser->isEnabled(), 'configured' => $parser->isConfigured(), 'mode' => AiParserService::MODES[$parser->mode()] ?? $parser->mode(), 'provider' => $parser->provider(), 'model' => $parser->model()],
@@ -492,7 +492,7 @@ new class extends Component {
             <span class="badge {{ $schedulerOk ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}" title="{{ $schedulerAge === null ? 'Zamanlayıcıdan hiç nabız gelmedi' : 'Son nabız '.$schedulerAge.' sn önce' }}">Zamanlayıcı: {{ $schedulerOk ? 'çalışıyor' : ($schedulerAge === null ? 'nabız yok' : 'durmuş ('.floor($schedulerAge / 60).' dk)') }}</span>
             <span class="badge {{ $autoApprove ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">Otomatik onay: {{ $autoApprove ? 'açık' : 'kapalı' }}</span>
             <span class="badge {{ $ai['enabled'] && $ai['configured'] ? 'bg-violet-500/10 text-violet-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}" title="{{ $ai['provider'] }} · {{ $ai['model'] }}">Yapay zeka: {{ ! $ai['enabled'] ? 'kapalı' : ($ai['configured'] ? $ai['mode'] : 'anahtar yok') }}</span>
-            <span class="badge {{ $telegramOn ? 'bg-sky-500/10 text-sky-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">Telegram: {{ $telegramOn ? 'açık' : 'kapalı' }}</span>
+
             <a href="{{ route('admin.settings') }}" class="text-brand-500 font-semibold hover:underline">Ayarlar →</a>
         </div>
     </div>
@@ -564,7 +564,7 @@ new class extends Component {
                                     <div class="font-bold">#{{ $load->id }}
                                         @if((int) $load->duplicate_count > 1)<span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold align-middle" title="{{ implode(', ', (array) $load->seen_sources) }}">{{ $load->duplicate_count }}</span>@endif
                                         @if($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
-                                        @if($load->telegram_posted_at)<span class="ml-1 badge bg-emerald-500/10 text-emerald-600 align-middle">Telegram</span>@endif
+                                        
                                     </div>
                                     <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<br>{{ $load->created_at?->format('d.m.Y H:i') }}<br>{{ $load->masked_phone }}</div>
                                 </td>

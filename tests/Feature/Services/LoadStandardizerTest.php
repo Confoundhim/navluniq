@@ -7,10 +7,9 @@ use App\Models\Scraper;
 use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\ScrapedLoadService;
-use App\Services\TelegramPublisher;
-use App\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -28,7 +27,7 @@ class LoadStandardizerTest extends TestCase
     public function test_typos_in_provinces_are_corrected_and_goods_vehicle_price_are_standardized(): void
     {
         $std = app(LoadStandardizer::class)->standardize(
-            "Diyarbakr dan İstanbl Kartala 3 buzdolabı gidecek acil 45 bin 0532 123 45 67",
+            'Diyarbakr dan İstanbl Kartala 3 buzdolabı gidecek acil 45 bin 0532 123 45 67',
             ['pickup_location' => 'Diyarbakr', 'delivery_location' => 'İstanbl Kartala', 'goods_type' => null, 'weight' => null, 'price' => null]
         );
 
@@ -72,7 +71,7 @@ class LoadStandardizerTest extends TestCase
 
         $r = app(LoadIntakeService::class)->intake([
             'group_name' => 'Grup', 'source_jid' => 'notif:grup', 'source_type' => 'notification',
-            'raw_message' => "Diyarbakr dan Ankaraya 2 adet buzdolabı ve çamaşır makinesi gidecek 0532 123 45 67 yarın",
+            'raw_message' => 'Diyarbakr dan Ankaraya 2 adet buzdolabı ve çamaşır makinesi gidecek 0532 123 45 67 yarın',
             'sender_phone' => null, 'message_id' => 'm1',
         ]);
         $this->assertSame('created', $r['status']);
@@ -115,7 +114,7 @@ class LoadStandardizerTest extends TestCase
         app(ScrapedLoadService::class)->approve($bad, null);
     }
 
-    public function test_admin_edits_are_preserved_on_restandardize_and_telegram_message_is_standard(): void
+    public function test_admin_edits_are_preserved_on_restandardize_and_labels_are_standard(): void
     {
         $scraper = Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
         $load = ScrapedLoad::create([
@@ -123,17 +122,13 @@ class LoadStandardizerTest extends TestCase
             'pickup_location' => 'Bursa', 'delivery_location' => 'İzmir', 'pickup_province_code' => 16, 'delivery_province_code' => 35,
             'vehicle_type' => 'tir', 'vehicle_type_source' => 'admin', 'goods_type' => 'Tekstil', 'weight' => 10000, 'price' => 45000,
             'status' => 'parsed_success', 'visibility' => 'private', 'message_id' => 'z', 'parse_metadata' => ['admin_edited' => true],
-            'encrypted_sender_phone' => \Illuminate\Support\Facades\Crypt::encryptString('5321234567'),
+            'encrypted_sender_phone' => Crypt::encryptString('5321234567'),
         ]);
         $this->assertFalse(app(LoadStandardizer::class)->restandardize($load));
         $this->assertSame('tir', $load->fresh()->vehicle_type);
 
-        Settings::set('telegram_post_enabled', 1);
-        $msg = app(TelegramPublisher::class)->messageFor($load->fresh());
-        $this->assertStringContainsString('Bursa → İzmir', $msg);
-        $this->assertStringContainsString('10 ton', $msg);
-        $this->assertStringContainsString('TIR', $msg);
-        $this->assertStringContainsString('45.000 ₺', $msg);
-        $this->assertStringContainsString('0532 *** ** 67', $msg);
+        $this->assertSame('Bursa → İzmir', $load->fresh()->routeLabel());
+        $this->assertSame('10 ton', $load->fresh()->weightLabel());
+        $this->assertSame('TIR', $load->fresh()->vehicleLabel());
     }
 }

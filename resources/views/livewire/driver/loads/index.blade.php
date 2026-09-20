@@ -54,6 +54,10 @@ class extends Component {
         if ($preset) {
             $this->applyPreset($preset->id);
         }
+        // Bildirimden / Telegram'dan gelen "?ilan=" bağlantısı: ilan görünürse teklif penceresi açılır.
+        if (($ilan = (int) request()->query('ilan', 0)) > 0 && $this->tab === 'pool') {
+            $this->openOffer($ilan);
+        }
         if (request()->boolean('filters')) {
             $this->advancedOpen = true;
         }
@@ -244,6 +248,7 @@ class extends Component {
             ->with('cargoOwnerProfile.user')
             ->where('status', Load::STATUS_ACTIVE)
             ->where('visibility', 'public')
+            ->openTo($this->profile())
             ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))
             ->when(trim($this->search) !== '', function (Builder $q): void {
                 $term = '%'.trim($this->search).'%';
@@ -365,6 +370,7 @@ class extends Component {
             'kycApproved' => $profile?->isKycApproved() ?? false,
             'hasActiveVehicle' => $profile ? $profile->activeVehicle()->exists() : false,
             'isPremium' => $profile?->isPremium() ?? false,
+            'freeDelay' => app(\App\Services\LoadReleaseService::class)->delayMinutes(),
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
             'presets' => $this->presetsQuery()->orderByDesc('is_default')->orderBy('name')->get(),
             'provinces' => TurkishLocations::provinces(),
@@ -629,11 +635,19 @@ class extends Component {
 
     @if($kycApproved && $tab === 'pool')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            @if(! $isPremium)
+                <div class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                    Yeni ilanlar önce premium üyelere açılır; {{ $freeDelay }} dakika sonra burada görünür.
+                    <a href="{{ route('driver.premium.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Premium ile anında görün</a>
+                </div>
+            @endif
             <div class="space-y-3">
                 @forelse($loads as $load)
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 hover:border-brand-500/40 rounded-xl transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                         <div class="space-y-1.5 flex-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}
+                                @if($load->isEarlyAccess())<span class="ml-1 badge bg-brand-500/10 text-brand-500 align-middle" title="Herkese {{ $load->available_to_free_at->format('H:i') }}'de açılır">⭐ Erken erişim</span>@endif
+                            </div>
                             <div class="text-neutral-500 dark:text-neutral-400">
                                 {{ $load->goods_type }} · {{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}
                                 @if($load->weight) · {{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg @endif

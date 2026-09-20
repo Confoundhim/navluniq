@@ -2,14 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\ScrapedLoad;
+use App\Models\Load;
 use App\Support\Settings;
+use App\Support\VehicleTypes;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 /**
- * Ücretsiz üyelere açılan dış kaynak ilanlarını Telegram kanalına gönderir.
- * Bot anahtarı ve kanal kimliği yönetim panelindeki ayarlardan okunur.
+ * Telegram kanalı: yalnız sistem ilanları (yük sahibi üyelerin açtığı ilanlar), ücretsiz üyelere açıldığı anda.
+ * Dış kaynak ilanlar kanala gönderilmez. Bot anahtarı ve kanal kimliği panel ayarlarından okunur.
  */
 class TelegramPublisher
 {
@@ -22,73 +22,45 @@ class TelegramPublisher
             && Settings::string('telegram_channel_id') !== '';
     }
 
-    /** Sırası gelen ilanları gönderir; gönderilen sayısını döndürür. */
-    public function publishDue(): int
-    {
-        if (! $this->isConfigured()) {
-            return 0;
-        }
-
-        $sent = 0;
-        ScrapedLoad::query()
-            ->where('visibility', 'public')->where('status', '!=', 'rejected')
-            ->whereNull('telegram_posted_at')
-            ->where('telegram_attempts', '<', self::MAX_ATTEMPTS)
-            ->whereNotNull('available_to_free_at')->where('available_to_free_at', '<=', now())
-            ->where('created_at', '>=', now()->subDays(3))
-            ->orderBy('available_to_free_at')->limit(20)->get()
-            ->each(function (ScrapedLoad $load) use (&$sent): void {
-                $load->increment('telegram_attempts');
-                try {
-                    $this->send($this->messageFor($load));
-                    $load->update(['telegram_posted_at' => now()]);
-                    $sent++;
-                } catch (\Throwable $e) {
-                    Log::warning('Telegram paylaşımı başarısız.', ['scraped_load_id' => $load->id, 'error' => $e->getMessage()]);
-                }
-            });
-
-        return $sent;
-    }
-
-    public function messageFor(ScrapedLoad $load): string
+    /** Herkese açılan sistem ilanının kanal mesajı (rota, yük, araç, fiyat, tarih, siteye bağlantı). */
+    public function messageForLoad(Load $load): string
     {
         $e = fn (?string $v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-        $lines = [($load->isUrgent() ? '🔴 <b>ACİL</b> ' : '').'🚛 <b>'.$e($load->routeLabel()).'</b>'];
+        $lines = ['🚛 <b>'.$e($load->pickup_location).' → '.$e($load->delivery_location).'</b>'];
 
         $facts = [];
         if ($load->goods_type) {
             $facts[] = '📦 '.$e($load->goods_type);
         }
-        if ($w = $load->weightLabel()) {
-            $facts[] = '⚖️ '.$w;
+        if ((int) $load->weight > 0) {
+            $facts[] = '⚖️ '.rtrim(rtrim(number_format((int) $load->weight / 1000, 1, ',', '.'), '0'), ',').' ton';
         }
-        if ($v = $load->vehicleLabel()) {
-            $facts[] = '🚚 '.$e($v);
-        }
-        foreach ($load->traitLabels() as $trait) {
-            $facts[] = ($trait === 'Soğuk zincir' ? '❄️ ' : '⚠️ ').$e($trait);
+        if ($load->vehicle_type) {
+            $facts[] = '🚚 '.$e(VehicleTypes::label($load->vehicle_type));
         }
         if ($facts !== []) {
             $lines[] = implode(' · ', $facts);
         }
         if ((float) $load->price > 0) {
-            $lines[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺';
+            $lines[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺ (teslimat onaylı güvenli ödeme)';
         }
-        if ($note = $load->meta('pickup_note')) {
-            $lines[] = '📅 Yükleme: '.$e((string) $note);
+        if ($load->pickup_date) {
+            $lines[] = '📅 Yükleme: '.$load->pickup_date->format('d.m.Y');
         }
+        $lines[] = '🏷️ NavlunIQ sistem ilanı · #'.$load->id.' · 🕒 '.optional($load->published_at)->format('d.m.Y H:i');
 
-        $sources = (int) $load->duplicate_count;
-        $lines[] = '📍 '.($sources > 1 ? "{$sources} kaynakta görüldü" : 'Dış kaynak ilanı').' · 🕒 '.optional($load->created_at)->format('d.m.Y H:i');
-
-        $phone = Settings::bool('telegram_show_full_phone') ? $load->formatted_phone : $load->masked_phone;
-        $lines[] = '📞 '.$e($phone);
-
-        $url = rtrim((string) config('app.url'), '/').'/panel/sofor/ilan-havuzu?tab=external';
-        $lines[] = '👉 <a href="'.$e($url).'">Tam numara ve tüm ilanlar NavlunIQ\'da</a>';
+        $url = rtrim((string) config('app.url'), '/').'/panel/sofor/ilan-havuzu?ilan='.$load->id;
+        $lines[] = '👉 <a href="'.$e($url).'">Teklif vermek için NavlunIQ\'ya gir</a>';
 
         return implode("\n", $lines);
+    }
+
+    /** Kanalın herkese açık bağlantısı (@kanal ise); özel kanalda null. */
+    public static function channelUrl(): ?string
+    {
+        $id = Settings::string('telegram_channel_id');
+
+        return str_starts_with($id, '@') && strlen($id) > 1 ? 'https://t.me/'.substr($id, 1) : null;
     }
 
     /** @throws \RuntimeException */
