@@ -203,4 +203,110 @@ class LoadIntakeTest extends TestCase
             ->postJson('/api/v1/webhook/whatsapp-scraper', ['group_name' => 'Başka Grup', 'raw_message' => self::AD, 'message_id' => 'w2', 'source_jid' => '1203630000002@g.us'], ['X-Scraper-Token' => 'secret-token'])
             ->assertStatus(200)->assertJsonPath('status', 'duplicate');
     }
+
+    public function test_multi_ad_message_is_split_into_separate_candidates_by_rules(): void
+    {
+        $this->activeSource();
+        $intake = app(LoadIntakeService::class);
+        $message = "Ankara - İzmir 24 ton tenteli tır 0532 111 11 11\n\nBursa - Konya 10 ton kamyon 0533 222 22 22\n\nGruba katılmak için: https://ornek.test/grup";
+
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 'multi1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertCount(2, $r['created_ids']);
+        $this->assertCount(2, $r['segments']);
+        Http::assertNothingSent(); // iki ilan da kuralla çözüldü
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $this->assertSame([['Ankara', 'İzmir', '5321111111'], ['Bursa', 'Konya', '5332222222']], $loads->map(fn ($l) => [$l->pickup_location, $l->delivery_location, $l->plainPhone()])->all());
+        $this->assertSame([0, 2], [$loads[0]->meta('message_part')['index'], $loads[0]->meta('message_part')['count']]);
+        $this->assertStringNotContainsString('Bursa', $loads[0]->raw_message);
+
+        // Aynı mesaj başka gruptan gelirse iki ilan da tekrar sayılır; yeni kayıt açılmaz.
+        $this->activeSource('1203630000002@g.us');
+        $again = $intake->intake(['group_name' => 'Diğer Grup', 'raw_message' => $message, 'message_id' => 'multi2', 'source_jid' => '1203630000002@g.us']);
+        $this->assertSame('duplicate', $again['status']);
+        $this->assertSame(2, ScrapedLoad::count());
+        $this->assertSame(2, ScrapedLoad::find($loads[1]->id)->duplicate_count);
+    }
+
+    public function test_one_ad_with_two_contacts_keeps_all_phone_numbers(): void
+    {
+        $this->activeSource();
+        $intake = app(LoadIntakeService::class);
+
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => "Ankara - İzmir 24 ton tenteli tır lazım\nAhmet 0532 111 11 11\nMehmet 0533 222 22 22", 'message_id' => 'p1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertSame(1, ScrapedLoad::count());
+        $load = ScrapedLoad::first();
+        $this->assertSame('5321111111', $load->plainPhone());
+        $this->assertSame(['5332222222'], $load->extraPhones());
+        $this->assertSame(['5321111111', '5332222222'], $load->allPhones());
+        $this->assertSame(2, $load->meta('phone_count'));
+        $this->assertStringNotContainsString('5332222222', json_encode($load->parse_metadata)); // yedek numara da şifreli
+    }
+
+    public function test_shared_contact_line_is_inherited_by_every_ad(): void
+    {
+        $this->activeSource();
+        $intake = app(LoadIntakeService::class);
+
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => "Yüklerimiz:\nAnkara - İzmir 24 ton tenteli\nBursa - Konya 10 ton kamyon\nİrtibat 0532 111 11 11", 'message_id' => 's1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertCount(2, $r['created_ids']);
+        $this->assertSame(['5321111111', '5321111111'], ScrapedLoad::orderBy('id')->get()->map(fn ($l) => $l->plainPhone())->all());
+        $this->assertSame(['Ankara|İzmir', 'Bursa|Konya'], ScrapedLoad::orderBy('id')->get()->map(fn ($l) => $l->pickup_location.'|'.$l->delivery_location)->all());
+    }
+
+    public function test_ai_first_mode_lets_the_ai_split_ads_and_list_every_phone(): void
+    {
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_groq_key', 'gsk-test'); // setUp'taki Gemini sahtesi (eski düz şema) öne geçmesin diye ayrı sağlayıcı
+        Settings::set('ai_groq_model', 'llama-test');
+        Settings::set('ai_provider', 'groq');
+        $this->activeSource();
+        $message = "Arkadaşlar iki yükümüz var\nAnkara Ostimden İzmire 24 ton palet, tenteli\nDiyarbakırdan İstanbula 10 ton gıda, frigo\nAhmet 0532 111 11 11 Mehmet 0533 222 22 22";
+        Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode([
+            'post_type' => 'load', 'confidence' => 0.9, 'notes' => null,
+            'ads' => [
+                ['post_type' => 'load', 'confidence' => 0.92, 'phones' => ['0532 111 11 11', '0533 222 22 22'], 'excerpt' => 'Ankara Ostimden İzmire 24 ton palet, tenteli', 'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null],
+                ['post_type' => 'load', 'confidence' => 0.88, 'phones' => ['5321111111', '5332222222'], 'excerpt' => 'Diyarbakırdan İstanbula 10 ton gıda, frigo', 'pickup' => ['province' => 'Diyarbakır', 'district' => null], 'delivery' => ['province' => 'İstanbul', 'district' => null], 'goods' => 'gıda', 'goods_category' => null, 'vehicle_type' => 'frigo', 'vehicle_flexible' => false, 'weight_kg' => 10000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null],
+            ],
+        ])]]]])]);
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 'ai-multi', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertCount(2, $r['created_ids']);
+        Http::assertSentCount(1); // mesajın tamamı için tek çağrı
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $this->assertSame(['Ankara|İzmir', 'Diyarbakır|İstanbul'], $loads->map(fn ($l) => $l->pickup_location.'|'.$l->delivery_location)->all());
+        $this->assertSame(['5321111111', '5332222222'], $loads[0]->allPhones());
+        $this->assertSame(['5321111111', '5332222222'], $loads[1]->allPhones());
+        $this->assertSame(['done', 'done'], $loads->pluck('ai_status')->all());
+        $this->assertSame([0, 1], $loads->map(fn ($l) => $l->meta('ai')['ad_index'])->all());
+        $this->assertStringContainsString('Diyarbakırdan İstanbula', $loads[1]->raw_message);
+        $this->assertStringContainsString('0532 111 11 11', $loads[1]->raw_message); // alıntıda numara yoktu; eklendi
+    }
+
+    public function test_split_segments_handles_common_group_formats(): void
+    {
+        $emoji = "📍 Ankara\n📦 İstanbul\n💰 1200+KDV\n☎️ +90 505 178 17 61\n🔗 Bu ilan VIP grubundan paylaşılmıştır";
+        $this->assertCount(1, LoadIntakeService::splitSegments($emoji));
+
+        $twoEmoji = "📍 Ankara\n📦 İstanbul\n☎️ 0505 178 17 61\n📍 Bursa\n📦 Konya\n☎️ 0506 000 00 00";
+        $parts = LoadIntakeService::splitSegments($twoEmoji);
+        $this->assertSame([['5051781761'], ['5060000000']], array_column($parts, 'phones'));
+
+        $header = "Ahmet Nakliyat 0532 111 11 11\n\nAnkara İzmir 24 ton\n\nBursa Konya 10 ton";
+        $parts = LoadIntakeService::splitSegments($header);
+        $this->assertCount(2, $parts);
+        $this->assertSame(['5321111111'], $parts[1]['phones']);
+        $this->assertStringContainsString('0532 111 11 11', $parts[1]['text']);
+
+        // Aynı rotayı iki satırda anlatan tek ilan bölünmez.
+        $this->assertCount(1, LoadIntakeService::splitSegments("Ankara → İstanbul 24 ton tenteli\nAnkara Ostim yükleme İstanbul Kartal teslim\n0532 111 11 11"));
+        $this->assertSame(['5321111111', '5332222222'], AiParserService::phonesIn('Ahmet 0532 111 11 11, Mehmet +90 (533) 222-22-22, sabit 0312 444 44 44'));
+    }
 }

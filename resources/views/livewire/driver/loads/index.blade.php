@@ -738,7 +738,7 @@ class extends Component {
 
             <div class="space-y-3">
                 @forelse($externalLoads as $item)
-                    @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; @endphp
+                    @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; $extraPhones = $item->extraPhones(); @endphp
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
                         <div class="space-y-1.5 flex-1">
                             <div class="text-sm font-bold text-neutral-900 dark:text-white">
@@ -772,12 +772,19 @@ class extends Component {
                                 @endif
                             </div>
                             @if($fullPhone)
-                                                                <div class="flex items-center gap-3">
-                                    <a href="tel:+90{{ $plainPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ $fullPhone }}</a>
-                                    <a href="https://wa.me/90{{ $plainPhone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                <div class="flex flex-col items-end gap-1">
+                                    @foreach(array_merge([$plainPhone], $extraPhones) as $phone)
+                                        <div class="flex items-center gap-3">
+                                            <a href="tel:+90{{ $phone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
+                                            <a href="https://wa.me/90{{ $phone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                        </div>
+                                    @endforeach
                                 </div>
                             @else
-                                <span class="text-neutral-500 dark:text-neutral-400 tabular-nums">{{ $plainPhone ? '0'.substr($plainPhone, 0, 3).' *** ** '.substr($plainPhone, -2) : 'Bilinmiyor' }}</span>
+                                <div class="flex flex-col items-end gap-0.5 text-neutral-500 dark:text-neutral-400 tabular-nums">
+                                    <span>{{ \App\Models\ScrapedLoad::maskPhone($plainPhone) }}</span>
+                                    @if($extraPhones !== [])<span class="text-[11px]">+{{ count($extraPhones) }} numara daha</span>@endif
+                                </div>
                             @endif
                         </div>
                     </div>

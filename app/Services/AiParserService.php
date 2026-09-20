@@ -50,10 +50,13 @@ class AiParserService
 
     public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
 
+    /** Türkiye cep numarası: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil). */
+    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u';
+
     /** Yalnız kural tabanlı ayrıştırma; başarısızsa (ayar açıksa) yapay zeka ile tamamlar. */
     public function parseMessage(string $message, ?string $preferredProvider = null): array
     {
-        $message = trim(mb_substr($message, 0, 5000));
+        $message = trim(mb_substr($message, 0, 8000));
         if ($message === '') {
             return $this->failure('empty_message');
         }
@@ -71,7 +74,7 @@ class AiParserService
     /** Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz). */
     public function parseCheap(string $message): array
     {
-        $message = trim(mb_substr($message, 0, 5000));
+        $message = trim(mb_substr($message, 0, 8000));
 
         return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message);
     }
@@ -331,7 +334,7 @@ class AiParserService
      */
     public function enrich(string $message, array $parsed = [], bool $manual = false): array
     {
-        $message = trim(mb_substr($message, 0, 5000));
+        $message = trim(mb_substr($message, 0, 8000));
         if ($message === '' || ! $this->isConfigured() || (! $manual && ! $this->isEnabled())) {
             return ['status' => 'skipped', 'data' => null];
         }
@@ -473,6 +476,8 @@ class AiParserService
                 $aiProvince = TurkishLocations::resolve((string) $ai[$key])['province_code'] ?? null;
                 if ($ruleProvince && $aiProvince && $ruleProvince !== $aiProvince) {
                     $conflicts[$key] = ['rule' => $out[$key], 'ai' => $ai[$key]];
+                } elseif ($ruleProvince && $aiProvince && mb_strlen((string) $ai[$key]) > mb_strlen((string) $out[$key])) {
+                    $out[$key] = $ai[$key]; // aynı il; yapay zeka ilçe/semt de verdi ("Ankara" → "Ankara Ostim")
                 }
             }
         }
@@ -481,6 +486,13 @@ class AiParserService
         }
         if (empty($out['sender_phone']) && ! empty($ai['sender_phone'])) {
             $out['sender_phone'] = $ai['sender_phone'];
+        }
+        // Bir ilanda birden çok numara olabilir: kuralın bulduğu ilk numara asıl, yapay zekanın eklediği diğerleri yedek.
+        $phones = array_values(array_unique(array_filter(array_merge(
+            [$out['sender_phone'] ?? null], (array) ($out['phones'] ?? []), (array) ($ai['phones'] ?? [])
+        ), fn ($p) => is_string($p) && preg_match('/^5\d{9}$/', $p) === 1)));
+        if ($phones !== []) {
+            $out['phones'] = $phones;
         }
         foreach (['weight', 'price', 'goods_type'] as $key) {
             if (empty($out[$key]) && ! empty($ai[$key])) {
@@ -503,20 +515,63 @@ class AiParserService
         return $out;
     }
 
-    /** Yapay zeka çıktısını doğrular ve iç biçime çevirir (araç/yük anahtarları katalogla sınırlıdır). */
+    /**
+     * Yapay zeka çıktısını doğrular ve iç biçime çevirir (araç/yük anahtarları katalogla sınırlıdır).
+     * Yeni şema: mesajdaki her ilan "ads" listesinde ayrı bir öğe (her birinin kendi numaraları ve alıntısı var).
+     * Eski düz şema (tek nesne, sender_phone) da kabul edilir. Dönen dizide düz anahtarlar İLK ilanı,
+     * "ads" tüm ilanları verir.
+     */
     private function normalizeAi(array $data, string $provider): array
+    {
+        $model = $this->lastModelUsed[$provider] ?? $this->model($provider);
+        $rawAds = is_array($data['ads'] ?? null) ? array_values(array_filter($data['ads'], 'is_array')) : [];
+        $ads = [];
+        foreach ($rawAds as $i => $ad) {
+            $ads[] = $this->normalizeAd($ad, $provider, $model, $i, count($rawAds));
+        }
+        if ($ads === []) {
+            $ads[] = $this->normalizeAd($data, $provider, $model, 0, 1);
+        }
+        $messageType = in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : null;
+        $anyLoad = array_filter($ads, fn (array $a) => $a['is_load']) !== [];
+        $first = $ads[0];
+        $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : $first['confidence'];
+
+        return array_merge($first, [
+            'post_type' => $messageType ?? $first['post_type'],
+            // Mesaj düzeyinde "yük ilanı mı": en az bir ilan yükse evet (mesajın geneli "other" dense bile).
+            'is_load' => $anyLoad || ($messageType === 'load'),
+            'confidence' => $confidence,
+            'multiple_loads' => count($ads) > 1 || (bool) ($data['multiple_loads'] ?? false),
+            'notes' => $this->cleanText($data['notes'] ?? null, 200) ?? $first['notes'],
+            'ads' => $ads,
+        ]);
+    }
+
+    /** Tek bir ilan nesnesini (yeni "ads" öğesi ya da eski düz nesne) iç biçime çevirir. */
+    private function normalizeAd(array $data, string $provider, string $model, int $index, int $count): array
     {
         $vehicle = is_string($data['vehicle_type'] ?? null) && VehicleTypes::isValid($data['vehicle_type']) ? $data['vehicle_type'] : null;
         $goodsKey = is_string($data['goods_category'] ?? null) && GoodsCatalog::label($data['goods_category']) ? $data['goods_category'] : null;
         $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : null;
+        $phones = [];
+        foreach (array_merge([$data['sender_phone'] ?? null], is_array($data['phones'] ?? null) ? $data['phones'] : [$data['phones'] ?? null]) as $candidate) {
+            $normalized = $this->normalizePhone($candidate);
+            if ($normalized !== null && ! in_array($normalized, $phones, true)) {
+                $phones[] = $normalized;
+            }
+        }
+        $postType = in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : 'load';
 
         return [
             'provider' => $provider,
-            'model' => $this->lastModelUsed[$provider] ?? $this->model($provider),
-            'is_load' => ($data['post_type'] ?? 'load') === 'load' && ($data['is_load'] ?? true) !== false,
-            'post_type' => in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : 'load',
+            'model' => $model,
+            'is_load' => $postType === 'load' && ($data['is_load'] ?? true) !== false,
+            'post_type' => $postType,
             'confidence' => $confidence,
-            'sender_phone' => $this->normalizePhone($data['sender_phone'] ?? null),
+            'sender_phone' => $phones[0] ?? null,
+            'phones' => $phones,
+            'excerpt' => $this->cleanText($data['excerpt'] ?? null, 1500),
             'pickup_location' => $this->placeText($data['pickup'] ?? null),
             'delivery_location' => $this->placeText($data['delivery'] ?? null),
             'vehicle_type' => $vehicle,
@@ -527,9 +582,68 @@ class AiParserService
             'goods_category' => $goodsKey,
             'urgent' => (bool) ($data['urgent'] ?? false),
             'pickup_date_text' => $this->cleanText($data['pickup_date_text'] ?? null, 60),
-            'multiple_loads' => (bool) ($data['multiple_loads'] ?? false),
+            'multiple_loads' => $count > 1 || (bool) ($data['multiple_loads'] ?? false),
             'notes' => $this->cleanText($data['notes'] ?? null, 200),
+            'ad_index' => $index,
+            'ad_count' => $count,
         ];
+    }
+
+    /**
+     * Yapay zeka sonucundaki ilanlardan verilen numaraya ait olanı seçer (yoksa ilkini). Dönen dizi düz ilan
+     * alanlarını taşır; merge() ile kural sonucuna birleştirilir.
+     *
+     * @return array<string,mixed>
+     */
+    public static function pickAd(array $aiData, ?string $phone = null, ?string $pickup = null, ?string $delivery = null): array
+    {
+        $ads = is_array($aiData['ads'] ?? null) && $aiData['ads'] !== [] ? $aiData['ads'] : [array_diff_key($aiData, ['ads' => 1])];
+        $chosen = null;
+        if ($phone !== null) {
+            $byPhone = array_values(array_filter($ads, fn (array $a) => in_array($phone, (array) ($a['phones'] ?? []), true)));
+            if (count($byPhone) === 1) {
+                $chosen = $byPhone[0];
+            } elseif (count($byPhone) > 1 && $pickup && $delivery) {
+                // Aynı numaranın birden çok ilanı: il çiftine göre eşle.
+                $key = fn (?string $v) => TurkishCities::ascii(TurkishCities::fromText((string) $v) ?? (string) $v);
+                foreach ($byPhone as $a) {
+                    if ($key($a['pickup_location'] ?? null) === $key($pickup) && $key($a['delivery_location'] ?? null) === $key($delivery)) {
+                        $chosen = $a;
+                        break;
+                    }
+                }
+                $chosen ??= $byPhone[0];
+            }
+        }
+        $chosen ??= $ads[0];
+        unset($chosen['ads']);
+
+        return $chosen;
+    }
+
+    /**
+     * Metindeki TÜM Türkiye cep numaraları, yazım sırasıyla ve tekrarsız, 10 hane "5xxxxxxxxx".
+     *
+     * @return list<string>
+     */
+    public static function phonesIn(string $text): array
+    {
+        preg_match_all(self::PHONE_PATTERN, $text, $matches);
+        $out = [];
+        foreach ($matches[0] as $match) {
+            $digits = preg_replace('/\D+/', '', $match) ?? '';
+            if (str_starts_with($digits, '90') && strlen($digits) === 12) {
+                $digits = substr($digits, 2);
+            }
+            if (str_starts_with($digits, '0') && strlen($digits) === 11) {
+                $digits = substr($digits, 1);
+            }
+            if (preg_match('/^5\d{9}$/', $digits) && ! in_array($digits, $out, true)) {
+                $out[] = $digits;
+            }
+        }
+
+        return $out;
     }
 
     /** {province, district} nesnesini "İl İlçe" metnine çevirir. */
@@ -561,7 +675,7 @@ Sen Türkiye kara nakliye sektöründe WhatsApp gruplarına yazılan yük ilanla
 Verilen mesaj çoğunlukla kısa, yazım hatalı, kısaltmalı ve Türkçe karakterleri eksik olabilir ("Diyarbakr", "istanbl", "tn" = ton, "bin" = ×1000, "komple" = aracın tamamı, "parsiyel" = kısmi yük, "acil" = acele).
 
 Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
-1. post_type: "load" = taşınacak bir yük ve araç aranıyor; "vehicle_available" = boş araç/şoför yük arıyor (yük ilanı DEĞİL); "other" = sohbet, araç satışı, iş ilanı, reklam.
+1. post_type: "load" = taşınacak bir yük ve araç aranıyor; "vehicle_available" = boş araç/şoför yük arıyor (yük ilanı DEĞİL); "other" = sohbet, araç satışı, iş ilanı, reklam. Üstteki post_type mesajın geneli, her ilanın içindeki kendi türüdür (karışık mesajda yalnız yük olanlar ads listesine girer).
 2. pickup ve delivery: Türkiye il adı (resmi yazım, ör. "Diyarbakır", "İstanbul") ve varsa ilçe/semt. "X'den Y'ye", "X - Y", "X → Y", "Xdan Yya" kalıplarında X kalkış, Y varıştır. İlçe verildiyse ilini sen bul (Kartal → İstanbul, Gebze → Kocaeli, Nazilli → Aydın).
 3. vehicle_type: yalnız şu anahtarlardan biri; mesajda araç adı yoksa tonaja/yüke göre EN KÜÇÜK uygun aracı seç ve vehicle_flexible=true yap:
 {$vehicles}
@@ -569,17 +683,17 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 4. weight_kg: kilogram tam sayı ("24 tn" → 24000, "12,5 ton" → 12500, "800 kg" → 800). "Basar tonaj" = aracın taşıyabildiği azami tonaj, yük tonajı sayılır. Palet adedi tonaj değildir.
 5. price_try: Türk lirası ("45 bin" → 45000, "38.000 tl" → 38000, "45k" → 45000). KDV notu fiyatı değiştirmez. Yoksa null.
 6. goods_category: yalnız şu anahtarlardan biri ya da null: {$goods}. goods: mesajdaki yük tanımı kısa metin.
-7. sender_phone: mesajdaki Türkiye cep numarası, 10 hane "5xxxxxxxxx" biçiminde (0 ve +90 atılır).
+7. phones: o ilana ait TÜM Türkiye cep numaraları, 10 hane "5xxxxxxxxx" biçiminde (0 ve +90 atılır). Bir ilanda birden fazla kişi/numara olabilir ("Ahmet 0532…, Mehmet 0533…"); hepsini sırayla yaz. Sabit hat ve yabancı numaraları yazma.
 8. urgent: acil/hemen/bugün gibi ifadeler varsa true. pickup_date_text: yükleme zamanı ifadesi ("yarın", "pazartesi", "12.05") aynen.
-9. multiple_loads: mesajda birden fazla ayrı yük ilanı varsa true; bu durumda alanlara İLK ilanı yaz.
-10. confidence: 0 ile 1 arasında; mesaj belirsizse düşük ver. Tahmin etmek zorunda kaldığın alanları notes içinde kısaca belirt.
+9. ads: mesajdaki HER ayrı yük ilanı için bir öğe (bir mesajda 5-10 ilan olabilir). Ayrı ilan = ayrı rota ya da ayrı yük. Aynı firmanın farklı rotaları ayrı ilandır; aynı rotanın tekrar yazılması tek ilandır. Mesajın sonunda/başında ortak bir irtibat numarası varsa o numarayı her ilanın phones listesine ekle. excerpt: o ilana ait satırları mesajdan AYNEN kopyala (kısaltma, düzeltme, çeviri yapma); sistem her ilanı ayrı saklar ve alıntıyı gösterir. Yük ilanı yoksa ads boş liste olsun.
+10. confidence: 0 ile 1 arasında; mesaj belirsizse düşük ver (mesaj geneli için üstte, her ilan için ilanın içinde). Tahmin etmek zorunda kaldığın alanları notes içinde kısaca belirt.
 11. Reklam/imza satırlarını yok say ("Bu ilan VIP grubundan paylaşılmıştır", "gruba katılmak için…", web adresleri); bunlar konum ya da yük değildir.
 12. Emoji etiketli biçim yaygındır: 📍 genelde kalkış, 📦 ya da 🏁 varış, 💰 fiyat, 🚚 araç, ☎️ telefon. "1200+KDV" fiyatı 1200 TL, KDV hariç demektir (notes'a "KDV hariç" yaz). "1 araç" araç adedi, tonaj değildir.
 Bilinmeyen alanları null bırak, uydurma.
 TXT;
     }
 
-    /** @return array<string, mixed> JSON şeması (Claude yapılandırılmış çıktı) */
+    /** @return array<string, mixed> JSON şeması (Claude yapılandırılmış çıktı): mesaj geneli + her ilan için "ads" öğesi */
     public static function outputSchema(): array
     {
         $nullable = fn (string $type) => ['anyOf' => [['type' => $type], ['type' => 'null']]];
@@ -587,13 +701,13 @@ TXT;
             ['type' => 'object', 'properties' => ['province' => $nullable('string'), 'district' => $nullable('string')], 'required' => ['province', 'district'], 'additionalProperties' => false],
             ['type' => 'null'],
         ]];
-
-        return [
+        $ad = [
             'type' => 'object',
             'properties' => [
                 'post_type' => ['type' => 'string', 'enum' => ['load', 'vehicle_available', 'other']],
                 'confidence' => ['type' => 'number'],
-                'sender_phone' => $nullable('string'),
+                'phones' => ['type' => 'array', 'items' => ['type' => 'string']],
+                'excerpt' => $nullable('string'),
                 'pickup' => $place,
                 'delivery' => $place,
                 'vehicle_type' => ['anyOf' => [['type' => 'string', 'enum' => array_keys(VehicleTypes::TYPES)], ['type' => 'null']]],
@@ -604,10 +718,21 @@ TXT;
                 'goods_category' => ['anyOf' => [['type' => 'string', 'enum' => array_keys(GoodsCatalog::labels())], ['type' => 'null']]],
                 'urgent' => ['type' => 'boolean'],
                 'pickup_date_text' => $nullable('string'),
-                'multiple_loads' => ['type' => 'boolean'],
                 'notes' => $nullable('string'),
             ],
-            'required' => ['post_type', 'confidence', 'sender_phone', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'multiple_loads', 'notes'],
+            'required' => ['post_type', 'confidence', 'phones', 'excerpt', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'notes'],
+            'additionalProperties' => false,
+        ];
+
+        return [
+            'type' => 'object',
+            'properties' => [
+                'post_type' => ['type' => 'string', 'enum' => ['load', 'vehicle_available', 'other']],
+                'confidence' => ['type' => 'number'],
+                'notes' => $nullable('string'),
+                'ads' => ['type' => 'array', 'items' => $ad],
+            ],
+            'required' => ['post_type', 'confidence', 'notes', 'ads'],
             'additionalProperties' => false,
         ];
     }
@@ -782,6 +907,16 @@ TXT;
     /** Metinde geçen ilk iki farklı ili (yazım sırasıyla, yakın eşleme olmadan) döndürür. */
     public static function firstTwoProvinces(string $text): array
     {
+        return self::provincesIn($text, 2);
+    }
+
+    /**
+     * Metinde geçen farklı illeri yazım sırasıyla (yakın eşleme olmadan) döndürür; en fazla $limit tane.
+     *
+     * @return list<string>
+     */
+    public static function provincesIn(string $text, int $limit = PHP_INT_MAX): array
+    {
         $found = [];
         foreach (preg_split('/[\s,\/;:()]+/u', $text) ?: [] as $word) {
             $word = trim($word, '.-!?');
@@ -791,7 +926,7 @@ TXT;
             $province = TurkishCities::fromText($word, fuzzy: false);
             if ($province !== null && ! in_array($province, $found, true)) {
                 $found[] = $province;
-                if (count($found) === 2) {
+                if (count($found) >= $limit) {
                     break;
                 }
             }
@@ -803,8 +938,8 @@ TXT;
     private function parseWithRegex(string $message): array
     {
         // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
-        preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $message, $phoneMatch);
-        $phone = $this->normalizePhone($phoneMatch[0] ?? null);
+        $phones = self::phonesIn($message);
+        $phone = $phones[0] ?? null;
 
         // "Ankara'dan İzmir'e" yazımındaki kesme işaretleri rota eşlemesini bozmasın.
         $routeText = preg_replace("/[’'‘`]/u", '', $message) ?? $message;
@@ -847,6 +982,7 @@ TXT;
         return [
             'success' => true,
             'sender_phone' => $phone,
+            'phones' => $phones,
             'pickup_location' => $pickup,
             'delivery_location' => $delivery,
             'goods_type' => $this->cleanText($goods[1] ?? null, 120),

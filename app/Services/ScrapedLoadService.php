@@ -11,6 +11,7 @@ use chillerlan\QRCode\Output\QRMarkupSVG;
 use chillerlan\QRCode\QRCode;
 use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -223,6 +224,8 @@ class ScrapedLoadService
             return false;
         }
 
+        // Mesajda birden çok ilan varsa bu adayın numarasına ve rotasına uyan ilan alınır (yoksa ilki).
+        $ai['data'] = AiParserService::pickAd($ai['data'], $current['sender_phone'], $load->pickup_location, $load->delivery_location);
         $merged = $parser->merge($current, $ai['data']);
         $std = app(LoadStandardizer::class)->standardize((string) $load->raw_message, $merged);
         $load->forceFill(array_merge(array_intersect_key($std, array_flip([
@@ -236,8 +239,11 @@ class ScrapedLoadService
             'ai_status' => 'done',
             'ai_checked_at' => now(),
             'parse_metadata' => array_merge(array_diff_key($meta, ['ai_conflict' => 1]), $std['metadata'], array_filter([
-                'ai' => array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load'])),
+                'ai' => array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load', 'ad_index', 'ad_count'])),
                 'ai_conflict' => $merged['ai_conflict'] ?? null,
+                // Yapay zeka bu ilanda başka numara da bulduysa yedek numaralara eklenir (şifreli).
+                'extra_phones_enc' => ($extra = array_values(array_diff(array_unique(array_merge($load->extraPhones(), (array) ($merged['phones'] ?? []))), [$current['sender_phone']]))) !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extra) : null,
+                'phone_count' => count($extra) > 0 ? count($extra) + 1 : null,
             ])),
         ]))->save();
 

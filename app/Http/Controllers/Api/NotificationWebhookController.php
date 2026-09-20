@@ -97,8 +97,12 @@ class NotificationWebhookController extends Controller
                 // Aynı bildirimin tekrar teslimi için sabit kimlik; içerik aynıysa değişmez.
                 'message_id' => substr(hash('sha256', $parsed['group'].'|'.($message['sender'] ?? '').'|'.$message['text']), 0, 40),
             ]);
-            IntakeEvent::record($result['status'], ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null, 'excerpt' => $message['text'],
-                'reason' => $result['reason'] ?? null, 'scraped_load_id' => $result['scraped_load_id'] ?? null]);
+            // Mesaj birden çok ilan barındırıyorsa her ilan canlı akışta ayrı satır olur (kendi sonucu ve adayıyla).
+            $parts = count($result['segments'] ?? []) > 1 ? $result['segments'] : [$result + ['excerpt' => $message['text']]];
+            foreach ($parts as $part) {
+                IntakeEvent::record($part['status'], ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null, 'excerpt' => $part['excerpt'] ?? $message['text'],
+                    'reason' => $part['reason'] ?? null, 'scraped_load_id' => $part['scraped_load_id'] ?? null]);
+            }
         }
 
         $summary = array_count_values(array_column($results, 'status'));
@@ -108,7 +112,7 @@ class NotificationWebhookController extends Controller
             'status' => count($results) === 1 ? $results[0]['status'] : 'batch',
             'processed' => count($results),
             'summary' => $summary,
-            'results' => array_map(fn (array $r) => ['status' => $r['status'], 'message' => $r['message'], 'scraped_load_id' => $r['scraped_load_id'] ?? null], $results),
+            'results' => array_map(fn (array $r) => ['status' => $r['status'], 'message' => $r['message'], 'scraped_load_id' => $r['scraped_load_id'] ?? null, 'created_ids' => $r['created_ids'] ?? [], 'ads' => count($r['segments'] ?? [])], $results),
         ]);
     }
 
