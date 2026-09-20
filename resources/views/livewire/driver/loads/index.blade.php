@@ -757,7 +757,7 @@ class extends Component {
                                     @foreach(array_merge([$plainPhone], $extraPhones) as $phone)
                                         <div class="flex items-center gap-3 whitespace-nowrap">
                                             <a href="tel:+90{{ $phone }}" class="text-brand-500 font-bold hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
-                                            <a href="https://wa.me/90{{ $phone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
+                                            <a href="https://wa.me/90{{ $phone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">Mesaj gönder</a>
                                         </div>
                                     @endforeach
                                 </div>
