@@ -309,4 +309,41 @@ class LoadIntakeTest extends TestCase
         $this->assertCount(1, LoadIntakeService::splitSegments("Ankara → İstanbul 24 ton tenteli\nAnkara Ostim yükleme İstanbul Kartal teslim\n0532 111 11 11"));
         $this->assertSame(['5321111111', '5332222222'], AiParserService::phonesIn('Ahmet 0532 111 11 11, Mehmet +90 (533) 222-22-22, sabit 0312 444 44 44'));
     }
+
+    public function test_route_list_with_district_names_and_one_shared_phone_is_split_per_route(): void
+    {
+        $this->activeSource();
+        $message = "ACİL\nBeykoz-Şanlıurfa 13.60 Açık Tır\nBursa - Gaziantep 13.60 Tır açık kapalı frigolu hepsi olur\nBursa M.Kemalpaşa- İstanbul+Lüleburgaz 13.60 tır\nBugün yükleme 0544 111 11 14";
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 'list1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertCount(3, $r['created_ids']);
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $this->assertSame([[34, 63], [16, 27], [16, 34]], $loads->map(fn ($l) => [(int) $l->pickup_province_code, (int) $l->delivery_province_code])->all());
+        $this->assertSame(['5441111114', '5441111114', '5441111114'], $loads->map(fn ($l) => $l->plainPhone())->all());
+    }
+
+    public function test_truncated_or_chatty_model_json_is_recovered(): void
+    {
+        $truncated = '```json {"post_type":"load","confidence":0.9,"notes":null,"ads":[{"phones":["5321111111"],"excerpt":"abc","pickup":{"province":"Ankara","district":null}},{"phones":["53';
+        $this->assertSame('Ankara', AiParserService::decodeLenient($truncated)['ads'][0]['pickup']['province']);
+        $this->assertSame(['a' => 1, 'b' => [1, 2]], AiParserService::decodeLenient('İşte JSON: {"a":1,"b":[1,2,],} teşekkürler'));
+        $this->assertNull(AiParserService::decodeLenient('JSON yok'));
+
+        // Groq "Failed to validate JSON" (400) gövdesindeki failed_generation kurtarılır; ilan yine kaydedilir.
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Settings::set('ai_groq_model', 'llama-test');
+        Settings::set('ai_provider', 'groq');
+        $this->activeSource();
+        $ad = ['post_type' => 'load', 'confidence' => 0.9, 'phones' => ['5321234567'], 'excerpt' => null, 'pickup' => ['province' => 'Ankara', 'district' => null], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => null, 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null];
+        Http::fake(['api.groq.com/*' => Http::response(['error' => ['message' => 'Failed to validate JSON. Please adjust your prompt.', 'type' => 'invalid_request_error', 'code' => 'json_validate_failed', 'failed_generation' => "```json\n".json_encode(['post_type' => 'load', 'confidence' => 0.9, 'notes' => null, 'ads' => [$ad]])."\n```"]], 400)]);
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Ostimden Aliağaya tır lazım 0532 123 45 67', 'message_id' => 'g400', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status']);
+        $this->assertSame(['done', 'Ankara', 'İzmir'], [ScrapedLoad::first()->ai_status, ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]);
+        Http::assertSentCount(1);
+    }
 }

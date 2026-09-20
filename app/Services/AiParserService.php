@@ -543,7 +543,7 @@ class AiParserService
             'is_load' => $anyLoad || ($messageType === 'load'),
             'confidence' => $confidence,
             'multiple_loads' => count($ads) > 1 || (bool) ($data['multiple_loads'] ?? false),
-            'notes' => $this->cleanText($data['notes'] ?? null, 200) ?? $first['notes'],
+            'notes' => self::cleanText($data['notes'] ?? null, 200) ?? $first['notes'],
             'ads' => $ads,
         ]);
     }
@@ -571,19 +571,19 @@ class AiParserService
             'confidence' => $confidence,
             'sender_phone' => $phones[0] ?? null,
             'phones' => $phones,
-            'excerpt' => $this->cleanText($data['excerpt'] ?? null, 1500),
+            'excerpt' => self::cleanText($data['excerpt'] ?? null, 1500),
             'pickup_location' => $this->placeText($data['pickup'] ?? null),
             'delivery_location' => $this->placeText($data['delivery'] ?? null),
             'vehicle_type' => $vehicle,
             'vehicle_flexible' => (bool) ($data['vehicle_flexible'] ?? false),
             'weight' => $this->positiveInteger($data['weight_kg'] ?? null),
             'price' => $this->positiveDecimal($data['price_try'] ?? null),
-            'goods_type' => $goodsKey ? GoodsCatalog::label($goodsKey) : $this->cleanText($data['goods'] ?? null, 120),
+            'goods_type' => $goodsKey ? GoodsCatalog::label($goodsKey) : self::cleanText($data['goods'] ?? null, 120),
             'goods_category' => $goodsKey,
             'urgent' => (bool) ($data['urgent'] ?? false),
-            'pickup_date_text' => $this->cleanText($data['pickup_date_text'] ?? null, 60),
+            'pickup_date_text' => self::cleanText($data['pickup_date_text'] ?? null, 60),
             'multiple_loads' => $count > 1 || (bool) ($data['multiple_loads'] ?? false),
-            'notes' => $this->cleanText($data['notes'] ?? null, 200),
+            'notes' => self::cleanText($data['notes'] ?? null, 200),
             'ad_index' => $index,
             'ad_count' => $count,
         ];
@@ -650,15 +650,15 @@ class AiParserService
     private function placeText(mixed $place): ?string
     {
         if (is_string($place)) {
-            return $this->cleanText($place, 120);
+            return self::cleanText($place, 120);
         }
         if (! is_array($place)) {
             return null;
         }
-        $province = $this->cleanText($place['province'] ?? null, 60);
-        $district = $this->cleanText($place['district'] ?? null, 60);
+        $province = self::cleanText($place['province'] ?? null, 60);
+        $district = self::cleanText($place['district'] ?? null, 60);
         if ($province === null) {
-            return $this->cleanText($place['text'] ?? null, 120);
+            return self::cleanText($place['text'] ?? null, 120);
         }
 
         return trim($province.' '.($district ?? ''));
@@ -800,7 +800,7 @@ TXT;
         $model ??= $this->model($provider);
         $body = [
             'model' => $model,
-            'max_tokens' => 1024,
+            'max_tokens' => 4096,
             'system' => [['type' => 'text', 'text' => self::systemPrompt(), 'cache_control' => ['type' => 'ephemeral']]],
             'messages' => [['role' => 'user', 'content' => "İlan mesajı:\n".$message]],
             'output_config' => ['format' => ['type' => 'json_schema', 'schema' => self::outputSchema()]],
@@ -851,24 +851,37 @@ TXT;
             $headers['HTTP-Referer'] = (string) config('app.url');
             $headers['X-Title'] = 'NavlunIQ';
         }
-        $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', [
+        $body = [
             'model' => $model,
             'temperature' => 0,
-            'max_tokens' => 1024,
+            'max_tokens' => 4096,
             'response_format' => ['type' => 'json_object'],
             'messages' => [
                 ['role' => 'system', 'content' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun tek bir JSON nesnesi olarak ver, başka metin yazma: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)],
                 ['role' => 'user', 'content' => "İlan mesajı:\n".$message],
             ],
-        ]);
+        ];
+        $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
         if ($response->status() === 429) {
             throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
-        if (! $response->successful()) {
-            throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
+        $decoded = null;
+        if ($response->status() === 400 && is_string($failed = data_get($response->json(), 'error.failed_generation'))) {
+            // Groq: model JSON kipinde geçersiz çıktı verdi ("Failed to validate JSON"); ham üretim yine de gövdede gelir.
+            // Önce onu kurtarmayı dener, olmazsa JSON kipi olmadan bir kez daha ister (yanıt metinden ayıklanır).
+            $decoded = self::decodeLenient($failed);
+            if ($decoded === null) {
+                unset($body['response_format']);
+                $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+            }
         }
-        $text = (string) data_get($response->json(), 'choices.0.message.content', '');
-        $decoded = json_decode($this->cleanJsonString($text), true);
+        if ($decoded === null) {
+            if (! $response->successful()) {
+                throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
+            }
+            $text = (string) data_get($response->json(), 'choices.0.message.content', '');
+            $decoded = self::decodeLenient($text);
+        }
         if (! is_array($decoded)) {
             throw new RuntimeException('invalid_provider_json');
         }
@@ -885,7 +898,7 @@ TXT;
             [
                 'systemInstruction' => ['parts' => [['text' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun ver: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)]]],
                 'contents' => [['parts' => [['text' => "İlan mesajı:\n".$message]]]],
-                'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0],
+                'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0, 'maxOutputTokens' => 4096],
             ]
         );
         if ($response->status() === 429) {
@@ -944,14 +957,20 @@ TXT;
         // "Ankara'dan İzmir'e" yazımındaki kesme işaretleri rota eşlemesini bozmasın.
         $routeText = preg_replace("/[’'‘`]/u", '', $message) ?? $message;
         // Bağlaçtan önce ve sonra en fazla iki sözcük alınır ("Ankara Ostim" → "İzmir Aliağa").
-        $word = '\p{L}+';
-        preg_match('/('.$word.'(?:\s+'.$word.')?)\s*(->|→|>|-|–|—|dan|den|tan|ten)\s+('.$word.'(?:\s+'.$word.')?)/iu', $routeText, $route);
-        $dativeForm = isset($route[2]) && preg_match('/^(?:dan|den|tan|ten)$/iu', $route[2]) === 1; // "Ankaradan İzmire": varış yönelme eki taşır
-        $pickup = $this->tidyLocation($route[1] ?? null);
-        $delivery = $this->tidyLocation($route[3] ?? null, $dativeForm);
+        $resolvable = fn (?string $v) => $v !== null && TurkishLocations::resolve($v) !== null;
+        // Bağlaç eşleşmeleri arasında iki ucu da çözülen ilki alınır ("Beykoz-Şanlıurfa … Bursa - Gaziantep" → Beykoz-Şanlıurfa).
+        [$pickup, $delivery] = [null, null];
+        foreach (self::connectorMatches($routeText) as $m) {
+            if ($resolvable($m['pickup']) && $resolvable($m['delivery'])) {
+                [$pickup, $delivery] = [$m['pickup'], $m['delivery']];
+                break;
+            }
+            if ($pickup === null && $delivery === null) {
+                [$pickup, $delivery] = [$m['pickup'], $m['delivery']];
+            }
+        }
         // Bağlaç eşleşmesi il kataloğunda çözülmüyorsa ("VIP grubundan paylaşılmıştır") ya da hiç yoksa
         // ("Denizli Bursa 8 ton…", "📍 Ankara 📦 İstanbul"): metindeki ilk iki il sırayla kalkış/varış.
-        $resolvable = fn (?string $v) => $v !== null && TurkishLocations::resolve($v) !== null;
         if (! $resolvable($pickup) || ! $resolvable($delivery)) {
             $pair = self::firstTwoProvinces($routeText);
             if (count($pair) === 2) {
@@ -985,7 +1004,7 @@ TXT;
             'phones' => $phones,
             'pickup_location' => $pickup,
             'delivery_location' => $delivery,
-            'goods_type' => $this->cleanText($goods[1] ?? null, 120),
+            'goods_type' => self::cleanText($goods[1] ?? null, 120),
             'weight' => $weightKg !== null ? (int) round($weightKg) : null,
             'price' => $this->positiveDecimal($price[1] ?? null),
             'vehicle_type' => ($vehicle = VehicleTypes::detect($message, $weightKg !== null ? (int) round($weightKg) : null))['type'],
@@ -994,10 +1013,53 @@ TXT;
         ];
     }
 
-    /** Yer adından "acil", "yük", "var" gibi dolgu sözcüklerini atar; il adını ekinden arındırır. */
-    private function tidyLocation(?string $value, bool $stripDative = false): ?string
+    /**
+     * Metindeki "X - Y", "X→Y", "X'den Y'ye" kalıplarının tümü, sırayla (temizlenmiş kalkış/varış metinleriyle).
+     * Sembol bağlaçlarda boşluk zorunlu değildir ("Beykoz-Şanlıurfa"); ek bağlaçlarda ("dan/den") varıştan önce boşluk gerekir.
+     *
+     * @return list<array{pickup:?string, delivery:?string}>
+     */
+    public static function connectorMatches(string $text): array
     {
-        $value = $this->cleanText($value, 120);
+        $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
+        $word = '\p{L}+(?:\.\p{L}+)*'; // "M.Kemalpaşa" gibi kısaltmalı yazımlar tek sözcük sayılır
+        $pattern = '/('.$word.'(?:\s+'.$word.')?)(?:\s*(->|→|>|-|–|—)\s*|\s*(dan|den|tan|ten)\s+)('.$word.'(?:\s+'.$word.')?)/iu';
+        if (! preg_match_all($pattern, $text, $all, PREG_SET_ORDER)) {
+            return [];
+        }
+        $out = [];
+        foreach ($all as $m) {
+            $dative = ($m[3] ?? '') !== '';
+            $out[] = ['pickup' => self::tidyLocation($m[1]), 'delivery' => self::tidyLocation($m[4], $dative)];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Metindeki ilk çözülebilen rota: [kalkış ili, varış ili] (kanonik il adları). Bağlaç kalıbı yoksa
+     * metindeki ilk iki il alınır. Bulunamazsa null.
+     *
+     * @return array{0:string,1:string}|null
+     */
+    public static function routePair(string $text): ?array
+    {
+        foreach (self::connectorMatches($text) as $m) {
+            $a = $m['pickup'] !== null ? TurkishLocations::resolve($m['pickup']) : null;
+            $b = $m['delivery'] !== null ? TurkishLocations::resolve($m['delivery']) : null;
+            if ($a && $b && $a['province'] !== $b['province']) {
+                return [$a['province'], $b['province']];
+            }
+        }
+        $pair = self::provincesIn($text, 2);
+
+        return count($pair) === 2 ? $pair : null;
+    }
+
+    /** Yer adından "acil", "yük", "var" gibi dolgu sözcüklerini atar; il adını ekinden arındırır. */
+    private static function tidyLocation(?string $value, bool $stripDative = false): ?string
+    {
+        $value = self::cleanText($value, 120);
         if ($value === null) {
             return null;
         }
@@ -1046,7 +1108,7 @@ TXT;
         return preg_match('/^5\d{9}$/', $digits) ? $digits : null;
     }
 
-    private function cleanText(mixed $value, int $limit): ?string
+    private static function cleanText(mixed $value, int $limit): ?string
     {
         if (! is_scalar($value)) {
             return null;
@@ -1126,5 +1188,53 @@ TXT;
         $string = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $string) ?? $string;
 
         return trim($string);
+    }
+
+    /**
+     * Modelin JSON'unu hoşgörüyle çözer: kod çiti, önündeki/arkasındaki açıklama metni, sondaki virgül ve
+     * kesilmiş yanıt (kapanmamış ayraçlar) onarılır. Çözülemezse null.
+     */
+    public static function decodeLenient(string $text): ?array
+    {
+        $text = trim(preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($text)) ?? $text);
+        $start = strpos($text, '{');
+        if ($start === false) {
+            return null;
+        }
+        $text = substr($text, $start);
+        $end = strrpos($text, '}');
+        $candidate = $end !== false ? substr($text, 0, $end + 1) : $text;
+        $decoded = json_decode($candidate, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+        // Sondaki virgül ve kapanmamış dizi/nesne: kesik yanıtı kapatarak dene.
+        $fixed = preg_replace('/,\s*([}\]])/u', '$1', $candidate) ?? $candidate;
+        $decoded = json_decode($fixed, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+        $fixed = preg_replace('/,\s*"[^"]*$/u', '', $text) ?? $text; // yarım kalan alan
+        $fixed = rtrim($fixed, ", \n\t");
+        $stack = [];
+        $inString = false;
+        for ($i = 0, $n = strlen($fixed); $i < $n; $i++) {
+            $ch = $fixed[$i];
+            if ($ch === '"' && ($i === 0 || $fixed[$i - 1] !== '\\')) {
+                $inString = ! $inString;
+            } elseif (! $inString && ($ch === '{' || $ch === '[')) {
+                $stack[] = $ch === '{' ? '}' : ']';
+            } elseif (! $inString && ($ch === '}' || $ch === ']')) {
+                array_pop($stack);
+            }
+        }
+        if ($inString) {
+            $fixed .= '"';
+        }
+        $fixed .= implode('', array_reverse($stack));
+        $fixed = preg_replace('/,\s*([}\]])/u', '$1', $fixed) ?? $fixed;
+        $decoded = json_decode($fixed, true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 }
