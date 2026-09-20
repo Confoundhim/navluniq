@@ -563,7 +563,7 @@ new class extends Component {
                                         @if($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
                                         
                                     </div>
-                                    <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<br>{{ $load->created_at?->format('d.m.Y H:i') }}<br>{{ $load->masked_phone }}</div>
+                                    <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<br>{{ $load->created_at?->format('d.m.Y H:i') }}<br>{{ $load->masked_phone }}@if(($extra = $load->extraPhones()) !== [])<br><span class="text-brand-500 font-semibold" title="{{ implode(', ', array_map(fn ($p) => \App\Support\Phone::format($p), $extra)) }}">+{{ count($extra) }} numara</span>@endif@if($load->meta('message_part'))<br><span title="Aynı mesajdan ayrılan ilanlardan biri">mesajın {{ (int) $load->meta('message_part')['index'] + 1 }}/{{ $load->meta('message_part')['count'] }}. ilanı</span>@endif</div>
                                 </td>
                                 <td class="p-3">
                                     <div class="font-bold text-neutral-900 dark:text-white text-sm">

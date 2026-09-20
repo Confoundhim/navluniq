@@ -128,6 +128,20 @@ kuyrukta "kural ve yapay zeka farklı il buldu; elle kontrol" uyarısıyla bekle
 Yapay zeka güveni %50'nin altındaysa da elle kontrol istenir. Yöneticinin elle düzenlediği ilanlara dokunulmaz.
 Kuyrukta **Yapay zeka ile çözümle** ile tek tek veya toplu yeniden çözümleme yapılabilir.
 
+**Bir mesajda birden çok ilan, bir ilanda birden çok numara.** Gruplarda tek mesajla 5-10 yük listelenir ve "Ahmet
+0532…, Mehmet 0533…" gibi birden çok irtibat yazılır. Sistem mesajı önce ilanlara ayırır, her ilanı ayrı aday olarak
+kaydeder ve o ilana ait tüm numaraları saklar:
+
+- **Yapay zeka öncelikli kipte** mesajın tamamı bir kez gönderilir; yapay zeka her ilanı (`ads`) kendi numaraları ve
+  mesajdan aynen alıntısıyla döndürür. Ortak irtibat satırı her ilana eklenir. Tek çağrı = tek kota.
+- **Kural yedeği**: boş satırla ayrılan bloklar, farklı il çifti taşıyan satırlar ve "numarası yazılmış ilandan sonra
+  gelen yeni il satırı" ayrı ilan sayılır; numarasız rota satırları en yakın irtibat numarasını devralır.
+- Her parça kendi tekrar denetiminden geçer (aynı ilan başka gruptan gelirse ilgili adayın sayacı artar).
+- Ana numara `encrypted_sender_phone`, diğerleri `parse_metadata.extra_phones_enc` içinde şifreli tutulur. Şoför
+  panelinde premium üye tüm numaraları arama/WhatsApp bağlantısıyla görür; ücretsiz üye maskeli numara ve "+N numara
+  daha" görür. Kuyrukta "+N numara" ve "mesajın 2/5. ilanı" notu bulunur.
+- Canlı akışta bir mesajın her ilanı ayrı satırdır (kuyruğa alındı / tekrar / elendi kendi gerekçesiyle).
+
 ## Sorun giderme
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?

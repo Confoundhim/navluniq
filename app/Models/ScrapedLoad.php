@@ -87,6 +87,45 @@ class ScrapedLoad extends Model
         return Phone::normalize($this->sender_phone);
     }
 
+    /**
+     * Aynı ilandaki diğer numaralar (ilk numara dışındakiler); şifreli saklanır.
+     *
+     * @return list<string>
+     */
+    public function extraPhones(): array
+    {
+        $out = [];
+        foreach ((array) $this->meta('extra_phones_enc', []) as $enc) {
+            try {
+                $phone = Phone::normalize(Crypt::decryptString((string) $enc));
+            } catch (\Throwable) {
+                continue;
+            }
+            if ($phone !== null && ! in_array($phone, $out, true)) {
+                $out[] = $phone;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * İlanın tüm numaraları, ana numara önce.
+     *
+     * @return list<string>
+     */
+    public function allPhones(): array
+    {
+        $primary = $this->plainPhone();
+
+        return array_values(array_unique(array_filter(array_merge([$primary], $this->extraPhones()))));
+    }
+
+    public static function maskPhone(?string $phone): string
+    {
+        return $phone ? '0'.substr($phone, 0, 3).' *** ** '.substr($phone, -2) : 'Bilinmiyor';
+    }
+
     /** Standart başlık: "Diyarbakır → İstanbul Kartal". */
     public function routeLabel(): string
     {
@@ -152,8 +191,6 @@ class ScrapedLoad extends Model
      */
     public function getMaskedPhoneAttribute(): string
     {
-        $phone = $this->plainPhone();
-
-        return $phone ? '0'.substr($phone, 0, 3).' *** ** '.substr($phone, -2) : 'Bilinmiyor';
+        return self::maskPhone($this->plainPhone());
     }
 }

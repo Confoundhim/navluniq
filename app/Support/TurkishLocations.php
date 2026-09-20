@@ -22,7 +22,11 @@ final class TurkishLocations
         if (self::$data === null) {
             self::$data = json_decode((string) file_get_contents(dirname(__DIR__, 2).'/resources/data/tr-locations.json'), true) ?: ['provinces' => [], 'districts' => []];
             self::$provinceIndex = [];
-            foreach (self::$data['provinces'] as $p) {
+            foreach (self::$data['provinces'] as $i => $p) {
+                // Veri dosyasındaki ad kanonik il adına çevrilir ("Afyon" → "Afyonkarahisar"); kısa ad da dizine girer.
+                $canonical = TurkishCities::fromText($p['name'], fuzzy: false) ?? $p['name'];
+                self::$data['provinces'][$i]['name'] = $canonical;
+                self::$provinceIndex[TurkishCities::ascii($canonical)] = $p['code'];
                 self::$provinceIndex[TurkishCities::ascii($p['name'])] = $p['code'];
             }
             self::$districtIndex = [];
