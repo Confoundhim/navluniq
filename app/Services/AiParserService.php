@@ -34,25 +34,25 @@ class AiParserService
             'models' => self::GEMINI_MODELS, 'key_hint' => 'AIza…', 'site' => 'https://aistudio.google.com/apikey'],
         'groq' => ['label' => 'Groq', 'kind' => 'openai', 'base' => 'https://api.groq.com/openai/v1', 'free' => 'Ücretsiz katman: kart istemez (console.groq.com). Llama 3.3 70B çok hızlı; günlük ~1.000 istek.',
             'models' => ['openai/gpt-oss-120b' => 'GPT-OSS 120B', 'meta-llama/llama-4-scout-17b-16e-instruct' => 'Llama 4 Scout 17B', 'llama-3.3-70b-versatile' => 'Llama 3.3 70B'], 'key_hint' => 'gsk_…', 'site' => 'https://console.groq.com/keys'],
-        'cerebras' => ['label' => 'Cerebras', 'kind' => 'openai', 'base' => 'https://api.cerebras.ai/v1', 'free' => 'Ücretsiz katman: kart istemez (cloud.cerebras.ai). Günlük ~1 milyon jeton.',
+        'cerebras' => ['label' => 'Cerebras', 'kind' => 'openai', 'hidden' => true, 'base' => 'https://api.cerebras.ai/v1', 'free' => 'Ücretsiz katman: kart istemez (cloud.cerebras.ai). Günlük ~1 milyon jeton.',
             'models' => ['llama-3.3-70b' => 'Llama 3.3 70B', 'gpt-oss-120b' => 'GPT-OSS 120B', 'qwen-3-32b' => 'Qwen 3 32B'], 'key_hint' => 'csk-…', 'site' => 'https://cloud.cerebras.ai'],
-        'openrouter' => ['label' => 'OpenRouter', 'kind' => 'openai', 'base' => 'https://openrouter.ai/api/v1', 'free' => '":free" modeller ücretsizdir (openrouter.ai). Kart olmadan günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000.',
+        'openrouter' => ['label' => 'OpenRouter', 'kind' => 'openai', 'hidden' => true, 'base' => 'https://openrouter.ai/api/v1', 'free' => '":free" modeller ücretsizdir (openrouter.ai). Kart olmadan günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000.',
             'models' => ['meta-llama/llama-3.3-70b-instruct:free' => 'Llama 3.3 70B (free)', 'qwen/qwen3-235b-a22b:free' => 'Qwen3 235B (free)', 'deepseek/deepseek-chat-v3-0324:free' => 'DeepSeek V3 (free)', 'google/gemma-3-27b-it:free' => 'Gemma 3 27B (free)'], 'key_hint' => 'sk-or-…', 'site' => 'https://openrouter.ai/keys'],
-        'mistral' => ['label' => 'Mistral', 'kind' => 'openai', 'base' => 'https://api.mistral.ai/v1', 'free' => 'Ücretsiz deneme katmanı (console.mistral.ai; telefon doğrulaması ister). Aylık ~1 milyar jeton, saniyede 1 istek.',
+        'mistral' => ['label' => 'Mistral', 'kind' => 'openai', 'hidden' => true, 'base' => 'https://api.mistral.ai/v1', 'free' => 'Ücretsiz deneme katmanı (console.mistral.ai; telefon doğrulaması ister). Aylık ~1 milyar jeton, saniyede 1 istek.',
             'models' => ['mistral-small-latest' => 'Mistral Small', 'open-mistral-nemo' => 'Mistral Nemo 12B', 'mistral-medium-latest' => 'Mistral Medium'], 'key_hint' => '…', 'site' => 'https://console.mistral.ai/api-keys'],
         'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'hidden' => true, 'free' => 'Ücretli. Yalnız istenirse; ücretsizlerden sonra denenir.',
             'models' => self::CLAUDE_MODELS, 'key_hint' => 'sk-ant-…', 'site' => 'https://console.anthropic.com'],
-        'openai' => ['label' => 'OpenAI (ChatGPT API)', 'kind' => 'openai', 'base' => 'https://api.openai.com/v1', 'free' => 'Ücretli: ChatGPT uygulaması ücretsiz olsa da API anahtarı kullandıkça ödemelidir (platform.openai.com). "Mini" modeller çok ucuzdur.',
+        'openai' => ['label' => 'OpenAI (ChatGPT API)', 'kind' => 'openai', 'hidden' => true, 'base' => 'https://api.openai.com/v1', 'free' => 'Ücretli: ChatGPT uygulaması ücretsiz olsa da API anahtarı kullandıkça ödemelidir (platform.openai.com). "Mini" modeller çok ucuzdur.',
             'models' => ['gpt-5-mini' => 'GPT-5 mini', 'gpt-4.1-mini' => 'GPT-4.1 mini', 'gpt-4o-mini' => 'GPT-4o mini'], 'key_hint' => 'sk-…', 'site' => 'https://platform.openai.com/api-keys'],
         'xai' => ['label' => 'xAI Grok', 'kind' => 'openai', 'base' => 'https://api.x.ai/v1', 'hidden' => true, 'free' => 'Ücretli (console.x.ai); zaman zaman deneme kredisi verilir.',
             'models' => ['grok-4-fast' => 'Grok 4 Fast', 'grok-3-mini' => 'Grok 3 mini', 'grok-4' => 'Grok 4'], 'key_hint' => 'xai-…', 'site' => 'https://console.x.ai'],
-        'kimi' => ['label' => 'Moonshot Kimi', 'kind' => 'openai', 'base' => 'https://api.moonshot.ai/v1', 'free' => 'Ücretli ama çok ucuz (platform.moonshot.ai); yeni hesaba deneme kredisi verilir.',
+        'kimi' => ['label' => 'Moonshot Kimi', 'kind' => 'openai', 'hidden' => true, 'base' => 'https://api.moonshot.ai/v1', 'free' => 'Ücretli ama çok ucuz (platform.moonshot.ai); yeni hesaba deneme kredisi verilir.',
             'models' => ['kimi-k2-turbo-preview' => 'Kimi K2 Turbo', 'kimi-k2-0905-preview' => 'Kimi K2', 'moonshot-v1-8k' => 'Moonshot v1 8k'], 'key_hint' => 'sk-…', 'site' => 'https://platform.moonshot.ai'],
     ];
 
     public const DEFAULT_ORDER = ['ollama', 'gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
 
-    /** Panelde gösterilen sağlayıcılar (ücretli olanlar gizli; anahtarı elle girilmişse zincirde yine çalışır). */
+    /** Panelde gösterilen sağlayıcılar: yalnız gerçekten ücretsiz çalışanlar (Gemini, Groq). Gizliler anahtarı girilmişse zincirde yine çalışır. */
     public static function visibleProviders(): array
     {
         return array_filter(self::PROVIDERS, fn (array $p) => empty($p['hidden']) && (empty($p['local']) || config('services.ai.allow_local_models')));

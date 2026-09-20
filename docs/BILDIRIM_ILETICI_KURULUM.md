@@ -112,14 +112,11 @@ bir yeniden dener. Varsayılan sıra ücretsiz katmanlardan başlar:
 |---|---|---|---|
 | 1 | Google Gemini (Flash-Lite / Flash) | Kart istemez; günlük istek sınırı modele göre (Flash-Lite daha yüksek) | aistudio.google.com/apikey |
 | 2 | Groq (Llama 3.3 70B) | Kart istemez; günlük ~1.000 istek, çok hızlı | console.groq.com/keys |
-| 3 | Cerebras (Llama 3.3 70B) | Kart istemez; günlük ~1 milyon jeton | cloud.cerebras.ai |
-| 4 | OpenRouter (":free" modeller) | Kartsız günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000 | openrouter.ai/keys |
-| 5 | Mistral (Small) | Deneme katmanı, telefon doğrulaması ister; aylık ~1 milyar jeton | console.mistral.ai |
-| 6 | Moonshot Kimi | Ücretli ama çok ucuz; deneme kredisi | platform.moonshot.ai |
-| 7 | OpenAI (ChatGPT API) | Ücretli; ChatGPT'nin ücretsiz uygulaması API vermez | platform.openai.com |
 
-Kota rakamları sağlayıcıların o günkü politikasına bağlıdır; panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
-ve kota dolduysa uyarı görünür. İlk 2-3 sağlayıcıya anahtar girmek günde binlerce ilanı ücretsiz karşılar.
+Panelde yalnız bu ikisi görünür; Cerebras, OpenRouter, Mistral, OpenAI, Kimi, Claude ve xAI denemede ya ücretli çıktı
+ya da kullanılamaz kotalar verdi (kod içinde gizli dururlar). Panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
+ve kota dolduysa uyarı görünür. Hacim büyüyünce Google'da faturalandırmayı açıp Flash-Lite'ı ücretli katmanda kullanmak
+en ucuz yoldur (1.000 ilan ≈ 0,2-0,35 $).
 
 **Hatasız içerik güvencesi.** Kuralın kesin çözdüğü il ile yapay zekanın bulduğu il farklıysa ilan otomatik yayınlanmaz;
 kuyrukta "kural ve yapay zeka farklı il buldu; elle kontrol" uyarısıyla bekler (filtre: "Kural / yapay zeka çelişen").

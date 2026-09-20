@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Services;
 
+use App\Console\Commands\AnalyzeIntakeSamplesCommand;
 use App\Models\AiLexicon;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
@@ -185,5 +186,49 @@ class LocalLearningTest extends TestCase
         $load = ScrapedLoad::first();
         $this->assertSame(['ollama', 'done', 'Ankara'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]);
         $this->assertSame('qwen3:4b', AiParserService::pickModel('ollama', ['llama3.2:3b', 'qwen3:4b', 'nomic-embed-text']));
+    }
+
+    public function test_rule_playground_and_sample_analyzer_work_without_ai(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin->fresh());
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'lexicon')
+            ->set('tryText', "Ankara - İzmir 24 ton tenteli tır 0532 111 11 11\n\nBursa - Konya 10 ton 0533 222 22 22")
+            ->call('tryRules');
+        $result = $c->get('tryResult');
+        $this->assertSame('ön elemeyi geçti', $result[0]['gate']);
+        $this->assertCount(3, $result);
+        $this->assertSame([true, false], [$result[1]['needs_ai'] === false, $result[2]['needs_ai']]); // ikincide araç adı yok → yapay zeka
+        $this->assertSame('tir', $result[1]['vehicle']);
+        Http::assertNothingSent();
+
+        $file = tempnam(sys_get_temp_dir(), 'wa');
+        file_put_contents($file, "20.09.2026 15:06 - Ahmet: Ankara - İzmir 24 ton tenteli tır 0532 111 11 11\n20.09.2026 15:07 - Mehmet: Hayırlı işler arkadaşlar\n20.09.2026 15:08 - Ali: <Medya dahil edilmedi>\n20.09.2026 15:09 - Veli: Ostimden Aliağaya palet var\n0534 333 33 33\n");
+        $messages = AnalyzeIntakeSamplesCommand::parseExport((string) file_get_contents($file));
+        $this->assertCount(3, $messages);
+        $this->assertStringContainsString("palet var\n0534", $messages[2]);
+        $this->artisan('intake:analyze', ['file' => $file])->assertSuccessful()
+            ->expectsOutputToContain('Mesaj: 3');
+        unlink($file);
+    }
+
+    public function test_rule_only_candidates_need_strong_evidence_or_local_confidence_for_auto_approval(): void
+    {
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_ai', '1');
+        Settings::set('ai_parse_mode', 'fill_gaps');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        $source = $this->source();
+        $service = app(ScrapedLoadService::class);
+
+        $weak = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'weight', 'weight' => null]);
+        $this->assertStringContainsString('kural kanıtı zayıf', $service->autoApprovalBlocker($weak));
+        $strong = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']);
+        $this->assertNull($service->autoApprovalBlocker($strong));
+        $withLocal = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'parse_metadata' => ['local_confidence' => 0.5]]);
+        $this->assertStringContainsString('yerel güven düşük', $service->autoApprovalBlocker($withLocal));
     }
 }
