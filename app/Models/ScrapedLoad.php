@@ -44,6 +44,7 @@ class ScrapedLoad extends Model
         'weight',
         'price',
         'currency',
+        'price_unit',
         'status',
         'parsed_by_llm',
         'parse_confidence',
@@ -130,6 +131,23 @@ class ScrapedLoad extends Model
     public function routeLabel(): string
     {
         return ($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş');
+    }
+
+    /** "45.000 ₺", "1.000 ₺/ton", "1.200 $" ya da null (fiyat yok). */
+    public function priceLabel(): ?string
+    {
+        if ($this->price === null || (float) $this->price <= 0) {
+            return null;
+        }
+        $v = (float) $this->price;
+        $symbol = ['USD' => '$', 'EUR' => '€'][$this->currency ?? 'TRY'] ?? '₺';
+
+        return number_format($v, fmod($v, 1.0) === 0.0 ? 0 : 2, ',', '.').' '.$symbol.($this->price_unit === 'per_ton' ? '/ton' : '');
+    }
+
+    public function isPerTon(): bool
+    {
+        return $this->price_unit === 'per_ton';
     }
 
     /** "24 ton" / "800 kg" / null. */

@@ -643,25 +643,20 @@ class extends Component {
             @endif
             <div class="space-y-3">
                 @forelse($loads as $load)
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 hover:border-brand-500/40 rounded-xl transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                        <div class="space-y-1.5 flex-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}
-                                @if($load->isEarlyAccess())<span class="ml-1 badge bg-brand-500/10 text-brand-500 align-middle" title="Herkese {{ $load->available_to_free_at->format('H:i') }}'de açılır">⭐ Erken erişim</span>@endif
-                            </div>
-                            <div class="text-neutral-500 dark:text-neutral-400">
-                                {{ $load->goods_type }} · {{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}
-                                @if($load->weight) · {{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg @endif
-                                @if($load->volume) · {{ number_format((int) ($load->volume ?? 0), 0, ',', '.') }} m³ @endif
-                            </div>
-                            <div class="text-neutral-500">
-                                Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}
-                                @if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }} @endif
-                                · Yük sahibi: {{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}
+                    @php $kg = (int) ($load->weight ?? 0); $vol = (int) ($load->volume ?? 0); $lp = (float) ($load->price ?? 0); @endphp
+                    <div class="load-card">
+                        <div class="load-card-main">
+                            <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif@if($vol > 0) · {{ number_format($vol, 0, ',', '.') }} m³@endif</div>
+                            <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}@if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }}@endif · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
+                            <div class="load-card-badges">
+                                <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>
+                                @if($load->isEarlyAccess())<span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400" title="Herkese {{ $load->available_to_free_at->format('H:i') }}'de açılır">⭐ Erken erişim</span>@endif
                             </div>
                         </div>
-                        <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
-                            <div class="text-lg font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
-                            <button type="button" wire:click="openOffer({{ $load->id }})" class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold">Teklif ver</button>
+                        <div class="load-card-side">
+                            <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
+                            <button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>
                         </div>
                     </div>
                 @empty
@@ -739,49 +734,35 @@ class extends Component {
             <div class="space-y-3">
                 @forelse($externalLoads as $item)
                     @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; $extraPhones = $item->extraPhones(); @endphp
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                        <div class="space-y-1.5 flex-1">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">
-                                @if($item->isUrgent())<span class="badge bg-red-500 text-white mr-1 align-middle">ACİL</span>@endif
-                                {{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}
-                            </div>
-                            <div class="text-neutral-600 dark:text-neutral-300 font-medium">
-                                {{ $item->goods_type ?: 'Yük türü belirtilmemiş' }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif@if($item->meta('pickup_note')) · Yükleme: {{ $item->meta('pickup_note') }}@endif
-                            </div>
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                @if($item->vehicle_type)
-                                    <span class="badge bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 inline-flex items-center gap-1">
-                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">{!! \App\Support\VehicleTypes::iconPath($item->vehicle_type) !!}</svg>
-                                        {{ $item->vehicleLabel() }}
-                                    </span>
-                                @endif
+                    <div class="load-card">
+                        <div class="load-card-main">
+                            <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
+                            <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleLabel() ?: 'Araç belirtilmemiş' }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
+                            <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · {{ $item->created_at?->diffForHumans() }}</div>
+                            <div class="load-card-badges">
+                                <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
+                                @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
                                 @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
-                                <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">WhatsApp grubu</span>
-                                @if((int) $item->duplicate_count > 1)
-                                    <span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} grupta paylaşıldı</span>
-                                @endif
+                                @if((int) $item->duplicate_count > 1)<span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} grupta paylaşıldı</span>@endif
                             </div>
-                            <div class="text-neutral-500">{{ $item->created_at?->diffForHumans() }}</div>
                         </div>
-                        <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
-                            <div class="text-neutral-900 dark:text-white tabular-nums font-bold">
-                                @if($item->price !== null)
-                                    {{ number_format((float) $item->price, 2, ',', '.') }} ₺
-                                @else
-                                    Fiyat belirtilmemiş
-                                @endif
-                            </div>
+                        <div class="load-card-side">
+                            @if($item->priceLabel())
+                                <div class="load-card-price">{{ $item->priceLabel() }}</div>
+                            @else
+                                <div class="load-card-price-muted">Fiyat belirtilmemiş</div>
+                            @endif
                             @if($fullPhone)
-                                <div class="flex flex-col items-end gap-1">
+                                <div class="flex flex-col items-end gap-1 tabular-nums">
                                     @foreach(array_merge([$plainPhone], $extraPhones) as $phone)
-                                        <div class="flex items-center gap-3">
-                                            <a href="tel:+90{{ $phone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
+                                        <div class="flex items-center gap-3 whitespace-nowrap">
+                                            <a href="tel:+90{{ $phone }}" class="text-brand-500 font-bold hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
                                             <a href="https://wa.me/90{{ $phone }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline">WhatsApp</a>
                                         </div>
                                     @endforeach
                                 </div>
                             @else
-                                <div class="flex flex-col items-end gap-0.5 text-neutral-500 dark:text-neutral-400 tabular-nums">
+                                <div class="flex flex-col items-end gap-0.5 tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
                                     <span>{{ \App\Models\ScrapedLoad::maskPhone($plainPhone) }}</span>
                                     @if($extraPhones !== [])<span class="text-[11px]">+{{ count($extraPhones) }} numara daha</span>@endif
                                 </div>

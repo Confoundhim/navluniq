@@ -356,7 +356,8 @@ class LoadIntakeService
             'vehicle_type_source' => $std['vehicle_type_source'],
             'weight' => $std['weight'],
             'price' => $std['price'],
-            'currency' => 'TRY',
+            'price_unit' => $std['price_unit'],
+            'currency' => $std['currency'],
             'status' => (($std['pickup_province_code'] !== null || ! empty($std['metadata']['international']['pickup'])) && ($std['delivery_province_code'] !== null || ! empty($std['metadata']['international']['delivery']))) ? 'parsed_success' : 'parsed_partial',
             'parsed_by_llm' => $parsed['parsed_by_llm'] ?? 'unknown',
             'parse_confidence' => $ai['data']['confidence'] ?? null,
@@ -443,7 +444,7 @@ class LoadIntakeService
                     $ad['pickup_location'] ?? null, '→', $ad['delivery_location'] ?? null,
                     $ad['goods_type'] ?? null,
                     ($ad['weight'] ?? null) ? number_format((int) $ad['weight'], 0, ',', '.').' kg' : null,
-                    ($ad['price'] ?? null) ? number_format((float) $ad['price'], 0, ',', '.').' TL' : null,
+                    ($ad['price'] ?? null) ? number_format((float) $ad['price'], 0, ',', '.').' TL'.(($ad['price_unit'] ?? null) === 'per_ton' ? '/ton' : '') : null,
                     $ad['notes'] ?? null,
                 ])));
             }

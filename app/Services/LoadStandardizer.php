@@ -56,6 +56,10 @@ class LoadStandardizer
         // Tonaj ve fiyat
         $weight = isset($parsed['weight']) && (int) $parsed['weight'] > 0 ? (int) $parsed['weight'] : VehicleClassifier::weightFromText($norm);
         $price = isset($parsed['price']) && (float) $parsed['price'] > 0 ? round((float) $parsed['price'], 2) : $this->priceFromText($norm);
+        $priceUnit = $price !== null
+            ? (in_array($parsed['price_unit'] ?? null, ['total', 'per_ton'], true) ? $parsed['price_unit'] : AiParserService::priceUnitFromText($raw, $price))
+            : null;
+        $currency = in_array($parsed['currency'] ?? null, ['TRY', 'USD', 'EUR'], true) ? $parsed['currency'] : 'TRY';
 
         // Araç
         $vehicle = VehicleClassifier::analyze($raw, $weight);
@@ -95,6 +99,8 @@ class LoadStandardizer
             'vehicle_type_source' => $vehicleSource,
             'weight' => $weight,
             'price' => $price,
+            'price_unit' => $priceUnit,
+            'currency' => $currency,
             'warnings' => $warnings,
             'metadata' => array_filter([
                 'international' => $international !== [] ? $international : null,
@@ -122,11 +128,13 @@ class LoadStandardizer
             'goods_type' => $load->goods_type,
             'weight' => $load->weight,
             'price' => $load->price,
+            'price_unit' => $load->price_unit,
+            'currency' => $load->currency,
             'vehicle_type' => $load->vehicle_type_source === 'ai' ? $load->vehicle_type : null,
         ]);
         $changes = [];
         foreach (['pickup_location', 'pickup_province_code', 'pickup_district', 'pickup_lat', 'pickup_lng', 'delivery_location', 'delivery_province_code',
-            'delivery_district', 'delivery_lat', 'delivery_lng', 'goods_type', 'vehicle_type', 'vehicle_type_source', 'weight', 'price'] as $col) {
+            'delivery_district', 'delivery_lat', 'delivery_lng', 'goods_type', 'vehicle_type', 'vehicle_type_source', 'weight', 'price', 'price_unit'] as $col) {
             if ($std[$col] !== null && (string) $std[$col] !== (string) $load->{$col}) {
                 $changes[$col] = $std[$col];
             }

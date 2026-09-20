@@ -267,6 +267,7 @@ new class extends Component {
             'goods_type' => $load->goods_type ?? '',
             'weight' => $load->weight ? (int) $load->weight : '',
             'price' => $load->price !== null ? (float) $load->price : '',
+            'price_unit' => $load->price_unit === 'per_ton' ? 'per_ton' : 'total',
         ];
     }
 
@@ -292,6 +293,7 @@ new class extends Component {
             'edit.goods_type' => ['nullable', 'string', 'max:120'],
             'edit.weight' => ['nullable', 'integer', 'min:1', 'max:60000'],
             'edit.price' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'edit.price_unit' => ['required', 'in:total,per_ton'],
         ], [], [
             'edit.pickup_province_code' => 'kalkış ili', 'edit.delivery_province_code' => 'varış ili', 'edit.vehicle_type' => 'araç tipi',
             'edit.goods_type' => 'yük türü', 'edit.weight' => 'tonaj', 'edit.price' => 'fiyat',
@@ -322,6 +324,7 @@ new class extends Component {
             'goods_type' => trim((string) $this->edit['goods_type']) ?: null,
             'weight' => $this->edit['weight'] !== '' ? (int) $this->edit['weight'] : null,
             'price' => $this->edit['price'] !== '' ? round((float) $this->edit['price'], 2) : null,
+            'price_unit' => $this->edit['price'] !== '' ? $this->edit['price_unit'] : null,
             'status' => $load->status === 'parsed_partial' ? 'parsed_success' : $load->status,
             'parse_metadata' => array_merge((array) ($load->parse_metadata ?? []), ['admin_edited' => true, 'warnings' => []]),
         ])->save();
@@ -431,7 +434,7 @@ new class extends Component {
                 'pickup' => $std['pickup_location'] ?? ($parsed['pickup_location'] ?? null), 'pickup_ok' => (bool) ($std['pickup_province_code'] ?? false),
                 'delivery' => $std['delivery_location'] ?? ($parsed['delivery_location'] ?? null), 'delivery_ok' => (bool) ($std['delivery_province_code'] ?? false),
                 'vehicle' => $std['vehicle_type'] ?? null, 'vehicle_source' => $std['vehicle_type_source'] ?? null,
-                'goods' => $std['goods_type'] ?? null, 'weight' => $std['weight'] ?? null, 'price' => $std['price'] ?? null,
+                'goods' => $std['goods_type'] ?? null, 'weight' => $std['weight'] ?? null, 'price' => $std['price'] ?? null, 'price_unit' => $std['price_unit'] ?? null,
                 'needs_ai' => $parser->shouldUseAi($parsed) || ! $std || ! $std['pickup_province_code'] || ! $std['delivery_province_code'],
             ];
         }
@@ -718,7 +721,7 @@ new class extends Component {
                                         <div class="mt-1 text-[11px] text-red-600 font-semibold">İl çözülemedi; yayın öncesi düzenleyin ya da yapay zeka ile çözümleyin.</div>
                                     @endif
                                 </td>
-                                <td class="p-3 whitespace-nowrap font-semibold">{{ $load->price !== null && (float) $load->price > 0 ? number_format((float) $load->price, 0, ',', '.').' ₺' : '—' }}</td>
+                                <td class="p-3 whitespace-nowrap font-semibold">{{ $load->priceLabel() ?? '—' }}</td>
                                 <td class="p-3 max-w-xs text-neutral-500"><span title="{{ $load->raw_message }}">{{ \Illuminate\Support\Str::limit($load->raw_message, 140) }}</span></td>
                                 <td class="p-3">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
@@ -761,7 +764,7 @@ new class extends Component {
                                             </div>
                                             <div><label class="form-label">Yük türü</label><input type="text" wire:model="edit.goods_type" class="{{ $input }}" list="goods-catalog"></div>
                                             <div><label class="form-label">Tonaj (kg)</label><input type="number" wire:model="edit.weight" class="{{ $input }}" min="1" max="60000">@error('edit.weight')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
-                                            <div><label class="form-label">Fiyat (₺)</label><input type="number" step="0.01" wire:model="edit.price" class="{{ $input }}" min="0">@error('edit.price')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
+                                            <div><label class="form-label">Fiyat (₺)</label><div class="flex gap-2"><input type="number" step="0.01" wire:model="edit.price" class="{{ $input }}" min="0"><select wire:model="edit.price_unit" class="{{ $input }} w-32 shrink-0"><option value="total">Toplam</option><option value="per_ton">Ton başına</option></select></div>@error('edit.price')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
                                             <datalist id="goods-catalog">@foreach(\App\Support\GoodsCatalog::labels() as $label)<option value="{{ $label }}"></option>@endforeach</datalist>
                                             <div class="col-span-2 md:col-span-4 flex items-center gap-3">
                                                 <button type="submit" class="btn-primary text-xs px-4 py-2">Kaydet</button>
@@ -1007,7 +1010,7 @@ new class extends Component {
                                 <span class="badge {{ $seg['vehicle'] ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900' : 'bg-amber-500/10 text-amber-600' }}">Araç: {{ $seg['vehicle'] ? \App\Support\VehicleTypes::label($seg['vehicle']).' ('.$seg['vehicle_source'].')' : 'yok' }}</span>
                                 @if($seg['goods'])<span class="badge bg-sky-500/10 text-sky-700">{{ $seg['goods'] }}</span>@endif
                                 @if($seg['weight'])<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ number_format($seg['weight'], 0, ',', '.') }} kg</span>@endif
-                                @if($seg['price'])<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ number_format($seg['price'], 0, ',', '.') }} ₺</span>@endif
+                                @if($seg['price'])<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ number_format($seg['price'], 0, ',', '.') }} ₺{{ ($seg['price_unit'] ?? null) === 'per_ton' ? '/ton' : '' }}</span>@endif
                                 <span class="badge {{ $seg['needs_ai'] ? 'bg-violet-500/10 text-violet-700' : 'bg-emerald-500/10 text-emerald-600' }}">{{ $seg['needs_ai'] ? 'yapay zeka gerekir' : 'kural yeterli, yapay zeka gerekmez' }}</span>
                             </div>
                         </div>
