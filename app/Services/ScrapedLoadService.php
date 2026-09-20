@@ -6,8 +6,12 @@ use App\Models\ActivityLog;
 use App\Models\ScrapedLoad;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
+use chillerlan\QRCode\Output\QRMarkupSVG;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
@@ -47,6 +51,107 @@ class ScrapedLoadService
         ActivityLog::record('scraper.token_regenerated', 'Bildirim iletici bağlantı anahtarı yenilendi', $userId);
 
         return $token;
+    }
+
+    // ---- Telefon kurulum bağlantısı ve MacroDroid şablonu ----
+
+    public const MACRO_TEMPLATE_PATH = 'macrodroid/template.macro';
+
+    /** Herkese açık kurulum sayfasının gizli kodu (bağlantıyı bilen kurar; yenilenince eski bağlantı ölür). */
+    public static function setupCode(): string
+    {
+        $code = Settings::string('scraper_setup_code');
+        if ($code === '') {
+            $code = bin2hex(random_bytes(12));
+            Settings::set('scraper_setup_code', $code);
+        }
+
+        return $code;
+    }
+
+    public static function regenerateSetupCode(?int $userId = null): string
+    {
+        $code = bin2hex(random_bytes(12));
+        Settings::set('scraper_setup_code', $code, $userId);
+        ActivityLog::record('scraper.setup_link_regenerated', 'Telefon kurulum bağlantısı yenilendi', $userId);
+
+        return $code;
+    }
+
+    public static function setupUrl(): string
+    {
+        return route('phone-setup.show', ['code' => self::setupCode()]);
+    }
+
+    /** Kurulum bağlantısının QR kodu (satır içi SVG; dış betik gerekmez). */
+    public static function setupQrSvg(): string
+    {
+        try {
+            $options = new QROptions;
+            $options->outputInterface = QRMarkupSVG::class;
+            $options->outputBase64 = false;
+            $options->svgAddXmlHeader = false;
+            $options->addQuietzone = true;
+            $options->quietzoneSize = 2;
+
+            return (new QRCode($options))->render(self::setupUrl());
+        } catch (\Throwable) {
+            return '';
+        }
+    }
+
+    /**
+     * Telefondan dışa aktarılan MacroDroid makrosunu (.macro, JSON) şablon olarak saklar.
+     * İndirilirken içindeki anahtar ve adres güncel değerlerle değiştirilir.
+     *
+     * @return array{token:?string, url_found:bool}
+     */
+    public static function storeMacroTemplate(string $content, ?int $userId = null): array
+    {
+        $content = trim($content);
+        if ($content === '' || strlen($content) > 2_000_000 || json_decode($content) === null) {
+            throw new \InvalidArgumentException('Dosya MacroDroid dışa aktarımı (JSON) değil.');
+        }
+        $urlFound = (bool) preg_match('~api\\\\?/v1\\\\?/webhook\\\\?/notification~', $content);
+        if (! $urlFound) {
+            throw new \InvalidArgumentException('Makroda NavlunIQ bildirim adresi yok; önce telefonda çalışan makroyu dışa aktarın.');
+        }
+        $token = preg_match('~token\\\\*"\\s*:\\s*\\\\*"([A-Za-z0-9_\\-]{8,})~', $content, $m) ? $m[1] : null;
+        Storage::disk('local')->put(self::MACRO_TEMPLATE_PATH, $content);
+        Settings::set('macrodroid_template_token', $token ?? '', $userId);
+        Settings::set('macrodroid_template_at', now()->toDateTimeString(), $userId);
+        ActivityLog::record('scraper.macro_template_uploaded', 'MacroDroid şablonu yüklendi', $userId);
+
+        return ['token' => $token, 'url_found' => $urlFound];
+    }
+
+    public static function hasMacroTemplate(): bool
+    {
+        return Storage::disk('local')->exists(self::MACRO_TEMPLATE_PATH);
+    }
+
+    public static function deleteMacroTemplate(?int $userId = null): void
+    {
+        Storage::disk('local')->delete(self::MACRO_TEMPLATE_PATH);
+        Settings::set('macrodroid_template_token', '', $userId);
+        Settings::set('macrodroid_template_at', '', $userId);
+    }
+
+    /** Şablonun güncel anahtar ve adresle yamalanmış hâli; şablon yoksa null. */
+    public static function macroTemplate(): ?string
+    {
+        if (! self::hasMacroTemplate()) {
+            return null;
+        }
+        $content = (string) Storage::disk('local')->get(self::MACRO_TEMPLATE_PATH);
+        $oldToken = Settings::string('macrodroid_template_token');
+        if ($oldToken !== '') {
+            $content = str_replace($oldToken, self::apiToken(), $content);
+        }
+        $target = url('/api/v1/webhook/notification');
+        $content = preg_replace('~https?:(\\\\?/){2}[^"\\\\\\s]+?(\\\\?/)api(\\\\?/)v1(\\\\?/)webhook(\\\\?/)notification~', str_replace('/', '${1}', $target), $content) ?? $content;
+
+        return $content;
     }
 
     /** MacroDroid'e yapıştırılacak hazır istek gövdesi. */
@@ -158,7 +263,10 @@ class ScrapedLoadService
             'parse_confidence' => $ai['data']['confidence'] ?? null,
             'ai_status' => 'done',
             'ai_checked_at' => now(),
-            'parse_metadata' => array_merge($meta, $std['metadata'], ['ai' => array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load']))]),
+            'parse_metadata' => array_merge(array_diff_key($meta, ['ai_conflict' => 1]), $std['metadata'], array_filter([
+                'ai' => array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load'])),
+                'ai_conflict' => $merged['ai_conflict'] ?? null,
+            ])),
         ]))->save();
 
         return true;
@@ -232,6 +340,13 @@ class ScrapedLoadService
         }
         if (Settings::bool('scraper_auto_approve_require_weight') && (int) $load->weight <= 0) {
             return 'tonaj yok';
+        }
+        $meta = (array) ($load->parse_metadata ?? []);
+        if (! empty($meta['ai_conflict']) && empty($meta['admin_edited'])) {
+            return 'kural ve yapay zeka farklı il buldu; elle kontrol';
+        }
+        if ($load->parse_confidence !== null && (float) $load->parse_confidence < 0.5 && empty($meta['admin_edited'])) {
+            return 'yapay zeka güveni düşük; elle kontrol';
         }
 
         return null;

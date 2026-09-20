@@ -12,9 +12,11 @@ use App\Services\ScrapedLoadService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -250,5 +252,104 @@ class ExternalLoadsModuleTest extends TestCase
 
         $this->actingAs($viewer->fresh())->get('/adminsystem/scrapers')->assertForbidden();
         $this->assertNotNull(ScrapedLoad::find($a->id));
+    }
+
+    public function test_free_provider_chain_falls_over_on_quota_and_skips_exhausted_provider_next_time(): void
+    {
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        Settings::set('ai_provider', 'groq'); // öncelik Groq, sonra varsayılan sıra (Gemini…)
+        $ok = ['post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '0532 123 45 67', 'pickup' => ['province' => 'Ankara', 'district' => null], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null];
+        Http::fake([
+            'api.groq.com/*' => Http::response(['error' => ['message' => 'Rate limit reached']], 429),
+            'generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode($ok)]]]]], 'usageMetadata' => ['promptTokenCount' => 500, 'candidatesTokenCount' => 80]]),
+        ]);
+
+        $parser = app(AiParserService::class);
+        $this->assertSame(['groq', 'gemini'], $parser->chain());
+        $result = $parser->enrich('Ankara İzmir 24 ton palet 0532 123 45 67');
+        $this->assertSame('done', $result['status']);
+        $this->assertSame('gemini', $result['data']['provider']);
+        Http::assertSentCount(2);
+        $this->assertSame(['groq'], $parser->exhaustedToday());
+
+        // İkinci ilan: kotası dolan Groq atlanır, doğrudan Gemini çağrılır.
+        $parser->enrich('Bursa Antalya 8 ton mobilya 0544 222 33 44');
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'generativelanguage.googleapis.com') && str_contains($r->url(), 'gemini-2.5-flash-lite'));
+
+        // OpenAI uyumlu uç JSON kipiyle çağrılır.
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'api.groq.com/openai/v1/chat/completions')
+            && $r->hasHeader('Authorization', 'Bearer gsk-test')
+            && $r->data()['response_format']['type'] === 'json_object'
+            && $r->data()['model'] === 'llama-3.3-70b-versatile');
+    }
+
+    public function test_rule_and_ai_province_conflict_blocks_auto_approval(): void
+    {
+        $parser = app(AiParserService::class);
+        $rule = ['success' => true, 'sender_phone' => '5321234567', 'pickup_location' => 'Ankara', 'delivery_location' => 'İzmir', 'vehicle_type' => null, 'vehicle_type_source' => null, 'weight' => null, 'price' => null, 'goods_type' => null, 'parsed_by_llm' => 'regex_verified'];
+        $ai = ['provider' => 'gemini', 'model' => 'x', 'is_load' => true, 'confidence' => 0.9, 'sender_phone' => '5321234567', 'pickup_location' => 'Adana', 'delivery_location' => 'İzmir', 'vehicle_type' => 'tir', 'weight' => 24000, 'price' => null, 'goods_type' => 'palet'];
+        $merged = $parser->merge($rule, $ai);
+        $this->assertSame('Ankara', $merged['pickup_location'], 'Kuralın çözdüğü il korunur');
+        $this->assertSame(['rule' => 'Ankara', 'ai' => 'Adana'], $merged['ai_conflict']['pickup_location']);
+        $this->assertArrayNotHasKey('delivery_location', $merged['ai_conflict']);
+
+        $source = $this->source();
+        Settings::set('scraper_auto_approve', '1');
+        $clean = $this->candidate($source);
+        $conflicted = $this->candidate($source, ['parse_metadata' => ['ai_conflict' => $merged['ai_conflict']]]);
+        $lowConfidence = $this->candidate($source, ['parse_confidence' => 0.3]);
+        $service = app(ScrapedLoadService::class);
+        $this->assertNull($service->autoApprovalBlocker($clean));
+        $this->assertStringContainsString('farklı il', (string) $service->autoApprovalBlocker($conflicted));
+        $this->assertStringContainsString('güveni düşük', (string) $service->autoApprovalBlocker($lowConfidence));
+    }
+
+    public function test_setup_page_and_macro_download_carry_the_current_token(): void
+    {
+        Storage::fake('local');
+        $this->get('/kurulum/telefon/'.str_repeat('a', 24))->assertNotFound();
+        $url = ScrapedLoadService::setupUrl();
+        $this->get($url)->assertOk()->assertSee('Telefon kurulumu')->assertSee('Hazır makro dosyası henüz yüklenmemiş')->assertSee(ScrapedLoadService::apiToken());
+        $this->get($url.'/NavlunIQ.macro')->assertNotFound();
+
+        $oldToken = 'eskianahtar1234567890';
+        $export = json_encode(['m_name' => 'NavlunIQ', 'm_actionList' => [['m_classType' => 'HttpRequestAction', 'm_urlToOpen' => 'http://eski.example/api/v1/webhook/notification', 'm_body' => '{"title":"{not_title}","text":"{notification}","token":"'.$oldToken.'"}']]]);
+        $info = ScrapedLoadService::storeMacroTemplate($export);
+        $this->assertSame($oldToken, $info['token']);
+
+        $download = $this->get($url.'/NavlunIQ.macro')->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="NavlunIQ.macro"');
+        $content = $download->getContent();
+        $this->assertStringNotContainsString($oldToken, $content);
+        $this->assertStringContainsString(ScrapedLoadService::apiToken(), $content);
+        $decoded = json_decode($content, true);
+        $this->assertNotNull($decoded, 'Yamalanan dosya geçerli JSON kalmalı');
+        $this->assertSame(url('/api/v1/webhook/notification'), $decoded['m_actionList'][0]['m_urlToOpen'], 'Adres (kaçışlı JSON içinde de) güncel siteye çevrilir');
+        $this->assertStringNotContainsString('eski.example', $content);
+        $this->get($url)->assertOk()->assertSee('NavlunIQ.macro dosyasını indir');
+
+        // Anahtar yenilenince indirilen dosya yeni anahtarı taşır; bağlantı yenilenince eski kod ölür.
+        $new = ScrapedLoadService::regenerateApiToken();
+        $this->assertStringContainsString($new, $this->get($url.'/NavlunIQ.macro')->getContent());
+        ScrapedLoadService::regenerateSetupCode();
+        $this->get($url)->assertNotFound();
+
+        $this->expectException(\InvalidArgumentException::class);
+        ScrapedLoadService::storeMacroTemplate('{"m_name":"başka makro"}');
+    }
+
+    public function test_admin_uploads_macro_template_from_panel(): void
+    {
+        $this->actingAs($this->admin());
+        Storage::fake('local');
+        $file = UploadedFile::fake()->createWithContent('NavlunIQ.macro', json_encode(['m_actionList' => [['m_body' => '{"token":"abcdefgh12345678"}', 'm_url' => 'https://navluniq.com/api/v1/webhook/notification']]]));
+        Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('macroFile', $file)->call('uploadMacro')->assertHasNoErrors()
+            ->assertSee('NavlunIQ.macro indir');
+        $this->assertTrue(ScrapedLoadService::hasMacroTemplate());
+        $this->assertSame('abcdefgh12345678', Settings::string('macrodroid_template_token'));
+
+        Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('macroFile', UploadedFile::fake()->createWithContent('x.macro', 'bu json değil'))->call('uploadMacro')->assertHasErrors('macroFile');
     }
 }

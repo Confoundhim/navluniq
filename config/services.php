@@ -42,9 +42,13 @@ return [
     'ai' => [
         'active_provider' => env('ACTIVE_AI_PROVIDER', 'gemini'),
         'gemini_key' => env('GEMINI_API_KEY'),
-        'gemini_model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'gemini_model' => env('GEMINI_MODEL', ''),
+        'groq_key' => env('GROQ_API_KEY'),
+        'cerebras_key' => env('CEREBRAS_API_KEY'),
+        'openrouter_key' => env('OPENROUTER_API_KEY'),
+        'mistral_key' => env('MISTRAL_API_KEY'),
         'claude_key' => env('CLAUDE_API_KEY'),
-        'claude_model' => env('CLAUDE_MODEL', 'claude-opus-5'),
+        'claude_model' => env('CLAUDE_MODEL', ''),
     ],
 
     // Etkin ödeme kuruluşu: iyzico | paytr (GatewayManager::REGISTRY); panel ayarı önceliklidir. Anahtarlar boşsa ödeme kapalı kalır.

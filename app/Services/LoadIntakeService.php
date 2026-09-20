@@ -159,7 +159,10 @@ class LoadIntakeService
             'parse_confidence' => $ai['data']['confidence'] ?? null,
             'ai_status' => $ai['status'],
             'ai_checked_at' => in_array($ai['status'], ['done', 'failed'], true) ? now() : null,
-            'parse_metadata' => array_merge($std['metadata'], array_filter(['ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads'])) : null])),
+            'parse_metadata' => array_merge($std['metadata'], array_filter([
+                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads'])) : null,
+                'ai_conflict' => $parsed['ai_conflict'] ?? null,
+            ])),
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30),
         ]);
