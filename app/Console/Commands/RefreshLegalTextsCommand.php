@@ -47,7 +47,7 @@ class RefreshLegalTextsCommand extends Command
                 return true;
             }
             // Dış kaynak ilanı maddesi eklenmemiş eski metin: yenile.
-            if (in_array($key, ['contract_kvkk', 'contract_terms'], true) && ! str_contains($html, 'data-clause="dis-kaynak"')) {
+            if (in_array($key, ['contract_kvkk', 'contract_terms'], true) && (! str_contains($html, 'data-clause="dis-kaynak"') || ! str_contains($html, 'data-clause="bildirim-tercihi"'))) {
                 return true;
             }
             $withToken += str_contains($html, '{{COMPANY_NAME}}') ? 1 : 0;

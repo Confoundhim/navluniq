@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Loads;
 
+use App\Mail\SystemNoticeMail;
 use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
@@ -15,6 +16,7 @@ use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -115,6 +117,34 @@ class PremiumReleaseTest extends TestCase
         $this->assertSame(1, Load::query()->openTo($this->free->driverProfile)->count());
         app(OfferService::class)->submit($this->free->driverProfile, $load->fresh(), 44000);
         $this->assertDatabaseCount('offers', 1);
+    }
+
+    public function test_premium_driver_gets_mail_unless_switched_off_in_panel(): void
+    {
+        Mail::fake();
+        Http::fake();
+
+        $this->publish();
+        $n = UserNotification::where('user_id', $this->premium->id)->latest('id')->first();
+        $this->assertSame('sent', $n->mail_status, 'Premium şoföre e-posta gider');
+        $this->assertContains(LoadReleaseService::MAIL_OPT_OUT_LINE, $n->lines);
+        Mail::assertSent(SystemNoticeMail::class, 1);
+
+        // Şoför Premium sayfasından e-postayı kapatır: yeni ilanda yalnız uygulama içi bildirim.
+        $this->actingAs($this->premium);
+        Volt::test('driver.premium.index')->assertSee('E-posta: açık')->call('toggleLoadMail')->assertSee('E-posta: kapalı');
+        $this->assertFalse(LoadReleaseService::wantsLoadMail($this->premium->driverProfile->fresh()));
+
+        $this->publish();
+        $n2 = UserNotification::where('user_id', $this->premium->id)->latest('id')->first();
+        $this->assertSame('skipped', $n2->mail_status);
+        $this->assertNotContains(LoadReleaseService::MAIL_OPT_OUT_LINE, $n2->lines);
+        Mail::assertSent(SystemNoticeMail::class, 1);
+
+        // Ücretsiz şoföre herkese açılışta e-posta gitmez (yalnız uygulama içi).
+        Settings::set('scraper_free_delay_minutes', '0');
+        $this->publish();
+        $this->assertSame('skipped', UserNotification::where('user_id', $this->free->id)->latest('id')->first()->mail_status);
     }
 
     public function test_zero_delay_releases_immediately_without_telegram_when_disabled(): void

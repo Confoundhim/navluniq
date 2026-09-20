@@ -381,8 +381,8 @@ class extends Component {
                 <div class="space-y-3 text-xs">
                     <label class="flex items-start justify-between gap-3 cursor-pointer">
                         <span>
-                            <span class="block font-bold text-neutral-900 dark:text-white">Yeni ilan e-postaları</span>
-                            <span class="text-neutral-500 dark:text-neutral-400">Tercih ettiğiniz rotalarda yeni ilan açıldığında e-posta alın.</span>
+                            <span class="block font-bold text-neutral-900 dark:text-white">Yeni ilan e-postaları (premium)</span>
+                            <span class="text-neutral-500 dark:text-neutral-400">Premium üyelikte aracınıza uygun yeni ilan yayınlandığı anda e-posta alın. Kapatırsanız uygulama içi bildirim devam eder; istediğiniz zaman yeniden açabilirsiniz.</span>
                         </span>
                         <input type="checkbox" wire:model="notify_new_loads" class="form-input h-4">
                     </label>
