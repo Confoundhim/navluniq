@@ -4,12 +4,12 @@ namespace App\Services;
 
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Log;
 use App\Support\GoodsCatalog;
 use App\Support\TurkishCities;
 use App\Support\VehicleClassifier;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
@@ -25,9 +25,7 @@ class LoadIntakeService
 
     public const ROUTE_DEDUPE_HOURS = 48;
 
-    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer)
-    {
-    }
+    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer) {}
 
     /**
      * @param  array{group_name:string, raw_message:string, sender_phone?:?string, message_id?:?string, source_jid?:?string, source_type?:string}  $payload
@@ -78,37 +76,52 @@ class LoadIntakeService
 
             // 4) İlan gibi görünmeyen sohbet mesajları yapay zekaya gitmez.
             if (! self::looksLikeLoad($raw)) {
-                return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.');
+                return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw));
             }
 
-            // 5) Ücretsiz kalıp ayrıştırma; başarılıysa yapay zekaya hiç gidilmez.
+            // 5) Ücretsiz kalıp ayrıştırma; sonra ayara göre yapay zeka (her ilanda ya da yalnız eksik alanlarda).
             $parsed = $this->parser->parseCheap($raw);
-            if (($parsed['success'] ?? false) !== true) {
-                $parsed = $this->parser->parseWithAi($raw, (string) config('services.ai.active_provider', 'gemini'));
-            }
-        } catch (Throwable $e) {
-            Cache::forget($seenKey); // yeniden denenebilsin
-            Log::error('Dış kaynak ilanı ayrıştırılamadı.', ['exception' => $e::class]);
+            $ai = ['status' => 'skipped', 'data' => null];
 
-            return $this->result(503, false, 'failed', 'Mesaj işlenemedi.');
-        }
-
-        $phone = $parsed['sender_phone'] ?? $payload['sender_phone'] ?? null;
-        $hasPhone = is_string($phone) && $phone !== '' && $phone !== 'Bilinmiyor';
-        if (($parsed['success'] ?? false) !== true || ! $hasPhone) {
-            return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.');
-        }
-
-        // 6) Aynı numara aynı rotayı kısa aralıkla farklı sözcüklerle paylaşmışsa tek ilan kalır.
-        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null);
-        if ($routeKey) {
-            $sameRoute = ScrapedLoad::query()->where('route_key', $routeKey)
-                ->where('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->first();
-            if ($sameRoute) {
+            // Kural sonucu zaten bilinen bir numara+rota ise yapay zekaya gitmeden tekrar sayılır.
+            if ($sameRoute = $this->recentSameRoute($parsed)) {
                 $this->noteSighting($sameRoute, $groupName);
 
                 return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id);
             }
+            if ($this->parser->shouldUseAi($parsed)) {
+                $ai = $this->parser->enrich($raw, $parsed);
+                if ($ai['data'] !== null) {
+                    $parsed = $this->parser->merge($parsed, $ai['data']);
+                }
+            }
+        } catch (Throwable $e) {
+            Cache::forget($seenKey); // yeniden denenebilsin
+            Log::error('Dış kaynak ilanı ayrıştırılamadı.', ['exception' => $e::class, 'error' => $e->getMessage()]);
+
+            return $this->result(503, false, 'failed', 'Mesaj işlenemedi.', null, $e::class);
+        }
+
+        // Yapay zeka yüksek güvenle "bu bir yük ilanı değil" dediyse (sohbet, araç satışı, iş ilanı…) elenir.
+        if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8) {
+            return $this->result(200, false, 'filtered', 'Yapay zeka: yük ilanı değil.', null, 'ai_not_load');
+        }
+
+        $phone = $parsed['sender_phone'] ?? $payload['sender_phone'] ?? null;
+        $hasPhone = is_string($phone) && $phone !== '' && $phone !== 'Bilinmiyor';
+        if (! $hasPhone) {
+            return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
+        }
+        if (($parsed['success'] ?? false) !== true) {
+            return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, $parsed['reason'] ?? 'route_missing');
+        }
+
+        // 6) Aynı numara aynı rotayı kısa aralıkla farklı sözcüklerle paylaşmışsa tek ilan kalır.
+        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null);
+        if ($sameRoute = $this->recentSameRoute($parsed, $phone)) {
+            $this->noteSighting($sameRoute, $groupName);
+
+            return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id);
         }
 
         // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
@@ -143,12 +156,23 @@ class LoadIntakeService
             'currency' => 'TRY',
             'status' => ($std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) ? 'parsed_success' : 'parsed_partial',
             'parsed_by_llm' => $parsed['parsed_by_llm'] ?? 'unknown',
-            'parse_metadata' => $std['metadata'],
+            'parse_confidence' => $ai['data']['confidence'] ?? null,
+            'ai_status' => $ai['status'],
+            'ai_checked_at' => in_array($ai['status'], ['done', 'failed'], true) ? now() : null,
+            'parse_metadata' => array_merge($std['metadata'], array_filter(['ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads'])) : null])),
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30),
         ]);
 
         return $this->result(201, true, 'created', 'İlan adayı kaydedildi.', $scrapedLoad->id);
+    }
+
+    /** looksLikeLoad() neden başarısız oldu: canlı akışta gösterilen kısa gerekçe. */
+    public static function filterReason(string $text): string
+    {
+        $hasPhone = (bool) preg_match('/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u', $text);
+
+        return $hasPhone ? 'no_logistics_signal' : 'phone_missing';
     }
 
     /** Aynı ilan yeni bir kaynaktan görüldüyse sayacı ve kaynak listesini günceller; aynı kaynaktan tekrar sayılmaz. */
@@ -195,6 +219,19 @@ class LoadIntakeService
         return $hasRoute || $hasMoney || $hasWeight || $hasKeyword || $hasGoods || $hasVehicle;
     }
 
+    /** Aynı numara + aynı il çifti son saatlerde kaydedildiyse o ilanı döndürür. */
+    private function recentSameRoute(array $parsed, ?string $phone = null): ?ScrapedLoad
+    {
+        $phone ??= $parsed['sender_phone'] ?? null;
+        $routeKey = is_string($phone) && $phone !== '' ? self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null) : null;
+        if (! $routeKey) {
+            return null;
+        }
+
+        return ScrapedLoad::query()->where('route_key', $routeKey)
+            ->where('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->first();
+    }
+
     public static function routeKey(?string $phone, ?string $pickup, ?string $delivery): ?string
     {
         if (! $phone || ! $pickup || ! $delivery) {
@@ -207,11 +244,14 @@ class LoadIntakeService
         return mb_substr($phone.'|'.$city($pickup).'|'.$city($delivery), 0, 191);
     }
 
-    private function result(int $code, bool $success, string $status, string $message, ?int $id = null): array
+    private function result(int $code, bool $success, string $status, string $message, ?int $id = null, ?string $reason = null): array
     {
         $out = ['code' => $code, 'success' => $success, 'status' => $status, 'message' => $message];
         if ($id !== null) {
             $out['scraped_load_id'] = $id;
+        }
+        if ($reason !== null) {
+            $out['reason'] = $reason;
         }
 
         return $out;

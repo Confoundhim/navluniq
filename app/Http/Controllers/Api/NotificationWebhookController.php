@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\IntakeEvent;
 use App\Services\LoadIntakeService;
 use App\Services\NotificationIntakeParser;
+use App\Services\ScrapedLoadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +19,7 @@ class NotificationWebhookController extends Controller
 {
     public function handle(Request $request, LoadIntakeService $intake): JsonResponse
     {
-        $expectedToken = (string) config('services.scraper.token', '');
+        $expectedToken = ScrapedLoadService::apiToken();
         if ($expectedToken === '') {
             Log::critical('Bildirim webhook güvenlik anahtarı yapılandırılmamış.');
 
@@ -27,6 +29,8 @@ class NotificationWebhookController extends Controller
         // Başlık ya da gövde alanı; bazı otomasyon uygulamaları özel başlık gönderemez.
         $providedToken = (string) ($request->header('X-Scraper-Token') ?: $request->input('token', ''));
         if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
+            IntakeEvent::record('unauthorized', ['title' => (string) $request->input('title', ''), 'excerpt' => (string) $request->input('text', ''), 'reason' => $providedToken === '' ? 'token_missing' : 'token_mismatch']);
+
             return response()->json(['error' => 'Yetkisiz erişim.'], 401);
         }
 
@@ -41,12 +45,14 @@ class NotificationWebhookController extends Controller
 
         $parsed = NotificationIntakeParser::parse($validated);
         if ($parsed['skipped'] !== null) {
+            IntakeEvent::record('skipped', ['title' => $validated['title'] ?? null, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped']]);
+
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
 
         $results = [];
         foreach ($parsed['messages'] as $message) {
-            $results[] = $intake->intake([
+            $results[] = $result = $intake->intake([
                 'group_name' => $parsed['group'],
                 'source_jid' => NotificationIntakeParser::sourceIdentifier($parsed['group']),
                 'source_type' => 'notification',
@@ -55,6 +61,8 @@ class NotificationWebhookController extends Controller
                 // Aynı bildirimin tekrar teslimi için sabit kimlik; içerik aynıysa değişmez.
                 'message_id' => substr(hash('sha256', $parsed['group'].'|'.($message['sender'] ?? '').'|'.$message['text']), 0, 40),
             ]);
+            IntakeEvent::record($result['status'], ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null, 'excerpt' => $message['text'],
+                'reason' => $result['reason'] ?? null, 'scraped_load_id' => $result['scraped_load_id'] ?? null]);
         }
 
         $summary = array_count_values(array_column($results, 'status'));

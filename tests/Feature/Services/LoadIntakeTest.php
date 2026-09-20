@@ -2,9 +2,11 @@
 
 namespace Tests\Feature\Services;
 
+use App\Http\Middleware\FirewallMiddleware;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\LoadIntakeService;
+use App\Support\TurkishCities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -28,8 +30,10 @@ class LoadIntakeTest extends TestCase
         Http::fake([
             'generativelanguage.googleapis.com/*' => Http::response([
                 'candidates' => [['content' => ['parts' => [['text' => json_encode([
-                    'sender_phone' => '5321234567', 'pickup_location' => 'Ankara Ostim', 'delivery_location' => 'İzmir Aliağa',
-                    'goods_type' => 'palet', 'weight' => 24000, 'price' => null,
+                    'post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '5321234567',
+                    'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => 'Aliağa'],
+                    'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tenteli', 'vehicle_flexible' => false,
+                    'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null,
                 ])]]]]],
             ]),
         ]);
@@ -46,7 +50,7 @@ class LoadIntakeTest extends TestCase
         $statuses = [];
         for ($i = 1; $i <= 10; $i++) {
             $this->activeSource("12036300000{$i}@g.us");
-            $r = $intake->intake(['group_name' => "Grup {$i}", 'raw_message' => self::AD." 🚛", 'message_id' => "m{$i}", 'source_jid' => "12036300000{$i}@g.us"]);
+            $r = $intake->intake(['group_name' => "Grup {$i}", 'raw_message' => self::AD.' 🚛', 'message_id' => "m{$i}", 'source_jid' => "12036300000{$i}@g.us"]);
             $statuses[] = $r['status'];
         }
 
@@ -61,12 +65,12 @@ class LoadIntakeTest extends TestCase
 
     public function test_turkish_city_helper_handles_suffixes_and_aliases(): void
     {
-        $this->assertSame('İzmir', \App\Support\TurkishCities::fromText("İzmir'e"));
-        $this->assertSame('Ankara', \App\Support\TurkishCities::fromText('Ankaradan Ostim'));
-        $this->assertSame('İstanbul', \App\Support\TurkishCities::fromText('istanbula'));
-        $this->assertSame('Kahramanmaraş', \App\Support\TurkishCities::fromText('Maraş'));
-        $this->assertNull(\App\Support\TurkishCities::fromText('Aliağa'));
-        $this->assertSame('İzmir Aliağa', \App\Support\TurkishCities::normalizeLocation('İzmire Aliağa'));
+        $this->assertSame('İzmir', TurkishCities::fromText("İzmir'e"));
+        $this->assertSame('Ankara', TurkishCities::fromText('Ankaradan Ostim'));
+        $this->assertSame('İstanbul', TurkishCities::fromText('istanbula'));
+        $this->assertSame('Kahramanmaraş', TurkishCities::fromText('Maraş'));
+        $this->assertNull(TurkishCities::fromText('Aliağa'));
+        $this->assertSame('İzmir Aliağa', TurkishCities::normalizeLocation('İzmire Aliağa'));
     }
 
     public function test_chatter_and_inactive_sources_never_reach_the_ai(): void
@@ -107,11 +111,11 @@ class LoadIntakeTest extends TestCase
         config()->set('services.scraper.token', 'secret-token');
         $this->activeSource();
 
-        $this->withoutMiddleware(\App\Http\Middleware\FirewallMiddleware::class)
+        $this->withoutMiddleware(FirewallMiddleware::class)
             ->postJson('/api/v1/webhook/whatsapp-scraper', ['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'w1', 'source_jid' => '1203630000001@g.us'], ['X-Scraper-Token' => 'secret-token'])
             ->assertStatus(201)->assertJsonPath('status', 'created');
 
-        $this->withoutMiddleware(\App\Http\Middleware\FirewallMiddleware::class)
+        $this->withoutMiddleware(FirewallMiddleware::class)
             ->postJson('/api/v1/webhook/whatsapp-scraper', ['group_name' => 'Başka Grup', 'raw_message' => self::AD, 'message_id' => 'w2', 'source_jid' => '1203630000002@g.us'], ['X-Scraper-Token' => 'secret-token'])
             ->assertStatus(200)->assertJsonPath('status', 'duplicate');
     }
