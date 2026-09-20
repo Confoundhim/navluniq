@@ -20,7 +20,28 @@ class AiParserService
 
     public const CLAUDE_MODELS = ['claude-opus-5' => 'Claude Opus 5 (en isabetli)', 'claude-sonnet-5' => 'Claude Sonnet 5', 'claude-haiku-4-5' => 'Claude Haiku 4.5 (en ucuz)'];
 
-    public const GEMINI_MODELS = ['gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gemini-2.5-pro' => 'Gemini 2.5 Pro'];
+    public const GEMINI_MODELS = ['gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash-Lite (daha yüksek ücretsiz kota)', 'gemini-2.5-pro' => 'Gemini 2.5 Pro'];
+
+    /**
+     * Sağlayıcılar. Varsayılan sıra ücretsiz katmanlardan başlar; anahtarı girilen her sağlayıcı sırayla denenir,
+     * kota dolunca (429) sıradakine geçilir. Claude ücretli olduğundan en sondadır.
+     */
+    public const PROVIDERS = [
+        'gemini' => ['label' => 'Google Gemini', 'kind' => 'gemini', 'free' => 'Ücretsiz katman: kart istemez (aistudio.google.com → Get API key). Günlük istek sınırı modele göre değişir; Flash-Lite daha yüksek kota verir.',
+            'models' => self::GEMINI_MODELS, 'key_hint' => 'AIza…', 'site' => 'https://aistudio.google.com/apikey'],
+        'groq' => ['label' => 'Groq', 'kind' => 'openai', 'base' => 'https://api.groq.com/openai/v1', 'free' => 'Ücretsiz katman: kart istemez (console.groq.com). Llama 3.3 70B çok hızlı; günlük ~1.000 istek.',
+            'models' => ['llama-3.3-70b-versatile' => 'Llama 3.3 70B', 'openai/gpt-oss-120b' => 'GPT-OSS 120B', 'meta-llama/llama-4-scout-17b-16e-instruct' => 'Llama 4 Scout 17B'], 'key_hint' => 'gsk_…', 'site' => 'https://console.groq.com/keys'],
+        'cerebras' => ['label' => 'Cerebras', 'kind' => 'openai', 'base' => 'https://api.cerebras.ai/v1', 'free' => 'Ücretsiz katman: kart istemez (cloud.cerebras.ai). Günlük ~1 milyon jeton.',
+            'models' => ['llama-3.3-70b' => 'Llama 3.3 70B', 'gpt-oss-120b' => 'GPT-OSS 120B', 'qwen-3-32b' => 'Qwen 3 32B'], 'key_hint' => 'csk-…', 'site' => 'https://cloud.cerebras.ai'],
+        'openrouter' => ['label' => 'OpenRouter', 'kind' => 'openai', 'base' => 'https://openrouter.ai/api/v1', 'free' => '":free" modeller ücretsizdir (openrouter.ai). Kart olmadan günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000.',
+            'models' => ['meta-llama/llama-3.3-70b-instruct:free' => 'Llama 3.3 70B (free)', 'qwen/qwen3-235b-a22b:free' => 'Qwen3 235B (free)', 'deepseek/deepseek-chat-v3-0324:free' => 'DeepSeek V3 (free)', 'google/gemma-3-27b-it:free' => 'Gemma 3 27B (free)'], 'key_hint' => 'sk-or-…', 'site' => 'https://openrouter.ai/keys'],
+        'mistral' => ['label' => 'Mistral', 'kind' => 'openai', 'base' => 'https://api.mistral.ai/v1', 'free' => 'Ücretsiz deneme katmanı (console.mistral.ai; telefon doğrulaması ister). Aylık ~1 milyar jeton, saniyede 1 istek.',
+            'models' => ['mistral-small-latest' => 'Mistral Small', 'open-mistral-nemo' => 'Mistral Nemo 12B', 'mistral-medium-latest' => 'Mistral Medium'], 'key_hint' => '…', 'site' => 'https://console.mistral.ai/api-keys'],
+        'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'free' => 'Ücretli. Yalnız istenirse; zincirin en sonunda denenir.',
+            'models' => self::CLAUDE_MODELS, 'key_hint' => 'sk-ant-…', 'site' => 'https://console.anthropic.com'],
+    ];
+
+    public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'claude'];
 
     /** Yalnız kural tabanlı ayrıştırma; başarısızsa (ayar açıksa) yapay zeka ile tamamlar. */
     public function parseMessage(string $message, ?string $preferredProvider = null): array
@@ -55,29 +76,48 @@ class AiParserService
         return array_key_exists($mode, self::MODES) ? $mode : 'fill_gaps';
     }
 
-    /** Sağlayıcı: panel ayarı; panelde seçilmemişse (eski kurulum) env ACTIVE_AI_PROVIDER; yoksa claude. */
-    public function provider(): string
+    /** Tercih edilen sağlayıcı (panel; eski kurulumda env ACTIVE_AI_PROVIDER). Boş: varsayılan sıra. */
+    public function preferredProvider(): string
     {
         $p = Settings::get('ai_provider', '');
-        if (! in_array($p, ['claude', 'gemini'], true)) {
-            $p = (string) config('services.ai.active_provider', 'claude');
+        if (! array_key_exists((string) $p, self::PROVIDERS)) {
+            $p = (string) config('services.ai.active_provider', '');
         }
 
-        return in_array($p, ['claude', 'gemini'], true) ? $p : 'claude';
+        return array_key_exists($p, self::PROVIDERS) ? $p : '';
     }
 
-    public function model(): string
+    /** Deneme sırası: tercih edilen (varsa) önce, ardından varsayılan sıra; yalnız anahtarı girilenler. */
+    public function chain(): array
     {
-        return $this->provider() === 'gemini'
-            ? (Settings::string('ai_gemini_model') ?: (string) config('services.ai.gemini_model', 'gemini-2.5-flash'))
-            : (Settings::string('ai_claude_model') ?: (string) config('services.ai.claude_model', 'claude-opus-5'));
+        $order = self::DEFAULT_ORDER;
+        if (($pref = $this->preferredProvider()) !== '') {
+            $order = array_values(array_unique(array_merge([$pref], $order)));
+        }
+
+        return array_values(array_filter($order, fn (string $p) => $this->apiKey($p) !== ''));
     }
 
-    public function apiKey(): string
+    /** Etiketler için ilk kullanılabilir sağlayıcı. */
+    public function provider(): string
     {
-        return $this->provider() === 'gemini'
-            ? (Settings::string('ai_gemini_key') ?: trim((string) config('services.ai.gemini_key')))
-            : (Settings::string('ai_claude_key') ?: trim((string) config('services.ai.claude_key')));
+        return $this->chain()[0] ?? ($this->preferredProvider() ?: 'gemini');
+    }
+
+    public function model(?string $provider = null): string
+    {
+        $provider ??= $this->provider();
+        $models = self::PROVIDERS[$provider]['models'] ?? [];
+        $set = Settings::string('ai_'.$provider.'_model') ?: (string) config('services.ai.'.$provider.'_model', '');
+
+        return $set !== '' ? $set : (string) array_key_first($models);
+    }
+
+    public function apiKey(?string $provider = null): string
+    {
+        $provider ??= $this->provider();
+
+        return Settings::string('ai_'.$provider.'_key') ?: trim((string) config('services.ai.'.$provider.'_key', ''));
     }
 
     public function isEnabled(): bool
@@ -85,9 +125,22 @@ class AiParserService
         return $this->mode() !== 'off';
     }
 
+    /** En az bir sağlayıcının anahtarı var mı? */
     public function isConfigured(): bool
     {
-        return $this->apiKey() !== '';
+        return $this->chain() !== [];
+    }
+
+    /** Bugün kotası dolmuş (429 almış) sağlayıcılar; sıfırlanma saatine kadar atlanır. */
+    public function exhaustedToday(): array
+    {
+        try {
+            return AiProviderUsage::query()->whereDate('usage_date', now()->toDateString())->where('quota_exhausted', true)
+                ->where(fn ($q) => $q->whereNull('quota_resets_at')->orWhere('quota_resets_at', '>', now()))
+                ->pluck('provider')->all();
+        } catch (Throwable) {
+            return [];
+        }
     }
 
     /** Ayara göre bu ilan için yapay zeka çağrılmalı mı? */
@@ -113,9 +166,10 @@ class AiParserService
     }
 
     /**
-     * Yapay zekadan yapılandırılmış çözümleme ister.
+     * Yapay zekadan yapılandırılmış çözümleme ister. Anahtarı girilen sağlayıcılar sırayla denenir; kota (429),
+     * sunucu veya ağ hatasında sıradakine geçilir.
      *
-     * @return array{status:string, data:?array} status: done | failed | pending (kota/ağ; sonra yeniden denenir) | skipped
+     * @return array{status:string, data:?array} status: done | failed | pending (tümü kota/ağ; sonra yeniden denenir) | skipped
      */
     public function enrich(string $message, array $parsed = [], bool $manual = false): array
     {
@@ -123,22 +177,37 @@ class AiParserService
         if ($message === '' || ! $this->isConfigured() || (! $manual && ! $this->isEnabled())) {
             return ['status' => 'skipped', 'data' => null];
         }
-        $provider = $this->provider();
+        $exhausted = $this->exhaustedToday();
+        $anyRetryable = false;
+        $tried = 0;
+        foreach ($this->chain() as $provider) {
+            if (in_array($provider, $exhausted, true) && ! $manual) {
+                $anyRetryable = true;
 
-        try {
-            $data = $provider === 'gemini' ? $this->callGemini($message) : $this->callClaude($message);
-            $this->recordUsage($provider, true, false, $data['_usage'] ?? []);
-            unset($data['_usage']);
+                continue;
+            }
+            $tried++;
+            try {
+                $data = match (self::PROVIDERS[$provider]['kind']) {
+                    'gemini' => $this->callGemini($message, $provider),
+                    'claude' => $this->callClaude($message, $provider),
+                    default => $this->callOpenAiCompatible($message, $provider),
+                };
+                $this->recordUsage($provider, true, false, $data['_usage'] ?? []);
+                unset($data['_usage']);
 
-            return ['status' => 'done', 'data' => $this->normalizeAi($data, $provider)];
-        } catch (Throwable $exception) {
-            $msg = $exception->getMessage();
-            $retryable = str_contains($msg, '429') || str_contains(strtolower($msg), 'quota') || str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out');
-            $this->recordUsage($provider, false, str_contains($msg, '429') || str_contains(strtolower($msg), 'quota'));
-            Log::warning('Yapay zeka çözümlemesi başarısız.', ['provider' => $provider, 'model' => $this->model(), 'error' => $msg, 'retry' => $retryable]);
-
-            return ['status' => $retryable ? 'pending' : 'failed', 'data' => null];
+                return ['status' => 'done', 'data' => $this->normalizeAi($data, $provider)];
+            } catch (Throwable $exception) {
+                $msg = $exception->getMessage();
+                $quota = str_contains($msg, '429') || str_contains(strtolower($msg), 'quota');
+                $retryable = $quota || str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection');
+                $anyRetryable = $anyRetryable || $retryable;
+                $this->recordUsage($provider, false, $quota);
+                Log::warning('Yapay zeka çözümlemesi başarısız; sıradaki sağlayıcı denenecek.', ['provider' => $provider, 'model' => $this->model($provider), 'error' => $msg, 'retry' => $retryable]);
+            }
         }
+
+        return ['status' => $anyRetryable || $tried === 0 ? 'pending' : 'failed', 'data' => null];
     }
 
     /**
@@ -150,10 +219,21 @@ class AiParserService
         $out = $parsed;
         $resolvable = fn ($v) => is_string($v) && $v !== '' && TurkishLocations::resolve($v) !== null;
 
+        $conflicts = [];
         foreach (['pickup_location', 'delivery_location'] as $key) {
             if (! empty($ai[$key]) && ! $resolvable($out[$key] ?? null)) {
                 $out[$key] = $ai[$key];
+            } elseif (! empty($ai[$key]) && $resolvable($out[$key] ?? null)) {
+                // İkisi de il buldu ama farklı: yayınlamadan önce insan bakmalı (otomatik onay engeli).
+                $ruleProvince = TurkishLocations::resolve((string) $out[$key])['province_code'] ?? null;
+                $aiProvince = TurkishLocations::resolve((string) $ai[$key])['province_code'] ?? null;
+                if ($ruleProvince && $aiProvince && $ruleProvince !== $aiProvince) {
+                    $conflicts[$key] = ['rule' => $out[$key], 'ai' => $ai[$key]];
+                }
             }
+        }
+        if ($conflicts !== []) {
+            $out['ai_conflict'] = $conflicts;
         }
         if (empty($out['sender_phone']) && ! empty($ai['sender_phone'])) {
             $out['sender_phone'] = $ai['sender_phone'];
@@ -188,7 +268,7 @@ class AiParserService
 
         return [
             'provider' => $provider,
-            'model' => $this->model(),
+            'model' => $this->model($provider),
             'is_load' => ($data['post_type'] ?? 'load') === 'load' && ($data['is_load'] ?? true) !== false,
             'post_type' => in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : 'load',
             'confidence' => $confidence,
@@ -287,9 +367,9 @@ TXT;
     }
 
     /** Claude Messages API (yapılandırılmış çıktı). Tek istek, kısa yanıt; sistem istemi önbelleklenir. */
-    private function callClaude(string $message): array
+    private function callClaude(string $message, string $provider = 'claude'): array
     {
-        $model = $this->model();
+        $model = $this->model($provider);
         $body = [
             'model' => $model,
             'max_tokens' => 1024,
@@ -297,7 +377,7 @@ TXT;
             'messages' => [['role' => 'user', 'content' => "İlan mesajı:\n".$message]],
             'output_config' => ['format' => ['type' => 'json_schema', 'schema' => self::outputSchema()]],
         ];
-        $headers = ['x-api-key' => $this->apiKey(), 'anthropic-version' => '2023-06-01'];
+        $headers = ['x-api-key' => $this->apiKey($provider), 'anthropic-version' => '2023-06-01'];
         if (! str_contains($model, 'haiku')) {
             $body['output_config']['effort'] = 'low'; // basit çıkarım görevi: hız ve maliyet
         }
@@ -333,10 +413,45 @@ TXT;
     }
 
     /** Gemini generateContent (JSON yanıt). */
-    private function callGemini(string $message): array
+    /** OpenAI uyumlu sohbet ucu (Groq, Cerebras, OpenRouter, Mistral): JSON kipi + şema istemde. */
+    private function callOpenAiCompatible(string $message, string $provider): array
     {
-        $response = Http::timeout(45)->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey()])->post(
-            'https://generativelanguage.googleapis.com/v1beta/models/'.$this->model().':generateContent',
+        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $headers = ['Authorization' => 'Bearer '.$this->apiKey($provider)];
+        if ($provider === 'openrouter') {
+            $headers['HTTP-Referer'] = (string) config('app.url');
+            $headers['X-Title'] = 'NavlunIQ';
+        }
+        $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', [
+            'model' => $this->model($provider),
+            'temperature' => 0,
+            'max_tokens' => 1024,
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [
+                ['role' => 'system', 'content' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun tek bir JSON nesnesi olarak ver, başka metin yazma: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)],
+                ['role' => 'user', 'content' => "İlan mesajı:\n".$message],
+            ],
+        ]);
+        if ($response->status() === 429) {
+            throw new RuntimeException('quota_429');
+        }
+        if (! $response->successful()) {
+            throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));
+        }
+        $text = (string) data_get($response->json(), 'choices.0.message.content', '');
+        $decoded = json_decode($this->cleanJsonString($text), true);
+        if (! is_array($decoded)) {
+            throw new RuntimeException('invalid_provider_json');
+        }
+        $decoded['_usage'] = ['input' => (int) data_get($response->json(), 'usage.prompt_tokens', 0), 'output' => (int) data_get($response->json(), 'usage.completion_tokens', 0)];
+
+        return $decoded;
+    }
+
+    private function callGemini(string $message, string $provider = 'gemini'): array
+    {
+        $response = Http::timeout(45)->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey($provider)])->post(
+            'https://generativelanguage.googleapis.com/v1beta/models/'.$this->model($provider).':generateContent',
             [
                 'systemInstruction' => ['parts' => [['text' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun ver: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)]]],
                 'contents' => [['parts' => [['text' => "İlan mesajı:\n".$message]]]],

@@ -4,6 +4,7 @@ use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
 use App\Http\Controllers\Payment\PaytrController;
+use App\Http\Controllers\Public\PhoneSetupController;
 use App\Http\Middleware\EnsureCargoOwner;
 use App\Http\Middleware\EnsureDriver;
 use Illuminate\Support\Facades\Auth;
@@ -56,6 +57,12 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
 
     return view('frontend.contract-page', ['activeContract' => $slug]);
 })->name('contracts');
+
+// Bildirim iletici (MacroDroid) kurulum sayfası: gizli kodu bilen telefon sahibi kendi kurar.
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('/kurulum/telefon/{code}', [PhoneSetupController::class, 'show'])->where('code', '[a-f0-9]{16,64}')->name('phone-setup.show');
+    Route::get('/kurulum/telefon/{code}/NavlunIQ.macro', [PhoneSetupController::class, 'macro'])->where('code', '[a-f0-9]{16,64}')->name('phone-setup.macro');
+});
 
 // Giriş, kayıt ve şifre sıfırlama (yalnız oturumu olmayan ziyaretçiler)
 Route::middleware('guest')->group(function () {

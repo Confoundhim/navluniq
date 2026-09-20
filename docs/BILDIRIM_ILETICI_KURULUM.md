@@ -3,19 +3,30 @@
 WhatsApp'a hiçbir cihaz bağlanmaz. Telefonda çalışan MacroDroid uygulaması, seçili grupların
 bildirim metnini NavlunIQ'ya iletir; sunucu tekrarları eler, ilanı ayrıştırır ve onay kuyruğuna alır.
 
-## 1. Sunucu: gizli anahtar (panelden)
+## 1. En kolay yol: kurulum bağlantısı (tek dokunuş)
+
+Panel → **Dış Kaynak İlanları → Kaynaklar ve telefon** → "Kurulum bağlantısı". Bu bağlantıyı (ya da QR'ı) telefon
+sahibine gönderin; sayfa adım adım anlatır, hazır **NavlunIQ.macro** dosyasını indirtir ve "Sunucuya son ulaşan istek"
+satırıyla kurulumun çalıştığını gösterir. Bağlantıyı bilen herkes kurabilir; **Bağlantıyı yenile** eski bağlantıyı öldürür.
+
+Hazır dosya için bir kez, çalışan telefonda MacroDroid → makro → **Dışa aktar** ile alınan `.macro` dosyasını panele
+yükleyin. İndirilen kopya her zaman **güncel anahtarı ve adresi** taşır; anahtar yenilense bile telefona dosyayı yeniden
+yüklemek yeter. Şablon yüklenmemişse kurulum sayfası elle kurulum adımlarını ve gövdeyi gösterir.
+
+Adres + gövde hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon başına ayar
+yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez; olsa da olmasa da makro çalışır.
+
+## 2. Sunucu: gizli anahtar (panelden)
 
 Anahtar sunucuda **kendiliğinden üretilir** ve panelde durur; `.env` düzenlenmez.
-Yönetim paneli → **Dış Kaynak İlanları → Kaynaklar ve telefon** sekmesinde "Telefon bağlantısı" kutusu
-adresi ve anahtarı **hazır JSON gövdesi** olarak gösterir; **Kopyala** ile alıp MacroDroid'e yapıştırırsınız.
-**Anahtarı yenile** bağlantısı yeni anahtar üretir; o zaman tüm telefonlarda gövde değiştirilmelidir.
-(Eski kurulumlarda `.env` içindeki `SCRAPER_API_TOKEN` panelde anahtar yoksa geçerli kalır.)
+"Elle kurulum için adres ve gövde" bölümü adresi ve anahtarı **hazır JSON gövdesi** olarak gösterir; **Kopyala** ile alıp
+MacroDroid'e yapıştırırsınız. (Eski kurulumlarda `.env` içindeki `SCRAPER_API_TOKEN` panelde anahtar yoksa geçerli kalır.)
 
 Uç nokta: `https://navluniq.com/api/v1/webhook/notification` (POST, JSON).
 Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `ticker` (isteğe bağlı; "Gönderen @ Grup: mesaj"),
 `app` (uygulama adı), `token`.
 
-## 2. Telefon: WhatsApp bildirim ayarları
+## 3. Telefon: WhatsApp bildirim ayarları
 
 1. WhatsApp → Ayarlar → Bildirimler: **Bildirim önizlemesini göster** açık olmalı (metin bildirimde görünsün).
 2. Dinlenmeyecek grupları sessize alın (grup → üç nokta → Bildirimleri sessize al → Her zaman).
@@ -23,7 +34,7 @@ Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `t
    Bildirimi tamamen kapatmayın; kapalı grupların mesajı iletilmez.
 4. Android → Ayarlar → Uygulamalar → WhatsApp → Pil: **Kısıtlama yok** (arka planda gecikme olmasın).
 
-## 3. Telefon: MacroDroid
+## 4. Telefon: MacroDroid (elle kurulum)
 
 1. Play Store'dan **MacroDroid** kurun (ücretsiz sürüm yeterlidir).
 2. İlk açılışta istenen izinleri verin; **Bildirim erişimi** izni şarttır
@@ -58,7 +69,7 @@ Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `t
 
 5. Makroyu kaydedip **etkin** yapın.
 
-## 4. Deneme
+## 5. Deneme
 
 Dinlenen bir gruba deneme ilanı yazdırın, örneğin:
 `Ankara'dan İzmir'e 24 ton palet yük, tenteli tır lazım 0532 123 45 67`
@@ -82,34 +93,36 @@ anında, diğerlerine 20 dakika sonra açılır.
 - Üstteki rozetler: **Zamanlayıcı** (cron son 3 dakikada çalıştıysa yeşil; kırmızıysa otomatik onay, temizlik ve yapay zeka
   kuyruğu çalışmıyordur — sunucuda `bash /root/update.sh` cron'u yeniden kurar), **Otomatik onay**, **Yapay zeka**, **Telegram**.
 
-## Yapay zeka ile ilan anlama
+## Yapay zeka ile ilan anlama (ücretsiz sağlayıcılar)
 
 Kural tabanlı çözümleme her ilanda ücretsiz çalışır. Yapay zeka **Sistem Ayarları → Dış kaynak ve Telegram → Yapay zeka**
-bölümünden açılır; anahtar veritabanında şifreli saklanır, `.env` gerekmez.
+bölümünden açılır; anahtarlar veritabanında şifreli saklanır, `.env` gerekmez.
 
 - **Kural eksik bırakınca** (varsayılan): kural telefon, il veya araç tipini çözemediyse yapay zekaya sorulur.
 - **Her ilanda**: her aday yapay zekaya gider (en isabetli; il/ilçe, araç, tonaj, fiyat, yük türü, aciliyet ve
   "bu bir yük ilanı değil" ayrımı). Yük ilanı olmadığına yüksek güvenle karar verilen mesaj elenir.
 - **Kapalı**: yalnız kural.
-- Sağlayıcı: **Claude** (varsayılan model Claude Opus 5; Sonnet 5 ve Haiku 4.5 seçilebilir) veya **Gemini**.
-  Claude yapılandırılmış JSON çıktı şeması ile çağrılır; kota/ağ hatasında aday "yapay zeka bekliyor" kalır ve
-  `scraped-loads:ai-enrich` görevi 5 dakikada bir yeniden dener. Kuyrukta **Yapay zeka ile çözümle** ile tek tek
-  veya toplu yeniden çözümleme yapılabilir.
-- Kural çözemediği alanları yapay zeka doldurur; kuralın kesin (anahtar sözcük) araç eşleşmesi korunur, yöneticinin
-  elle düzenlediği ilanlara dokunulmaz.
 
-## İlan standardizasyonu
+**Sağlayıcı zinciri.** Anahtarı girilen sağlayıcılar sırayla denenir; günlük kotası dolan (429) atlanır, ertesi gün
+yeniden denenir; hiçbiri yanıt vermezse aday "yapay zeka bekliyor" kalır ve `scraped-loads:ai-enrich` görevi 5 dakikada
+bir yeniden dener. Varsayılan sıra ücretsiz katmanlardan başlar:
 
-Her mesaj kaydedilmeden önce standartlaştırılır; onaylanırken bir kez daha çalışır:
+| Sıra | Sağlayıcı | Ücretsiz katman | Anahtar |
+|---|---|---|---|
+| 1 | Google Gemini (Flash-Lite / Flash) | Kart istemez; günlük istek sınırı modele göre (Flash-Lite daha yüksek) | aistudio.google.com/apikey |
+| 2 | Groq (Llama 3.3 70B) | Kart istemez; günlük ~1.000 istek, çok hızlı | console.groq.com/keys |
+| 3 | Cerebras (Llama 3.3 70B) | Kart istemez; günlük ~1 milyon jeton | cloud.cerebras.ai |
+| 4 | OpenRouter (":free" modeller) | Kartsız günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000 | openrouter.ai/keys |
+| 5 | Mistral (Small) | Deneme katmanı, telefon doğrulaması ister; aylık ~1 milyar jeton | console.mistral.ai |
+| 6 | Claude (Anthropic) | Ücretli; yalnız istenirse, zincirin sonunda | console.anthropic.com |
 
-- **Konum**: 81 il + 973 ilçe kataloğuna bağlanır; yazım hataları düzeltilir ("Diyarbakr" → Diyarbakır, "İstanbl Kartala" → İstanbul Kartal).
-  İl çözülemeyen ilan yayınlanamaz; yönetici satırdaki **Düzenle** ile ili seçer.
-- **Yük**: kataloğa bağlanır (Paletli yük, Beyaz eşya, Demir / çelik, Soğuk zincir gıda…); kırılgan, soğuk zincir, ADR, gabari dışı etiketleri eklenir.
-- **Araç**: açık araç adı → kasa ipucu → tonaj → palet → hacim → yük türü. Araç yazmayan ilanda yükten en küçük uygun araç seçilir ve
-  şoförlere "Orta Panelvan ve üzeri" gibi gösterilir; daha büyük tüm araçlar ilanı görür (otomobil hariç).
-- **Fiyat**: "45 bin", "45.000 TL", "fiyat: 45000". **Aciliyet** ("acil", "hemen") ve **yükleme notu** ("yarın", "pazartesi") işaretlenir.
-- Yöneticinin düzenlediği ilanlar sonraki otomatik standardizasyondan etkilenmez.
-- Eski kayıtlar: `php artisan scraped-loads:classify` (update.sh her güncellemede çalıştırır; `--all` bütün kayıtlar).
+Kota rakamları sağlayıcıların o günkü politikasına bağlıdır; panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
+ve kota dolduysa uyarı görünür. İlk 2-3 sağlayıcıya anahtar girmek günde binlerce ilanı ücretsiz karşılar.
+
+**Hatasız içerik güvencesi.** Kuralın kesin çözdüğü il ile yapay zekanın bulduğu il farklıysa ilan otomatik yayınlanmaz;
+kuyrukta "kural ve yapay zeka farklı il buldu; elle kontrol" uyarısıyla bekler (filtre: "Kural / yapay zeka çelişen").
+Yapay zeka güveni %50'nin altındaysa da elle kontrol istenir. Yöneticinin elle düzenlediği ilanlara dokunulmaz.
+Kuyrukta **Yapay zeka ile çözümle** ile tek tek veya toplu yeniden çözümleme yapılabilir.
 
 ## Sorun giderme
 
