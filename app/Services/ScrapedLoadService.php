@@ -116,7 +116,8 @@ class ScrapedLoadService
         if (! $urlFound) {
             throw new \InvalidArgumentException('Makroda NavlunIQ bildirim adresi yok; önce telefonda çalışan makroyu dışa aktarın.');
         }
-        $token = preg_match('~token\\\\*"\\s*:\\s*\\\\*"([A-Za-z0-9_\\-]{8,})~', $content, $m) ? $m[1] : null;
+        $token = preg_match('~token\\\\*"\\s*:\\s*\\\\*"([A-Za-z0-9_\\-]{8,})~', $content, $m) ? $m[1]
+            : (preg_match('~\\b([a-f0-9]{48})\\b~', $content, $m) ? $m[1] : null); // form alanı kurulumunda 48 karakterlik anahtar
         Storage::disk('local')->put(self::MACRO_TEMPLATE_PATH, $content);
         Settings::set('macrodroid_template_token', $token ?? '', $userId);
         Settings::set('macrodroid_template_at', now()->toDateTimeString(), $userId);
@@ -155,6 +156,18 @@ class ScrapedLoadService
     }
 
     /** MacroDroid'e yapıştırılacak hazır istek gövdesi. */
+    /** MacroDroid "Parametreler" (form alanları) kurulumu: metindeki tırnak/satır sonu JSON'u bozamaz. Önerilen yol. */
+    public static function phoneRequestParams(): array
+    {
+        return ['title' => '{not_title}', 'text' => '{notification}', 'ticker' => '{not_ticker}', 'app' => '{not_app_name}', 'token' => self::apiToken()];
+    }
+
+    /** Telefonun tarayıcısından açılınca Canlı akışa "Bağlantı sınaması" düşüren adres. */
+    public static function pingUrl(): string
+    {
+        return route('api.notification.ping', ['token' => self::apiToken()]);
+    }
+
     public static function phoneRequestBody(): string
     {
         return json_encode([

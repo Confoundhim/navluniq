@@ -129,6 +129,13 @@ Kuyrukta **Yapay zeka ile çözümle** ile tek tek veya toplu yeniden çözümle
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?
   MacroDroid → Sistem günlüğü'nde HTTP isteğinin gönderilip gönderilmediğini görebilirsiniz.
+- Canlı akış tamamen boşsa önce **sınama bağlantısını** (panel → Kaynaklar ve telefon → Sorun giderme, ya da kurulum
+  sayfasındaki "Sına" düğmesi) telefonun tarayıcısında açın. "Bağlantı sınaması" satırı düşerse ağ ve anahtar tamamdır;
+  sorun MacroDroid'dedir: bildirim erişimi izni, sessize alınmış grup, sohbet açıkken gelen mesaj, **kendi yazdığınız mesaj
+  bildirim üretmez** (başkası yazmalı), WhatsApp Business kullanılıyorsa tetikleyicide o uygulama seçilmeli.
+  MacroDroid'de HTTP İsteği eylemine uzun basıp "Eylemi test et" ile makronun istek atabildiği görülür (Canlı akışta "Atlandı").
+- Mesajda tırnak ya da satır sonu varsa JSON gövde bozulur; sunucu bunu onarır ama en sağlamı içerik türünü
+  **application/x-www-form-urlencoded** yapıp alanları "Parametreler" bölümüne girmektir (panel ve kurulum sayfası listeler).
 - Yanıt `401` (Canlı akışta "Anahtar hatalı"): telefondaki `token` panelde gösterilenle aynı değil; gövdeyi panelden yeniden kopyalayın.
 - Yanıt `status: filtered`: mesajda telefon numarası ya da lojistik işaret yok, il çözülemedi veya yapay zeka "ilan değil" dedi; Canlı akış nedenini yazar.
 - Yanıt `status: source_pending`: grup Kaynaklar listesine pasif düşmüştür; aktif edince sonraki mesajlar işlenir.

@@ -20,4 +20,7 @@ Route::prefix('v1')->group(function () {
     // Android bildirim iletici (MacroDroid vb.): WhatsApp bildirim başlığı + metni
     Route::post('/webhook/notification', [NotificationWebhookController::class, 'handle'])
         ->middleware('throttle:120,1');
+    // Telefonun tarayıcısından açılan bağlantı sınaması (GET); Canlı akışa "Bağlantı sınaması" düşer.
+    Route::get('/webhook/notification/ping', [NotificationWebhookController::class, 'ping'])
+        ->middleware('throttle:30,1')->name('api.notification.ping');
 });

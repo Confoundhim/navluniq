@@ -30,6 +30,8 @@ class PhoneSetupController extends Controller
             'code' => $code,
             'webhookUrl' => url('/api/v1/webhook/notification'),
             'body' => ScrapedLoadService::phoneRequestBody(),
+            'params' => ScrapedLoadService::phoneRequestParams(),
+            'pingUrl' => ScrapedLoadService::pingUrl(),
             'hasTemplate' => ScrapedLoadService::hasMacroTemplate(),
             'downloadUrl' => route('phone-setup.macro', ['code' => $code]),
             'lastEventAt' => $last?->created_at,
