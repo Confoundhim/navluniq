@@ -456,13 +456,14 @@ tenteli tır 0532 123 45 67","ticker":"","app":"WhatsApp","token":"'.$token.'"}'
         $this->assertNull(json_decode($broken), 'Örnek gövde gerçekten bozuk JSON olmalı');
         $response = $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_ACCEPT' => 'application/json'], $broken);
         $response->assertOk()->assertJsonPath('status', 'created');
-        $this->assertSame('created', IntakeEvent::latest('id')->first()->status);
+        $this->assertTrue(IntakeEvent::where('status', 'created')->where('source_name', 'Grup A')->exists(), 'Onarılan gövde kuyruğa alınmalı');
         $this->assertSame(1, ScrapedLoad::count());
+        $this->assertStringContainsString('ACİL', (string) ScrapedLoad::first()->raw_message);
 
         // Form alanları (önerilen kurulum) doğrudan çalışır.
         $params = ScrapedLoadService::phoneRequestParams();
         $this->assertSame($token, $params['token']);
-        $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => 'Mehmet: Bursa Antalya 8 ton mobilya kamyon 0544 222 33 44', 'app' => 'WhatsApp', 'token' => $token], ['Accept' => 'application/json'])
+        $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => "Mehmet: Bursa'dan Antalya'ya 8 ton mobilya kamyon 0544 222 33 44", 'app' => 'WhatsApp', 'token' => $token], ['Accept' => 'application/json'])
             ->assertOk()->assertJsonPath('status', 'created');
         $this->assertSame(2, ScrapedLoad::count());
 
