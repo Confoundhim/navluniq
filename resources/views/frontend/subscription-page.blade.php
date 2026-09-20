@@ -9,10 +9,12 @@
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
 
     $comparison = [
-        ['Platform içi yük ilanlarını görme', 'Anında', 'Anında'],
+        ['Yük sahiplerinin sistem ilanları', '20 dakika sonra', 'Yayınlandığı anda'],
+        ['Yeni ilan bildirimi', '20 dakika sonra', 'Anında'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
-        ['Onaylı dış kaynak ilanları', '20 dakika gecikmeli', 'Yayınlandığı anda'],
+        ['Onaylı dış kaynak ilanları', '20 dakika sonra', 'Yayınlandığı anda'],
         ['Dış kaynak ilanlarda iletişim bilgisi', 'Kısmen gizli', 'Tamamı görünür'],
+        ['Telegram kanalı (sistem ilanları)', 'Herkese açık', 'Herkese açık'],
         ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
     ];
@@ -28,7 +30,7 @@
                 Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                NavlunIQ'da platform ilanlarına teklif vermek her zaman ücretsizdir. Premium üyelik, dış kaynaklardan derlenen onaylı ilanları herkesten 20 dakika önce görmenizi ve ilan sahibine doğrudan ulaşmanızı sağlar.
+                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alır; standart üyeler aynı ilanları 20 dakika sonra görür.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
@@ -55,10 +57,10 @@
                     </div>
                 </div>
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Platform içi tüm yük ilanlarını anında görün, sınırsız teklif verin</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarına 20 dakika gecikmeli erişim</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Onaylı dış kaynak ilanlarında iletişim bilgisi kısmen gizli</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar 20 dakika sonra görünür</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Dış kaynak ilanlarında numara kısmen gizli</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
             </div>
@@ -82,8 +84,9 @@
                     </div>
                     <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarını yayınlandığı anda, herkesten 20 dakika önce görün</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Dış kaynak ilanlarda ilan sahibinin iletişim bilgisinin tamamına erişin</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni ilanları herkesten 20 dakika önce görün</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Dış kaynak ilanlarında ilan sahibinin numarasının tamamını görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
                     </ul>
                     <div class="space-y-2">
@@ -110,7 +113,7 @@
                 <div class="md:col-span-2 space-y-2">
                     <h3 class="text-base font-bold text-neutral-900 dark:text-white">20 dakika neden fark yaratır?</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Dış kaynaklardan gelen bir yük ilanı çoğu zaman ilk arayan şoförde kalır. Premium üyeler onaylanan ilanı yayınlandığı anda, ilan sahibinin numarasıyla birlikte görür; standart üyelere aynı ilan 20 dakika sonra ve numarası kısmen gizli açılır. Platform hizmet bedeli iki planda da aynıdır, premium ücretin karşılığı yalnız bu öncelik ve doğrudan iletişimdir.
+                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı 20 dakika sonra görür. Dış kaynak ilanlarında da aynı öncelik geçerlidir ve numaranın tamamı premium üyelere açıktır. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">
@@ -122,7 +125,7 @@
                     <div class="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4">
                         <div class="text-[10px] font-bold text-brand-500 uppercase tracking-wider">Premium</div>
                         <div class="text-xl font-black text-brand-500 tabular-nums mt-1">Anında</div>
-                        <div class="text-[10px] text-brand-500/80 mt-0.5">numarayla</div>
+                        <div class="text-[10px] text-brand-500/80 mt-0.5">bildirimle</div>
                     </div>
                 </div>
             </div>
@@ -185,7 +188,7 @@
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" d="M7 14h4"/></svg>
                     </div>
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. İlanları ilk siz görün</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Üyeliğiniz süresince onaylanan dış kaynak ilanları panelinize anında, ilan sahibinin numarasıyla düşer. Dönem bittiğinde hesabınız kendiliğinden standarda döner.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Üyeliğiniz süresince yeni sistem ilanları ve onaylı dış kaynak ilanları panelinize anında, bildirimle düşer. Dönem bittiğinde hesabınız kendiliğinden standarda döner.</p>
                 </div>
             </div>
         </section>
@@ -203,7 +206,11 @@
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Dış kaynak ilanları nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli web siteleri ve gruplardan derlenip ekibimizce onaylanan ilanlardır. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız platform içi ilanlarda geçerlidir.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli gruplardan derlenip ekibimizce onaylanan ilanlardır; ilan çeşitliliğini artırır. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız sistem ilanlarında geçerlidir.</p>
+                </div>
+                <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Sistem ilanları herkese açıldığı anda Telegram kanalımızda da yayınlanır; kanalı takip edip yalnız ilgilendiğiniz ilan için uygulamaya girebilirsiniz.@if($telegramUrl = \App\Services\TelegramPublisher::channelUrl()) <a href="{{ $telegramUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-bold hover:underline">Kanala katıl →</a>@endif</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Fatura alabilir miyim?</h3>

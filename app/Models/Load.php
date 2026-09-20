@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -96,6 +97,10 @@ class Load extends Model
         'e_irsaliye_no',
         'e_irsaliye_path',
         'published_at',
+        'available_to_free_at',
+        'released_at',
+        'telegram_posted_at',
+        'telegram_attempts',
         'cancelled_at',
     ];
 
@@ -103,9 +108,34 @@ class Load extends Model
         'pickup_date' => 'datetime',
         'delivery_date' => 'datetime',
         'published_at' => 'datetime',
+        'available_to_free_at' => 'datetime',
+        'released_at' => 'datetime',
+        'telegram_posted_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'price' => 'decimal:2',
     ];
+
+    /** Ücretsiz (premium olmayan) şoförlere açıldı mı? Süre tanımsızsa her zaman açık. */
+    public function isAvailableToFree(): bool
+    {
+        return $this->available_to_free_at === null || $this->available_to_free_at->isPast();
+    }
+
+    /** Premium erken erişim penceresinde mi? */
+    public function isEarlyAccess(): bool
+    {
+        return ! $this->isAvailableToFree();
+    }
+
+    /** Verilen şoförün (premium değilse) görebileceği ilanlarla sınırlar. */
+    public function scopeOpenTo(Builder $query, ?DriverProfile $profile): Builder
+    {
+        if ($profile?->isPremium()) {
+            return $query;
+        }
+
+        return $query->where(fn (Builder $q) => $q->whereNull('available_to_free_at')->orWhere('available_to_free_at', '<=', now()));
+    }
 
     /**
      * Yük Sahibi (Gönderici) Profil İlişkisi

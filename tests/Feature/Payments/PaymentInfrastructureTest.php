@@ -116,6 +116,7 @@ class PaymentInfrastructureTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Settings::set('scraper_free_delay_minutes', '0'); // bu testlerde premium bekleme süresi konu dışı
         $this->seed(RolesAndPermissionsSeeder::class);
         Mail::fake();
         Storage::fake('private');

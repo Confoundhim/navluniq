@@ -13,7 +13,7 @@ class RefreshFaqCommand extends Command
 
     protected $description = 'SSS metinlerini güncel seed ile yeniler';
 
-    public const STALE_PATTERN = '/cüzdan|cuzdan|bakiye|bloke|escrow|güvenli havuz|havuz hesab|havuza (?:al|aktar)/iu';
+    public const STALE_PATTERN = '/cüzdan|cuzdan|bakiye|bloke|escrow|güvenli havuz|havuz hesab|havuza (?:al|aktar)|bildirim kanalı vaat edilmez|standart üyelere açılmadan 20 dakika önce premium/iu';
 
     public function handle(): int
     {

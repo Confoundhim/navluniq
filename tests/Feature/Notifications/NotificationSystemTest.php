@@ -19,6 +19,7 @@ use App\Services\OfferService;
 use App\Services\OtpService;
 use App\Services\SubscriptionService;
 use App\Support\Company;
+use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
@@ -33,6 +34,7 @@ class NotificationSystemTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Settings::set('scraper_free_delay_minutes', '0'); // bu testlerde premium bekleme süresi konu dışı
         $this->seed(RolesAndPermissionsSeeder::class);
         Mail::fake();
     }

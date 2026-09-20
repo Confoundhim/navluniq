@@ -44,12 +44,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Premium üyelikte iki somut avantaj vardır. Birincisi, izinli dış kaynaklardan derlenen ve ekibimizce onaylanan ilanlar standart üyelere açılmadan 20 dakika önce premium üyelere gösterilir ve ilan sahibinin telefon numarasının tamamı görünür. İkincisi, bu ilanlarda pazarlığı beklemeden doğrudan ilan sahibiyle yaparsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek bir ücret yoktur ve platform hizmet bedeli premium ile değişmez. Satın alma ödeme altyapısı devreye alındığında panelinizden yapılır; ekstra bir "bot" ya da bildirim kanalı vaat edilmez.',
+                'answer' => 'Kısaca: yeni ilanları herkesten 20 dakika önce görürsünüz ve anında bildirim alırsınız. Yük sahiplerinin açtığı sistem ilanları ve onaylı dış kaynak ilanları önce premium üyelere açılır; standart üyelere ve Telegram kanalına 20 dakika sonra düşer. Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı da görünür. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur ve platform hizmet bedeli premium ile değişmez.',
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Ücretsiz hesapla platformdaki tüm yük sahibi ilanlarını anında görür ve sınırsız teklif verirsiniz; bu hak her zaman ücretsizdir. Dış kaynak ilanları ise ücretsiz hesaplara premium üyelerden 20 dakika sonra açılır ve iletişim bilgisi kısmen gizlenir. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Yani premium, dış kaynak ilanları daha erken ve numarasıyla görmek demektir; teklif verme hakkı ve kesinti oranı iki hesapta da aynıdır.',
+                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni ilanlar (sistem ilanları ve dış kaynak ilanlar) ücretsiz hesaba premium üyelerden 20 dakika sonra açılır ve dış kaynak ilanlarında numara kısmen gizlenir. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
             ],
             [
                 'order_num' => 6,

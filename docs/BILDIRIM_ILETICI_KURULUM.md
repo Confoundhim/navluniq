@@ -91,7 +91,8 @@ anında, diğerlerine 20 dakika sonra açılır.
 - **Canlı akış**: telefondan gelen isteklerin günlüğü (5 sn'de bir yenilenir).
 - **Kaynaklar ve telefon**: hazır MacroDroid gövdesi, anahtar yenileme, kaynak ekleme/aktif-pasif/silme.
 - Üstteki rozetler: **Zamanlayıcı** (cron son 3 dakikada çalıştıysa yeşil; kırmızıysa otomatik onay, temizlik ve yapay zeka
-  kuyruğu çalışmıyordur — sunucuda `bash /root/update.sh` cron'u yeniden kurar), **Otomatik onay**, **Yapay zeka**, **Telegram**.
+  kuyruğu çalışmıyordur — sunucuda `bash /root/update.sh` cron'u yeniden kurar), **Otomatik onay**, **Yapay zeka**.
+- Dış kaynak ilanlar Telegram kanalına gönderilmez; kanal yalnız sistem ilanları içindir (docs/TELEGRAM_KANAL_KURULUM.md).
 
 ## Yapay zeka ile ilan anlama (ücretsiz sağlayıcılar)
 

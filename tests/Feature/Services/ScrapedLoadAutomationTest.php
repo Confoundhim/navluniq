@@ -87,33 +87,18 @@ class ScrapedLoadAutomationTest extends TestCase
         $this->assertSame(['Grup A', 'Grup B', 'Grup C'], $load->seen_sources);
     }
 
-    public function test_telegram_publishes_due_loads_once_with_masked_phone(): void
+    public function test_external_loads_are_never_posted_to_telegram(): void
     {
         Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => ['message_id' => 5]])]);
-        $source = $this->source();
-        $due = $this->candidate($source, ['visibility' => 'public', 'available_to_free_at' => now()->subMinute(), 'duplicate_count' => 3, 'price' => 45000]);
-        $this->candidate($source, ['visibility' => 'public', 'available_to_free_at' => now()->addMinutes(10)]);
-
-        $telegram = app(TelegramPublisher::class);
-        $this->assertSame(0, $telegram->publishDue(), 'Ayarlar boşken gönderim olmamalı');
-
         Settings::set('telegram_post_enabled', '1');
         Settings::set('telegram_bot_token', '123456:ABCDEF');
         Settings::set('telegram_channel_id', '@navluniq');
+        $source = $this->source();
+        $due = $this->candidate($source, ['visibility' => 'public', 'available_to_free_at' => now()->subMinute(), 'duplicate_count' => 3, 'price' => 45000]);
 
-        $this->assertSame(1, $telegram->publishDue());
-        $this->assertSame(0, $telegram->publishDue(), 'Aynı ilan ikinci kez gönderilmemeli');
-
-        Http::assertSentCount(1);
-        Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'bot123456:ABCDEF/sendMessage')
-                && $request['chat_id'] === '@navluniq'
-                && str_contains($request['text'], 'Ankara → İzmir')
-                && str_contains($request['text'], '0532 *** ** 67')
-                && str_contains($request['text'], '3 kaynakta görüldü')
-                && str_contains($request['text'], '45.000 ₺')
-                && ! str_contains($request['text'], '0532 123 45 67');
-        });
-        $this->assertNotNull($due->fresh()->telegram_posted_at);
+        $this->artisan('loads:release-to-free')->assertSuccessful();
+        Http::assertNothingSent();
+        $this->assertNull($due->fresh()->telegram_posted_at);
+        $this->assertSame('https://t.me/navluniq', TelegramPublisher::channelUrl());
     }
 }

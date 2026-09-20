@@ -38,6 +38,7 @@ class extends Component {
             ->with('cargoOwnerProfile.user')
             ->where('status', Load::STATUS_ACTIVE)
             ->where('visibility', 'public')
+            ->openTo($profile)
             ->latest('published_at')
             ->latest('id');
 

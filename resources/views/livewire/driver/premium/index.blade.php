@@ -33,7 +33,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyelik, onaylı dış kaynak ilanlarını herkesten önce görmenizi ve ilan sahibine doğrudan ulaşmanızı sağlar.</p>
+        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alır; dış kaynak ilanlarında numaranın tamamını görür.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -80,14 +80,18 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <h3 class="section-title">Premium avantajları</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">20 dakika erken erişim</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">İzinli kaynaklardan derlenen ve ekibimizce onaylanan ilanlar, standart üyelere açılmadan 20 dakika önce premium üyelere gösterilir.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">20 dakika önce görürsünüz</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Yük sahiplerinin açtığı sistem ilanları ve onaylı dış kaynak ilanları önce premium üyelere açılır; diğer üyeler 20 dakika sonra görür.</div>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">İletişim bilgisinin tamamı</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı görünür; standart üyelerde numara kısmen gizlenir.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">Anında bildirim</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Aracınıza uygun yeni ilan yayınlandığı anda bildirim alırsınız; ilk teklifi siz verirsiniz.</div>
+                    </div>
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
+                        <div class="text-neutral-900 dark:text-white font-bold">Dış kaynakta tam numara</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı görünür; standart üyelerde kısmen gizlenir.</div>
                     </div>
                 </div>
                 <p class="text-[11px] text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
@@ -114,6 +118,9 @@ class extends Component {
                 <h3 class="section-title">Nasıl çalışır</h3>
                 <p>Premium hakkı yalnız doğrulanmış bir ödeme sonrasında tanımlanır; kart bilgileri NavlunIQ'da saklanmaz.</p>
                 <p>Üyelik süresi dolduğunda hesabınız kendiliğinden standart üyeliğe döner; ilanlarınız ve geçmişiniz aynen kalır.</p>
+                @if($telegramUrl = \App\Services\TelegramPublisher::channelUrl())
+                    <p>Uygulamayı sürekli açmak istemiyorsanız sistem ilanları herkese açıldığı anda <a href="{{ $telegramUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-bold hover:underline">Telegram kanalımızda</a> da yayınlanır.</p>
+                @endif
             </div>
         </div>
     </div>

@@ -50,10 +50,9 @@ final class Settings
         'macrodroid_template_at' => '',
 
         // Telegram kanalı
-        'telegram_post_enabled' => 0,           // 1: ücretsiz üyelere açılan ilan kanala gönderilir
+        'telegram_post_enabled' => 0,           // 1: herkese açılan SİSTEM ilanları kanala gönderilir (dış kaynak gönderilmez)
         'telegram_bot_token' => '',
         'telegram_channel_id' => '',            // @kanaladi veya -100... sayısal kimlik
-        'telegram_show_full_phone' => 0,        // 0: maskeli numara + siteye bağlantı
 
         // Ödeme kuruluşu / mağaza incelemesi için test hesapları: listedeki e-postalar sabit kodla giriş yapar
         'review_login_emails' => '',            // virgülle ayrılmış e-postalar

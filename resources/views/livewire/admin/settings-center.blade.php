@@ -38,15 +38,14 @@ new class extends Component {
     public array $limits = [];
 
     public const SCRAPER_KEYS = [
-        'scraper_free_delay_minutes' => 'Ücretsiz üyelere açılma gecikmesi (dakika)',
+        'scraper_free_delay_minutes' => 'Premium öncelik süresi (dakika)',
         'scraper_auto_approve' => 'Otomatik onay',
         'scraper_auto_approve_require_price' => 'Otomatik onay için fiyat zorunlu',
         'scraper_auto_approve_require_weight' => 'Otomatik onay için tonaj zorunlu',
         'scraper_auto_approve_require_vehicle' => 'Otomatik onay için araç tipi zorunlu',
-        'telegram_post_enabled' => 'Telegram kanalına paylaş',
+        'telegram_post_enabled' => 'Sistem ilanlarını Telegram kanalına paylaş',
         'telegram_bot_token' => 'Telegram bot anahtarı',
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
-        'telegram_show_full_phone' => 'Telegram mesajında tam numara',
         'scraper_rejected_retention_days' => 'Reddedilen adayların silinme süresi (gün)',
         'ai_parse_mode' => 'Yapay zeka çözümleme',
         'ai_provider' => 'Öncelikli sağlayıcı',
@@ -66,7 +65,7 @@ new class extends Component {
 
     public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key'];
 
-    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'telegram_post_enabled', 'telegram_show_full_phone'];
+    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'telegram_post_enabled'];
 
     /** @var array<string, string> */
     public array $scraper = [];
@@ -596,24 +595,20 @@ new class extends Component {
                 <div>
                     <label class="form-label">{{ $scraperKeys['scraper_free_delay_minutes'] }}</label>
                     <input type="number" min="0" max="1440" wire:model="scraper.scraper_free_delay_minutes" class="{{ $input }}">
-                    <span class="text-[11px] text-neutral-400">Premium şoförler ilanı anında görür; bu süre sonunda herkese ve Telegram'a açılır.</span>
+                    <span class="text-[11px] text-neutral-400">Hem sistem hem dış kaynak ilanlar önce premium şoförlere açılır ve bildirilir; bu süre sonunda herkese açılır (sistem ilanları ayrıca Telegram kanalına gider).</span>
                     @error('scraper.scraper_free_delay_minutes') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
             </div>
 
             <div class="pt-4 border-t border-neutral-200 dark:border-neutral-800">
                 <h3 class="section-title">Telegram kanalı</h3>
-                <p class="text-[11px] text-neutral-400 mt-1">Kurulum adımları: docs/TELEGRAM_KANAL_KURULUM.md. Bot, kanala yönetici olarak eklenmiş olmalıdır.</p>
+                <p class="text-[11px] text-neutral-400 mt-1">Kanala yalnız <strong>sistem ilanları</strong> (yük sahibi üyelerin açtığı ilanlar) gider; premium öncelik süresi dolup ilan herkese açıldığı anda paylaşılır. Dış kaynak ilanlar kanala gönderilmez. Kurulum adımları: docs/TELEGRAM_KANAL_KURULUM.md; bot kanala yönetici olarak eklenmiş olmalıdır.</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="form-label">{{ $scraperKeys['telegram_post_enabled'] }}</label>
                     <select wire:model="scraper.telegram_post_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select>
                     @error('scraper.telegram_post_enabled') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="form-label">{{ $scraperKeys['telegram_show_full_phone'] }}</label>
-                    <select wire:model="scraper.telegram_show_full_phone" class="{{ $input }}"><option value="0">Maskeli numara + siteye bağlantı</option><option value="1">Tam numara</option></select>
                 </div>
                 <div>
                     <label class="form-label">{{ $scraperKeys['telegram_bot_token'] }}</label>

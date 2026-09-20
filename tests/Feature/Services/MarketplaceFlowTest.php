@@ -16,6 +16,7 @@ use App\Services\OfferService;
 use App\Services\PaymentService;
 use App\Services\ReviewService;
 use App\Services\ShipmentService;
+use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -42,6 +43,7 @@ class MarketplaceFlowTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Settings::set('scraper_free_delay_minutes', '0'); // bu testlerde premium bekleme süresi konu dışı
         $this->seed(RolesAndPermissionsSeeder::class);
         Mail::fake();
         Storage::fake('private');
