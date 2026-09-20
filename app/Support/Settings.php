@@ -33,17 +33,17 @@ final class Settings
         // Yapay zeka ile ilan çözümleme
         'ai_parse_mode' => 'fill_gaps',         // off | fill_gaps (kural eksik bırakınca) | always (her ilanda)
         'ai_provider' => '',                    // tercih edilen sağlayıcı; boş: ücretsizden başlayan varsayılan sıra
-        'ai_gemini_model' => 'gemini-2.5-flash-lite',
+        'ai_gemini_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_gemini_key' => '',                  // şifreli; boşsa .env GEMINI_API_KEY
-        'ai_groq_model' => 'llama-3.3-70b-versatile',
+        'ai_groq_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_groq_key' => '',
-        'ai_cerebras_model' => 'llama-3.3-70b',
+        'ai_cerebras_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_cerebras_key' => '',
-        'ai_openrouter_model' => 'meta-llama/llama-3.3-70b-instruct:free',
+        'ai_openrouter_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_openrouter_key' => '',
-        'ai_mistral_model' => 'mistral-small-latest',
+        'ai_mistral_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_mistral_key' => '',
-        'ai_claude_model' => 'claude-opus-5',
+        'ai_claude_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
         'scraper_setup_code' => '',             // herkese açık telefon kurulum sayfasının gizli kodu
         'macrodroid_template_token' => '',      // yüklenen .macro şablonundaki anahtar (indirmede güncel anahtarla değiştirilir)

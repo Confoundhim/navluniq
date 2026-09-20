@@ -21,7 +21,7 @@ class AiParserService
 
     public const CLAUDE_MODELS = ['claude-opus-5' => 'Claude Opus 5 (en isabetli)', 'claude-sonnet-5' => 'Claude Sonnet 5', 'claude-haiku-4-5' => 'Claude Haiku 4.5 (en ucuz)'];
 
-    public const GEMINI_MODELS = ['gemini-2.5-flash' => 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash-Lite (daha yüksek ücretsiz kota)', 'gemini-2.5-pro' => 'Gemini 2.5 Pro'];
+    public const GEMINI_MODELS = ['gemini-3.5-flash-lite' => 'Gemini 3.5 Flash-Lite (daha yüksek ücretsiz kota)', 'gemini-3.5-flash' => 'Gemini 3.5 Flash', 'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash-Lite', 'gemini-2.5-flash' => 'Gemini 2.5 Flash'];
 
     /**
      * Sağlayıcılar. Varsayılan sıra ücretsiz katmanlardan başlar; anahtarı girilen her sağlayıcı sırayla denenir,
@@ -31,7 +31,7 @@ class AiParserService
         'gemini' => ['label' => 'Google Gemini', 'kind' => 'gemini', 'free' => 'Ücretsiz katman: kart istemez (aistudio.google.com → Get API key). Günlük istek sınırı modele göre değişir; Flash-Lite daha yüksek kota verir.',
             'models' => self::GEMINI_MODELS, 'key_hint' => 'AIza…', 'site' => 'https://aistudio.google.com/apikey'],
         'groq' => ['label' => 'Groq', 'kind' => 'openai', 'base' => 'https://api.groq.com/openai/v1', 'free' => 'Ücretsiz katman: kart istemez (console.groq.com). Llama 3.3 70B çok hızlı; günlük ~1.000 istek.',
-            'models' => ['llama-3.3-70b-versatile' => 'Llama 3.3 70B', 'openai/gpt-oss-120b' => 'GPT-OSS 120B', 'meta-llama/llama-4-scout-17b-16e-instruct' => 'Llama 4 Scout 17B'], 'key_hint' => 'gsk_…', 'site' => 'https://console.groq.com/keys'],
+            'models' => ['openai/gpt-oss-120b' => 'GPT-OSS 120B', 'meta-llama/llama-4-scout-17b-16e-instruct' => 'Llama 4 Scout 17B', 'llama-3.3-70b-versatile' => 'Llama 3.3 70B'], 'key_hint' => 'gsk_…', 'site' => 'https://console.groq.com/keys'],
         'cerebras' => ['label' => 'Cerebras', 'kind' => 'openai', 'base' => 'https://api.cerebras.ai/v1', 'free' => 'Ücretsiz katman: kart istemez (cloud.cerebras.ai). Günlük ~1 milyon jeton.',
             'models' => ['llama-3.3-70b' => 'Llama 3.3 70B', 'gpt-oss-120b' => 'GPT-OSS 120B', 'qwen-3-32b' => 'Qwen 3 32B'], 'key_hint' => 'csk-…', 'site' => 'https://cloud.cerebras.ai'],
         'openrouter' => ['label' => 'OpenRouter', 'kind' => 'openai', 'base' => 'https://openrouter.ai/api/v1', 'free' => '":free" modeller ücretsizdir (openrouter.ai). Kart olmadan günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000.',
@@ -105,13 +105,155 @@ class AiParserService
         return $this->chain()[0] ?? ($this->preferredProvider() ?: 'gemini');
     }
 
+    /**
+     * Kullanılacak model. Ayar boşsa ("Otomatik") sağlayıcının güncel model listesinden tercih sırasına göre
+     * seçilir ve 12 saat önbelleğe alınır; liste alınamazsa sabit yedek listenin ilki.
+     */
     public function model(?string $provider = null): string
     {
         $provider ??= $this->provider();
-        $models = self::PROVIDERS[$provider]['models'] ?? [];
         $set = Settings::string('ai_'.$provider.'_model') ?: (string) config('services.ai.'.$provider.'_model', '');
 
-        return $set !== '' ? $set : (string) array_key_first($models);
+        return $set !== '' ? $set : $this->autoModel($provider);
+    }
+
+    /** Otomatik seçilen model (önbellekli). $exclude: az önce 404 dönen model. */
+    public function autoModel(string $provider, ?string $exclude = null): string
+    {
+        $key = 'ai:auto_model:'.$provider;
+        if ($exclude === null && ($cached = Cache::get($key))) {
+            return $cached;
+        }
+        $models = $this->listModels($provider, refresh: $exclude !== null);
+        $pick = self::pickModel($provider, $models, $exclude) ?: (string) array_key_first(self::PROVIDERS[$provider]['models'] ?? []);
+        Cache::put($key, $pick, now()->addHours(12));
+
+        return $pick;
+    }
+
+    /** Sağlayıcının güncel model kimlikleri (6 saat önbellek; hata durumunda boş dizi). */
+    public function listModels(string $provider, bool $refresh = false): array
+    {
+        $key = 'ai:models:'.$provider;
+        if (! $refresh && is_array($cached = Cache::get($key))) {
+            return $cached;
+        }
+        if (! array_key_exists($provider, self::PROVIDERS) || $this->apiKey($provider) === '') {
+            return [];
+        }
+        try {
+            $models = match (self::PROVIDERS[$provider]['kind']) {
+                'gemini' => $this->fetchGeminiModels($provider),
+                'claude' => $this->fetchClaudeModels($provider),
+                default => $this->fetchOpenAiModels($provider),
+            };
+        } catch (Throwable $e) {
+            Log::warning('Yapay zeka model listesi alınamadı.', ['provider' => $provider, 'error' => $e->getMessage()]);
+            $models = [];
+        }
+        $models = array_values(array_unique(array_filter($models, 'is_string')));
+        sort($models);
+        Cache::put($key, $models, now()->addHours(6));
+
+        return $models;
+    }
+
+    private function fetchGeminiModels(string $provider): array
+    {
+        $out = [];
+        $token = null;
+        do {
+            $response = Http::timeout(20)->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey($provider)])
+                ->get('https://generativelanguage.googleapis.com/v1beta/models', array_filter(['pageSize' => 200, 'pageToken' => $token]));
+            if (! $response->successful()) {
+                throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', ''), 0, 200));
+            }
+            foreach ((array) $response->json('models', []) as $m) {
+                if (in_array('generateContent', (array) ($m['supportedGenerationMethods'] ?? []), true)) {
+                    $out[] = preg_replace('~^models/~', '', (string) ($m['name'] ?? ''));
+                }
+            }
+            $token = $response->json('nextPageToken');
+        } while ($token);
+
+        return $out;
+    }
+
+    private function fetchOpenAiModels(string $provider): array
+    {
+        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $response = Http::timeout(20)->acceptJson()->withHeaders(['Authorization' => 'Bearer '.$this->apiKey($provider)])->get($base.'/models');
+        if (! $response->successful()) {
+            throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', ''), 0, 200));
+        }
+
+        return array_map(fn ($m) => (string) ($m['id'] ?? ''), (array) $response->json('data', []));
+    }
+
+    private function fetchClaudeModels(string $provider): array
+    {
+        $response = Http::timeout(20)->acceptJson()->withHeaders(['x-api-key' => $this->apiKey($provider), 'anthropic-version' => '2023-06-01'])->get('https://api.anthropic.com/v1/models', ['limit' => 100]);
+        if (! $response->successful()) {
+            throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', ''), 0, 200));
+        }
+
+        return array_map(fn ($m) => (string) ($m['id'] ?? ''), (array) $response->json('data', []));
+    }
+
+    /**
+     * Listeden ilan çözümlemeye en uygun modeli seçer: sağlayıcıya göre tercih kalıpları, en yeni sürüm önce;
+     * ses/görüntü/embedding/guard gibi uygun olmayanlar elenir.
+     */
+    public static function pickModel(string $provider, array $models, ?string $exclude = null): ?string
+    {
+        $bad = '/embed|embedding|tts|audio|image|imagen|veo|vision|live|realtime|whisper|guard|moderation|safety|compound|ocr|transcri|speech|rerank|codestral|devstral|voxtral|pixtral|thinking/i';
+        $models = array_values(array_filter($models, fn ($m) => $m !== $exclude && ! preg_match($bad, $m)));
+        if ($models === []) {
+            return null;
+        }
+        $prefs = match ($provider) {
+            'gemini' => ['/^gemini-[\d.]+-flash-lite$/', '/^gemini-[\d.]+-flash$/', '/flash-lite/', '/flash/', '/^gemini-[\d.]+-pro$/', '/gemini/'],
+            'openrouter' => ['/llama-3\.3-70b.*:free$/', '/llama-4.*:free$/', '/llama.*70b.*:free$/', '/qwen3.*:free$/', '/deepseek.*chat.*:free$/', '/gemma-3.*:free$/', '/mistral.*:free$/', '/:free$/'],
+            'mistral' => ['/^mistral-small-latest$/', '/^mistral-small/', '/^open-mistral-nemo/', '/^ministral-8b/', '/^mistral-medium-latest$/', '/^mistral-large-latest$/', '/mistral/'],
+            'claude' => ['/^claude-sonnet-5/', '/^claude-opus-5/', '/^claude-haiku/', '/^claude-sonnet/', '/claude/'],
+            default => ['/llama-3\.3-70b/', '/llama-4.*(scout|maverick)/', '/llama.*70b/', '/gpt-oss-120b/', '/gpt-oss/', '/qwen.*(235b|32b)/', '/qwen/', '/llama-3\.1-8b/', '/llama/', '/mixtral/', '/gemma/'],
+        };
+        $version = fn (string $m) => preg_match('/(\d+(?:\.\d+)?)/', preg_replace('/^[a-z]+\/?/', '', $m) ?? $m, $v) ? (float) $v[1] : 0.0;
+        foreach ($prefs as $pattern) {
+            $hits = array_values(array_filter($models, fn ($m) => preg_match($pattern, $m)));
+            if ($hits === []) {
+                continue;
+            }
+            // Kararlı sürüm önce (preview/exp sona), sonra en yüksek sürüm numarası, sonra en kısa ad.
+            usort($hits, function (string $a, string $b) use ($version): int {
+                $pa = (int) preg_match('/preview|exp|beta|latest-preview/i', $a);
+                $pb = (int) preg_match('/preview|exp|beta|latest-preview/i', $b);
+
+                return [$pa, -$version($a), strlen($a)] <=> [$pb, -$version($b), strlen($b)];
+            });
+
+            return $hits[0];
+        }
+
+        return $models[0];
+    }
+
+    /** Seçenek listesi: güncel liste (varsa) + sabit yedekler; ayar ekranı için. */
+    public function modelOptions(string $provider): array
+    {
+        $static = self::PROVIDERS[$provider]['models'] ?? [];
+        $live = is_array($c = Cache::get('ai:models:'.$provider)) ? $c : [];
+        $out = [];
+        foreach ($live as $id) {
+            if (! preg_match('/embed|embedding|tts|audio|imagen|veo|whisper|guard|moderation|rerank|transcri|speech/i', $id)) {
+                $out[$id] = $static[$id] ?? $id;
+            }
+        }
+        foreach ($static as $id => $label) {
+            $out[$id] ??= $label.($live !== [] ? ' (listede yok)' : '');
+        }
+
+        return $out;
     }
 
     public function apiKey(?string $provider = null): string
@@ -189,11 +331,7 @@ class AiParserService
             }
             $tried++;
             try {
-                $data = match (self::PROVIDERS[$provider]['kind']) {
-                    'gemini' => $this->callGemini($message, $provider),
-                    'claude' => $this->callClaude($message, $provider),
-                    default => $this->callOpenAiCompatible($message, $provider),
-                };
+                $data = $this->callWithModelRepair($message, $provider);
                 $this->recordUsage($provider, true, false, $data['_usage'] ?? []);
                 $this->rememberError($provider, null);
                 unset($data['_usage']);
@@ -267,15 +405,14 @@ class AiParserService
         $started = microtime(true);
         try {
             $sample = "Ankara Ostim'den İzmir'e 24 ton palet yük, tenteli tır lazım 0532 123 45 67";
-            $data = match (self::PROVIDERS[$provider]['kind']) {
-                'gemini' => $this->callGemini($sample, $provider),
-                'claude' => $this->callClaude($sample, $provider),
-                default => $this->callOpenAiCompatible($sample, $provider),
-            };
+            $before = $this->model($provider);
+            $data = $this->callWithModelRepair($sample, $provider);
             $this->rememberError($provider, null);
             $norm = $this->normalizeAi($data, $provider);
+            $used = $this->lastModelUsed[$provider] ?? $this->model($provider);
+            $note = $used !== $before ? " (ayarlı model \"{$before}\" bulunamadı; otomatik seçilen güncel model kullanıldı)" : '';
 
-            return ['ok' => true, 'message' => sprintf('%s · %s → %s · %d ms', $this->model($provider), $norm['pickup_location'] ?? '?', $norm['delivery_location'] ?? '?', (int) ((microtime(true) - $started) * 1000))];
+            return ['ok' => true, 'message' => sprintf('%s · %s → %s · %d ms%s', $used, $norm['pickup_location'] ?? '?', $norm['delivery_location'] ?? '?', (int) ((microtime(true) - $started) * 1000), $note)];
         } catch (Throwable $e) {
             $this->rememberError($provider, $e->getMessage());
 
@@ -292,7 +429,7 @@ class AiParserService
             str_starts_with($msg, 'quota_429') => 'Hız/kota sınırı (429). '.trim(substr($msg, 10)),
             str_contains($lower, 'api key not valid') || str_contains($lower, 'invalid api key') || str_contains($lower, 'invalid_api_key') || str_starts_with($msg, 'provider_http_401') => 'Anahtar geçersiz (401). Anahtarı sağlayıcı panelinden yeniden kopyalayın.',
             str_contains($lower, 'api_key_service_blocked') || str_contains($lower, 'permission_denied') || str_starts_with($msg, 'provider_http_403') => 'Anahtar bu servise kapalı (403). Google anahtarı Haritalar için kısıtlanmış olabilir; aistudio.google.com/apikey adresinden Gemini için yeni anahtar alın.',
-            str_starts_with($msg, 'provider_http_404') => 'Model bulunamadı (404). Ayarlardan başka bir model seçin. '.trim(substr($msg, 18)),
+            self::isModelMissing($msg) => 'Model bulunamadı; sağlayıcıda güncel model de seçilemedi. "Modelleri getir" ile listeyi yenileyip model seçin. '.mb_substr(trim(substr($msg, strpos($msg, ':') !== false ? strpos($msg, ':') + 1 : 0)), 0, 160),
             str_starts_with($msg, 'provider_http_400') => 'İstek reddedildi (400). '.trim(substr($msg, 18)),
             str_starts_with($msg, 'provider_http_5') => 'Sağlayıcı geçici olarak yanıt vermiyor (5xx); biraz sonra yeniden denenir.',
             str_contains($lower, 'curl') || str_contains($lower, 'timed out') || str_contains($lower, 'connection') => 'Sunucudan sağlayıcıya bağlanılamadı (ağ/zaman aşımı): '.mb_substr($msg, 0, 160),
@@ -360,7 +497,7 @@ class AiParserService
 
         return [
             'provider' => $provider,
-            'model' => $this->model($provider),
+            'model' => $this->lastModelUsed[$provider] ?? $this->model($provider),
             'is_load' => ($data['post_type'] ?? 'load') === 'load' && ($data['is_load'] ?? true) !== false,
             'post_type' => in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : 'load',
             'confidence' => $confidence,
@@ -459,9 +596,66 @@ TXT;
     }
 
     /** Claude Messages API (yapılandırılmış çıktı). Tek istek, kısa yanıt; sistem istemi önbelleklenir. */
-    private function callClaude(string $message, string $provider = 'claude'): array
+    /** @var array<string,string> Son çağrıda gerçekten kullanılan model (404 onarımı sonrası) */
+    private array $lastModelUsed = [];
+
+    /**
+     * Sağlayıcıyı çağırır; model bulunamadı (404 / "does not exist" / "no longer available") yanıtı gelirse
+     * güncel listeden otomatik model seçip bir kez daha dener. Ayarlı model geçersizse ayar "Otomatik"e çevrilir.
+     */
+    private function callWithModelRepair(string $message, string $provider): array
     {
         $model = $this->model($provider);
+        try {
+            $data = $this->callProvider($message, $provider, $model);
+            $this->lastModelUsed[$provider] = $model;
+
+            return $data;
+        } catch (RuntimeException $e) {
+            if (! self::isModelMissing($e->getMessage())) {
+                throw $e;
+            }
+            $replacement = $this->autoModel($provider, exclude: $model);
+            if ($replacement === $model) {
+                throw $e;
+            }
+            Log::warning('Yapay zeka modeli bulunamadı; otomatik model seçildi.', ['provider' => $provider, 'old' => $model, 'new' => $replacement]);
+            if (Settings::string('ai_'.$provider.'_model') === $model) {
+                Settings::set('ai_'.$provider.'_model', ''); // ayar "Otomatik": bir daha kalkan modele takılmasın
+            }
+            $data = $this->callProvider($message, $provider, $replacement);
+            $this->lastModelUsed[$provider] = $replacement;
+
+            return $data;
+        }
+    }
+
+    public static function isModelMissing(string $msg): bool
+    {
+        $l = strtolower($msg);
+
+        return str_starts_with($msg, 'provider_http_404')
+            || str_contains($l, 'does not exist')
+            || str_contains($l, 'no longer available')
+            || str_contains($l, 'not found')
+            || str_contains($l, 'is not supported')
+            || str_contains($l, 'model_not_found')
+            || str_contains($l, 'decommissioned')
+            || (str_starts_with($msg, 'provider_http_400') && str_contains($l, 'model'));
+    }
+
+    private function callProvider(string $message, string $provider, string $model): array
+    {
+        return match (self::PROVIDERS[$provider]['kind']) {
+            'gemini' => $this->callGemini($message, $provider, $model),
+            'claude' => $this->callClaude($message, $provider, $model),
+            default => $this->callOpenAiCompatible($message, $provider, $model),
+        };
+    }
+
+    private function callClaude(string $message, string $provider = 'claude', ?string $model = null): array
+    {
+        $model ??= $this->model($provider);
         $body = [
             'model' => $model,
             'max_tokens' => 1024,
@@ -506,8 +700,9 @@ TXT;
 
     /** Gemini generateContent (JSON yanıt). */
     /** OpenAI uyumlu sohbet ucu (Groq, Cerebras, OpenRouter, Mistral): JSON kipi + şema istemde. */
-    private function callOpenAiCompatible(string $message, string $provider): array
+    private function callOpenAiCompatible(string $message, string $provider, ?string $model = null): array
     {
+        $model ??= $this->model($provider);
         $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
         $headers = ['Authorization' => 'Bearer '.$this->apiKey($provider)];
         if ($provider === 'openrouter') {
@@ -515,7 +710,7 @@ TXT;
             $headers['X-Title'] = 'NavlunIQ';
         }
         $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', [
-            'model' => $this->model($provider),
+            'model' => $model,
             'temperature' => 0,
             'max_tokens' => 1024,
             'response_format' => ['type' => 'json_object'],
@@ -540,10 +735,11 @@ TXT;
         return $decoded;
     }
 
-    private function callGemini(string $message, string $provider = 'gemini'): array
+    private function callGemini(string $message, string $provider = 'gemini', ?string $model = null): array
     {
+        $model ??= $this->model($provider);
         $response = Http::timeout(45)->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey($provider)])->post(
-            'https://generativelanguage.googleapis.com/v1beta/models/'.$this->model($provider).':generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/'.$model.':generateContent',
             [
                 'systemInstruction' => ['parts' => [['text' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun ver: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)]]],
                 'contents' => [['parts' => [['text' => "İlan mesajı:\n".$message]]]],

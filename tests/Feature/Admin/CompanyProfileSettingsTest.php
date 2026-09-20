@@ -49,7 +49,8 @@ class CompanyProfileSettingsTest extends TestCase
         Settings::set('ai_gemini_key', 'AIza-test');
         Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode(['post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '5321234567', 'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null])]]]]]])]);
 
-        Volt::test('admin.settings-center')->set('activeTab', 'scraper')->assertSee('Bağlantıyı sına')
+        Settings::set('ai_gemini_model', 'gemini-2.5-flash');
+        Volt::test('admin.settings-center')->set('activeTab', 'scraper')->assertSee('Bağlantıyı sına')->assertSee('Modelleri getir')
             ->call('testAiProvider', 'gemini')->assertSee('Çalışıyor:')->assertSee('Ankara Ostim → İzmir');
     }
 
