@@ -55,7 +55,7 @@ class AiParserService
     /** Panelde gösterilen sağlayıcılar (ücretli olanlar gizli; anahtarı elle girilmişse zincirde yine çalışır). */
     public static function visibleProviders(): array
     {
-        return array_filter(self::PROVIDERS, fn (array $p) => empty($p['hidden']));
+        return array_filter(self::PROVIDERS, fn (array $p) => empty($p['hidden']) && (empty($p['local']) || config('services.ai.allow_local_models')));
     }
 
     /** Sağlayıcı bu hatada bir günlük kotasını mı bitirdi (model değiştirerek devam edilebilir)? */
@@ -335,7 +335,8 @@ class AiParserService
     {
         $provider ??= $this->provider();
         if (! empty(self::PROVIDERS[$provider]['local'])) {
-            return Settings::bool('ai_'.$provider.'_enabled') ? 'local' : ''; // yerel model: anahtar yerine açık/kapalı
+            // Yerel model: anahtar yerine açık/kapalı; sunucu bayrağı (AI_ALLOW_LOCAL_MODELS) yoksa panel ayarı ne olursa olsun kapalı.
+            return config('services.ai.allow_local_models') && Settings::bool('ai_'.$provider.'_enabled') ? 'local' : '';
         }
 
         return Settings::string('ai_'.$provider.'_key') ?: trim((string) config('services.ai.'.$provider.'_key', ''));
