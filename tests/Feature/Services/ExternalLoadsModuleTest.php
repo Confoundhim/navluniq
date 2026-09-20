@@ -383,7 +383,7 @@ class ExternalLoadsModuleTest extends TestCase
 
         $groq = $parser->testProvider('groq');
         $this->assertFalse($groq['ok']);
-        $this->assertStringContainsString('Hız/kota sınırı', $groq['message']);
+        $this->assertStringContainsString('hız sınırı (429)', $groq['message']);
         $this->assertSame(['gemini', 'groq'], array_keys($parser->lastErrors()));
 
         // Kuyruktan çözümleme: 403 kalıcı, 429 kısa süreli → aday bekler; Groq 18 sn sonra yeniden denenebilir, gün boyu kilitlenmez.

@@ -28,6 +28,8 @@ class AiParserService
      * kota dolunca (429) sıradakine geçilir. Claude ücretli olduğundan en sondadır.
      */
     public const PROVIDERS = [
+        'ollama' => ['label' => 'Yerel model (Ollama, sunucuda)', 'kind' => 'openai', 'local' => true, 'free' => 'Tamamen ücretsiz ve dışa bağımsız: model sunucunuzda çalışır, kota yoktur. Kurulum: docs/BILDIRIM_ILETICI_KURULUM.md → "Yerel model". Açıkken zincirin başındadır; yanıt vermezse diğer sağlayıcılara geçilir.',
+            'models' => ['qwen3:4b' => 'Qwen3 4B (önerilen, ~4 GB RAM)', 'qwen2.5:7b-instruct' => 'Qwen2.5 7B (~6 GB RAM)', 'gemma3:4b' => 'Gemma 3 4B', 'llama3.2:3b' => 'Llama 3.2 3B (hafif)'], 'key_hint' => '', 'site' => 'https://ollama.com/download'],
         'gemini' => ['label' => 'Google Gemini', 'kind' => 'gemini', 'free' => 'Ücretsiz katman: kart istemez (aistudio.google.com → Get API key). Günlük istek sınırı modele göre değişir; Flash-Lite daha yüksek kota verir.',
             'models' => self::GEMINI_MODELS, 'key_hint' => 'AIza…', 'site' => 'https://aistudio.google.com/apikey'],
         'groq' => ['label' => 'Groq', 'kind' => 'openai', 'base' => 'https://api.groq.com/openai/v1', 'free' => 'Ücretsiz katman: kart istemez (console.groq.com). Llama 3.3 70B çok hızlı; günlük ~1.000 istek.',
@@ -38,17 +40,58 @@ class AiParserService
             'models' => ['meta-llama/llama-3.3-70b-instruct:free' => 'Llama 3.3 70B (free)', 'qwen/qwen3-235b-a22b:free' => 'Qwen3 235B (free)', 'deepseek/deepseek-chat-v3-0324:free' => 'DeepSeek V3 (free)', 'google/gemma-3-27b-it:free' => 'Gemma 3 27B (free)'], 'key_hint' => 'sk-or-…', 'site' => 'https://openrouter.ai/keys'],
         'mistral' => ['label' => 'Mistral', 'kind' => 'openai', 'base' => 'https://api.mistral.ai/v1', 'free' => 'Ücretsiz deneme katmanı (console.mistral.ai; telefon doğrulaması ister). Aylık ~1 milyar jeton, saniyede 1 istek.',
             'models' => ['mistral-small-latest' => 'Mistral Small', 'open-mistral-nemo' => 'Mistral Nemo 12B', 'mistral-medium-latest' => 'Mistral Medium'], 'key_hint' => '…', 'site' => 'https://console.mistral.ai/api-keys'],
-        'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'free' => 'Ücretli. Yalnız istenirse; ücretsizlerden sonra denenir.',
+        'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'hidden' => true, 'free' => 'Ücretli. Yalnız istenirse; ücretsizlerden sonra denenir.',
             'models' => self::CLAUDE_MODELS, 'key_hint' => 'sk-ant-…', 'site' => 'https://console.anthropic.com'],
         'openai' => ['label' => 'OpenAI (ChatGPT API)', 'kind' => 'openai', 'base' => 'https://api.openai.com/v1', 'free' => 'Ücretli: ChatGPT uygulaması ücretsiz olsa da API anahtarı kullandıkça ödemelidir (platform.openai.com). "Mini" modeller çok ucuzdur.',
             'models' => ['gpt-5-mini' => 'GPT-5 mini', 'gpt-4.1-mini' => 'GPT-4.1 mini', 'gpt-4o-mini' => 'GPT-4o mini'], 'key_hint' => 'sk-…', 'site' => 'https://platform.openai.com/api-keys'],
-        'xai' => ['label' => 'xAI Grok', 'kind' => 'openai', 'base' => 'https://api.x.ai/v1', 'free' => 'Ücretli (console.x.ai); zaman zaman deneme kredisi verilir.',
+        'xai' => ['label' => 'xAI Grok', 'kind' => 'openai', 'base' => 'https://api.x.ai/v1', 'hidden' => true, 'free' => 'Ücretli (console.x.ai); zaman zaman deneme kredisi verilir.',
             'models' => ['grok-4-fast' => 'Grok 4 Fast', 'grok-3-mini' => 'Grok 3 mini', 'grok-4' => 'Grok 4'], 'key_hint' => 'xai-…', 'site' => 'https://console.x.ai'],
         'kimi' => ['label' => 'Moonshot Kimi', 'kind' => 'openai', 'base' => 'https://api.moonshot.ai/v1', 'free' => 'Ücretli ama çok ucuz (platform.moonshot.ai); yeni hesaba deneme kredisi verilir.',
             'models' => ['kimi-k2-turbo-preview' => 'Kimi K2 Turbo', 'kimi-k2-0905-preview' => 'Kimi K2', 'moonshot-v1-8k' => 'Moonshot v1 8k'], 'key_hint' => 'sk-…', 'site' => 'https://platform.moonshot.ai'],
     ];
 
-    public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
+    public const DEFAULT_ORDER = ['ollama', 'gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
+
+    /** Panelde gösterilen sağlayıcılar (ücretli olanlar gizli; anahtarı elle girilmişse zincirde yine çalışır). */
+    public static function visibleProviders(): array
+    {
+        return array_filter(self::PROVIDERS, fn (array $p) => empty($p['hidden']));
+    }
+
+    /** Sağlayıcı bu hatada bir günlük kotasını mı bitirdi (model değiştirerek devam edilebilir)? */
+    public static function isDailyQuota(string $msg): bool
+    {
+        $l = strtolower($msg);
+
+        return str_contains($l, 'perday') || str_contains($l, 'per day') || str_contains($l, 'daily') || str_contains($l, 'free_tier_requests')
+            || str_contains($l, 'tokens per day') || str_contains($l, 'requests per day') || str_contains($l, 'tpd') || str_contains($l, 'rpd')
+            || preg_match('/try again in \d+h/i', $msg) === 1 || preg_match('/(\d+)\s*(?:saat|hour)/i', $msg) === 1;
+    }
+
+    /** Ödeme/bakiye hatası: ücretsiz katman yok ya da bitti; gün boyu denenmez. */
+    public static function isBillingError(string $msg): bool
+    {
+        $l = strtolower($msg);
+
+        return str_starts_with($msg, 'provider_http_402') || str_contains($l, 'payment required') || str_contains($l, 'payment_required')
+            || str_contains($l, 'insufficient balance') || str_contains($l, 'insufficient_quota') || str_contains($l, 'no credits')
+            || str_contains($l, 'add credits') || str_contains($l, 'recharge') || str_contains($l, 'billing details') && str_contains($l, 'suspended');
+    }
+
+    /** Gemini ücretsiz kotası Pasifik gece yarısında (07:00 UTC) sıfırlanır; diğerleri 24 saat sonra. */
+    public static function secondsUntilDailyReset(string $provider): int
+    {
+        if ($provider === 'gemini') {
+            $reset = now('UTC')->setTime(7, 0);
+            if ($reset->lessThanOrEqualTo(now('UTC'))) {
+                $reset->addDay();
+            }
+
+            return max(600, $reset->diffInSeconds(now('UTC')));
+        }
+
+        return 86400;
+    }
 
     /** Türkiye cep numarası: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil). */
     public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u';
@@ -104,6 +147,9 @@ class AiParserService
         if (($pref = $this->preferredProvider()) !== '') {
             $order = array_values(array_unique(array_merge([$pref], $order)));
         }
+        // Sunucudaki yerel model açıksa her zaman en başta: kota yok, dışa bağımlılık yok.
+        $local = array_keys(array_filter(self::PROVIDERS, fn (array $p) => ! empty($p['local'])));
+        $order = array_values(array_unique(array_merge($local, $order)));
 
         return array_values(array_filter($order, fn (string $p) => $this->apiKey($p) !== ''));
     }
@@ -134,10 +180,26 @@ class AiParserService
             return $cached;
         }
         $models = $this->listModels($provider, refresh: $exclude !== null);
-        $pick = self::pickModel($provider, $models, $exclude) ?: (string) array_key_first(self::PROVIDERS[$provider]['models'] ?? []);
+        $exhausted = $this->exhaustedModels($provider);
+        $skip = array_values(array_unique(array_filter(array_merge($exhausted, [$exclude]))));
+        $candidates = array_values(array_filter($models, fn ($m) => ! in_array($m, $skip, true)));
+        $pick = self::pickModel($provider, $candidates) ?: (self::pickModel($provider, $models, $exclude) ?: (string) array_key_first(self::PROVIDERS[$provider]['models'] ?? []));
         Cache::put($key, $pick, now()->addHours(12));
 
         return $pick;
+    }
+
+    /** Günlük kotası dolan modeller (sağlayıcı bazında, sıfırlanana kadar). */
+    public function exhaustedModels(string $provider): array
+    {
+        return array_values(array_filter((array) Cache::get('ai:exhausted_models:'.$provider, []), fn ($m) => is_string($m) && $m !== ''));
+    }
+
+    private function markModelExhausted(string $provider, string $model): void
+    {
+        $list = array_values(array_unique(array_merge($this->exhaustedModels($provider), [$model])));
+        Cache::put('ai:exhausted_models:'.$provider, $list, now()->addSeconds(self::secondsUntilDailyReset($provider)));
+        Cache::forget('ai:auto_model:'.$provider);
     }
 
     /** Sağlayıcının güncel model kimlikleri (6 saat önbellek; hata durumunda boş dizi). */
@@ -190,7 +252,7 @@ class AiParserService
 
     private function fetchOpenAiModels(string $provider): array
     {
-        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $base = $this->baseUrl($provider);
         $response = Http::timeout(20)->acceptJson()->withHeaders(['Authorization' => 'Bearer '.$this->apiKey($provider)])->get($base.'/models');
         if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', ''), 0, 200));
@@ -228,6 +290,7 @@ class AiParserService
             'openai' => ['/^gpt-5(\.\d+)?-mini$/', '/^gpt-4\.1-mini$/', '/^gpt-4o-mini$/', '/^gpt-5-nano$/', '/^gpt-5(\.\d+)?$/', '/^gpt-4\.1$/', '/^gpt-4o$/', '/^gpt-/'],
             'xai' => ['/grok-\d+-fast/', '/grok-\d+-mini/', '/grok-4/', '/grok-3/', '/grok/'],
             'kimi' => ['/kimi-k2.*turbo/', '/kimi-k2/', '/moonshot-v1-8k/', '/moonshot-v1/', '/kimi/'],
+            'ollama' => ['/^qwen3(?::|$)/', '/^qwen3:/', '/^qwen2\.5.*instruct/', '/^qwen2\.5/', '/^gemma3/', '/^llama3\.[23]/', '/qwen/', '/gemma/', '/llama/', '/mistral/', '/./'],
             default => ['/llama-3\.3-70b/', '/llama-4.*(scout|maverick)/', '/llama.*70b/', '/gpt-oss-120b/', '/gpt-oss/', '/qwen.*(235b|32b)/', '/qwen/', '/llama-3\.1-8b/', '/llama/', '/mixtral/', '/gemma/'],
         };
         $version = fn (string $m) => preg_match('/(\d+(?:\.\d+)?)/', preg_replace('/^[a-z]+\/?/', '', $m) ?? $m, $v) ? (float) $v[1] : 0.0;
@@ -271,8 +334,27 @@ class AiParserService
     public function apiKey(?string $provider = null): string
     {
         $provider ??= $this->provider();
+        if (! empty(self::PROVIDERS[$provider]['local'])) {
+            return Settings::bool('ai_'.$provider.'_enabled') ? 'local' : ''; // yerel model: anahtar yerine açık/kapalı
+        }
 
         return Settings::string('ai_'.$provider.'_key') ?: trim((string) config('services.ai.'.$provider.'_key', ''));
+    }
+
+    /** OpenAI uyumlu sağlayıcının adresi; yerel model için panelden ayarlanan adres. */
+    public function baseUrl(string $provider): string
+    {
+        if (! empty(self::PROVIDERS[$provider]['local'])) {
+            return rtrim(Settings::string('ai_'.$provider.'_base') ?: 'http://127.0.0.1:11434/v1', '/');
+        }
+
+        return rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+    }
+
+    /** Yerel model işlemcide yavaş çalışır; ona daha uzun süre tanınır. */
+    private function timeout(string $provider): int
+    {
+        return ! empty(self::PROVIDERS[$provider]['local']) ? 180 : 45;
     }
 
     public function isEnabled(): bool
@@ -357,10 +439,13 @@ class AiParserService
                 return ['status' => 'done', 'data' => $this->normalizeAi($data, $provider)];
             } catch (Throwable $exception) {
                 $msg = $exception->getMessage();
-                $quota = str_contains($msg, '429') || str_contains(strtolower($msg), 'quota');
+                $billing = self::isBillingError($msg);
+                $quota = $billing || str_contains($msg, '429') || str_contains(strtolower($msg), 'quota');
                 $retryable = $quota || str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection');
                 $anyRetryable = $anyRetryable || $retryable;
-                $this->recordUsage($provider, false, $quota, [], $quota ? self::cooldownSeconds($msg) : null);
+                // Bakiye yok / günlük kota: gün boyu bu sağlayıcıya dönülmez; dakikalık sınır: mesajdaki süre kadar.
+                $cooldown = $billing ? 86400 : (self::isDailyQuota($msg) ? self::secondsUntilDailyReset($provider) : ($provider === 'mistral' ? 15 : self::cooldownSeconds($msg)));
+                $this->recordUsage($provider, false, $quota, [], $quota ? $cooldown : null);
                 $this->rememberError($provider, $msg);
                 Log::warning('Yapay zeka çözümlemesi başarısız; sıradaki sağlayıcı denenecek.', ['provider' => $provider, 'model' => $this->model($provider), 'error' => $msg, 'retry' => $retryable]);
             }
@@ -444,7 +529,9 @@ class AiParserService
         $lower = strtolower($msg);
 
         return match (true) {
-            str_starts_with($msg, 'quota_429') => 'Hız/kota sınırı (429). '.trim(substr($msg, 10)),
+            self::isBillingError($msg) => 'Kredi/bakiye yok: bu sağlayıcının ücretsiz katmanı bitmiş ya da hesaba kredi yüklenmemiş. Bugün bir daha denenmez. '.mb_substr(trim(substr($msg, strpos($msg, ':') !== false ? strpos($msg, ':') + 1 : 0)), 0, 140),
+            str_starts_with($msg, 'quota_429') && self::isDailyQuota($msg) => 'Günlük ücretsiz kota doldu (429). Modelin günlük sınırı dolunca başka modelle devam edilir; tüm modeller dolduysa sıfırlanma saatine kadar beklenir. '.mb_substr(trim(substr($msg, 10)), 0, 160),
+            str_starts_with($msg, 'quota_429') => 'Dakikalık hız sınırı (429); kısa süre sonra yeniden denenir. '.mb_substr(trim(substr($msg, 10)), 0, 160),
             str_contains($lower, 'api key not valid') || str_contains($lower, 'invalid api key') || str_contains($lower, 'invalid_api_key') || str_starts_with($msg, 'provider_http_401') => 'Anahtar geçersiz (401). Anahtarı sağlayıcı panelinden yeniden kopyalayın.',
             str_contains($lower, 'api_key_service_blocked') || str_contains($lower, 'permission_denied') || str_starts_with($msg, 'provider_http_403') => 'Anahtar bu servise kapalı (403). Google anahtarı Haritalar için kısıtlanmış olabilir; aistudio.google.com/apikey adresinden Gemini için yeni anahtar alın.',
             self::isModelMissing($msg) => 'Model bulunamadı; sağlayıcıda güncel model de seçilemedi. "Modelleri getir" ile listeyi yenileyip model seçin. '.mb_substr(trim(substr($msg, strpos($msg, ':') !== false ? strpos($msg, ':') + 1 : 0)), 0, 160),
@@ -754,7 +841,33 @@ TXT;
 
             return $data;
         } catch (RuntimeException $e) {
-            if (! self::isModelMissing($e->getMessage())) {
+            $msg = $e->getMessage();
+            if (str_starts_with($msg, 'quota_429') && self::isDailyQuota($msg) && ! self::isBillingError($msg) && Settings::string('ai_'.$provider.'_model') === '') {
+                // Günlük kota modele özeldir (Gemini, Groq): bu modeli gün sonuna kadar dışla, sıradaki uygun modelle sürdür.
+                $this->markModelExhausted($provider, $model);
+                for ($i = 0; $i < 2; $i++) {
+                    $next = $this->autoModel($provider, exclude: $model);
+                    if ($next === $model || $next === '') {
+                        break;
+                    }
+                    Log::info('Modelin günlük kotası doldu; başka modelle devam ediliyor.', ['provider' => $provider, 'old' => $model, 'new' => $next]);
+                    try {
+                        $data = $this->callProvider($message, $provider, $next);
+                        $this->lastModelUsed[$provider] = $next;
+
+                        return $data;
+                    } catch (RuntimeException $again) {
+                        if (! (str_starts_with($again->getMessage(), 'quota_429') && self::isDailyQuota($again->getMessage()))) {
+                            throw $again;
+                        }
+                        $this->markModelExhausted($provider, $next);
+                        $model = $next;
+                        $e = $again;
+                    }
+                }
+                throw $e;
+            }
+            if (! self::isModelMissing($msg)) {
                 throw $e;
             }
             $replacement = $this->autoModel($provider, exclude: $model);
@@ -845,7 +958,7 @@ TXT;
     private function callOpenAiCompatible(string $message, string $provider, ?string $model = null): array
     {
         $model ??= $this->model($provider);
-        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $base = $this->baseUrl($provider);
         $headers = ['Authorization' => 'Bearer '.$this->apiKey($provider)];
         if ($provider === 'openrouter') {
             $headers['HTTP-Referer'] = (string) config('app.url');
@@ -861,9 +974,10 @@ TXT;
                 ['role' => 'user', 'content' => "İlan mesajı:\n".$message],
             ],
         ];
-        $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
-        if ($response->status() === 429) {
-            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
+        $this->paceRequests($provider);
+        $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+        if ($response->status() === 429 || $response->status() === 402) {
+            throw new RuntimeException(($response->status() === 402 ? 'provider_http_402: ' : 'quota_429: ').mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
         $decoded = null;
         if ($response->status() === 400 && is_string($failed = data_get($response->json(), 'error.failed_generation'))) {
@@ -872,7 +986,7 @@ TXT;
             $decoded = self::decodeLenient($failed);
             if ($decoded === null) {
                 unset($body['response_format']);
-                $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+                $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
             }
         }
         if ($decoded === null) {
@@ -890,6 +1004,21 @@ TXT;
         return $decoded;
     }
 
+    /** Saniyede 1 istek sınırı olan sağlayıcılarda (Mistral) ardışık çağrılar arasında en az 1,2 sn bırakır. */
+    private function paceRequests(string $provider): void
+    {
+        if ($provider !== 'mistral') {
+            return;
+        }
+        $key = 'ai:last_call:'.$provider;
+        $last = (float) Cache::get($key, 0);
+        $wait = 1.2 - (microtime(true) - $last);
+        if ($wait > 0 && $wait < 5) {
+            usleep((int) ($wait * 1_000_000));
+        }
+        Cache::put($key, microtime(true), now()->addMinute());
+    }
+
     private function callGemini(string $message, string $provider = 'gemini', ?string $model = null): array
     {
         $model ??= $this->model($provider);
@@ -902,7 +1031,9 @@ TXT;
             ]
         );
         if ($response->status() === 429) {
-            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
+            $quotaIds = collect((array) data_get($response->json(), 'error.details', []))->flatMap(fn ($d) => (array) ($d['violations'] ?? []))->pluck('quotaId')->filter()->implode(',');
+            $retry = (string) collect((array) data_get($response->json(), 'error.details', []))->pluck('retryDelay')->filter()->first();
+            throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 240).($quotaIds !== '' ? ' quotaId='.$quotaIds : '').($retry !== '' ? ' retryDelay='.$retry : ''));
         }
         if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 200));

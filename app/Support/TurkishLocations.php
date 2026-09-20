@@ -85,6 +85,19 @@ final class TurkishLocations
         }
         self::load();
         $clean = preg_replace("/[’'‘`]/u", '', trim($text)) ?? trim($text);
+        // Jargon sözlüğü önce: "ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze" (yönetici ya da öğrenilmiş).
+        static $depth = 0;
+        if ($depth === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
+            $depth++;
+            try {
+                $hit = self::resolve($alias);
+            } finally {
+                $depth--;
+            }
+            if ($hit !== null) {
+                return $hit;
+            }
+        }
         $words = preg_split('/[\s,\/\-]+/u', $clean) ?: [];
         $words = array_values(array_filter($words, fn ($w) => $w !== ''));
 

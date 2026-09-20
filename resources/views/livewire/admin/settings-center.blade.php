@@ -45,12 +45,17 @@ new class extends Component {
         'scraper_auto_approve_require_vehicle' => 'Otomatik onay için araç tipi zorunlu',
         'scraper_auto_approve_require_ai' => 'Otomatik onay için yapay zeka doğrulaması zorunlu',
         'scraper_auto_approve_min_confidence' => 'Otomatik onay için en düşük yapay zeka güveni (%)',
+        'scraper_local_enabled' => 'Yerel öğrenen sınıflandırıcı',
+        'scraper_local_min_confidence' => 'Yapay zeka ulaşılamazsa otomatik onay için en düşük yerel güven (%)',
         'telegram_post_enabled' => 'Sistem ilanlarını Telegram kanalına paylaş',
         'telegram_bot_token' => 'Telegram bot anahtarı',
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
         'scraper_rejected_retention_days' => 'Reddedilen adayların silinme süresi (gün)',
         'ai_parse_mode' => 'Yapay zeka çözümleme',
         'ai_provider' => 'Öncelikli sağlayıcı',
+        'ai_ollama_enabled' => 'Yerel model (Ollama)',
+        'ai_ollama_base' => 'Ollama adresi',
+        'ai_ollama_model' => 'Ollama modeli',
         'ai_gemini_model' => 'Gemini modeli',
         'ai_gemini_key' => 'Gemini API anahtarı',
         'ai_groq_model' => 'Groq modeli',
@@ -73,7 +78,7 @@ new class extends Component {
 
     public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
 
-    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'telegram_post_enabled'];
+    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'scraper_local_enabled', 'ai_ollama_enabled', 'telegram_post_enabled'];
 
     /** @var array<string, string> */
     public array $scraper = [];
@@ -417,6 +422,7 @@ new class extends Component {
             'scraper.telegram_channel_id' => ['nullable', 'string', 'max:120', 'regex:/^(@[A-Za-z0-9_]{4,}|-?\d+)$/'],
             'scraper.scraper_rejected_retention_days' => 'required|integer|min:0|max:365',
             'scraper.scraper_auto_approve_min_confidence' => 'required|integer|min:0|max:100',
+            'scraper.scraper_local_min_confidence' => 'required|integer|min:50|max:100',
             'scraper.ai_parse_mode' => 'required|in:off,fill_gaps,always',
             'scraper.ai_provider' => 'nullable|in:,'.implode(',', array_keys(\App\Services\AiParserService::PROVIDERS)),
             'scraper.ai_gemini_model' => 'nullable|string|max:120',
@@ -437,6 +443,7 @@ new class extends Component {
             'scraper.ai_openai_key' => 'nullable|string|max:200',
             'scraper.ai_xai_key' => 'nullable|string|max:200',
             'scraper.ai_kimi_key' => 'nullable|string|max:200',
+            'scraper.ai_ollama_base' => 'nullable|url|max:200',
         ], [
             'scraper.telegram_bot_token.regex' => 'Bot anahtarı "123456789:AA..." biçiminde olmalıdır.',
             'scraper.telegram_channel_id.regex' => 'Kanal kimliği "@kanaladi" ya da "-100..." biçiminde olmalıdır.',
@@ -457,7 +464,7 @@ new class extends Component {
             if (in_array($key, self::SCRAPER_TOGGLES, true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
-            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence'], true)) {
+            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence'], true)) {
                 $value = (string) (int) $value;
                 $old = (string) Settings::int($key);
             } else {
@@ -627,6 +634,17 @@ new class extends Component {
                     @error('scraper.scraper_auto_approve_min_confidence') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
                 <div>
+                    <label class="form-label">{{ $scraperKeys['scraper_local_enabled'] }}</label>
+                    <select wire:model="scraper.scraper_local_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select>
+                    <span class="text-[11px] text-neutral-400">Dış servise bağlı olmayan, sizin kararlarınızdan (yayınla / reddet / düzelt) öğrenen sınıflandırıcı ve jargon sözlüğü. Durumu ve sözlüğü Dış Kaynak İlanları → "Sözlük ve öğrenme" sekmesinde görürsünüz.</span>
+                </div>
+                <div>
+                    <label class="form-label">{{ $scraperKeys['scraper_local_min_confidence'] }}</label>
+                    <input type="number" min="50" max="100" wire:model="scraper.scraper_local_min_confidence" class="{{ $input }}">
+                    <span class="text-[11px] text-neutral-400">Dış yapay zeka kotası dolduğunda ya da ulaşılamadığında: yerel sınıflandırıcı yeterince örnek görmüşse ve adaya bu güvenin üstünde "ilan" diyorsa aday yine kendiliğinden yayınlanır.</span>
+                    @error('scraper.scraper_local_min_confidence') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
+                </div>
+                <div>
                     <label class="form-label">{{ $scraperKeys['scraper_free_delay_minutes'] }}</label>
                     <input type="number" min="0" max="1440" wire:model="scraper.scraper_free_delay_minutes" class="{{ $input }}">
                     <span class="text-[11px] text-neutral-400">Hem sistem hem dış kaynak ilanlar önce premium şoförlere açılır ve bildirilir; bu süre sonunda herkese açılır (sistem ilanları ayrıca Telegram kanalına gider).</span>
@@ -663,12 +681,12 @@ new class extends Component {
                         <select wire:model="scraper.ai_parse_mode" class="{{ $input }}">@foreach(\App\Services\AiParserService::MODES as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
                     </div>
                     <div><label class="form-label">{{ $scraperKeys['ai_provider'] }}</label>
-                        <select wire:model="scraper.ai_provider" class="{{ $input }}"><option value="">Otomatik (ücretsizden başlayan sıra)</option>@foreach(\App\Services\AiParserService::PROVIDERS as $k => $p)<option value="{{ $k }}">{{ $p['label'] }}</option>@endforeach</select>
+                        <select wire:model="scraper.ai_provider" class="{{ $input }}"><option value="">Otomatik (ücretsizden başlayan sıra)</option>@foreach(\App\Services\AiParserService::visibleProviders() as $k => $p)<option value="{{ $k }}">{{ $p['label'] }}</option>@endforeach</select>
                     </div>
                     <div><label class="form-label">{{ $scraperKeys['scraper_rejected_retention_days'] }}</label><input type="number" min="0" max="365" wire:model="scraper.scraper_rejected_retention_days" class="{{ $input }}">@error('scraper.scraper_rejected_retention_days')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
                 </div>
                 <div class="space-y-2">
-                    @foreach(\App\Services\AiParserService::PROVIDERS as $pk => $prov)
+                    @foreach(\App\Services\AiParserService::visibleProviders() as $pk => $prov)
                         @php
                             $set = ($scraper['ai_'.$pk.'_key_set'] ?? '0') === '1';
                             $usage = $aiUsage[$pk] ?? null;
@@ -676,7 +694,7 @@ new class extends Component {
                         <div class="p-3 rounded-2xl border {{ $set ? 'border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/30 dark:bg-emerald-950/10' : 'border-neutral-200/40 dark:border-neutral-700/40 bg-neutral-50 dark:bg-neutral-900' }}">
                             <div class="flex flex-wrap items-center gap-2 mb-2">
                                 <span class="font-bold text-neutral-900 dark:text-white">{{ $loop->iteration }}. {{ $prov['label'] }}</span>
-                                <span class="badge {{ $set ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">{{ $set ? 'anahtar kayıtlı' : 'anahtar yok' }}</span>
+                                <span class="badge {{ $set ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">{{ ! empty($prov['local']) ? ($set ? 'açık' : 'kapalı') : ($set ? 'anahtar kayıtlı' : 'anahtar yok') }}</span>
                                 @if($usage)<span class="text-[11px] text-neutral-400">Bugün: {{ $usage['requests'] }} çağrı · {{ $usage['failures'] }} hata{{ $usage['quota'] ? ' · sınır aşıldı, '.$usage['resets'].' sonra yeniden denenir' : '' }}</span>@endif
                                 @if($set)<button type="button" wire:click="testAiProvider('{{ $pk }}')" wire:loading.attr="disabled" class="btn-secondary py-1 px-2.5 text-[11px]">Bağlantıyı sına</button>@endif
                                 <a href="{{ $prov['site'] }}" target="_blank" rel="noopener" class="text-[11px] text-brand-600 hover:underline ml-auto">Anahtar al →</a>
@@ -695,7 +713,13 @@ new class extends Component {
                                     </select>
                                     @if($set)<button type="button" wire:click="fetchAiModels('{{ $pk }}')" wire:loading.attr="disabled" class="mt-1 text-[11px] text-brand-600 font-semibold hover:underline">Modelleri getir</button> <span class="text-[11px] text-neutral-400">{{ isset($aiLive[$pk]) ? $aiLive[$pk].' model listelendi' : 'Güncel listeyi sağlayıcıdan çeker; "Otomatik" en uygun olanı seçer.' }}</span>@endif
                                 </div>
-                                <div class="sm:col-span-2"><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_key'] }} {{ $set ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="scraper.ai_{{ $pk }}_key" class="{{ $input }} font-mono" placeholder="{{ $set ? '••••••••' : $prov['key_hint'] }}"></div>
+                                @if(! empty($prov['local']))
+                                    <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_enabled'] }}</label>
+                                        <select wire:model="scraper.ai_{{ $pk }}_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select></div>
+                                    <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_base'] }}</label><input type="text" wire:model="scraper.ai_{{ $pk }}_base" class="{{ $input }} font-mono" placeholder="http://127.0.0.1:11434/v1">@error('scraper.ai_'.$pk.'_base')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                                @else
+                                    <div class="sm:col-span-2"><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_key'] }} {{ $set ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="scraper.ai_{{ $pk }}_key" class="{{ $input }} font-mono" placeholder="{{ $set ? '••••••••' : $prov['key_hint'] }}"></div>
+                                @endif
                             </div>
                         </div>
                     @endforeach

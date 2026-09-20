@@ -281,12 +281,16 @@ class ScrapedLoadService
             $userId,
             $load
         );
+        app(LearningService::class)->onApproved($load);
     }
 
     public function reject(ScrapedLoad $load, ?int $userId = null): void
     {
         $load->update(['status' => 'rejected', 'visibility' => 'private']);
         ActivityLog::record('scraped_load.rejected', "Dış kaynak ilanı #{$load->id} reddedildi", $userId, $load);
+        if ($userId !== null) {
+            app(LearningService::class)->onRejected($load); // yalnız insan kararı eğitir
+        }
     }
 
     /** Otomatik onay kriterlerini sağlamıyorsa nedenini, sağlıyorsa null döndürür. */
@@ -344,8 +348,15 @@ class ScrapedLoadService
             // Zorunlu değilse yine de belirgin düşük güven elle kontrole düşer.
             return $load->ai_status === 'done' && $load->parse_confidence !== null && (float) $load->parse_confidence < 0.5 ? 'yapay zeka güveni düşük; elle kontrol' : null;
         }
+        if ($load->ai_status !== 'done') {
+            // Dış yapay zeka ulaşılamadı: yerel sınıflandırıcı yeterince öğrendiyse ve güveni eşiğin üstündeyse o karar verir.
+            $local = $this->localConfidence($load);
+            if ($local !== null && $local >= max(0, min(100, Settings::int('scraper_local_min_confidence'))) / 100) {
+                return null;
+            }
+        }
         if ($load->ai_status === 'pending') {
-            return 'yapay zeka doğrulaması bekleniyor';
+            return $load->created_at && $load->created_at->lt(now()->subHours(3)) ? 'yapay zeka ulaşılamadı; elle kontrol' : 'yapay zeka doğrulaması bekleniyor';
         }
         if ($load->ai_status === 'failed' || ($load->ai_status !== 'done' && $parser->mode() === 'always')) {
             return 'yapay zeka doğrulayamadı; elle kontrol';
@@ -355,6 +366,20 @@ class ScrapedLoadService
         }
 
         return null;
+    }
+
+    /** Yerel sınıflandırıcının bu aday için olasılığı (alımda yazılmışsa o, yoksa şimdi hesaplanır). */
+    public function localConfidence(ScrapedLoad $load): ?float
+    {
+        if (! Settings::bool('scraper_local_enabled')) {
+            return null;
+        }
+        $stored = $load->meta('local_confidence');
+        if (is_numeric($stored)) {
+            return (float) $stored;
+        }
+
+        return app(LocalClassifier::class)->score((string) $load->raw_message);
     }
 
     /**

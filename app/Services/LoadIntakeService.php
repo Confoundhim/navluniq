@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\GoodsCatalog;
+use App\Support\Lexicon;
 use App\Support\Phone;
+use App\Support\Settings;
 use App\Support\TurkishCities;
 use App\Support\VehicleClassifier;
 use Illuminate\Support\Facades\Cache;
@@ -33,7 +35,7 @@ class LoadIntakeService
     /** Bir mesajdan en fazla bu kadar ilan adayı açılır (kötü niyetli/uzun listelere karşı). */
     public const MAX_ADS_PER_MESSAGE = 15;
 
-    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer) {}
+    public function __construct(private readonly AiParserService $parser, private readonly LoadStandardizer $standardizer, private readonly LocalClassifier $classifier) {}
 
     /**
      * @param  array{group_name:string, raw_message:string, sender_phone?:?string, message_id?:?string, source_jid?:?string, source_type?:string}  $payload
@@ -103,6 +105,10 @@ class LoadIntakeService
             $fallbackPhone = Phone::normalize($payload['sender_phone'] ?? null);
             if (! self::hasPhone($raw) && $fallbackPhone === null) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
+            }
+            // Yöneticinin öğrettiği "ilan değil" ifadesi (satılık, iş arıyorum…) her kipte kota harcamadan eler.
+            if (Lexicon::isNotLoad($raw)) {
+                return $this->result(200, false, 'filtered', 'Sözlük: ilan değil ifadesi.', null, 'lexicon_not_load');
             }
             $aiFirst = $this->parser->aiFirst();
             // Yapay zeka öncelikli kipte ("Her ilanda") ilan mı sohbet mi kararını yapay zeka verir; kural ön eleme yalnız
@@ -226,6 +232,12 @@ class LoadIntakeService
         if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8) {
             return $this->result(200, false, 'filtered', 'Yapay zeka: yük ilanı değil.', null, 'ai_not_load') + ['excerpt' => $text];
         }
+        // Yerel sınıflandırıcı (dış servisten bağımsız): yapay zeka bakmadıysa ve yeterince öğrenmişse çok düşük olasılıklı
+        // metni eler; olasılık kayda yazılır (otomatik onay yapay zeka ulaşılamadığında bunu kullanır).
+        $local = Settings::bool('scraper_local_enabled') ? $this->classifier->score($text) : null;
+        if ($local !== null && $ai['data'] === null && $local < 0.15) {
+            return $this->result(200, false, 'filtered', 'Yerel sınıflandırıcı: ilan değil.', null, 'local_not_load') + ['excerpt' => $text];
+        }
 
         $phones = array_values(array_unique(array_filter(array_merge(
             [$parsed['sender_phone'] ?? null], $phones, (array) ($parsed['phones'] ?? []), [$ctx['fallback_phone']]
@@ -292,6 +304,7 @@ class LoadIntakeService
                 // Aynı ilandaki diğer numaralar (şifreli); ilk numara ana kolonda.
                 'extra_phones_enc' => $extraPhones !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extraPhones) : null,
                 'phone_count' => count($phones) > 1 ? count($phones) : null,
+                'local_confidence' => $local,
                 'message_part' => $isWhole ? null : ['index' => $segment['index'] ?? null, 'count' => $segment['count'] ?? null, 'hash' => substr(hash('sha256', $raw), 0, 16)],
             ])),
             'visibility' => 'private',
@@ -590,6 +603,12 @@ class LoadIntakeService
     {
         if (! self::hasPhone($text)) {
             return false;
+        }
+        if (Lexicon::isNotLoad($text)) {
+            return false;
+        }
+        if (Lexicon::hasLoadSignal($text)) {
+            return true;
         }
 
         $hasMoney = (bool) preg_match('/\d[\d.,]*\s*(?:tl|₺|lira|bin)(?!\p{L})/iu', $text);
