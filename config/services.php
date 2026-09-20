@@ -41,14 +41,10 @@ return [
 
     'ai' => [
         'active_provider' => env('ACTIVE_AI_PROVIDER', 'gemini'),
-        'free_only' => env('AI_FREE_ONLY', true),
-        'paid_enabled' => env('AI_PAID_ENABLED', false),
         'gemini_key' => env('GEMINI_API_KEY'),
         'gemini_model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
-        'kimi_key' => env('KIMI_API_KEY'),
-        'kimi_model' => env('KIMI_MODEL', 'moonshot-v1-8k'),
         'claude_key' => env('CLAUDE_API_KEY'),
-        'claude_model' => env('CLAUDE_MODEL', 'claude-haiku-4-5'),
+        'claude_model' => env('CLAUDE_MODEL', 'claude-opus-5'),
     ],
 
     // Etkin ödeme kuruluşu: iyzico | paytr (GatewayManager::REGISTRY); panel ayarı önceliklidir. Anahtarlar boşsa ödeme kapalı kalır.

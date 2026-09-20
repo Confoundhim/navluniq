@@ -26,6 +26,18 @@ final class Settings
         'scraper_auto_approve_require_weight' => 0,
         'scraper_auto_approve_require_vehicle' => 0, // 1: araç tipi çözülemeyen aday otomatik onaylanmaz
 
+        // Bildirim iletici (telefon) bağlantı anahtarı: boşsa .env SCRAPER_API_TOKEN; o da boşsa panel üretir
+        'scraper_api_token' => '',
+        'scraper_rejected_retention_days' => 7, // Reddedilen adaylar bu kadar gün sonra silinir
+
+        // Yapay zeka ile ilan çözümleme
+        'ai_parse_mode' => 'fill_gaps',         // off | fill_gaps (kural eksik bırakınca) | always (her ilanda)
+        'ai_provider' => '', // boş: env ACTIVE_AI_PROVIDER, o da yoksa claude              // claude | gemini
+        'ai_claude_model' => 'claude-opus-5',
+        'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
+        'ai_gemini_model' => 'gemini-2.5-flash',
+        'ai_gemini_key' => '',                  // şifreli; boşsa .env GEMINI_API_KEY
+
         // Telegram kanalı
         'telegram_post_enabled' => 0,           // 1: ücretsiz üyelere açılan ilan kanala gönderilir
         'telegram_bot_token' => '',
@@ -54,10 +66,10 @@ final class Settings
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
-    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key'];
+    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'scraper_api_token'];
 
     /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
-    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key'];
+    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key'];
 
     public static function get(string $key, mixed $default = null): mixed
     {

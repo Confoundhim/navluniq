@@ -7,6 +7,7 @@ use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
 use App\Services\TelegramPublisher;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('offers:expire', function (OfferService $offers) {
@@ -37,15 +38,23 @@ Artisan::command('subscriptions:expire', function (SubscriptionService $subscrip
     $this->info('Süresi dolan abonelik sayısı: '.$subscriptions->expireDue());
 })->purpose('Dönemi biten premium abonelikleri kapatır');
 
+Artisan::command('scraped-loads:ai-enrich', function (ScrapedLoadService $loads) {
+    $this->info('Yapay zeka ile zenginleştirilen aday: '.$loads->aiEnrichPending());
+})->purpose('Yapay zeka sırası bekleyen dış kaynak adaylarını çözümler (kota/ağ hatası sonrası yeniden deneme)');
+
 Artisan::command('scraped-loads:purge-expired', function (ScrapedLoadService $loads) {
     $this->info('Saklama süresi dolan dış kaynak ilanı sayısı: '.$loads->purgeExpired());
-})->purpose('Saklama süresi dolan dış kaynak ilanlarını havuzdan kaldırır ve arşivler');
+    $this->info('Saklama süresi dolan reddedilmiş aday sayısı: '.$loads->purgeRejected());
+})->purpose('Saklama süresi dolan dış kaynak ilanlarını havuzdan kaldırır; eski reddedilmiş adayları kalıcı siler');
 
 Schedule::command('offers:expire')->hourly();
 Schedule::command('subscriptions:expire')->hourly();
 Schedule::command('subscriptions:remind')->dailyAt('09:00');
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:purge-expired')->daily();
+Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
+// Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
+Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
 Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
 Schedule::command('scraped-loads:publish-telegram')->everyMinute()->withoutOverlapping();
 Schedule::command('shipments:auto-approve')->hourly();
