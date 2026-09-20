@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\IntakeEvent;
 use App\Services\ScrapedLoadService;
 use App\Support\Settings;
-use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
@@ -32,24 +31,9 @@ class PhoneSetupController extends Controller
             'body' => ScrapedLoadService::phoneRequestBody(),
             'params' => ScrapedLoadService::phoneRequestParams(),
             'pingUrl' => ScrapedLoadService::pingUrl(),
-            'hasTemplate' => ScrapedLoadService::hasMacroTemplate(),
-            'downloadUrl' => route('phone-setup.macro', ['code' => $code]),
             'lastEventAt' => $last?->created_at,
             'lastEventStatus' => $last?->statusLabel(),
             'lastEventSource' => $last?->source_name,
-        ]);
-    }
-
-    public function macro(string $code): Response
-    {
-        $this->guard($code);
-        $content = ScrapedLoadService::macroTemplate();
-        abort_if($content === null, 404);
-
-        return response($content, 200, [
-            'Content-Type' => 'application/octet-stream',
-            'Content-Disposition' => 'attachment; filename="NavlunIQ.macro"',
-            'Cache-Control' => 'no-store',
         ]);
     }
 }

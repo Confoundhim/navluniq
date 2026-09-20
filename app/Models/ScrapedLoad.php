@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Phone;
+use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -46,6 +47,8 @@ class ScrapedLoad extends Model
         'status',
         'parsed_by_llm',
         'parse_confidence',
+        'ai_status',
+        'ai_checked_at',
         'parse_metadata',
         'visibility',
         'available_to_free_at',
@@ -109,12 +112,12 @@ class ScrapedLoad extends Model
     /** Araç etiketi: açıkça istenen tip ise adı, çıkarımsa "X ve üzeri". */
     public function vehicleLabel(): ?string
     {
-        if (! \App\Support\VehicleTypes::isValid($this->vehicle_type)) {
+        if (! VehicleTypes::isValid($this->vehicle_type)) {
             return null;
         }
         $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin'], true) || $this->vehicle_type === 'tir';
 
-        return $exact ? \App\Support\VehicleTypes::label($this->vehicle_type) : \App\Support\VehicleTypes::label($this->vehicle_type).' ve üzeri';
+        return $exact ? VehicleTypes::label($this->vehicle_type) : VehicleTypes::label($this->vehicle_type).' ve üzeri';
     }
 
     public function meta(string $key, mixed $default = null): mixed

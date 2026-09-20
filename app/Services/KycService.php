@@ -113,6 +113,41 @@ class KycService
         return array_values(array_diff($this->requiredTypes($user, $role), $present));
     }
 
+    /**
+     * Yönetici toplu onayı (Kullanıcılar ekranı): yüklü belgelerin tamamı onaylanır, eksik belge olsa da profil
+     * onaylanır (test hesapları ve elle doğrulanmış kullanıcılar için). Kullanıcıya bildirim gider.
+     */
+    public function approveProfile(User $user, string $role, User $reviewer, ?string $note = null): void
+    {
+        $profile = $role === 'driver' ? $user->driverProfile : $user->cargoOwnerProfile;
+        if (! $profile) {
+            throw new RuntimeException($role === 'driver' ? 'Kullanıcının şoför profili yok.' : 'Kullanıcının yük sahibi profili yok.');
+        }
+        $types = array_keys($role === 'driver' ? KycDocument::DRIVER_TYPES : KycDocument::CARGO_OWNER_TYPES);
+        DB::transaction(function () use ($user, $profile, $reviewer, $types, $note, $role): void {
+            KycDocument::query()->where('user_id', $user->id)->whereIn('document_type', $types)->where('status', '!=', 'approved')
+                ->update(['status' => 'approved', 'reviewed_by' => $reviewer->id, 'reviewed_at' => now(), 'review_notes' => $note ? mb_substr($note, 0, 1000) : 'Kullanıcılar ekranından toplu onay']);
+            $profile->update(['kyc_status' => 'approved', 'kyc_verified_at' => now(), 'kyc_verified_by' => $reviewer->id, 'kyc_notes' => null]);
+            ActivityLog::record('kyc.approved', "KYC yönetici onayı (kullanıcı #{$user->id}, rol {$role})".($note ? " · {$note}" : ''), $reviewer->id, $profile);
+        });
+        $isDriver = $role === 'driver';
+        $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
+            ['Belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzunu görebilir ve yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
+            route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
+    }
+
+    /** Onayı geri alır: belgeler varsa "inceleniyor", yoksa "gönderilmedi". */
+    public function resetProfile(User $user, string $role, User $reviewer): void
+    {
+        $profile = $role === 'driver' ? $user->driverProfile : $user->cargoOwnerProfile;
+        if (! $profile) {
+            return;
+        }
+        $hasDocs = KycDocument::query()->where('user_id', $user->id)->where('status', '!=', 'rejected')->exists();
+        $profile->update(['kyc_status' => $hasDocs ? 'pending' : 'unsubmitted', 'kyc_verified_at' => null, 'kyc_verified_by' => null]);
+        ActivityLog::record('kyc.reset', "KYC onayı geri alındı (kullanıcı #{$user->id}, rol {$role})", $reviewer->id, $profile);
+    }
+
     /** Yönetici belge kararı; tüm zorunlu belgeler onaylanınca profil onaylanır. */
     public function review(KycDocument $document, User $reviewer, string $decision, ?string $notes = null): void
     {

@@ -36,9 +36,8 @@ bildirir ve kanala gönderir; gönderilemeyen mesaj 5 kez yeniden denenir.
 
 ## 4. Dış kaynak otomatik onayı (kanalla ilgisi yok)
 
-Aynı ekranda **Otomatik onay** açıldığında her dakika çalışan görev, şu kriterleri sağlayan adayları
-kendiliğinden yayınlar: kaynak aktif, kalkış ve varış çözümlenmiş, telefon var, (isteğe bağlı) fiyat ve tonaj var.
-Kapalıyken adaylar Dış Kaynak İlanları ekranında elle onaylanır.
+Aynı ekranda **Otomatik onay** açıldığında her dakika çalışan görev, kriterleri sağlayan ve yapay zeka doğrulamasından
+geçen adayları kendiliğinden yayınlar (ayrıntı: docs/BILDIRIM_ILETICI_KURULUM.md → Otomatik onay).
 
 ## Sorun giderme
 
