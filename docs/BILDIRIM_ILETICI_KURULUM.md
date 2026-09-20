@@ -100,8 +100,9 @@ Kural tabanlı çözümleme her ilanda ücretsiz çalışır. Yapay zeka **Siste
 bölümünden açılır; anahtarlar veritabanında şifreli saklanır, `.env` gerekmez.
 
 - **Kural eksik bırakınca** (varsayılan): kural telefon, il veya araç tipini çözemediyse yapay zekaya sorulur.
-- **Her ilanda**: her aday yapay zekaya gider (en isabetli; il/ilçe, araç, tonaj, fiyat, yük türü, aciliyet ve
-  "bu bir yük ilanı değil" ayrımı). Yük ilanı olmadığına yüksek güvenle karar verilen mesaj elenir.
+- **Her ilanda (yapay zeka öncelikli, varsayılan)**: telefon numarası olan her mesaj yapay zekaya gider; "ilan mı,
+  sohbet mi, boş araç ilanı mı" kararını ve il/ilçe, araç, tonaj, fiyat, yük türü, aciliyet alanlarını yapay zeka verir.
+  Kural tabanlı ayrıştırma yalnız yedektir (yapay zeka yanıt vermezse). Telefonu olmayan mesaj kota harcamaz.
 - **Kapalı**: yalnız kural.
 
 **Sağlayıcı zinciri.** Anahtarı girilen sağlayıcılar sırayla denenir; günlük kotası dolan (429) atlanır, ertesi gün
@@ -115,7 +116,10 @@ bir yeniden dener. Varsayılan sıra ücretsiz katmanlardan başlar:
 | 3 | Cerebras (Llama 3.3 70B) | Kart istemez; günlük ~1 milyon jeton | cloud.cerebras.ai |
 | 4 | OpenRouter (":free" modeller) | Kartsız günlük ~50 istek; bir kez 10 $ kredi alınırsa günlük 1.000 | openrouter.ai/keys |
 | 5 | Mistral (Small) | Deneme katmanı, telefon doğrulaması ister; aylık ~1 milyar jeton | console.mistral.ai |
-| 6 | Claude (Anthropic) | Ücretli; yalnız istenirse, zincirin sonunda | console.anthropic.com |
+| 6 | Moonshot Kimi | Ücretli ama çok ucuz; deneme kredisi | platform.moonshot.ai |
+| 7 | OpenAI (ChatGPT API) | Ücretli; ChatGPT'nin ücretsiz uygulaması API vermez | platform.openai.com |
+| 8 | xAI Grok | Ücretli | console.x.ai |
+| 9 | Claude (Anthropic) | Ücretli | console.anthropic.com |
 
 Kota rakamları sağlayıcıların o günkü politikasına bağlıdır; panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
 ve kota dolduysa uyarı görünür. İlk 2-3 sağlayıcıya anahtar girmek günde binlerce ilanı ücretsiz karşılar.

@@ -7,6 +7,7 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
+use App\Support\Settings;
 use App\Support\TurkishCities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,7 @@ class LoadIntakeTest extends TestCase
     {
         parent::setUp();
         Cache::flush();
+        Settings::set('ai_parse_mode', 'fill_gaps'); // bu sınıfın eski testleri "kural yeterse yapay zeka yok" varsayımıyla yazıldı
         config()->set('services.ai.active_provider', 'gemini');
         config()->set('services.ai.gemini_key', 'test-key');
         config()->set('services.ai.gemini_model', 'gemini-test');
@@ -79,6 +81,45 @@ class LoadIntakeTest extends TestCase
         $this->assertSame(['Ankara Ostim', 'İzmir Aliağa'], [$p['pickup_location'], $p['delivery_location']]);
         $this->assertSame(['Denizli', 'Bursa'], AiParserService::firstTwoProvinces('Denizli Bursa Denizli parça'));
         $this->assertFalse($parser->parseCheap('Sadece Ankara 5 ton 0532 123 45 67')['success'], 'Tek il rota sayılmaz');
+    }
+
+    public function test_emoji_formatted_ad_with_promo_footer_is_parsed_by_rules(): void
+    {
+        $ad = "📍 Ankara\n\n📦 İstanbul\n💰 1200+KDV\n🚚 1 araç beklemesiz\n\n☎️ HEMEN ARA\n+90 505 178 17 61\n\n🔗 Bu ilan ücretli VIP grubundan paylaşılmıştır.\n💬 Ücretli gruba katılmak için VİP GRUBA KATIL butonunu kullanın";
+        $p = app(AiParserService::class)->parseCheap($ad);
+        $this->assertTrue($p['success']);
+        $this->assertSame(['Ankara', 'İstanbul', '5051781761', 1200.0], [$p['pickup_location'], $p['delivery_location'], $p['sender_phone'], (float) $p['price']]);
+        $this->assertNull($p['weight'], '"1 araç" tonaj değildir');
+    }
+
+    public function test_ai_first_mode_sends_every_message_with_a_phone_to_ai(): void
+    {
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_gemini_key', 'AIza-test');
+        Settings::set('ai_gemini_model', 'gemini-test');
+        Settings::set('ai_provider', 'gemini');
+        $this->activeSource();
+        $intake = app(LoadIntakeService::class);
+
+        // Sohbet: telefonu yok → yapay zekaya gitmeden elenir.
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Selam arkadaşlar hayırlı işler', 'message_id' => 'x1', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame(['filtered', 'phone_missing'], [$r['status'], $r['reason'] ?? null]);
+        Http::assertNothingSent();
+
+        // Kuralın "ilan değil" diyeceği ama telefonu olan mesaj: karar yapay zekada (sahte yanıt: Ankara → İzmir yükü).
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Şu paketi Ostimden Aliağaya götürecek biri var mı 0532 123 45 67', 'message_id' => 'x2', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame('created', $r['status']);
+        Http::assertSentCount(1);
+        $this->assertSame('İzmir Aliağa', ScrapedLoad::first()->delivery_location);
+
+        // Yapay zeka "sohbet/satış ilanı" derse (post_type other, yüksek güven) mesaj elenir (ayrı sağlayıcı: Groq).
+        Settings::set('ai_provider', 'groq');
+        Settings::set('ai_groq_key', 'gsk-test');
+        Settings::set('ai_groq_model', 'llama-test');
+        Http::fake(['api.groq.com/*' => Http::response(['choices' => [['message' => ['content' => json_encode(['post_type' => 'other', 'confidence' => 0.95, 'sender_phone' => '5330000001', 'pickup' => null, 'delivery' => null, 'goods' => null, 'goods_category' => null, 'vehicle_type' => null, 'vehicle_flexible' => false, 'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => 'satılık araç ilanı'])]]]])]);
+        $r = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Satılık 2018 model kamyonet temiz 0533 000 00 01', 'message_id' => 'x3', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame(['filtered', 'ai_not_load'], [$r['status'], $r['reason'] ?? null]);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'api.groq.com'));
     }
 
     public function test_turkish_city_helper_handles_suffixes_and_aliases(): void

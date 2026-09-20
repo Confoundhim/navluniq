@@ -403,6 +403,9 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertSame('openai/gpt-oss-120b', AiParserService::pickModel('groq', ['whisper-large-v3', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'], exclude: 'llama-3.3-70b-versatile'));
         $this->assertSame('meta-llama/llama-3.3-70b-instruct:free', AiParserService::pickModel('openrouter', ['openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-32b:free']));
         $this->assertNull(AiParserService::pickModel('gemini', ['gemini-embedding-001']));
+        $this->assertSame('gpt-5-mini', AiParserService::pickModel('openai', ['gpt-4o', 'gpt-5-mini', 'gpt-5', 'gpt-4o-mini-tts', 'text-embedding-3-small', 'gpt-5-codex']));
+        $this->assertSame('grok-4-fast', AiParserService::pickModel('xai', ['grok-4', 'grok-4-fast', 'grok-2-image']));
+        $this->assertSame('kimi-k2-turbo-preview', AiParserService::pickModel('kimi', ['moonshot-v1-8k', 'kimi-k2-turbo-preview']));
 
         Settings::set('ai_provider', 'gemini');
         Settings::set('ai_gemini_key', 'AIza-test');
@@ -466,6 +469,16 @@ tenteli tır 0532 123 45 67","ticker":"","app":"WhatsApp","token":"'.$token.'"}'
         $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => "Mehmet: Bursa'dan Antalya'ya 8 ton mobilya kamyon 0544 222 33 44", 'app' => 'WhatsApp', 'token' => $token], ['Accept' => 'application/json'])
             ->assertOk()->assertJsonPath('status', 'created');
         $this->assertSame(2, ScrapedLoad::count());
+
+        // Kurulum satırları form alanı yerine gövdeye metin olarak yapıştırılmışsa yine okunur.
+        $pasted = "title  = Grup A\ntext   = Ayşe: Konya'dan Adana'ya 12 ton un tır 0555 111 22 33\nticker = \napp    = WhatsApp\ntoken  = {$token}";
+        $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'application/x-www-form-urlencoded', 'HTTP_ACCEPT' => 'application/json'], $pasted)
+            ->assertOk()->assertJsonPath('status', 'created');
+        $this->assertSame(3, ScrapedLoad::count());
+
+        // Anahtarsız istekte Canlı akış gelen gövdeyi gösterir (teşhis).
+        $this->post('/api/v1/webhook/notification', ['title' => 'Grup A', 'text' => ''], ['Accept' => 'application/json'])->assertStatus(401);
+        $this->assertStringContainsString('Gelen gövde', (string) IntakeEvent::latest('id')->first()->excerpt);
 
         // Form alanlı makro dışa aktarımında anahtar 48 karakterlik dizgeden bulunur.
         Storage::fake('local');

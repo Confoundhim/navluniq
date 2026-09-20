@@ -17,7 +17,7 @@ use Throwable;
 
 class AiParserService
 {
-    public const MODES = ['off' => 'Kapalı (yalnız kural)', 'fill_gaps' => 'Kural eksik bırakınca', 'always' => 'Her ilanda'];
+    public const MODES = ['off' => 'Kapalı (yalnız kural)', 'fill_gaps' => 'Kural eksik bırakınca', 'always' => 'Her ilanda (yapay zeka öncelikli)'];
 
     public const CLAUDE_MODELS = ['claude-opus-5' => 'Claude Opus 5 (en isabetli)', 'claude-sonnet-5' => 'Claude Sonnet 5', 'claude-haiku-4-5' => 'Claude Haiku 4.5 (en ucuz)'];
 
@@ -38,11 +38,17 @@ class AiParserService
             'models' => ['meta-llama/llama-3.3-70b-instruct:free' => 'Llama 3.3 70B (free)', 'qwen/qwen3-235b-a22b:free' => 'Qwen3 235B (free)', 'deepseek/deepseek-chat-v3-0324:free' => 'DeepSeek V3 (free)', 'google/gemma-3-27b-it:free' => 'Gemma 3 27B (free)'], 'key_hint' => 'sk-or-…', 'site' => 'https://openrouter.ai/keys'],
         'mistral' => ['label' => 'Mistral', 'kind' => 'openai', 'base' => 'https://api.mistral.ai/v1', 'free' => 'Ücretsiz deneme katmanı (console.mistral.ai; telefon doğrulaması ister). Aylık ~1 milyar jeton, saniyede 1 istek.',
             'models' => ['mistral-small-latest' => 'Mistral Small', 'open-mistral-nemo' => 'Mistral Nemo 12B', 'mistral-medium-latest' => 'Mistral Medium'], 'key_hint' => '…', 'site' => 'https://console.mistral.ai/api-keys'],
-        'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'free' => 'Ücretli. Yalnız istenirse; zincirin en sonunda denenir.',
+        'claude' => ['label' => 'Claude (Anthropic)', 'kind' => 'claude', 'free' => 'Ücretli. Yalnız istenirse; ücretsizlerden sonra denenir.',
             'models' => self::CLAUDE_MODELS, 'key_hint' => 'sk-ant-…', 'site' => 'https://console.anthropic.com'],
+        'openai' => ['label' => 'OpenAI (ChatGPT API)', 'kind' => 'openai', 'base' => 'https://api.openai.com/v1', 'free' => 'Ücretli: ChatGPT uygulaması ücretsiz olsa da API anahtarı kullandıkça ödemelidir (platform.openai.com). "Mini" modeller çok ucuzdur.',
+            'models' => ['gpt-5-mini' => 'GPT-5 mini', 'gpt-4.1-mini' => 'GPT-4.1 mini', 'gpt-4o-mini' => 'GPT-4o mini'], 'key_hint' => 'sk-…', 'site' => 'https://platform.openai.com/api-keys'],
+        'xai' => ['label' => 'xAI Grok', 'kind' => 'openai', 'base' => 'https://api.x.ai/v1', 'free' => 'Ücretli (console.x.ai); zaman zaman deneme kredisi verilir.',
+            'models' => ['grok-4-fast' => 'Grok 4 Fast', 'grok-3-mini' => 'Grok 3 mini', 'grok-4' => 'Grok 4'], 'key_hint' => 'xai-…', 'site' => 'https://console.x.ai'],
+        'kimi' => ['label' => 'Moonshot Kimi', 'kind' => 'openai', 'base' => 'https://api.moonshot.ai/v1', 'free' => 'Ücretli ama çok ucuz (platform.moonshot.ai); yeni hesaba deneme kredisi verilir.',
+            'models' => ['kimi-k2-turbo-preview' => 'Kimi K2 Turbo', 'kimi-k2-0905-preview' => 'Kimi K2', 'moonshot-v1-8k' => 'Moonshot v1 8k'], 'key_hint' => 'sk-…', 'site' => 'https://platform.moonshot.ai'],
     ];
 
-    public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'claude'];
+    public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
 
     /** Yalnız kural tabanlı ayrıştırma; başarısızsa (ayar açıksa) yapay zeka ile tamamlar. */
     public function parseMessage(string $message, ?string $preferredProvider = null): array
@@ -206,7 +212,7 @@ class AiParserService
      */
     public static function pickModel(string $provider, array $models, ?string $exclude = null): ?string
     {
-        $bad = '/embed|embedding|tts|audio|image|imagen|veo|vision|live|realtime|whisper|guard|moderation|safety|compound|ocr|transcri|speech|rerank|codestral|devstral|voxtral|pixtral|thinking/i';
+        $bad = '/embed|embedding|tts|audio|image|imagen|veo|vision|live|realtime|whisper|guard|moderation|safety|compound|ocr|transcri|speech|rerank|codestral|devstral|voxtral|pixtral|thinking|codex|search|dall-e|sora|babbage|davinci/i';
         $models = array_values(array_filter($models, fn ($m) => $m !== $exclude && ! preg_match($bad, $m)));
         if ($models === []) {
             return null;
@@ -216,6 +222,9 @@ class AiParserService
             'openrouter' => ['/llama-3\.3-70b.*:free$/', '/llama-4.*:free$/', '/llama.*70b.*:free$/', '/qwen3.*:free$/', '/deepseek.*chat.*:free$/', '/gemma-3.*:free$/', '/mistral.*:free$/', '/:free$/'],
             'mistral' => ['/^mistral-small-latest$/', '/^mistral-small/', '/^open-mistral-nemo/', '/^ministral-8b/', '/^mistral-medium-latest$/', '/^mistral-large-latest$/', '/mistral/'],
             'claude' => ['/^claude-sonnet-5/', '/^claude-opus-5/', '/^claude-haiku/', '/^claude-sonnet/', '/claude/'],
+            'openai' => ['/^gpt-5(\.\d+)?-mini$/', '/^gpt-4\.1-mini$/', '/^gpt-4o-mini$/', '/^gpt-5-nano$/', '/^gpt-5(\.\d+)?$/', '/^gpt-4\.1$/', '/^gpt-4o$/', '/^gpt-/'],
+            'xai' => ['/grok-\d+-fast/', '/grok-\d+-mini/', '/grok-4/', '/grok-3/', '/grok/'],
+            'kimi' => ['/kimi-k2.*turbo/', '/kimi-k2/', '/moonshot-v1-8k/', '/moonshot-v1/', '/kimi/'],
             default => ['/llama-3\.3-70b/', '/llama-4.*(scout|maverick)/', '/llama.*70b/', '/gpt-oss-120b/', '/gpt-oss/', '/qwen.*(235b|32b)/', '/qwen/', '/llama-3\.1-8b/', '/llama/', '/mixtral/', '/gemma/'],
         };
         $version = fn (string $m) => preg_match('/(\d+(?:\.\d+)?)/', preg_replace('/^[a-z]+\/?/', '', $m) ?? $m, $v) ? (float) $v[1] : 0.0;
@@ -266,6 +275,12 @@ class AiParserService
     public function isEnabled(): bool
     {
         return $this->mode() !== 'off';
+    }
+
+    /** Yapay zeka öncelikli kip: "Her ilanda" seçili ve en az bir anahtar var. Telefonu olan her mesaj yapay zekaya gider. */
+    public function aiFirst(): bool
+    {
+        return $this->mode() === 'always' && $this->isConfigured();
     }
 
     /** En az bir sağlayıcının anahtarı var mı? */
@@ -558,6 +573,8 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 8. urgent: acil/hemen/bugün gibi ifadeler varsa true. pickup_date_text: yükleme zamanı ifadesi ("yarın", "pazartesi", "12.05") aynen.
 9. multiple_loads: mesajda birden fazla ayrı yük ilanı varsa true; bu durumda alanlara İLK ilanı yaz.
 10. confidence: 0 ile 1 arasında; mesaj belirsizse düşük ver. Tahmin etmek zorunda kaldığın alanları notes içinde kısaca belirt.
+11. Reklam/imza satırlarını yok say ("Bu ilan VIP grubundan paylaşılmıştır", "gruba katılmak için…", web adresleri); bunlar konum ya da yük değildir.
+12. Emoji etiketli biçim yaygındır: 📍 genelde kalkış, 📦 ya da 🏁 varış, 💰 fiyat, 🚚 araç, ☎️ telefon. "1200+KDV" fiyatı 1200 TL, KDV hariç demektir (notes'a "KDV hariç" yaz). "1 araç" araç adedi, tonaj değildir.
 Bilinmeyen alanları null bırak, uydurma.
 TXT;
     }
@@ -797,9 +814,17 @@ TXT;
         $dativeForm = isset($route[2]) && preg_match('/^(?:dan|den|tan|ten)$/iu', $route[2]) === 1; // "Ankaradan İzmire": varış yönelme eki taşır
         $pickup = $this->tidyLocation($route[1] ?? null);
         $delivery = $this->tidyLocation($route[3] ?? null, $dativeForm);
-        // "Denizli Bursa 8 ton…", "Samsun Trabzon kamyonet…": bağlaçsız yazımda metindeki ilk iki il sırayla kalkış/varış.
-        if (! $pickup || ! $delivery) {
-            [$pickup, $delivery] = self::firstTwoProvinces($routeText) + [null, null];
+        // Bağlaç eşleşmesi il kataloğunda çözülmüyorsa ("VIP grubundan paylaşılmıştır") ya da hiç yoksa
+        // ("Denizli Bursa 8 ton…", "📍 Ankara 📦 İstanbul"): metindeki ilk iki il sırayla kalkış/varış.
+        $resolvable = fn (?string $v) => $v !== null && TurkishLocations::resolve($v) !== null;
+        if (! $resolvable($pickup) || ! $resolvable($delivery)) {
+            $pair = self::firstTwoProvinces($routeText);
+            if (count($pair) === 2) {
+                [$pickup, $delivery] = $pair;
+            } elseif (! $resolvable($pickup) || ! $resolvable($delivery)) {
+                $pickup = $resolvable($pickup) ? $pickup : null;
+                $delivery = $resolvable($delivery) ? $delivery : null;
+            }
         }
         if (! $phone || ! $pickup || ! $delivery) {
             return $this->failure('regex_required_fields_missing');
@@ -807,6 +832,9 @@ TXT;
 
         // "45.000 TL", "45000₺", "1.250,50 TL" ve "12,5 ton" gibi Türkçe sayı yazımları tanınır.
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
+        if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv": KDV hariç tutar
+            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*\+\s*KDV/iu', $message, $price);
+        }
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{1,6}(?:[.,]\d{1,3})?)\s*(kg|ton|tn)(?!\p{L})/iu', $message, $weight);
         $weightKg = $this->positiveDecimal($weight[1] ?? null);
         if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {

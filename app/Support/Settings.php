@@ -31,7 +31,7 @@ final class Settings
         'scraper_rejected_retention_days' => 7, // Reddedilen adaylar bu kadar gün sonra silinir
 
         // Yapay zeka ile ilan çözümleme
-        'ai_parse_mode' => 'fill_gaps',         // off | fill_gaps (kural eksik bırakınca) | always (her ilanda)
+        'ai_parse_mode' => 'always',            // off | fill_gaps (kural eksik bırakınca) | always (her ilanda; yapay zeka öncelikli)
         'ai_provider' => '',                    // tercih edilen sağlayıcı; boş: ücretsizden başlayan varsayılan sıra
         'ai_gemini_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_gemini_key' => '',                  // şifreli; boşsa .env GEMINI_API_KEY
@@ -44,6 +44,12 @@ final class Settings
         'ai_mistral_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
         'ai_mistral_key' => '',
         'ai_claude_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir
+        'ai_openai_model' => '',
+        'ai_openai_key' => '',
+        'ai_xai_model' => '',
+        'ai_xai_key' => '',
+        'ai_kimi_model' => '',
+        'ai_kimi_key' => '',
         'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
         'scraper_setup_code' => '',             // herkese açık telefon kurulum sayfasının gizli kodu
         'macrodroid_template_token' => '',      // yüklenen .macro şablonundaki anahtar (indirmede güncel anahtarla değiştirilir)
@@ -76,10 +82,10 @@ final class Settings
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
-    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'scraper_api_token', 'scraper_setup_code', 'macrodroid_template_token'];
+    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token', 'scraper_setup_code', 'macrodroid_template_token'];
 
     /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
-    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key'];
+    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
 
     public static function get(string $key, mixed $default = null): mixed
     {
