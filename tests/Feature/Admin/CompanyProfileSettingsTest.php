@@ -49,6 +49,14 @@ class CompanyProfileSettingsTest extends TestCase
         $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
         $this->assertFalse(RefreshLegalTextsCommand::isStale());
         $this->assertStringContainsString('{{COMPANY_NAME}}', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('Dış Kaynak İlanları', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('3.3 Dış Kaynak İlanları', (string) CmsContent::getVal('contract_terms'));
+
+        // Dış kaynak maddesi olmayan (önceki sürüm) metin eski sayılır ve yenilenir.
+        CmsContent::setVal('contract_terms', '<p>{{COMPANY_NAME}} eski sözleşme</p>');
+        $this->assertTrue(RefreshLegalTextsCommand::isStale());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertFalse(RefreshLegalTextsCommand::isStale());
 
         // Künyesi metne gömülü eski biçim: yer tutucu yok → yenilenir.
         foreach (['contract_kvkk', 'contract_terms', 'contract_privacy', 'contract_distance_sale'] as $key) {

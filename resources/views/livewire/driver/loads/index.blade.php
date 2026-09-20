@@ -384,6 +384,8 @@ class extends Component {
 
         if ($this->tab === 'offers') {
             $data['offers'] = Offer::query()->with('cargoLoad')->where('driver_profile_id', $profileId)->latest('id')->paginate(15);
+        } elseif (! $data['kycApproved']) {
+            // Belgeleri onaylanmamış sürücüye ilan içeriği ve iletişim bilgisi gösterilmez.
         } elseif ($this->tab === 'external') {
             $data['externalLoads'] = $this->externalQuery()->paginate(15);
         } else {
@@ -418,12 +420,30 @@ class extends Component {
         </div>
     </div>
 
-    @if(! $kycApproved)
-        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <span>Teklif verebilmek için sürücü belgelerinizin onaylanmış olması gerekir.</span>
-            <a href="{{ route('driver.profile.index') }}" wire:navigate class="shrink-0 font-bold underline">Belgeleri yükle</a>
+    @if(! $kycApproved && $tab !== 'offers')
+        @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 sm:p-10 text-center space-y-4">
+            <div class="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center {{ $kycStatus === 'rejected' ? 'bg-rose-500/10 text-rose-500' : 'bg-brand-500/10 text-brand-500' }}">
+                <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <h3 class="text-base font-black text-neutral-900 dark:text-white">
+                @if($kycStatus === 'pending') Belgeleriniz onay bekliyor
+                @elseif($kycStatus === 'rejected') Belgeleriniz reddedildi
+                @else Belgelerinizi yükleyin
+                @endif
+            </h3>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
+                @if($kycStatus === 'pending')
+                    Ekibimiz belgelerinizi inceliyor. Onaylandığında ilan havuzu, dış kaynak ilanlar ve iletişim bilgileri hesabınıza açılır; size bildirim göndeririz.
+                @elseif($kycStatus === 'rejected')
+                    Belgelerinizde düzeltilmesi gereken bir nokta var. Profil sayfasından yeniden yükleyin; onaylandığında ilanlara erişim açılır.
+                @else
+                    NavlunIQ'da ilanlar yalnız belgeleri doğrulanmış şoförlere gösterilir. Sürücü belgesi, SRC ve araç belgelerinizi yükleyin; inceleme genellikle aynı gün tamamlanır.
+                @endif
+            </p>
+            <a href="{{ route('driver.profile.index') }}" wire:navigate class="btn-primary inline-flex px-6">{{ $kycStatus === 'pending' ? 'Belge durumunu gör' : 'Belgelere git' }}</a>
         </div>
-    @elseif(! $hasActiveVehicle)
+    @elseif($kycApproved && ! $hasActiveVehicle)
         <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>Teklif verebilmek için en az bir aktif aracınız olmalı.</span>
             <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="shrink-0 font-bold underline">Araç ekle</a>
@@ -431,7 +451,7 @@ class extends Component {
     @endif
 
 
-    @if(in_array($tab, ['pool', 'external'], true))
+    @if($kycApproved && in_array($tab, ['pool', 'external'], true))
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4 text-xs">
             {{-- Kalıcı filtre profilleri --}}
             <div class="flex flex-wrap items-center gap-2">
@@ -607,7 +627,7 @@ class extends Component {
         @endif
     @endif
 
-    @if($tab === 'pool')
+    @if($kycApproved && $tab === 'pool')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="space-y-3">
                 @forelse($loads as $load)
@@ -690,7 +710,7 @@ class extends Component {
         </div>
     @endif
 
-    @if($tab === 'external')
+    @if($kycApproved && $tab === 'external')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="text-xs">
                 <div class="text-[11px] text-neutral-500 leading-relaxed">

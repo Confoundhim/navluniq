@@ -95,6 +95,22 @@ class ShipmentFlowTest extends TestCase
         ]);
     }
 
+    public function test_unapproved_driver_sees_waiting_message_instead_of_loads(): void
+    {
+        $this->driver->driverProfile->update(['kyc_status' => 'pending']);
+        $this->actingAs($this->driver);
+
+        Volt::test('driver.loads.index')
+            ->assertSee('Belgeleriniz onay bekliyor')
+            ->assertDontSee('İstanbul');
+        Volt::test('driver.loads.index')->call('setTab', 'external')
+            ->assertSee('Belgeleriniz onay bekliyor')
+            ->assertDontSee('izinli dış kaynaklardan');
+
+        $this->driver->driverProfile->update(['kyc_status' => 'approved']);
+        Volt::test('driver.loads.index')->assertDontSee('Belgeleriniz onay bekliyor')->assertSee('İstanbul');
+    }
+
     public function test_offer_is_rejected_when_kyc_is_not_approved(): void
     {
         $this->driver->driverProfile->update(['kyc_status' => 'pending']);

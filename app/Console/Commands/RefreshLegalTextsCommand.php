@@ -46,6 +46,10 @@ class RefreshLegalTextsCommand extends Command
             if (preg_match('/Cevizlidere|6301481858/u', $html)) {
                 return true;
             }
+            // Dış kaynak ilanı maddesi eklenmemiş eski metin: yenile.
+            if (in_array($key, ['contract_kvkk', 'contract_terms'], true) && ! str_contains($html, 'data-clause="dis-kaynak"')) {
+                return true;
+            }
             $withToken += str_contains($html, '{{COMPANY_NAME}}') ? 1 : 0;
         }
 
