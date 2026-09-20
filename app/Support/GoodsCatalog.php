@@ -69,6 +69,12 @@ final class GoodsCatalog
      */
     public static function detect(string $normalizedText): ?array
     {
+        // Jargon sözlüğü: yöneticinin öğrettiği yük sözcükleri katalog kalıplarından önce gelir.
+        if (($lex = Lexicon::matchGoods($normalizedText)) !== null && isset(self::CATEGORIES[$lex['canonical']])) {
+            $meta = self::CATEGORIES[$lex['canonical']];
+
+            return ['key' => $lex['canonical'], 'label' => $meta['label'], 'min_vehicle' => $meta['min_vehicle'], 'traits' => $meta['traits'], 'matched' => $lex['term']];
+        }
         foreach (self::CATEGORIES as $key => $meta) {
             if (preg_match($meta['pattern'], $normalizedText, $m)) {
                 return ['key' => $key, 'label' => $meta['label'], 'min_vehicle' => $meta['min_vehicle'], 'traits' => $meta['traits'], 'matched' => trim($m[0])];

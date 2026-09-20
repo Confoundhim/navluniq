@@ -2,6 +2,7 @@
 
 use App\Services\AccountService;
 use App\Services\LoadReleaseService;
+use App\Services\LocalClassifier;
 use App\Services\OfferService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
@@ -42,6 +43,15 @@ Artisan::command('subscriptions:expire', function (SubscriptionService $subscrip
 Artisan::command('scraped-loads:ai-enrich', function (ScrapedLoadService $loads) {
     $this->info('Yapay zeka ile zenginleştirilen aday: '.$loads->aiEnrichPending());
 })->purpose('Yapay zeka sırası bekleyen dış kaynak adaylarını çözümler (kota/ağ hatası sonrası yeniden deneme)');
+
+Artisan::command('ai:learn {--rebuild : Sayaçları sıfırlayıp geçmiş kararlardan yeniden öğren}', function (LocalClassifier $classifier) {
+    if ($this->option('rebuild')) {
+        $r = $classifier->rebuild();
+        $this->info("Yeniden öğrenildi: {$r['load']} ilan, {$r['other']} ilan-değil örneği.");
+    }
+    $s = $classifier->stats();
+    $this->info("Yerel sınıflandırıcı: {$s['docs_load']} ilan / {$s['docs_other']} ilan-değil örneği, {$s['tokens']} sözcük; ".($s['ready'] ? 'karar veriyor' : 'henüz yeterli örnek yok'));
+})->purpose('Yerel öğrenen sınıflandırıcının durumu / yeniden eğitimi');
 
 Artisan::command('scraped-loads:purge-expired', function (ScrapedLoadService $loads) {
     $this->info('Saklama süresi dolan dış kaynak ilanı sayısı: '.$loads->purgeExpired());

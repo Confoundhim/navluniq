@@ -117,8 +117,6 @@ bir yeniden dener. Varsayılan sıra ücretsiz katmanlardan başlar:
 | 5 | Mistral (Small) | Deneme katmanı, telefon doğrulaması ister; aylık ~1 milyar jeton | console.mistral.ai |
 | 6 | Moonshot Kimi | Ücretli ama çok ucuz; deneme kredisi | platform.moonshot.ai |
 | 7 | OpenAI (ChatGPT API) | Ücretli; ChatGPT'nin ücretsiz uygulaması API vermez | platform.openai.com |
-| 8 | xAI Grok | Ücretli | console.x.ai |
-| 9 | Claude (Anthropic) | Ücretli | console.anthropic.com |
 
 Kota rakamları sağlayıcıların o günkü politikasına bağlıdır; panelde her sağlayıcının yanında "Bugün: N çağrı" sayacı
 ve kota dolduysa uyarı görünür. İlk 2-3 sağlayıcıya anahtar girmek günde binlerce ilanı ücretsiz karşılar.
@@ -141,6 +139,36 @@ kaydeder ve o ilana ait tüm numaraları saklar:
   panelinde premium üye tüm numaraları arama/WhatsApp bağlantısıyla görür; ücretsiz üye maskeli numara ve "+N numara
   daha" görür. Kuyrukta "+N numara" ve "mesajın 2/5. ilanı" notu bulunur.
 - Canlı akışta bir mesajın her ilanı ayrı satırdır (kuyruğa alındı / tekrar / elendi kendi gerekçesiyle).
+
+## Kendi ekosistemimizde öğrenen çözümleme (dış servise bağımlı olmayan katman)
+
+Dış yapay zeka sağlayıcıları kota, bakiye ve erişim sorunlarıyla kesilebilir. Bu yüzden sistemin kendi içinde,
+sizin kararlarınızdan öğrenen iki parça vardır; ikisi de **Dış Kaynak İlanları → Sözlük ve öğrenme** sekmesinden yönetilir.
+
+**1. Jargon sözlüğü.** Tırcıların dilini siz öğretirsiniz, kural anında uygular; yapay zekaya gerek kalmaz:
+
+| Tür | Örnek | Etkisi |
+|---|---|---|
+| Konum kısaltması / semt | `ostim` → Ankara, `gebze osb` → Kocaeli Gebze, `büsan` → Konya | Kalkış/varış çözümü, "il çözülemedi" engeli kalkar |
+| Araç sözcüğü | `mega tenteli` → TIR, `açık kasa` → 6 teker kamyon | Araç tipi kesin eşleşme |
+| Yük sözcüğü | `salça` → Gıda | Yük kategorisi |
+| "İlan değil" ifadesi | `satılık`, `iş arıyorum` | Mesaj kota harcamadan elenir (canlı akışta "sözlük: ilan değil") |
+| İlan işareti | `yükümüz var` | Kural ön elemesini geçer |
+
+Kuyrukta bir adayın **ilini düzelttiğinizde** mesajdaki çözülemeyen yer adı kendiliğinden sözlüğe girer ("öğrenildi").
+Araç tipini ya da yükü düzelttiğinizde sekmeye bir **öneri** düşer; mesajdaki sözcüğü yazıp "Öğret" derseniz kalıcı olur.
+
+**2. Yerel sınıflandırıcı (ilan mı, değil mi).** Naive Bayes; veritabanında sözcük sayaçları tutar. "Yayınla" dediğiniz
+her aday ve yapay zeka doğrulamalı otomatik onaylar ilan örneği, "Reddet" dediğiniz her aday ilan-değil örneğidir.
+Her sınıfta 15 örnek olunca karar vermeye başlar:
+
+- Alımda her adaya "yerel %N" güveni yazılır (kuyrukta görünür). Çok düşük olasılıklı metin (yapay zeka bakmadıysa) elenir.
+- **Dış yapay zeka kotası dolduğunda / ulaşılamadığında** otomatik onay durmaz: yerel güven ayarlardaki eşiğin
+  (varsayılan %90) üstündeyse aday kendiliğinden yayınlanır. 3 saatten uzun süre yapay zeka bekleyen aday "ulaşılamadı; elle kontrol" der.
+- "Geçmişten yeniden öğren" düğmesi sayaçları sıfırlayıp tüm yayınlanmış/reddedilmiş adaylardan yeniden öğrenir
+  (komut: `php artisan ai:learn --rebuild`).
+
+Ayarlar: Sistem Ayarları → Dış kaynak → "Yerel öğrenen sınıflandırıcı" (açık/kapalı) ve "en düşük yerel güven (%)".
 
 ## Sorun giderme
 

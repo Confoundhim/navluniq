@@ -45,6 +45,8 @@ new class extends Component {
         'scraper_auto_approve_require_vehicle' => 'Otomatik onay için araç tipi zorunlu',
         'scraper_auto_approve_require_ai' => 'Otomatik onay için yapay zeka doğrulaması zorunlu',
         'scraper_auto_approve_min_confidence' => 'Otomatik onay için en düşük yapay zeka güveni (%)',
+        'scraper_local_enabled' => 'Yerel öğrenen sınıflandırıcı',
+        'scraper_local_min_confidence' => 'Yapay zeka ulaşılamazsa otomatik onay için en düşük yerel güven (%)',
         'telegram_post_enabled' => 'Sistem ilanlarını Telegram kanalına paylaş',
         'telegram_bot_token' => 'Telegram bot anahtarı',
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
@@ -73,7 +75,7 @@ new class extends Component {
 
     public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
 
-    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'telegram_post_enabled'];
+    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'scraper_local_enabled', 'telegram_post_enabled'];
 
     /** @var array<string, string> */
     public array $scraper = [];
@@ -417,6 +419,7 @@ new class extends Component {
             'scraper.telegram_channel_id' => ['nullable', 'string', 'max:120', 'regex:/^(@[A-Za-z0-9_]{4,}|-?\d+)$/'],
             'scraper.scraper_rejected_retention_days' => 'required|integer|min:0|max:365',
             'scraper.scraper_auto_approve_min_confidence' => 'required|integer|min:0|max:100',
+            'scraper.scraper_local_min_confidence' => 'required|integer|min:50|max:100',
             'scraper.ai_parse_mode' => 'required|in:off,fill_gaps,always',
             'scraper.ai_provider' => 'nullable|in:,'.implode(',', array_keys(\App\Services\AiParserService::PROVIDERS)),
             'scraper.ai_gemini_model' => 'nullable|string|max:120',
@@ -457,7 +460,7 @@ new class extends Component {
             if (in_array($key, self::SCRAPER_TOGGLES, true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
-            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence'], true)) {
+            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence'], true)) {
                 $value = (string) (int) $value;
                 $old = (string) Settings::int($key);
             } else {
@@ -625,6 +628,17 @@ new class extends Component {
                     <input type="number" min="0" max="100" wire:model="scraper.scraper_auto_approve_min_confidence" class="{{ $input }}">
                     <span class="text-[11px] text-neutral-400">Yapay zeka doğrulaması zorunluyken: aday ancak yapay zeka bakıp "yük ilanı" deyip bu güvenin üstünde puan verdiyse kendiliğinden yayınlanır; altındakiler ve kural/yapay zeka çelişenler kuyrukta elle kontrol bekler.</span>
                     @error('scraper.scraper_auto_approve_min_confidence') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
+                </div>
+                <div>
+                    <label class="form-label">{{ $scraperKeys['scraper_local_enabled'] }}</label>
+                    <select wire:model="scraper.scraper_local_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select>
+                    <span class="text-[11px] text-neutral-400">Dış servise bağlı olmayan, sizin kararlarınızdan (yayınla / reddet / düzelt) öğrenen sınıflandırıcı ve jargon sözlüğü. Durumu ve sözlüğü Dış Kaynak İlanları → "Sözlük ve öğrenme" sekmesinde görürsünüz.</span>
+                </div>
+                <div>
+                    <label class="form-label">{{ $scraperKeys['scraper_local_min_confidence'] }}</label>
+                    <input type="number" min="50" max="100" wire:model="scraper.scraper_local_min_confidence" class="{{ $input }}">
+                    <span class="text-[11px] text-neutral-400">Dış yapay zeka kotası dolduğunda ya da ulaşılamadığında: yerel sınıflandırıcı yeterince örnek görmüşse ve adaya bu güvenin üstünde "ilan" diyorsa aday yine kendiliğinden yayınlanır.</span>
+                    @error('scraper.scraper_local_min_confidence') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="form-label">{{ $scraperKeys['scraper_free_delay_minutes'] }}</label>

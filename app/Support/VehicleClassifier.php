@@ -88,6 +88,11 @@ final class VehicleClassifier
                 $evidence[] = "ad: {$m[0]}";
             }
         }
+        // Jargon sözlüğü: yöneticinin öğrettiği araç sözcükleri kesin eşleşme sayılır.
+        if (($lex = Lexicon::matchVehicle($norm)) !== null) {
+            $scores[$lex['canonical']] = max($scores[$lex['canonical']] ?? 0, 10);
+            $evidence[] = "sözlük: {$lex['term']}";
+        }
         // "kamyon" tek başına: alt tipi teker/dingil ipucu ya da tonaj belirler.
         $genericTruck = (bool) preg_match('/\bkamyon(?:lar|la|u|a|un|um|dan|da|lari|larla)?\b/', $norm);
         if ($genericTruck) {

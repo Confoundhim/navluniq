@@ -27,6 +27,10 @@ final class Settings
         'scraper_auto_approve_require_vehicle' => 0, // 1: araç tipi çözülemeyen aday otomatik onaylanmaz
         'scraper_auto_approve_require_ai' => 1,      // 1: yapay zeka bakmadan / yeterli güven vermeden aday otomatik onaylanmaz
         'scraper_auto_approve_min_confidence' => 75, // yapay zeka güveni (yüzde) bu değerin altındaysa elle kontrol
+        'scraper_local_enabled' => 1,                // 1: yerel öğrenen sınıflandırıcı (dış servisten bağımsız) devrede
+        'scraper_local_min_confidence' => 90,        // dış yapay zeka ulaşılamazsa yerel güven (yüzde) bu değerin üstündeyse otomatik onay
+        'ai_local_docs_load' => 0,                   // yerel sınıflandırıcı: öğrenilen ilan örneği sayısı
+        'ai_local_docs_other' => 0,                  // yerel sınıflandırıcı: öğrenilen "ilan değil" örneği sayısı
 
         // Bildirim iletici (telefon) bağlantı anahtarı: boşsa .env SCRAPER_API_TOKEN; o da boşsa panel üretir
         'scraper_api_token' => '',

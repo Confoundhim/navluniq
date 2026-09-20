@@ -1,11 +1,15 @@
 <?php
 
 use App\Models\ActivityLog;
+use App\Models\AiLexicon;
 use App\Models\IntakeEvent;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\AiParserService;
+use App\Services\LocalClassifier;
 use App\Services\ScrapedLoadService;
+use App\Support\GoodsCatalog;
+use App\Support\Lexicon;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
@@ -56,7 +60,7 @@ new class extends Component {
     public function mount(): void
     {
         abort_unless(auth()->user()->can('manage scrapers'), 403);
-        if (! in_array($this->activeTab, ['queue', 'published', 'rejected', 'events', 'sources'], true)) {
+        if (! in_array($this->activeTab, ['queue', 'published', 'rejected', 'events', 'sources', 'lexicon'], true)) {
             $this->activeTab = 'queue';
         }
     }
@@ -307,6 +311,7 @@ new class extends Component {
         $pickup = $place((int) $this->edit['pickup_province_code'], (string) $this->edit['pickup_district']);
         $delivery = $place((int) $this->edit['delivery_province_code'], (string) $this->edit['delivery_district']);
 
+        $before = $load->only(['pickup_location', 'delivery_location', 'pickup_province_code', 'delivery_province_code', 'vehicle_type', 'goods_type']);
         $load->forceFill([
             'pickup_location' => $pickup['label'], 'pickup_province_code' => (int) $this->edit['pickup_province_code'], 'pickup_district' => $pickup['district'],
             'pickup_lat' => $pickup['lat'], 'pickup_lng' => $pickup['lng'],
@@ -321,8 +326,82 @@ new class extends Component {
             'parse_metadata' => array_merge((array) ($load->parse_metadata ?? []), ['admin_edited' => true, 'warnings' => []]),
         ])->save();
         ActivityLog::record('scraped_load.edited', "Dış kaynak ilanı #{$load->id} düzenlendi", auth()->id(), $load);
+        app(\App\Services\LearningService::class)->onEdited($load, $before, auth()->id()); // düzeltmeden öğren (konum sözlüğü, araç/yük önerisi)
         $this->cancelEdit();
         session()->flash('success_message', "#{$load->id} güncellendi.");
+    }
+
+    // ---- Sözlük ve öğrenme ----
+
+    /** @var array<string, string> Yeni sözlük girdisi formu */
+    public array $lex = ['kind' => 'location', 'term' => '', 'canonical' => ''];
+
+    /** @var array<int, string> Öneri kimliği → yöneticinin yazdığı sözcük */
+    public array $suggestTerm = [];
+
+    public function addLexicon(): void
+    {
+        abort_unless(auth()->user()?->can('manage scrapers'), 403);
+        $this->validate([
+            'lex.kind' => ['required', Rule::in(array_keys(AiLexicon::KINDS))],
+            'lex.term' => ['required', 'string', 'min:2', 'max:120'],
+            'lex.canonical' => ['nullable', 'string', 'max:160'],
+        ], [], ['lex.term' => 'sözcük', 'lex.canonical' => 'karşılık']);
+        $kind = $this->lex['kind'];
+        $canonical = trim((string) $this->lex['canonical']);
+        $error = match (true) {
+            $kind === 'location' && ($canonical === '' || TurkishLocations::resolve($canonical) === null) => 'Karşılık katalogda bulunan bir il ya da "İl İlçe" olmalı (ör. "Ankara" ya da "Kocaeli Gebze").',
+            $kind === 'vehicle' && ! VehicleTypes::isValid($canonical) => 'Araç tipi seçin.',
+            $kind === 'goods' && GoodsCatalog::label($canonical) === null => 'Yük kategorisi seçin.',
+            default => null,
+        };
+        if ($error !== null) {
+            $this->addError('lex.canonical', $error);
+
+            return;
+        }
+        if ($kind === 'location') {
+            $r = TurkishLocations::resolve($canonical);
+            $canonical = $r['province'].(($r['district'] ?? null) && $r['district'] !== 'Merkez' ? ' '.$r['district'] : '');
+        }
+        AiLexicon::updateOrCreate(
+            ['kind' => $kind, 'term' => Lexicon::normalize((string) $this->lex['term'])],
+            ['canonical' => in_array($kind, ['location', 'vehicle', 'goods'], true) ? $canonical : null, 'status' => 'active', 'source' => 'admin', 'created_by' => auth()->id()]
+        );
+        Lexicon::flush();
+        $this->lex = ['kind' => $kind, 'term' => '', 'canonical' => ''];
+        session()->flash('success_message', 'Sözlüğe eklendi; bundan sonraki mesajlarda kural doğrudan uygular.');
+    }
+
+    public function deleteLexicon(int $id): void
+    {
+        abort_unless(auth()->user()?->can('manage scrapers'), 403);
+        AiLexicon::whereKey($id)->delete();
+        Lexicon::flush();
+    }
+
+    /** Öneriyi yöneticinin yazdığı sözcükle etkinleştirir. */
+    public function acceptSuggestion(int $id): void
+    {
+        abort_unless(auth()->user()?->can('manage scrapers'), 403);
+        $row = AiLexicon::query()->where('status', 'suggested')->find($id);
+        $term = Lexicon::normalize((string) ($this->suggestTerm[$id] ?? ''));
+        if (! $row || mb_strlen($term) < 2) {
+            $this->addError('suggestTerm.'.$id, 'Öğretilecek sözcüğü yazın (mesajda geçtiği gibi).');
+
+            return;
+        }
+        AiLexicon::query()->where('kind', $row->kind)->where('term', $term)->where('id', '!=', $row->id)->delete();
+        $row->update(['term' => $term, 'status' => 'active', 'created_by' => auth()->id()]);
+        Lexicon::flush();
+        unset($this->suggestTerm[$id]);
+    }
+
+    public function rebuildClassifier(): void
+    {
+        abort_unless(auth()->user()?->can('manage scrapers'), 403);
+        $r = app(LocalClassifier::class)->rebuild();
+        session()->flash('success_message', "Yeniden öğrenildi: {$r['load']} ilan, {$r['other']} ilan-değil örneği.");
     }
 
     // ---- Kaynaklar ve telefon bağlantısı ----
@@ -435,7 +514,14 @@ new class extends Component {
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
             'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(),
+            'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
+
+        if ($this->activeTab === 'lexicon') {
+            $data['lexicon'] = AiLexicon::query()->where('status', 'active')->orderBy('kind')->orderByDesc('hits')->orderBy('term')->get();
+            $data['suggestions'] = AiLexicon::query()->where('status', 'suggested')->latest('id')->limit(50)->get();
+            $data['classifier'] = app(LocalClassifier::class)->stats();
+        }
 
         if ($this->activeTab === 'events') {
             $q = IntakeEvent::query()->with('scrapedLoad')->latest('id');
@@ -468,8 +554,8 @@ new class extends Component {
 <div @if(! $editingId && $selected === []) wire:poll.5s @endif class="max-w-7xl mx-auto space-y-5">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
-        $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon'];
-        $tabCount = ['queue' => $stats['pending'], 'published' => $stats['published'], 'rejected' => $stats['rejected'], 'events' => $stats['received'], 'sources' => null];
+        $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];
+        $tabCount = ['queue' => $stats['pending'], 'published' => $stats['published'], 'rejected' => $stats['rejected'], 'events' => $stats['received'], 'sources' => null, 'lexicon' => null];
         $blockerLabels = ['durum' => 'Durum uygun değil', 'kaynak pasif' => 'Kaynak pasif', 'rota eksik' => 'Rota eksik', 'il çözülemedi' => 'İl çözülemedi', 'araç tipi yok' => 'Araç tipi yok', 'telefon yok' => 'Telefon yok', 'fiyat yok' => 'Fiyat yok', 'tonaj yok' => 'Tonaj yok'];
     @endphp
 
@@ -586,6 +672,7 @@ new class extends Component {
                                         @if($load->parse_confidence !== null) · güven %{{ number_format((float) $load->parse_confidence * 100, 0) }}@endif
                                         @if(! empty($aiMeta['notes'])) · <span title="{{ $aiMeta['notes'] }}">{{ \Illuminate\Support\Str::limit($aiMeta['notes'], 60) }}</span>@endif
                                         @if($load->ai_status === 'pending') · <span class="text-amber-600">yapay zeka sırada</span>@endif
+                                        @if(is_numeric($load->meta('local_confidence'))) · <span title="Yerel öğrenen sınıflandırıcı (dış servisten bağımsız)">yerel %{{ number_format((float) $load->meta('local_confidence') * 100, 0) }}</span>@endif
                                     </div>
                                     @if(in_array('pickup_unresolved', $warnings, true) || in_array('delivery_unresolved', $warnings, true))
                                         <div class="mt-1 text-[11px] text-red-600 font-semibold">İl çözülemedi; yayın öncesi düzenleyin ya da yapay zeka ile çözümleyin.</div>
@@ -670,7 +757,7 @@ new class extends Component {
                             <tr class="align-top">
                                 <td class="p-3 whitespace-nowrap text-neutral-500">{{ $e->created_at->format('d.m H:i:s') }}</td>
                                 <td class="p-3">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
-                                <td class="p-3"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
+                                <td class="p-3"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
                                 <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300"><span title="{{ $e->excerpt }}">{{ \Illuminate\Support\Str::limit($e->excerpt, 160) }}</span></td>
                                 <td class="p-3 whitespace-nowrap">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
                             </tr>
@@ -802,5 +889,85 @@ new class extends Component {
                 </div>
             </div>
         @endif
+    @endif
+    @if($activeTab === 'lexicon')
+        @php $kinds = \App\Models\AiLexicon::KINDS; @endphp
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yerel sınıflandırıcı</h2>
+                <p class="text-[11px] text-neutral-400">Dış servise bağlı değildir. Siz "Yayınla" dedikçe ilan örneği, "Reddet" dedikçe ilan-değil örneği öğrenir; yapay zeka doğrulamalı otomatik onaylar da ilan örneğidir. Her sınıfta en az {{ \App\Services\LocalClassifier::MIN_DOCS }} örnek olunca karar vermeye başlar; dış yapay zeka kotası dolduğunda otomatik onayı bu karar sürdürür.</p>
+                @if($classifier)
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-emerald-600">{{ $classifier['docs_load'] }}</div><div class="text-[10px] text-neutral-400">ilan örneği</div></div>
+                        <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-rose-600">{{ $classifier['docs_other'] }}</div><div class="text-[10px] text-neutral-400">ilan-değil örneği</div></div>
+                        <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-neutral-900 dark:text-white">{{ $classifier['tokens'] }}</div><div class="text-[10px] text-neutral-400">öğrenilen sözcük</div></div>
+                    </div>
+                    <div class="badge {{ $classifier['ready'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $classifier['ready'] ? 'Karar veriyor' : 'Henüz yeterli örnek yok' }}</div>
+                @endif
+                <button type="button" wire:click="rebuildClassifier" wire:confirm="Sayaçlar sıfırlanıp yayınlanan / reddedilen tüm adaylardan yeniden öğrenilecek." class="btn-secondary py-1.5 px-3 text-xs">Geçmişten yeniden öğren</button>
+            </div>
+
+            <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs lg:col-span-2">
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Jargon sözlüğüne ekle</h2>
+                <p class="text-[11px] text-neutral-400">Tırcıların dilini siz öğretirsiniz: "ostim" → Ankara Ostim, "tenteli mega" → TIR, "salça" → Gıda, "satılık" → ilan değil. Girilen sözcük sonraki her mesajda kural tarafından anında uygulanır; yapay zekaya gerek kalmaz.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                    <div><label class="form-label">Tür</label>
+                        <select wire:model.live="lex.kind" class="{{ $input }}">@foreach($kinds as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
+                    <div><label class="form-label">Sözcük / ifade (mesajda geçtiği gibi)</label><input type="text" wire:model="lex.term" class="{{ $input }}" placeholder="ör. ostim, tenteli mega, satılık">@error('lex.term')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div><label class="form-label">Karşılığı</label>
+                        @if($lex['kind'] === 'vehicle')
+                            <select wire:model="lex.canonical" class="{{ $input }}"><option value="">Seçin</option>@foreach(\App\Support\VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+                        @elseif($lex['kind'] === 'goods')
+                            <select wire:model="lex.canonical" class="{{ $input }}"><option value="">Seçin</option>@foreach(\App\Support\GoodsCatalog::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+                        @elseif($lex['kind'] === 'location')
+                            <input type="text" wire:model="lex.canonical" class="{{ $input }}" placeholder="İl ya da İl İlçe (ör. Kocaeli Gebze)">
+                        @else
+                            <input type="text" class="{{ $input }}" value="—" disabled>
+                        @endif
+                        @error('lex.canonical')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
+                    <div><button type="button" wire:click="addLexicon" class="btn-primary py-2 px-4 text-xs w-full">Ekle</button></div>
+                </div>
+
+                @if($suggestions->isNotEmpty())
+                    <h3 class="text-xs font-bold text-neutral-900 dark:text-white pt-2">Düzeltmelerinizden öneriler ({{ $suggestions->count() }})</h3>
+                    <p class="text-[11px] text-neutral-400">Bir adayın araç tipini ya da yükünü düzelttiniz; mesajdaki hangi sözcüğün bu karşılığı taşıdığını yazarsanız sistem bir daha sormaz.</p>
+                    <div class="space-y-2">
+                        @foreach($suggestions as $sg)
+                            <div wire:key="sg-{{ $sg->id }}" class="p-3 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10 space-y-2">
+                                <div class="text-[11px]"><span class="badge bg-amber-500/10 text-amber-700">{{ $kinds[$sg->kind] ?? $sg->kind }}</span> → <strong>{{ $sg->kind === 'vehicle' ? \App\Support\VehicleTypes::label($sg->canonical) : ($sg->kind === 'goods' ? (\App\Support\GoodsCatalog::label($sg->canonical) ?? $sg->canonical) : $sg->canonical) }}</strong></div>
+                                <div class="text-[11px] text-neutral-500 dark:text-neutral-400">{{ \Illuminate\Support\Str::limit($sg->sample, 200) }}</div>
+                                <div class="flex flex-wrap gap-2 items-center">
+                                    <input type="text" wire:model="suggestTerm.{{ $sg->id }}" class="{{ $input }} sm:max-w-xs" placeholder="mesajdaki sözcük">
+                                    <button type="button" wire:click="acceptSuggestion({{ $sg->id }})" class="btn-primary py-1.5 px-3 text-xs">Öğret</button>
+                                    <button type="button" wire:click="deleteLexicon({{ $sg->id }})" class="text-neutral-500 text-[11px] hover:underline">Yok say</button>
+                                </div>
+                                @error('suggestTerm.'.$sg->id)<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+
+                <h3 class="text-xs font-bold text-neutral-900 dark:text-white pt-2">Sözlük ({{ $lexicon->count() }})</h3>
+                @if($lexicon->isEmpty())
+                    <p class="text-[11px] text-neutral-400">Henüz girdi yok. Kuyrukta bir adayın ilini düzelttiğinizde konum kısaltmaları kendiliğinden buraya düşer.</p>
+                @else
+                    <div class="responsive-scroll"><table class="w-full text-left text-xs">
+                        <thead><tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/50"><th class="p-2">Tür</th><th class="p-2">Sözcük</th><th class="p-2">Karşılığı</th><th class="p-2">Kaynak</th><th class="p-2">Kullanım</th><th class="p-2"></th></tr></thead>
+                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                        @foreach($lexicon as $row)
+                            <tr wire:key="lex-{{ $row->id }}">
+                                <td class="p-2 text-neutral-500">{{ $kinds[$row->kind] ?? $row->kind }}</td>
+                                <td class="p-2 font-semibold text-neutral-900 dark:text-white">{{ $row->term }}</td>
+                                <td class="p-2">{{ $row->kind === 'vehicle' ? \App\Support\VehicleTypes::label($row->canonical) : ($row->kind === 'goods' ? (\App\Support\GoodsCatalog::label($row->canonical) ?? $row->canonical) : ($row->canonical ?: '—')) }}</td>
+                                <td class="p-2 text-neutral-500">{{ $row->source === 'learned' ? 'öğrenildi' : 'yönetici' }}</td>
+                                <td class="p-2 text-neutral-500">{{ $row->hits }}</td>
+                                <td class="p-2 text-right"><button type="button" wire:click="deleteLexicon({{ $row->id }})" wire:confirm="Sözlükten silinsin mi?" class="text-red-600 text-[11px] font-semibold hover:underline">Sil</button></td>
+                            </tr>
+                        @endforeach
+                        </tbody></table></div>
+                @endif
+            </div>
+        </div>
     @endif
 </div>
