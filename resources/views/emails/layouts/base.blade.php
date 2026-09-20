@@ -19,7 +19,7 @@
     $siteUrl = rtrim((string) config('app.url'), '/');
     $social = array_filter([
         'Instagram' => \App\Models\CmsContent::getVal('social_instagram'),
-        'Mesaj gönder' => \App\Models\CmsContent::getVal('social_whatsapp'),
+        'WhatsApp' => \App\Models\CmsContent::getVal('social_whatsapp'),
         'Telegram' => \App\Models\CmsContent::getVal('social_telegram'),
     ]);
     $etbis = trim((string) \App\Models\CmsContent::getVal('etbis_code'));

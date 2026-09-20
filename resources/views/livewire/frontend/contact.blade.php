@@ -69,7 +69,7 @@ new class extends Component {
         ]);
 
         $notifications = app(\App\Services\NotificationService::class);
-        $confirmLines = ['Talebiniz alındı ve destek ekibimize iletildi. Konu: '.$ticket->subject.' (talep no #'.$ticket->id.').', 'Genellikle 1 iş günü içinde e-posta ile yanıt veriyoruz. Acil durumlar için mesaj hattımızı kullanabilirsiniz.'];
+        $confirmLines = ['Talebiniz alındı ve destek ekibimize iletildi. Konu: '.$ticket->subject.' (talep no #'.$ticket->id.').', 'Genellikle 1 iş günü içinde e-posta ile yanıt veriyoruz. Acil durumlar için WhatsApp destek hattımızı kullanabilirsiniz.'];
         if (Auth::user()) {
             $notifications->notify(Auth::user(), 'Destek talebiniz alındı', $confirmLines, null, null, 'support');
         } else {

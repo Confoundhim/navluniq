@@ -200,7 +200,7 @@
     <div class="fixed bottom-6 right-6 z-50 flex items-center group" style="bottom: calc(1.5rem + env(safe-area-inset-bottom));">
         <span
             class="hidden sm:inline-block mr-3 px-3 py-1.5 bg-neutral-900 text-white text-xs font-bold rounded-xl shadow-apple-lg opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
-            Mesaj gönder
+            WhatsApp Destek Hattı
         </span>
         <a href="https://wa.me/{{ $whatsappNumber }}?text={{ urlencode('Merhaba, NavlunIQ hakkında bilgi almak istiyorum.') }}"
             target="_blank"
@@ -287,7 +287,7 @@
                 <ul class="space-y-2 text-neutral-500 dark:text-neutral-400 font-medium">
                     <li><a href="/#sss" class="hover:text-brand-500 transition-colors">Sıkça Sorulan Sorular</a></li>
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">Müşteri Hizmetleri</a></li>
-                    @if($whatsappNumber)<li><a href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">Mesaj gönder</a></li>@endif
+                    @if($whatsappNumber)<li><a href="https://wa.me/{{ $whatsappNumber }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">WhatsApp Destek Hattı</a></li>@endif
                     @if(\App\Support\Company::get('email'))<li><a href="mailto:{{ \App\Support\Company::get('email') }}" class="hover:text-brand-500 transition-colors">{{ \App\Support\Company::get('email') }}</a></li>@endif
                     <li><a href="{{ route('contact') }}" class="hover:text-brand-500 transition-colors">İletişim Formu</a></li>
                 </ul>
@@ -325,7 +325,7 @@
             <div class="flex items-center space-x-4">
                 @if($ig = \App\Models\CmsContent::getVal('social_instagram'))<a href="{{ $ig }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">Instagram</a>@endif
                 <span>•</span>
-                @if($w = \App\Models\CmsContent::getVal('social_whatsapp'))<a href="{{ $w }}" target="_blank" rel="noopener" class="hover:text-emerald-500 transition-colors">Mesaj gönder</a>@endif
+                @if($w = \App\Models\CmsContent::getVal('social_whatsapp'))<a href="{{ $w }}" target="_blank" rel="noopener" class="hover:text-emerald-500 transition-colors">WhatsApp</a>@endif
                 <span>•</span>
                 @if($tg = \App\Models\CmsContent::getVal('social_telegram'))<a href="{{ $tg }}" target="_blank" rel="noopener" class="hover:text-blue-500 transition-colors">Telegram</a>@endif
             </div>

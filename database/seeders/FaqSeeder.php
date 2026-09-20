@@ -99,7 +99,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 15,
                 'question' => 'Destek ekibine nasıl ulaşabilirim?',
-                'answer' => 'Panelinizdeki "Uyuşmazlık ve Destek" bölümünden destek talebi açabilirsiniz; talepler kayıt altına alınır ve yanıtlar aynı ekranda görünür. Üye olmadan iletişim sayfasındaki formu kullanabilir, sitede yayınlanan e-posta adresine yazabilir veya tanımlıysa mesaj hattından yazabilirsiniz. Çalışma saatleri ve güncel iletişim bilgileri iletişim sayfasında yer alır.',
+                'answer' => 'Panelinizdeki "Uyuşmazlık ve Destek" bölümünden destek talebi açabilirsiniz; talepler kayıt altına alınır ve yanıtlar aynı ekranda görünür. Üye olmadan iletişim sayfasındaki formu kullanabilir, sitede yayınlanan e-posta adresine yazabilir veya tanımlıysa WhatsApp destek hattından mesaj gönderebilirsiniz. Çalışma saatleri ve güncel iletişim bilgileri iletişim sayfasında yer alır.',
             ],
         ];
 
