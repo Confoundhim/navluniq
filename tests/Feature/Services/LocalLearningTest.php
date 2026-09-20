@@ -157,4 +157,30 @@ class LocalLearningTest extends TestCase
         ScrapedLoad::whereKey($pending->id)->update(['created_at' => now()->subHours(5)]);
         $this->assertSame('yapay zeka ulaşılamadı; elle kontrol', $service->autoApprovalBlocker($pending->fresh()));
     }
+
+    public function test_local_ollama_model_is_first_in_chain_when_enabled(): void
+    {
+        $parser = app(AiParserService::class);
+        $this->assertNotContains('ollama', $parser->chain());
+
+        Settings::set('ai_ollama_enabled', '1');
+        Settings::set('ai_ollama_model', 'qwen3:4b');
+        Settings::set('ai_parse_mode', 'always');
+        Settings::set('ai_gemini_key', 'AIza-test'); // dış sağlayıcı da var; yerel önce
+        $this->assertSame('ollama', $parser->chain()[0]);
+        $this->assertSame('http://127.0.0.1:11434/v1', $parser->baseUrl('ollama'));
+
+        $ad = ['post_type' => 'load', 'confidence' => 0.9, 'phones' => ['5321234567'], 'excerpt' => null, 'pickup' => ['province' => 'Ankara', 'district' => 'Ostim'], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => 'palet', 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => 24000, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null];
+        Http::fake(['127.0.0.1:11434/*' => Http::response(['choices' => [['message' => ['content' => "<think>kısa düşünce</think>\n".json_encode(['post_type' => 'load', 'confidence' => 0.9, 'notes' => null, 'ads' => [$ad]])]]], 'usage' => ['prompt_tokens' => 900, 'completion_tokens' => 120]])]);
+
+        $this->source();
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var tır lazım 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
+
+        $this->assertSame('created', $r['status']);
+        Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b');
+        Http::assertSentCount(1);
+        $load = ScrapedLoad::first();
+        $this->assertSame(['ollama', 'done', 'Ankara'], [$load->parse_metadata['ai']['provider'], $load->ai_status, $load->pickup_location]);
+        $this->assertSame('qwen3:4b', AiParserService::pickModel('ollama', ['llama3.2:3b', 'qwen3:4b', 'nomic-embed-text']));
+    }
 }

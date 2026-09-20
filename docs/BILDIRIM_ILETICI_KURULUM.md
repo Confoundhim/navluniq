@@ -170,6 +170,31 @@ Her sınıfta 15 örnek olunca karar vermeye başlar:
 
 Ayarlar: Sistem Ayarları → Dış kaynak → "Yerel öğrenen sınıflandırıcı" (açık/kapalı) ve "en düşük yerel güven (%)".
 
+## Yerel model (Ollama): dış servise hiç bağlı olmayan yapay zeka
+
+Sözlük ve sınıflandırıcı "ilan mı / hangi il" sorularını çözer; alanları (araç, tonaj, fiyat, yük, aciliyet) serbest
+metinden anlamak için yine bir dil modeli gerekir. Bunu da sunucuda çalıştırabilirsiniz: kota yok, anahtar yok,
+veri dışarı çıkmaz. Açıkken zincirin başındadır; yanıt veremezse dış sağlayıcılara düşülür.
+
+**Gereksinim.** Boş RAM: 4B model için ~4 GB, 7B için ~7 GB. İşlemcide bir ilan 10-40 sn sürer (günde birkaç yüz ilan
+için yeterli). Sunucuda `free -h` ile boş belleğe bakın; 4 GB'tan azsa RAM artırmadan açmayın.
+
+**Kurulum (Ubuntu, root):**
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+systemctl enable --now ollama
+ollama pull qwen3:4b
+curl -s http://127.0.0.1:11434/v1/models
+```
+
+Son komut `qwen3:4b` içeren bir JSON dönerse hazırdır. Ollama yalnız 127.0.0.1'i dinler; dışarıdan erişilemez.
+
+**Panel.** Sistem Ayarları → Dış kaynak → Yapay zeka → "Yerel model (Ollama)": **Açık**, adres `http://127.0.0.1:11434/v1`,
+model **Otomatik** (qwen3 önce seçilir). "Bağlantıyı sına" ile örnek ilanı çözdürün. Zincir sırası: Yerel model → Gemini → Groq → …
+
+Belleği az sunucularda `llama3.2:3b` (~2,5 GB) çalışır ama Türkçe isabeti düşer; `qwen3:4b` önerilir.
+
 ## Sorun giderme
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?

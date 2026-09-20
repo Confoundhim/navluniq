@@ -56,6 +56,9 @@ final class Settings
         'ai_xai_key' => '',
         'ai_kimi_model' => '',
         'ai_kimi_key' => '',
+        'ai_ollama_enabled' => 0,                    // 1: sunucudaki yerel model (Ollama) zincirin başında kullanılır
+        'ai_ollama_base' => 'http://127.0.0.1:11434/v1', // Ollama OpenAI uyumlu adres
+        'ai_ollama_model' => '',                     // boş: otomatik (qwen3 > qwen2.5 > gemma3 > llama3)
         'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
         'scraper_setup_code' => '',             // herkese açık telefon kurulum sayfasının gizli kodu
 

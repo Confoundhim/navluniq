@@ -28,6 +28,8 @@ class AiParserService
      * kota dolunca (429) sıradakine geçilir. Claude ücretli olduğundan en sondadır.
      */
     public const PROVIDERS = [
+        'ollama' => ['label' => 'Yerel model (Ollama, sunucuda)', 'kind' => 'openai', 'local' => true, 'free' => 'Tamamen ücretsiz ve dışa bağımsız: model sunucunuzda çalışır, kota yoktur. Kurulum: docs/BILDIRIM_ILETICI_KURULUM.md → "Yerel model". Açıkken zincirin başındadır; yanıt vermezse diğer sağlayıcılara geçilir.',
+            'models' => ['qwen3:4b' => 'Qwen3 4B (önerilen, ~4 GB RAM)', 'qwen2.5:7b-instruct' => 'Qwen2.5 7B (~6 GB RAM)', 'gemma3:4b' => 'Gemma 3 4B', 'llama3.2:3b' => 'Llama 3.2 3B (hafif)'], 'key_hint' => '', 'site' => 'https://ollama.com/download'],
         'gemini' => ['label' => 'Google Gemini', 'kind' => 'gemini', 'free' => 'Ücretsiz katman: kart istemez (aistudio.google.com → Get API key). Günlük istek sınırı modele göre değişir; Flash-Lite daha yüksek kota verir.',
             'models' => self::GEMINI_MODELS, 'key_hint' => 'AIza…', 'site' => 'https://aistudio.google.com/apikey'],
         'groq' => ['label' => 'Groq', 'kind' => 'openai', 'base' => 'https://api.groq.com/openai/v1', 'free' => 'Ücretsiz katman: kart istemez (console.groq.com). Llama 3.3 70B çok hızlı; günlük ~1.000 istek.',
@@ -48,7 +50,7 @@ class AiParserService
             'models' => ['kimi-k2-turbo-preview' => 'Kimi K2 Turbo', 'kimi-k2-0905-preview' => 'Kimi K2', 'moonshot-v1-8k' => 'Moonshot v1 8k'], 'key_hint' => 'sk-…', 'site' => 'https://platform.moonshot.ai'],
     ];
 
-    public const DEFAULT_ORDER = ['gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
+    public const DEFAULT_ORDER = ['ollama', 'gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
 
     /** Panelde gösterilen sağlayıcılar (ücretli olanlar gizli; anahtarı elle girilmişse zincirde yine çalışır). */
     public static function visibleProviders(): array
@@ -145,6 +147,9 @@ class AiParserService
         if (($pref = $this->preferredProvider()) !== '') {
             $order = array_values(array_unique(array_merge([$pref], $order)));
         }
+        // Sunucudaki yerel model açıksa her zaman en başta: kota yok, dışa bağımlılık yok.
+        $local = array_keys(array_filter(self::PROVIDERS, fn (array $p) => ! empty($p['local'])));
+        $order = array_values(array_unique(array_merge($local, $order)));
 
         return array_values(array_filter($order, fn (string $p) => $this->apiKey($p) !== ''));
     }
@@ -247,7 +252,7 @@ class AiParserService
 
     private function fetchOpenAiModels(string $provider): array
     {
-        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $base = $this->baseUrl($provider);
         $response = Http::timeout(20)->acceptJson()->withHeaders(['Authorization' => 'Bearer '.$this->apiKey($provider)])->get($base.'/models');
         if (! $response->successful()) {
             throw new RuntimeException('provider_http_'.$response->status().': '.mb_substr((string) data_get($response->json(), 'error.message', ''), 0, 200));
@@ -285,6 +290,7 @@ class AiParserService
             'openai' => ['/^gpt-5(\.\d+)?-mini$/', '/^gpt-4\.1-mini$/', '/^gpt-4o-mini$/', '/^gpt-5-nano$/', '/^gpt-5(\.\d+)?$/', '/^gpt-4\.1$/', '/^gpt-4o$/', '/^gpt-/'],
             'xai' => ['/grok-\d+-fast/', '/grok-\d+-mini/', '/grok-4/', '/grok-3/', '/grok/'],
             'kimi' => ['/kimi-k2.*turbo/', '/kimi-k2/', '/moonshot-v1-8k/', '/moonshot-v1/', '/kimi/'],
+            'ollama' => ['/^qwen3(?::|$)/', '/^qwen3:/', '/^qwen2\.5.*instruct/', '/^qwen2\.5/', '/^gemma3/', '/^llama3\.[23]/', '/qwen/', '/gemma/', '/llama/', '/mistral/', '/./'],
             default => ['/llama-3\.3-70b/', '/llama-4.*(scout|maverick)/', '/llama.*70b/', '/gpt-oss-120b/', '/gpt-oss/', '/qwen.*(235b|32b)/', '/qwen/', '/llama-3\.1-8b/', '/llama/', '/mixtral/', '/gemma/'],
         };
         $version = fn (string $m) => preg_match('/(\d+(?:\.\d+)?)/', preg_replace('/^[a-z]+\/?/', '', $m) ?? $m, $v) ? (float) $v[1] : 0.0;
@@ -328,8 +334,27 @@ class AiParserService
     public function apiKey(?string $provider = null): string
     {
         $provider ??= $this->provider();
+        if (! empty(self::PROVIDERS[$provider]['local'])) {
+            return Settings::bool('ai_'.$provider.'_enabled') ? 'local' : ''; // yerel model: anahtar yerine açık/kapalı
+        }
 
         return Settings::string('ai_'.$provider.'_key') ?: trim((string) config('services.ai.'.$provider.'_key', ''));
+    }
+
+    /** OpenAI uyumlu sağlayıcının adresi; yerel model için panelden ayarlanan adres. */
+    public function baseUrl(string $provider): string
+    {
+        if (! empty(self::PROVIDERS[$provider]['local'])) {
+            return rtrim(Settings::string('ai_'.$provider.'_base') ?: 'http://127.0.0.1:11434/v1', '/');
+        }
+
+        return rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+    }
+
+    /** Yerel model işlemcide yavaş çalışır; ona daha uzun süre tanınır. */
+    private function timeout(string $provider): int
+    {
+        return ! empty(self::PROVIDERS[$provider]['local']) ? 180 : 45;
     }
 
     public function isEnabled(): bool
@@ -933,7 +958,7 @@ TXT;
     private function callOpenAiCompatible(string $message, string $provider, ?string $model = null): array
     {
         $model ??= $this->model($provider);
-        $base = rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
+        $base = $this->baseUrl($provider);
         $headers = ['Authorization' => 'Bearer '.$this->apiKey($provider)];
         if ($provider === 'openrouter') {
             $headers['HTTP-Referer'] = (string) config('app.url');
@@ -950,7 +975,7 @@ TXT;
             ],
         ];
         $this->paceRequests($provider);
-        $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+        $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
         if ($response->status() === 429 || $response->status() === 402) {
             throw new RuntimeException(($response->status() === 402 ? 'provider_http_402: ' : 'quota_429: ').mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
@@ -961,7 +986,7 @@ TXT;
             $decoded = self::decodeLenient($failed);
             if ($decoded === null) {
                 unset($body['response_format']);
-                $response = Http::timeout(45)->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+                $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
             }
         }
         if ($decoded === null) {
