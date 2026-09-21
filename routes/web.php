@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\BackupDownloadController;
 use App\Http\Controllers\Admin\PanelSwitchController;
+use App\Http\Controllers\Admin\UpdateStatusController;
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
@@ -167,6 +168,7 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/health', function () {
             return view('admin.health-page');
         })->name('admin.health');
+        Route::get('/health/update-status', UpdateStatusController::class)->name('admin.health.update-status');
         Route::get('/firewall', function () {
             return view('admin.firewall-page');
         })->name('admin.firewall');

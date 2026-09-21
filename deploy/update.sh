@@ -38,6 +38,12 @@ git reset --quiet --hard "origin/$APP_BRANCH"
 AFTER="$(git rev-parse --short HEAD)"
 ok "${BEFORE} → ${AFTER}"
 
+# Panel "Siteyi güncelle" düğmesi kuruluysa sarmalayıcısı hemen depodaki güncel sürümle yenilenir
+# (betiğin ilerisi hata verse bile bir sonraki panel denemesi yeni sarmalayıcıyla çalışır).
+if [[ -f /etc/sudoers.d/navluniq-update ]]; then
+    bash "$APP_DIR/deploy/install-update-button.sh" >/dev/null 2>&1 && ok "Panel güncelleme düğmesi yenilendi" || echo "  ! Panel düğmesi yenilenemedi (bash deploy/install-update-button.sh)"
+fi
+
 log "Bağımlılıklar ve derleme"
 composer install --no-dev --optimize-autoloader --no-interaction --quiet
 npm ci --silent --no-audit --no-fund
@@ -62,9 +68,10 @@ php artisan faq:refresh --if-stale --no-interaction || true
 
 log "PHP sınırları"
 PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
+PHP_INI_OK=1
 for sapi in fpm cli; do
     [[ -d "/etc/php/${PHP_VER}/${sapi}/conf.d" ]] || continue
-    cat > "/etc/php/${PHP_VER}/${sapi}/conf.d/99-navluniq.ini" <<'INI'
+    if ! cat > "/etc/php/${PHP_VER}/${sapi}/conf.d/99-navluniq.ini" 2>/dev/null <<'INI'
 ; NavlunIQ (deploy/update.sh tarafından yazılır)
 upload_max_filesize = 12M
 post_max_size = 32M
@@ -72,18 +79,22 @@ memory_limit = 256M
 max_execution_time = 120
 max_input_time = 120
 INI
+    then
+        PHP_INI_OK=0
+    fi
 done
-ok "upload_max_filesize 12M, post_max_size 32M"
+if [[ "$PHP_INI_OK" = 1 ]]; then
+    ok "upload_max_filesize 12M, post_max_size 32M"
+else
+    # PHP-FPM'in çocuğu olarak çalışan süreç /etc'yi salt okunur görür (systemd ProtectSystem); ayar zaten
+    # önceki çalışmalarda yazılmıştır. Güncellemeyi bunun için durdurmaya gerek yok.
+    echo "  ! PHP ayar dosyası yazılamadı (salt okunur /etc); mevcut ayarlarla devam ediliyor"
+fi
 
 # /root/update.sh kopyasını depodaki güncel sürümle eşitle (bir sonraki çalıştırma yeni betiği kullanır)
 if [[ -f /root/update.sh ]] && ! cmp -s "$APP_DIR/deploy/update.sh" /root/update.sh; then
     cp "$APP_DIR/deploy/update.sh" /root/update.sh
     ok "/root/update.sh güncellendi (bir sonraki çalıştırmada geçerli)"
-fi
-
-# Panel "Siteyi güncelle" düğmesi kuruluysa sarmalayıcısı da depodaki güncel sürümle yenilenir.
-if [[ -f /etc/sudoers.d/navluniq-update ]]; then
-    bash "$APP_DIR/deploy/install-update-button.sh" >/dev/null 2>&1 && ok "Panel güncelleme düğmesi yenilendi" || echo "  ! Panel düğmesi yenilenemedi (bash deploy/install-update-button.sh)"
 fi
 
 # Crontab satırını ekler/yeniler. Boru yerine geçici dosya kullanılır: "crontab -" bazı

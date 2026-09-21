@@ -99,7 +99,8 @@ class DeployService
         $lock = escapeshellarg(self::lockPath());
         $log = escapeshellarg(self::logPath());
         // Komut bitince kilit kaldırılır; çıkış kodu günlüğe yazılır. nohup + & ile istek bitse de sürer.
-        $shell = '('.self::command().'; code=$?; if [ "$code" = "0" ]; then echo "[navluniq-update] TAMAM"; else echo "[navluniq-update] HATA (kod $code)"; fi; rm -f '.$lock.') >> '.$log.' 2>&1 &';
+        // Sunucudaki sarmalayıcı sonucu kendisi de yazar (süreç kesilse bile); burada yalnız yazılmamışsa eklenir.
+        $shell = '('.self::command().'; code=$?; if ! grep -q "\\[navluniq-update\\] \\(TAMAM\\|HATA\\)" '.$log.'; then if [ "$code" = "0" ]; then echo "[navluniq-update] TAMAM"; else echo "[navluniq-update] HATA (kod $code)"; fi; fi; rm -f '.$lock.') >> '.$log.' 2>&1 &';
         $process = Process::fromShellCommandline('setsid nohup bash -c '.escapeshellarg($shell).' > /dev/null 2>&1 < /dev/null &', base_path());
         $process->setTimeout(10);
         $process->run();
