@@ -250,11 +250,11 @@ class ExternalLoadsModuleTest extends TestCase
         $a = $this->candidate($source);
         $b = $this->candidate($source);
 
-        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->call('deleteSource', $source->id)->assertSee('Silinen kaynaklar')->assertSee('Grup A');
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->call('deleteSource', $source->id)->assertDontSee('Grup A')->set('sourceState', 'deleted')->assertSee('Silinen kaynaklar')->assertSee('Grup A');
         $this->assertNotNull(Scraper::onlyTrashed()->find($source->id));
         $this->assertSame(2, ScrapedLoad::count(), 'Silme adayları korur');
 
-        $c->call('restoreSource', $source->id)->assertDontSee('Silinen kaynaklar');
+        $c->call('restoreSource', $source->id)->set('sourceState', 'pending')->assertSee('Grup A')->assertSee('Onay bekliyor');
         $this->assertFalse(Scraper::find($source->id)->is_active, 'Geri alınan kaynak onay bekler');
 
         $c->call('deleteSource', $source->id)->call('purgeSource', $source->id);
@@ -348,6 +348,23 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertNull($service->autoApprovalBlocker($weak->fresh()));
         Settings::set('scraper_auto_approve_require_ai', '0');
         $this->assertNull($service->autoApprovalBlocker($waiting->fresh()), 'Zorunluluk kapalıysa beklemez');
+    }
+
+    public function test_sources_tab_splits_active_pending_and_deleted_lists(): void
+    {
+        $this->actingAs($this->admin());
+        $active = $this->source();
+        $pending = Scraper::create(['name' => 'Grup Bekleyen', 'type' => 'notification', 'source_identifier' => 'notif:bekleyen', 'is_active' => false]);
+        $gone = Scraper::create(['name' => 'Grup Silinen', 'type' => 'notification', 'source_identifier' => 'notif:silinen', 'is_active' => true]);
+        $gone->delete();
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources');
+        $c->assertSee('Grup A')->assertDontSee('Grup Bekleyen')->assertDontSee('Grup Silinen');
+        $c->set('sourceState', 'pending')->assertSee('Grup Bekleyen')->assertDontSee('Grup Silinen');
+        $c->set('sourceState', 'deleted')->assertSee('Grup Silinen')->assertDontSee('Grup Bekleyen');
+        $c->set('sourceState', 'active')->set('sourceSearch', 'yok-boyle')->assertDontSee('Grup A')->assertSee('Aktif kaynak yok');
+        $c->set('sourceSearch', '')->call('toggleSource', $active->id)->assertDontSee('Grup A');
+        $this->assertFalse($active->fresh()->is_active);
     }
 
     public function test_public_phone_setup_page_is_gone(): void

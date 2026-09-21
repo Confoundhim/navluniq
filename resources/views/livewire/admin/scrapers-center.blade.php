@@ -28,6 +28,12 @@ new class extends Component {
     #[Url(as: 'sekme')]
     public string $activeTab = 'queue';
 
+    /** Kaynaklar sekmesi alt listesi: active | pending | deleted */
+    #[Url(as: 'kaynak')]
+    public string $sourceState = 'active';
+
+    public string $sourceSearch = '';
+
     #[Url(as: 'ara')]
     public string $search = '';
 
@@ -67,7 +73,7 @@ new class extends Component {
 
     public function updated(string $name): void
     {
-        if (in_array($name, ['activeTab', 'search', 'sourceId', 'vehicle', 'period', 'flag', 'sort'], true)) {
+        if (in_array($name, ['activeTab', 'search', 'sourceId', 'vehicle', 'period', 'flag', 'sort', 'sourceState', 'sourceSearch'], true)) {
             $this->resetPage();
             $this->selected = [];
             $this->selectPage = false;
@@ -547,7 +553,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(),
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0],
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
 
@@ -565,8 +571,21 @@ new class extends Component {
             }
             $data['events'] = $q->paginate(30);
         } elseif ($this->activeTab === 'sources') {
-            $data['sources'] = Scraper::query()->withCount('scrapedLoads')->latest('id')->paginate(15);
-            $data['deletedSources'] = Scraper::onlyTrashed()->withCount('scrapedLoads')->latest('deleted_at')->limit(50)->get();
+            if (! in_array($this->sourceState, ['active', 'pending', 'deleted'], true)) {
+                $this->sourceState = 'active';
+            }
+            $data['sourceCounts'] = [
+                'active' => Scraper::query()->where('is_active', true)->count(),
+                'pending' => Scraper::query()->where('is_active', false)->count(),
+                'deleted' => Scraper::onlyTrashed()->count(),
+            ];
+            $term = trim($this->sourceSearch);
+            $q = $this->sourceState === 'deleted'
+                ? Scraper::onlyTrashed()->latest('deleted_at')
+                : Scraper::query()->where('is_active', $this->sourceState === 'active')->orderByDesc('last_message_at')->latest('id');
+            $data['sources'] = $q->withCount('scrapedLoads')
+                ->when($term !== '', fn ($w) => $w->where(fn ($x) => $x->where('name', 'like', "%{$term}%")->orWhere('source_identifier', 'like', "%{$term}%")))
+                ->paginate(20);
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
             $data['pingUrl'] = ScrapedLoadService::pingUrl();
             $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
@@ -850,65 +869,71 @@ new class extends Component {
             </form>
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
-                <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
-                        <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Aday</th><th class="p-4">Son mesaj</th><th class="p-4">Durum</th><th class="p-4"></th></tr></thead>
-                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
-                            @forelse($sources as $source)
-                                <tr class="align-top {{ ! $source->is_active ? 'bg-amber-500/5' : '' }}">
-                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
-                                    <td class="p-4">{{ $source->scraped_loads_count }}</td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->diffForHumans() : 'Henüz yok' }}</td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>
-                                    <td class="p-4 whitespace-nowrap space-x-2">
-                                        <button type="button" wire:click="toggleSource({{ $source->id }})" class="{{ $source->is_active ? 'text-neutral-500' : 'text-emerald-600' }} font-semibold">{{ $source->is_active ? 'Pasife al' : 'Aktif et' }}</button>
-                                        <button type="button" wire:click="deleteSource({{ $source->id }})" wire:confirm="Kaynak silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5" class="p-10 text-center text-neutral-500">Henüz kaynak yok. Telefondan ilk mesaj gelince grup burada belirir.</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50 flex flex-wrap items-center gap-2">
+                    @foreach(['active' => 'Aktif', 'pending' => 'Onay bekleyen', 'deleted' => 'Silinen'] as $stateKey => $stateLabel)
+                        <button type="button" wire:click="$set('sourceState', '{{ $stateKey }}')" class="tab-pill {{ $sourceState === $stateKey ? 'tab-pill-active' : '' }}">{{ $stateLabel }} <span class="ml-1 inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full text-[10px] {{ $sourceState === $stateKey ? 'bg-white/20' : ($stateKey === 'pending' && $sourceCounts['pending'] > 0 ? 'bg-amber-500 text-white' : 'bg-neutral-200/70 dark:bg-neutral-700') }}">{{ $sourceCounts[$stateKey] }}</span></button>
+                    @endforeach
+                    <input type="text" wire:model.live.debounce.400ms="sourceSearch" placeholder="Kaynak adı ara" class="{{ $input }} ml-auto w-full sm:w-56">
                 </div>
+                @if($sourceState === 'deleted')
+                    <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50">
+                        <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Silinen kaynaklar</h2>
+                        <p class="text-[11px] text-neutral-400">Bu gruplardan gelen mesajlar yok sayılır ama sayılır. Mesaj atmaya devam eden grubu <strong>Geri al</strong> ile onaya alabilir; <strong>Kalıcı sil</strong> ile grubu ve ondan gelen tüm adayları hiç okunmamış gibi silebilirsiniz.</p>
+                    </div>
+                    <div class="responsive-scroll">
+                        <table class="w-full text-left text-xs">
+                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
+                            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                                @forelse($sources as $source)
+                                    <tr class="align-top">
+                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
+                                        <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->deleted_at?->diffForHumans() }}</td>
+                                        <td class="p-4">
+                                            @if($source->messages_since_deleted > 0)
+                                                <span class="badge bg-amber-500/10 text-amber-600">{{ $source->messages_since_deleted }} mesaj</span>
+                                                <span class="text-[11px] text-neutral-400">son: {{ $source->last_message_at?->diffForHumans() }}</span>
+                                            @else
+                                                <span class="text-neutral-400">yok</span>
+                                            @endif
+                                        </td>
+                                        <td class="p-4">{{ $source->scraped_loads_count }}</td>
+                                        <td class="p-4 whitespace-nowrap space-x-2">
+                                            <button type="button" wire:click="restoreSource({{ $source->id }})" class="text-emerald-600 font-semibold">Geri al</button>
+                                            <button type="button" wire:click="purgeSource({{ $source->id }})" wire:confirm="Kaynak ve ondan gelen {{ $source->scraped_loads_count }} aday kalıcı silinecek; geri alınamaz. Devam edilsin mi?" class="text-red-600 font-semibold">Kalıcı sil</button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="5" class="p-10 text-center text-neutral-500">Silinmiş kaynak yok.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="responsive-scroll">
+                        <table class="w-full text-left text-xs">
+                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Aday</th><th class="p-4">Son mesaj</th><th class="p-4">Durum</th><th class="p-4"></th></tr></thead>
+                            <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
+                                @forelse($sources as $source)
+                                    <tr class="align-top {{ ! $source->is_active ? 'bg-amber-500/5' : '' }}">
+                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
+                                        <td class="p-4">{{ $source->scraped_loads_count }}</td>
+                                        <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_message_at ? $source->last_message_at->diffForHumans() : ($source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->diffForHumans() : 'Henüz yok') }}</td>
+                                        <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>
+                                        <td class="p-4 whitespace-nowrap space-x-2">
+                                            <button type="button" wire:click="toggleSource({{ $source->id }})" class="{{ $source->is_active ? 'text-neutral-500' : 'text-emerald-600' }} font-semibold">{{ $source->is_active ? 'Pasife al' : 'Aktif et' }}</button>
+                                            <button type="button" wire:click="deleteSource({{ $source->id }})" wire:confirm="Kaynak silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="5" class="p-10 text-center text-neutral-500">{{ $sourceState === 'active' ? 'Aktif kaynak yok. Onay bekleyenlerden "Aktif et" ile açın.' : 'Onay bekleyen kaynak yok. Telefondan yeni bir gruptan ilk mesaj gelince burada belirir.' }}</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
                 <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $sources->links() }}</div>
             </div>
         </div>
-
-        @if($deletedSources->isNotEmpty())
-            <div class="apple-glass rounded-3xl overflow-hidden">
-                <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50">
-                    <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Silinen kaynaklar</h2>
-                    <p class="text-[11px] text-neutral-400">Bu gruplardan gelen mesajlar yok sayılır ama sayılır. Mesaj atmaya devam eden grubu <strong>Geri al</strong> ile onaya alabilir; <strong>Kalıcı sil</strong> ile grubu ve ondan gelen tüm adayları hiç okunmamış gibi silebilirsiniz.</p>
-                </div>
-                <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
-                        <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
-                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
-                            @foreach($deletedSources as $source)
-                                <tr class="align-top">
-                                    <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->deleted_at?->diffForHumans() }}</td>
-                                    <td class="p-4">
-                                        @if($source->messages_since_deleted > 0)
-                                            <span class="badge bg-amber-500/10 text-amber-600">{{ $source->messages_since_deleted }} mesaj</span>
-                                            <span class="text-[11px] text-neutral-400">son: {{ $source->last_message_at?->diffForHumans() }}</span>
-                                        @else
-                                            <span class="text-neutral-400">yok</span>
-                                        @endif
-                                    </td>
-                                    <td class="p-4">{{ $source->scraped_loads_count }}</td>
-                                    <td class="p-4 whitespace-nowrap space-x-2">
-                                        <button type="button" wire:click="restoreSource({{ $source->id }})" class="text-emerald-600 font-semibold">Geri al</button>
-                                        <button type="button" wire:click="purgeSource({{ $source->id }})" wire:confirm="Kaynak ve ondan gelen {{ $source->scraped_loads_count }} aday kalıcı silinecek; geri alınamaz. Devam edilsin mi?" class="text-red-600 font-semibold">Kalıcı sil</button>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        @endif
     @endif
     @if($activeTab === 'lexicon')
         @php $kinds = \App\Models\AiLexicon::KINDS; @endphp
