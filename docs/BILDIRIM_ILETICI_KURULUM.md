@@ -255,6 +255,22 @@ ve kayıtta `price_unit` = `per_ton` olarak tutar; listelerde "1.000 ₺/ton" ya
 (dökme, damper, kömür, kum, hububat, üzüm, gübre…) ile birlikte 5.000'in altındaki "+kdv" tutarları. Yönetici düzenleme
 penceresinde fiyatın yanındaki "Toplam / Ton başına" seçimiyle düzeltilebilir; yapay zeka da `price_per_ton` alanıyla bildirir.
 
+## Karar puanı: yayın, ret, elle kontrol
+
+Her aday için 0-100 arası **karar puanı** hesaplanır ve satırda görünür ("Karar puanı %82 · kural %85 · yapay zeka %80"):
+
+- **Kural kanıtı**: il çifti 55 + telefon 10 + açık araç adı / gönderen şablonu / yönetici 15 + tonaj 10 + fiyat 10 + yük türü 5
+  + doğrulanmış gönderen şablonu 15 (en çok 100). Tipik tam ilan (il çifti, telefon, "tenteli tır", 24 ton) = 90.
+- **Yapay zeka** baktıysa puan = (kural + yapay zeka güveni) / 2. Bakmadıysa **yerel sınıflandırıcı** öğrenmişse (kural + yerel) / 2,
+  o da yoksa yalnız kural.
+- Yapay zeka zorunluysa aday cevabı en çok **bekleme süresi** kadar bekler (varsayılan 15 dk); süre dolunca beklenmez.
+
+Ayarlar → Dış kaynak: **Otomatik yayın eşiği** (varsayılan 75) üstü kendiliğinden yayınlanır; **otomatik ret eşiği**
+(varsayılan 25) altı kendiliğinden reddedilir (Reddedilenler'de "Otomatik ret: …" nedeniyle, geri alınabilir); ikisi arası
+kuyrukta elle karar bekler. **Kuyrukta en çok bekleme** (varsayılan 48 saat) dolan aday da kendiliğinden reddedilir; yük
+ilanı saatler içinde güncelliğini yitirdiği için kuyruk şişmez. Otomatik retler sınıflandırıcıya öğretilmez; yalnız sizin
+Yayınla / Reddet kararlarınız öğretir.
+
 ## Otomatik onay neden bekletir?
 
 Kuyruk satırı "Otomatik onay: uygun" diyorsa aday bir sonraki dakikada yayınlanmalıdır. Yayınlanmıyorsa sırayla:

@@ -346,7 +346,7 @@ class PaymentInfrastructureTest extends TestCase
 
         Settings::set('scraper_auto_approve_require_vehicle', '1');
         $this->assertSame('araç tipi yok', $service->autoApprovalBlocker($fresh));
-        $fresh->update(['vehicle_type' => 'tir']);
+        $fresh->update(['vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']); // il çifti 55 + telefon 10 + araç adı 15 = %80 ≥ %75
         $this->assertNull($service->autoApprovalBlocker($fresh));
 
         $unresolved = ScrapedLoad::create(['scraper_id' => $scraper->id, 'raw_message' => 'x 0532 123 45 67', 'pickup_location' => 'Bilinmezköy', 'delivery_location' => 'İzmir',
