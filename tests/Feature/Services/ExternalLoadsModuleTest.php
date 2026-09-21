@@ -326,7 +326,7 @@ class ExternalLoadsModuleTest extends TestCase
         $service = app(ScrapedLoadService::class);
         $this->assertNull($service->autoApprovalBlocker($clean), 'Yapay zeka anahtarsızken kural yeterli');
         $this->assertStringContainsString('farklı il', (string) $service->autoApprovalBlocker($conflicted));
-        $this->assertStringContainsString('güveni düşük', (string) $service->autoApprovalBlocker($lowConfidence));
+        $this->assertStringContainsString('elle kontrol', (string) $service->autoApprovalBlocker($lowConfidence));
 
         // Yapay zeka açık ve anahtarlıyken: doğrulama zorunlu (varsayılan %75).
         Settings::set('ai_parse_mode', 'always');
@@ -337,12 +337,16 @@ class ExternalLoadsModuleTest extends TestCase
         $weak = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.6]);
         $strong = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.9]);
         $this->assertStringContainsString('bekleniyor', (string) $service->autoApprovalBlocker($waiting));
-        $this->assertStringContainsString('doğrulayamadı', (string) $service->autoApprovalBlocker($unchecked));
-        $this->assertStringContainsString('doğrulayamadı', (string) $service->autoApprovalBlocker($failed));
-        $this->assertStringContainsString('%60', (string) $service->autoApprovalBlocker($weak));
+        // Yapay zeka bakmadı ya da başarısız: kural puanı (il çifti + telefon + tonaj = %75) eşiği karşılıyorsa beklenmez.
+        $this->assertNull($service->autoApprovalBlocker($unchecked));
+        $this->assertNull($service->autoApprovalBlocker($failed));
+        // Yapay zeka %60 dediyse puan (75 + 60) / 2 = %68 → elle kontrol; %90 dediyse %83 → yayın.
+        $this->assertStringContainsString('%68', (string) $service->autoApprovalBlocker($weak));
         $this->assertNull($service->autoApprovalBlocker($strong));
-        $this->assertSame(1, $service->autoApproveDue(), 'Yalnız yapay zekası güçlü aday otomatik yayınlanır');
+        $this->assertSame(4, $service->autoApproveDue(), 'Temiz, bakılmamış, başarısız (kural yeterli) ve güçlü aday yayınlanır; bekleyen, çelişen ve zayıflar kalır');
         $this->assertSame('public', $strong->fresh()->visibility);
+        $this->assertSame('private', $weak->fresh()->visibility);
+        $this->assertSame('private', $waiting->fresh()->visibility);
 
         Settings::set('scraper_auto_approve_min_confidence', '50');
         $this->assertNull($service->autoApprovalBlocker($weak->fresh()));

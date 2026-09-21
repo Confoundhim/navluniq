@@ -18,6 +18,17 @@ new class extends Component {
         $this->runChecks();
     }
 
+    public function startUpdate(): void
+    {
+        if (! auth()->user()?->can('manage settings')) {
+            return;
+        }
+        $started = app(\App\Services\DeployService::class)->start(auth()->id());
+        session()->flash($started ? 'success_message' : 'error_message', $started
+            ? 'Güncelleme başlatıldı; çıktı aşağıda birkaç saniyede bir yenilenir. Bitince "TAMAM" satırı görünür.'
+            : 'Güncelleme zaten çalışıyor; bitmesini bekleyin.');
+    }
+
     public function runChecks(): void
     {
         $this->checks = [];
@@ -175,6 +186,36 @@ new class extends Component {
             <span wire:loading wire:target="runChecks">Kontrol ediliyor</span>
         </button>
     </div>
+
+    @if (session()->has('success_message'))
+        <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
+    @endif
+
+    @php $update = \App\Services\DeployService::status(); @endphp
+    <section class="apple-glass rounded-3xl p-6 space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Siteyi güncelle</h2>
+                <p class="mt-1 text-xs text-neutral-500">GitHub'da birleştirilen son sürümü sunucuya alır (sunucudaki <span class="font-mono">update.sh</span> ile aynı iş). Telefondan da çalışır: PR'ı GitHub uygulamasında birleştirin, burada bu düğmeye basın.</p>
+            </div>
+            <button type="button" wire:click="startUpdate" wire:loading.attr="disabled" wire:confirm="Sunucu son sürüme güncellenecek; birkaç dakika sürer. Devam edilsin mi?" @disabled($update['running']) class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50 shrink-0">
+                {{ $update['running'] ? 'Güncelleme çalışıyor…' : 'Siteyi güncelle' }}
+            </button>
+        </div>
+        <div class="flex flex-wrap gap-3 text-[11px] text-neutral-500">
+            @if($update['running'])<span class="badge bg-amber-500/10 text-amber-600">Çalışıyor · başladı {{ $update['started_at'] }}</span>
+            @elseif($update['ok'] === true)<span class="badge bg-emerald-500/10 text-emerald-600">Son güncelleme tamamlandı · {{ $update['finished_at'] }}</span>
+            @elseif($update['ok'] === false)<span class="badge bg-red-500/10 text-red-600">Son güncelleme hata verdi · {{ $update['finished_at'] }}</span>
+            @else<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Panelden henüz güncelleme yapılmadı</span>@endif
+        </div>
+        @if($update['log'] !== '')
+            <pre class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto rounded-2xl bg-neutral-950 text-neutral-200 p-4">{{ $update['log'] }}</pre>
+        @endif
+        <p class="text-[11px] text-neutral-400">Düğme "izin yok" ya da "komut bulunamadı" derse sunucuda bir kez şu çalıştırılır: <span class="font-mono">bash /var/www/navluniq/deploy/install-update-button.sh</span> (belgede anlatılır).</p>
+    </section>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         @foreach($checks as $check)

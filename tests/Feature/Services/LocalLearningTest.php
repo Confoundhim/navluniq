@@ -134,31 +134,43 @@ class LocalLearningTest extends TestCase
         $this->assertSame('6_teker_kamyon', VehicleTypes::detect('Konya İzmir 12 ton açık kasa 0532')['type']);
     }
 
-    public function test_local_confidence_keeps_auto_approval_running_when_external_ai_is_down(): void
+    public function test_decision_score_waits_briefly_for_ai_then_decides_from_rules_and_local_classifier(): void
     {
         Settings::set('scraper_auto_approve', '1');
         Settings::set('scraper_auto_approve_require_ai', '1');
         Settings::set('ai_parse_mode', 'always');
         Settings::set('ai_gemini_key', 'AIza-test');
-        Settings::set('scraper_local_min_confidence', '90');
+        Settings::set('scraper_ai_wait_minutes', '15');
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
-        $pending = $this->candidate($source, ['ai_status' => 'pending']);
+        // Yeni aday: yapay zeka cevabı kısa süre beklenir.
+        $pending = $this->candidate($source, ['ai_status' => 'pending', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'weight' => 24000]);
         $this->assertSame('yapay zeka doğrulaması bekleniyor', $service->autoApprovalBlocker($pending));
 
-        // Yerel sınıflandırıcı yüksek güven verdiyse yapay zeka beklenmeden onaylanır.
-        $confident = $this->candidate($source, ['ai_status' => 'pending', 'parse_metadata' => ['local_confidence' => 0.97]]);
-        $this->assertNull($service->autoApprovalBlocker($confident));
-        $low = $this->candidate($source, ['ai_status' => 'pending', 'parse_metadata' => ['local_confidence' => 0.6]]);
-        $this->assertSame('yapay zeka doğrulaması bekleniyor', $service->autoApprovalBlocker($low));
+        // Bekleme süresi dolunca kural puanıyla karar: il çifti + telefon + araç adı + tonaj = %90 → yayın.
+        ScrapedLoad::whereKey($pending->id)->update(['created_at' => now()->subMinutes(20)]);
+        $d = $service->decision($pending->fresh());
+        $this->assertFalse($d['wait']);
+        $this->assertSame('kural', $d['basis']);
+        $this->assertNull($service->autoApprovalBlocker($pending->fresh()));
 
-        Settings::set('scraper_local_enabled', '0');
-        $this->assertSame('yapay zeka doğrulaması bekleniyor', $service->autoApprovalBlocker($confident));
+        // Yerel sınıflandırıcı düşük diyorsa puan düşer ve elle kontrole kalır; çok düşükse otomatik ret.
+        $low = $this->candidate($source, ['ai_status' => 'pending', 'parse_metadata' => ['local_confidence' => 0.4]]);
+        ScrapedLoad::whereKey($low->id)->update(['created_at' => now()->subMinutes(20)]);
+        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($low->fresh()));
+        $veryLow = $this->candidate($source, ['ai_status' => 'pending', 'weight' => null, 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.0]]);
+        ScrapedLoad::whereKey($veryLow->id)->update(['created_at' => now()->subMinutes(20)]);
+        $this->assertSame(0.325, $service->decision($veryLow->fresh())['score']); // (kural 0,65 + yerel 0) / 2
+        Settings::set('scraper_auto_reject_max_score', '35');
+        $this->assertStringContainsString('otomatik ret', $service->autoApprovalBlocker($veryLow->fresh()));
+        Settings::set('scraper_auto_reject_max_score', '25');
 
-        // Uzun süredir bekleyen aday "ulaşılamadı; elle kontrol" der.
-        ScrapedLoad::whereKey($pending->id)->update(['created_at' => now()->subHours(5)]);
-        $this->assertSame('yapay zeka ulaşılamadı; elle kontrol', $service->autoApprovalBlocker($pending->fresh()));
+        // Yapay zeka baktıysa puan kural ve yapay zekanın ortalaması.
+        $aiHigh = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.9]);
+        $this->assertNull($service->autoApprovalBlocker($aiHigh));
+        $aiLow = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.3]);
+        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($aiLow));
     }
 
     public function test_local_ollama_model_is_first_in_chain_when_enabled(): void
@@ -231,7 +243,7 @@ class LocalLearningTest extends TestCase
         rmdir($dir);
     }
 
-    public function test_rule_only_candidates_need_strong_evidence_or_local_confidence_for_auto_approval(): void
+    public function test_rule_only_candidates_publish_when_rule_evidence_reaches_threshold(): void
     {
         Settings::set('scraper_auto_approve', '1');
         Settings::set('scraper_auto_approve_require_ai', '1');
@@ -240,12 +252,16 @@ class LocalLearningTest extends TestCase
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
+        // il çifti + telefon + tonajdan çıkarılan araç (açık ad yok) = %75 → eşikte yayın; tonaj da yoksa %65 → elle kontrol
         $weak = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'weight', 'weight' => null]);
-        $this->assertStringContainsString('kural kanıtı zayıf', $service->autoApprovalBlocker($weak));
+        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($weak));
         $strong = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']);
         $this->assertNull($service->autoApprovalBlocker($strong));
+        $this->assertSame(0.8, $service->decision($strong)['rule']); // il çifti 55 + telefon 10 + araç adı 15
         $withLocal = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'parse_metadata' => ['local_confidence' => 0.5]]);
-        $this->assertStringContainsString('yerel güven düşük', $service->autoApprovalBlocker($withLocal));
+        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($withLocal)); // (0,8 + 0,5) / 2 = %65
+        Settings::set('scraper_auto_approve_min_confidence', '65');
+        $this->assertNull($service->autoApprovalBlocker($withLocal));
     }
 
     public function test_template_memory_parses_repeat_senders_without_ai(): void

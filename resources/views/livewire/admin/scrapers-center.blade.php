@@ -647,7 +647,7 @@ new class extends Component {
             ],
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
-            'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
+            'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [],
             'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
@@ -681,6 +681,7 @@ new class extends Component {
             if ($this->activeTab === 'queue') {
                 foreach ($data['queue'] as $load) {
                     $data['blockers'][$load->id] = $service->autoApprovalBlocker($load);
+                    $data['decisions'][$load->id] = $service->decision($load);
                 }
             }
         }
@@ -727,7 +728,7 @@ new class extends Component {
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
         @foreach($tabs as $key => $label)
-            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}@if($tabCount[$key] !== null) <span class="ml-1 text-[10px] text-neutral-400">{{ $tabCount[$key] }}</span>@endif</button>
+            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}@if($tabCount[$key] !== null) <span class="ml-1 text-[10px] text-neutral-400">{{ $tabCount[$key] }}</span>@endif</button>
         @endforeach
     </div>
 
@@ -822,8 +823,12 @@ new class extends Component {
                                 <td class="p-3">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
                                     @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
+                                    @if($r = $load->meta('auto_rejected'))<div class="text-[11px] text-neutral-400 mt-1">Otomatik ret: {{ $r['reason'] ?? '' }}</div>@endif
                                     @if($activeTab === 'queue')
                                         <div class="text-[11px] mt-1 {{ $blocker ? 'text-amber-600' : 'text-emerald-600' }}">{{ $autoApprove ? 'Otomatik onay: ' : 'Otomatik onay kapalı · ' }}{{ $blocker ? ($blockerLabels[$blocker] ?? $blocker) : 'uygun' }}</div>
+                                        @if($d = $decisions[$load->id] ?? null)
+                                            <div class="text-[11px] text-neutral-400" title="{{ $d['basis'] }}">Karar puanı %{{ (int) round($d['score'] * 100) }} · kural %{{ (int) round($d['rule'] * 100) }}@if($d['ai'] !== null) · yapay zeka %{{ (int) round($d['ai'] * 100) }}@endif @if($d['local'] !== null) · yerel %{{ (int) round($d['local'] * 100) }}@endif</div>
+                                        @endif
                                     @endif
                                 </td>
                                 <td class="p-3 whitespace-nowrap">

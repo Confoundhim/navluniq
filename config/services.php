@@ -39,6 +39,11 @@ return [
         'token' => env('SCRAPER_API_TOKEN'),
     ],
 
+    'deploy' => [
+        // Panelden "Siteyi güncelle": sunucuda çalıştırılacak komut (deploy/install-update-button.sh kurar)
+        'command' => env('DEPLOY_COMMAND', 'sudo -n /usr/local/bin/navluniq-update'),
+    ],
+
     'ai' => [
         'active_provider' => env('ACTIVE_AI_PROVIDER', 'gemini'),
         // Sunucuda çalışan yerel model (Ollama) yalnız bu bayrakla açılabilir; küçük sunucularda işlemciyi kilitler.

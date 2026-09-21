@@ -304,9 +304,6 @@ class ScrapedLoadService
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
         }
-        if ($load->created_at && $load->created_at->lt(now()->subDays(self::AUTO_APPROVE_MAX_AGE_DAYS))) {
-            return 'eski aday';
-        }
         $meta = (array) ($load->parse_metadata ?? []);
         if (! empty($meta['auto_approve_error']) && empty($meta['admin_edited'])) {
             return 'onay hatası: '.($meta['auto_approve_error']['message'] ?? 'bilinmiyor');
@@ -336,58 +333,86 @@ class ScrapedLoadService
         if (! empty($meta['ai_conflict']) && empty($meta['admin_edited'])) {
             return 'kural ve yapay zeka farklı il buldu; elle kontrol';
         }
-        if (empty($meta['admin_edited'])) {
-            if ($blocker = $this->aiApprovalBlocker($load)) {
-                return $blocker;
-            }
+        if (! empty($meta['admin_edited'])) {
+            return null; // yönetici düzeltip kaydettiyse karar puanı aranmaz
+        }
+        $d = $this->decision($load);
+        if ($d['wait']) {
+            return 'yapay zeka doğrulaması bekleniyor';
+        }
+        $pct = (int) round($d['score'] * 100);
+        if ($d['score'] >= self::pct('scraper_auto_approve_min_confidence')) {
+            return null;
+        }
+        if ($d['score'] <= self::pct('scraper_auto_reject_max_score')) {
+            return "karar puanı çok düşük (%{$pct}); otomatik ret";
         }
 
-        return null;
+        return "karar puanı %{$pct} (eşik %".Settings::int('scraper_auto_approve_min_confidence').'); elle kontrol';
+    }
+
+    /** Yüzde ayarını 0-1 aralığına çevirir. */
+    private static function pct(string $key): float
+    {
+        return max(0, min(100, Settings::int($key))) / 100;
     }
 
     /**
-     * Yapay zeka doğrulaması: ayar açıkken ve yapay zeka kullanılabilirken aday ancak yapay zeka bakıp
-     * yeterli güven verdiyse kendiliğinden yayınlanır. Yapay zeka kapalı/anahtarsızsa uygulanmaz.
+     * Birleşik karar puanı (0-1). Üç kaynak birleşir:
+     * - kural kanıtı: il çifti (0,55) + telefon (0,10) + açık araç adı / şablon / yönetici (0,15) + tonaj (0,10) + fiyat (0,10)
+     *   + yük türü (0,05) + doğrulanmış gönderen şablonu (0,15); en çok 1,0
+     * - yapay zeka güveni (baktıysa)
+     * - yerel sınıflandırıcı olasılığı (yeterince öğrendiyse)
+     * Yapay zeka baktıysa puan = (kural + yapay zeka) / 2; bakmadıysa yerel varsa (kural + yerel) / 2; yoksa kural.
+     * "wait": yapay zeka zorunlu, yapılandırılmış ve aday henüz bekleme süresi içindeyse (varsayılan 15 dk) beklenir;
+     * süre dolunca yapay zeka beklenmez, kural/yerel puanla karar verilir (eski sürüm 3 saat sonra "elle kontrol"e düşürüyordu).
+     *
+     * @return array{score: float, rule: float, ai: ?float, local: ?float, wait: bool, basis: string}
      */
-    private function aiApprovalBlocker(ScrapedLoad $load): ?string
+    public function decision(ScrapedLoad $load): array
     {
+        $intl = (array) $load->meta('international', []);
+        $pickupOk = $load->pickup_province_code || ! empty($intl['pickup']) || TurkishLocations::resolve($load->pickup_location) !== null;
+        $deliveryOk = $load->delivery_province_code || ! empty($intl['delivery']) || TurkishLocations::resolve($load->delivery_location) !== null;
+        $rule = 0.0;
+        if ($pickupOk && $deliveryOk) {
+            $rule = 0.55;
+            $rule += ($load->encrypted_sender_phone || $load->sender_phone) ? 0.10 : 0.0;
+            $rule += in_array($load->vehicle_type_source, ['keyword', 'admin', 'template'], true) ? 0.15 : 0.0;
+            $rule += (int) $load->weight > 0 ? 0.10 : 0.0;
+            $rule += (float) $load->price > 0 ? 0.10 : 0.0;
+            $rule += $load->goods_type ? 0.05 : 0.0;
+            $rule += ($load->parsed_by_llm === 'template' || $load->meta('template_id') || ($load->meta('ai')['template_id'] ?? null)) ? 0.15 : 0.0;
+            $rule = min(1.0, $rule);
+        }
+        $ai = $load->ai_status === 'done' && $load->parse_confidence !== null ? max(0.0, min(1.0, (float) $load->parse_confidence)) : null;
+        $local = $this->localConfidence($load);
+
         $parser = app(AiParserService::class);
-        $minConfidence = max(0, min(100, Settings::int('scraper_auto_approve_min_confidence'))) / 100;
-        if (! Settings::bool('scraper_auto_approve_require_ai') || ! $parser->isEnabled() || ! $parser->isConfigured()) {
-            // Zorunlu değilse yine de belirgin düşük güven elle kontrole düşer.
-            return $load->ai_status === 'done' && $load->parse_confidence !== null && (float) $load->parse_confidence < 0.5 ? 'yapay zeka güveni düşük; elle kontrol' : null;
-        }
-        if ($load->ai_status !== 'done') {
-            // Dış yapay zeka ulaşılamadı: yerel sınıflandırıcı yeterince öğrendiyse ve güveni eşiğin üstündeyse o karar verir.
-            $local = $this->localConfidence($load);
-            if ($local !== null && $local >= max(0, min(100, Settings::int('scraper_local_min_confidence'))) / 100) {
-                return null;
-            }
-        }
-        if ($load->ai_status === 'pending') {
-            return $load->created_at && $load->created_at->lt(now()->subHours(3)) ? 'yapay zeka ulaşılamadı; elle kontrol' : 'yapay zeka doğrulaması bekleniyor';
-        }
-        if ($load->ai_status === 'failed' || ($load->ai_status !== 'done' && $parser->mode() === 'always')) {
-            return 'yapay zeka doğrulayamadı; elle kontrol';
-        }
-        if ($load->ai_status !== 'done') {
-            // Kural yeterli sayıldı, yapay zeka çağrılmadı ("Kural eksik bırakınca" kipi): yerel sınıflandırıcı öğrenmişse
-            // onun kararı gerekir; öğrenmemişse kural kanıtı güçlü olmalı (il çifti + araç adı ya da tonaj ya da fiyat).
-            $local = $this->localConfidence($load);
-            if ($local !== null) {
-                return 'yerel güven düşük (%'.(int) round($local * 100).'); elle kontrol';
-            }
-            $strong = $load->pickup_province_code && $load->delivery_province_code
-                && (in_array($load->vehicle_type_source, ['keyword', 'admin'], true) || (int) $load->weight > 0 || (float) $load->price > 0);
-            if (! $strong) {
-                return 'kural kanıtı zayıf (araç adı, tonaj ya da fiyat yok); elle kontrol';
-            }
-        }
-        if ($load->ai_status === 'done' && ($load->parse_confidence === null || (float) $load->parse_confidence < $minConfidence)) {
-            return 'yapay zeka güveni düşük (%'.(int) round((float) $load->parse_confidence * 100).'); elle kontrol';
+        $aiActive = Settings::bool('scraper_auto_approve_require_ai') && $parser->isEnabled() && $parser->isConfigured();
+        $wait = $aiActive && $load->ai_status === 'pending' && $load->created_at && $load->created_at->gt(now()->subMinutes(max(1, Settings::int('scraper_ai_wait_minutes'))));
+
+        if ($ai !== null) {
+            $score = ($rule + $ai) / 2;
+            $basis = 'kural + yapay zeka';
+        } elseif ($local !== null) {
+            $score = ($rule + $local) / 2;
+            $basis = 'kural + yerel';
+        } else {
+            $score = $rule;
+            $basis = 'kural';
         }
 
-        return null;
+        return ['score' => round($score, 4), 'rule' => round($rule, 4), 'ai' => $ai, 'local' => $local, 'wait' => $wait, 'basis' => $basis];
+    }
+
+    /** Adayı kendiliğinden reddeder (yönetici kararı değildir; sınıflandırıcıya öğretilmez). */
+    public function autoReject(ScrapedLoad $load, string $reason): void
+    {
+        $meta = (array) ($load->parse_metadata ?? []);
+        $meta['auto_rejected'] = ['reason' => mb_substr($reason, 0, 200), 'at' => now()->toDateTimeString()];
+        $load->update(['status' => 'rejected', 'visibility' => 'private', 'parse_metadata' => $meta]);
+        ActivityLog::record('scraped_load.auto_rejected', "Dış kaynak ilanı #{$load->id} kendiliğinden reddedildi: {$reason}", null, $load);
     }
 
     /** Yerel sınıflandırıcının bu aday için olasılığı (alımda yazılmışsa o, yoksa şimdi hesaplanır). */
@@ -426,7 +451,7 @@ class ScrapedLoadService
     }
 
     /** Ayar açıksa bekleyen adayları tarar; kriterleri sağlayanları yayınlar ve sayısını döndürür. */
-    /** Bu kadar günden eski adaylar otomatik onaya girmez; elle karar verilir. */
+    /** Bekleyen adaylar en çok bu kadar gün geriye taranır (kuyruk yaşı ayarı bundan küçüktür). */
     public const AUTO_APPROVE_MAX_AGE_DAYS = 7;
 
     /** Bir çalıştırmada en çok bu kadar aday yayınlanır; kalan bir sonraki dakikada devam eder. */
@@ -453,7 +478,14 @@ class ScrapedLoadService
                     if ($approved >= self::AUTO_APPROVE_BATCH || microtime(true) - $started > 50) {
                         return false;
                     }
-                    if ($this->autoApprovalBlocker($load) !== null) {
+                    $blocker = $this->autoApprovalBlocker($load);
+                    if ($blocker !== null) {
+                        if (str_starts_with($blocker, 'karar puanı çok düşük')) {
+                            $this->autoReject($load, $blocker);
+                        } elseif ($load->created_at && $load->created_at->lt(now()->subHours(max(1, Settings::int('scraper_queue_max_age_hours'))))) {
+                            $this->autoReject($load, 'kuyrukta '.Settings::int('scraper_queue_max_age_hours').' saatten uzun bekledi; ilan güncelliğini yitirdi ('.$blocker.')');
+                        }
+
                         continue;
                     }
                     try {

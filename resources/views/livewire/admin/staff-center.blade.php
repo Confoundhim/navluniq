@@ -189,9 +189,9 @@ new class extends Component {
         <p class="page-subtitle">Panele yalnız tanımlı personel rolleri girebilir; yeni rol türü eklemek kod değişikliği gerektirir.</p>
     </div>
 
-    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
-        <button type="button" wire:click="$set('activeTab', 'staff')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'staff' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Personel</button>
-        <button type="button" wire:click="$set('activeTab', 'roles')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'roles' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Rol izinleri</button>
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+        <button type="button" wire:click="$set('activeTab', 'staff')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'staff' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Personel</button>
+        <button type="button" wire:click="$set('activeTab', 'roles')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'roles' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Rol izinleri</button>
     </div>
 
     @if($activeTab === 'staff')

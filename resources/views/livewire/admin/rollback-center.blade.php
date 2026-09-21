@@ -159,9 +159,9 @@ new class extends Component {
         <p class="page-subtitle">Yumuşak silinmiş kayıtlar geri yüklenebilir; kalıcı silme geri alınamaz ve bağlı kayıtlar varsa veritabanı tarafından reddedilir.</p>
     </div>
 
-    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
-        <button type="button" wire:click="$set('activeTab', 'trash')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'trash' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Çöp kutusu</button>
-        <button type="button" wire:click="$set('activeTab', 'revisions')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'revisions' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Ayar revizyonları</button>
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+        <button type="button" wire:click="$set('activeTab', 'trash')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'trash' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Çöp kutusu</button>
+        <button type="button" wire:click="$set('activeTab', 'revisions')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'revisions' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Ayar revizyonları</button>
     </div>
 
     @if($activeTab === 'trash')

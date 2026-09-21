@@ -86,12 +86,13 @@ class ScrapedLoadAutomationTest extends TestCase
         $this->assertSame(1, $service->autoApproveDue());
         $this->assertSame('public', $eligible->fresh()->visibility);
 
-        // 7 günden eski aday otomatik onaya girmez ve nedeni görünür.
-        $old = $this->candidate($source, ['price' => 45000]);
-        $old->forceFill(['created_at' => now()->subDays(8)])->save();
-        $old->refresh();
-        $this->assertSame('eski aday', $service->autoApprovalBlocker($old));
+        // Kuyrukta 48 saatten uzun bekleyen engelli aday kendiliğinden reddedilir (ilan güncelliğini yitirdi).
+        $stale = $this->candidate($source, ['price' => null]);
+        $stale->forceFill(['created_at' => now()->subHours(50)])->save();
         $this->assertSame(0, $service->autoApproveDue());
+        $this->assertSame('rejected', $stale->fresh()->status);
+        $this->assertStringContainsString('48 saatten uzun', $stale->fresh()->meta('auto_rejected')['reason']);
+        $this->assertSame(0, Settings::int('ai_local_docs_other'), 'Otomatik ret sınıflandırıcıya "ilan değil" diye öğretilmez');
 
         // Onay sırasında hata çıkarsa aday "uygun" görünmez; neden kayda yazılır, başarılı onay temizler.
         $broken = $this->candidate($source, ['price' => 45000]);

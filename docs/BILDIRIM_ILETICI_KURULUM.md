@@ -255,6 +255,22 @@ ve kayıtta `price_unit` = `per_ton` olarak tutar; listelerde "1.000 ₺/ton" ya
 (dökme, damper, kömür, kum, hububat, üzüm, gübre…) ile birlikte 5.000'in altındaki "+kdv" tutarları. Yönetici düzenleme
 penceresinde fiyatın yanındaki "Toplam / Ton başına" seçimiyle düzeltilebilir; yapay zeka da `price_per_ton` alanıyla bildirir.
 
+## Karar puanı: yayın, ret, elle kontrol
+
+Her aday için 0-100 arası **karar puanı** hesaplanır ve satırda görünür ("Karar puanı %82 · kural %85 · yapay zeka %80"):
+
+- **Kural kanıtı**: il çifti 55 + telefon 10 + açık araç adı / gönderen şablonu / yönetici 15 + tonaj 10 + fiyat 10 + yük türü 5
+  + doğrulanmış gönderen şablonu 15 (en çok 100). Tipik tam ilan (il çifti, telefon, "tenteli tır", 24 ton) = 90.
+- **Yapay zeka** baktıysa puan = (kural + yapay zeka güveni) / 2. Bakmadıysa **yerel sınıflandırıcı** öğrenmişse (kural + yerel) / 2,
+  o da yoksa yalnız kural.
+- Yapay zeka zorunluysa aday cevabı en çok **bekleme süresi** kadar bekler (varsayılan 15 dk); süre dolunca beklenmez.
+
+Ayarlar → Dış kaynak: **Otomatik yayın eşiği** (varsayılan 75) üstü kendiliğinden yayınlanır; **otomatik ret eşiği**
+(varsayılan 25) altı kendiliğinden reddedilir (Reddedilenler'de "Otomatik ret: …" nedeniyle, geri alınabilir); ikisi arası
+kuyrukta elle karar bekler. **Kuyrukta en çok bekleme** (varsayılan 48 saat) dolan aday da kendiliğinden reddedilir; yük
+ilanı saatler içinde güncelliğini yitirdiği için kuyruk şişmez. Otomatik retler sınıflandırıcıya öğretilmez; yalnız sizin
+Yayınla / Reddet kararlarınız öğretir.
+
 ## Otomatik onay neden bekletir?
 
 Kuyruk satırı "Otomatik onay: uygun" diyorsa aday bir sonraki dakikada yayınlanmalıdır. Yayınlanmıyorsa sırayla:
@@ -278,6 +294,33 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
   diyerek sayaca yazar.
 - **Yayın anı denetimi:** "Yayınla" ya da otomatik onay sırasında aynı metin (7 gün) ya da aynı numara + il çifti (48 saat)
   zaten yayındaysa aday yayınlanmaz, "tekrar (#N yayında)" diye reddedilir ve görüldüğü grup yayındaki ilanın sayacına eklenir.
+
+## Telefondan güncelleme (panelden "Siteyi güncelle")
+
+Sunucuya konsolla girmeye gerek yok. Akış: GitHub uygulamasında (telefon) PR'ı **Merge** → Panel → **Sistem Sağlığı** →
+**Siteyi güncelle**. Düğme sunucudaki `update.sh`'yi arka planda çalıştırır; çıktı aynı sayfada 15 saniyede bir
+yenilenir, bitince "[navluniq-update] TAMAM" görünür. Çalışırken ikinci kez basılamaz.
+
+Tek seferlik sunucu kurulumu (root olarak, bir kez):
+
+```bash
+bash /var/www/navluniq/deploy/install-update-button.sh
+```
+
+Bu betik `/usr/local/bin/navluniq-update` sarmalayıcısını yazar ve `www-data` kullanıcısına yalnız bu komut için
+şifresiz `sudo` izni verir (`/etc/sudoers.d/navluniq-update`). `update.sh` başka yerdeyse `UPDATE_SH=/yol/update.sh bash ...`.
+Düğme "izin yok" derse bu kurulum yapılmamıştır.
+
+Telefondan SSH gerekirse: Natro konsolu yerine **Termius** (iOS/Android) uygulaması; sunucu 185.22.187.140, kullanıcı root,
+sunucu şifresi (Natro panel şifresi değil). Konsolda Türkçe klavye karakterleri karışabildiği için şifre yanlış girilmiş
+sayılabilir; Termius'ta yapıştırma çalışır.
+
+## Mobil uyumluluk denetimi
+
+`scripts/mobile-audit.cjs` bütün sayfaları (site, şoför, yük sahibi, yönetici) 390 px genişlikte, normal ve büyük yazı
+kipinde açar; yatay taşma ve sağa taşan ögeleri raporlar, taşan sayfaların görüntüsünü alır (`SHOTS=all` ile hepsinin).
+Yerelde sunucu 8085'te çalışırken: `BASE=http://127.0.0.1:8085 CHROME=<chromium yolu> node scripts/mobile-audit.cjs`.
+Giriş için `review_login_emails` ayarındaki hesaplar sabit kodla girer. Her tasarım değişikliğinden sonra çalıştırın.
 
 ## Yedekleme
 
