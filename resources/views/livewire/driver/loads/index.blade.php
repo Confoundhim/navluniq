@@ -750,7 +750,6 @@ class extends Component {
                                 <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
                                 @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
                                 @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
-                                @if((int) $item->duplicate_count > 1)<span class="badge bg-amber-500 text-white" title="{{ implode(', ', (array) $item->seen_sources) }}">{{ $item->duplicate_count }} grupta paylaşıldı</span>@endif
                             </div>
                         </div>
                         <div class="load-card-side">
