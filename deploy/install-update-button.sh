@@ -7,6 +7,7 @@ set -euo pipefail
 
 UPDATE_SH="${UPDATE_SH:-/root/update.sh}"
 WEB_USER="${WEB_USER:-www-data}"
+APP_DIR="${APP_DIR:-/var/www/navluniq}"
 
 if [ ! -f "$UPDATE_SH" ]; then
   echo "Güncelleme betiği bulunamadı: $UPDATE_SH (UPDATE_SH=... ile yolu verin)"; exit 1
@@ -18,12 +19,13 @@ cat > "$WRAP_TMP" <<WRAP
 #!/usr/bin/env bash
 # Panelden tetiklenen güncelleme: $UPDATE_SH'yi root olarak çalıştırır.
 set -o pipefail
+LOCK_FILE="$APP_DIR/storage/app/update.lock"
 # Panelden başlayan süreç PHP-FPM'in çocuğudur; PHP-FPM servisi systemd korumasıyla /etc'yi salt okunur
 # görür (ProtectSystem) ve FPM yeniden başlatılınca çocukları ölebilir. Bu yüzden asıl iş PHP-FPM'den
 # bağımsız geçici bir systemd servisi olarak çalıştırılır; çıktı bu sürecin stdout'una (günlüğe) akar,
 # çıkış kodu aynen döner. systemd yoksa doğrudan devam eder.
 if [ -z "\${NAVLUNIQ_IN_SERVICE:-}" ] && command -v systemd-run >/dev/null 2>&1 \\
-   && systemd-run --quiet --wait --pipe --collect --unit "navluniq-update-probe-\$\$" true >/dev/null 2>&1; then
+   && timeout 20 systemd-run --quiet --wait --pipe --collect --unit "navluniq-update-probe-\$\$" true >/dev/null 2>&1; then
     exec systemd-run --quiet --wait --pipe --collect --unit "navluniq-update-\$(date +%s)" \\
         --setenv=NAVLUNIQ_IN_SERVICE=1 --setenv=HOME=/root --setenv=LANG=C.UTF-8 \\
         --setenv=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \\
@@ -31,6 +33,11 @@ if [ -z "\${NAVLUNIQ_IN_SERVICE:-}" ] && command -v systemd-run >/dev/null 2>&1 
 fi
 echo "[navluniq-update] \$(date '+%d.%m.%Y %H:%M:%S') update.sh başlıyor"
 bash "$UPDATE_SH"
+code=\$?
+# Sonuç satırı ve kilit burada, işin kendisinde yazılır: paneldeki bekleyen süreç kesilse bile sonuç günlüğe düşer.
+if [ "\$code" = "0" ]; then echo "[navluniq-update] TAMAM"; else echo "[navluniq-update] HATA (kod \$code)"; fi
+rm -f "\$LOCK_FILE"
+exit "\$code"
 WRAP
 chmod 755 "$WRAP_TMP"
 mv -f "$WRAP_TMP" /usr/local/bin/navluniq-update

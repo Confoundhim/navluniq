@@ -67,6 +67,29 @@ class DeployButtonTest extends TestCase
         $this->assertTrue($status['interrupted']);
     }
 
+    public function test_status_endpoint_works_during_maintenance_mode(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        file_put_contents(DeployService::logPath(), "[navluniq-update] başlatıldı\n==> Bakım modu\n");
+        file_put_contents(DeployService::lockPath(), (string) time());
+
+        $this->artisan('down');
+        try {
+            $this->get(route('admin.health'))->assertStatus(503);
+            $this->actingAs($admin->fresh())->getJson(route('admin.health.update-status'))
+                ->assertOk()
+                ->assertJsonPath('running', true)
+                ->assertJsonFragment(['started_at' => date('d.m.Y H:i', filemtime(DeployService::lockPath()))]);
+        } finally {
+            $this->artisan('up');
+        }
+
+        $driver = User::factory()->create(['current_role' => 'driver']);
+        $this->actingAs($driver)->get(route('admin.health.update-status'))->assertRedirect();
+    }
+
     public function test_non_admin_cannot_start_an_update(): void
     {
         $driver = User::factory()->create(['current_role' => 'driver']);

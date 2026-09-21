@@ -195,7 +195,7 @@ new class extends Component {
         <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    <section class="apple-glass rounded-3xl p-6 space-y-3">
+    <section class="apple-glass rounded-3xl p-6 space-y-3" data-update-section data-update-running="{{ $update['running'] ? 1 : 0 }}">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Siteyi güncelle</h2>
@@ -205,7 +205,7 @@ new class extends Component {
                 {{ $update['running'] ? 'Güncelleme çalışıyor…' : 'Siteyi güncelle' }}
             </button>
         </div>
-        <div class="flex flex-wrap gap-3 text-[11px] text-neutral-500">
+        <div class="flex flex-wrap gap-3 text-[11px] text-neutral-500" data-update-badge>
             @if($update['running'])<span class="badge bg-amber-500/10 text-amber-600">Çalışıyor · başladı {{ $update['started_at'] }}</span>
             @elseif($update['ok'] === true)<span class="badge bg-emerald-500/10 text-emerald-600">Son güncelleme tamamlandı · {{ $update['finished_at'] }}</span>
             @elseif($update['ok'] === false)<span class="badge bg-red-500/10 text-red-600">Son güncelleme hata verdi · {{ $update['finished_at'] }}</span>
@@ -222,7 +222,7 @@ new class extends Component {
             </div>
         @endif
         @if($update['log'] !== '')
-            <pre wire:key="update-log-{{ md5($update['log']) }}" x-data x-init="$el.scrollTop = $el.scrollHeight" class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto rounded-2xl bg-neutral-950 text-neutral-200 p-4">{{ $update['log'] }}</pre>
+            <pre wire:key="update-log-{{ md5($update['log']) }}" data-update-log x-data x-init="$el.scrollTop = $el.scrollHeight" class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto rounded-2xl bg-neutral-950 text-neutral-200 p-4">{{ $update['log'] }}</pre>
         @endif
         <p class="text-[11px] text-neutral-400">Düğme "izin yok" ya da "komut bulunamadı" derse sunucuda bir kez şu çalıştırılır: <span class="font-mono">bash /var/www/navluniq/deploy/install-update-button.sh</span> (belgede anlatılır).</p>
     </section>
@@ -278,8 +278,41 @@ new class extends Component {
 
 @script
 <script>
-    // Güncelleme sırasında site bakım modundadır (503). Yoklama isteği 503 alınca Livewire'ın hata penceresi açılmasın;
-    // bir sonraki yoklamada sayfa kendiliğinden yenilenir.
+    // Güncelleme sırasında site bakım modundadır: Livewire yoklamaları 503 alır. Hata penceresi açılmaz;
+    // çıktı bakım modundan muaf durum adresinden (JSON) 3 sn'de bir çekilir, bitince bileşen yenilenir.
+    const root = $wire.$el;
+    const statusUrl = @js(route('admin.health.update-status'));
+    let timer = null;
+
+    const render = (d) => {
+        const log = root.querySelector('[data-update-log]');
+        if (log && d.log) { log.textContent = d.log; log.scrollTop = log.scrollHeight; }
+        const badge = root.querySelector('[data-update-badge]');
+        if (badge) {
+            const text = d.running ? 'Çalışıyor · başladı ' + d.started_at
+                : d.ok === true ? 'Son güncelleme tamamlandı · ' + d.finished_at
+                : d.ok === false ? 'Son güncelleme hata verdi · ' + d.finished_at
+                : 'Son güncelleme sonuç yazamadan kesildi · ' + d.finished_at;
+            badge.innerHTML = '<span class="badge ' + (d.running ? 'bg-amber-500/10 text-amber-600' : d.ok === true ? 'bg-emerald-500/10 text-emerald-600' : d.ok === false ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') + '"></span>';
+            badge.firstChild.textContent = text;
+        }
+    };
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const tick = async () => {
+        try {
+            const r = await fetch(statusUrl, { headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin' });
+            if (! r.ok) return; // bakım/yeniden başlatma anı: bir sonraki denemede
+            const d = await r.json();
+            render(d);
+            if (! d.running) { stop(); setTimeout(() => $wire.$refresh(), 1500); }
+        } catch (e) { /* PHP-FPM yeniden başlarken bağlantı kopabilir; sonraki denemede */ }
+    };
+    const sync = () => {
+        const running = root.querySelector('[data-update-section]')?.dataset.updateRunning === '1';
+        if (running && ! timer) { tick(); timer = setInterval(tick, 3000); }
+    };
+    sync();
+    Livewire.hook('commit', ({ succeed }) => succeed(() => setTimeout(sync, 0)));
     Livewire.hook('request', ({ fail }) => {
         fail(({ status, preventDefault }) => {
             if (status === 503) {
