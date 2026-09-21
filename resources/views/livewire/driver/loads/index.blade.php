@@ -799,7 +799,6 @@ class extends Component {
                                                             </div>
                                                         @endforeach
                                                     </div>
-                                                    <p class="text-[11px] text-neutral-400">Boşluğa dokununca kapanır.</p>
                                                 </div>
                                             </div>
                                         </template>
