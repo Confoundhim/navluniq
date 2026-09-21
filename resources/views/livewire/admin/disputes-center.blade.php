@@ -222,12 +222,12 @@ new class extends Component {
         <p class="page-subtitle">Hakem kararı havuz ödemesini serbest bırakır ya da iade sürecini başlatır; karar geri alınamaz.</p>
     </div>
 
-    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
+    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
         @if($canDisputes)
-            <button type="button" wire:click="switchTab('disputes')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'disputes' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Uyuşmazlıklar</button>
+            <button type="button" wire:click="switchTab('disputes')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'disputes' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Uyuşmazlıklar</button>
         @endif
         @if($canTickets)
-            <button type="button" wire:click="switchTab('tickets')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'tickets' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Destek biletleri</button>
+            <button type="button" wire:click="switchTab('tickets')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === 'tickets' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Destek biletleri</button>
         @endif
     </div>
 

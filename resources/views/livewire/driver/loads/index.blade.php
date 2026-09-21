@@ -647,7 +647,7 @@ class extends Component {
                     <div class="load-card">
                         <div class="load-card-main">
                             <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif@if($vol > 0) · {{ number_format($vol, 0, ',', '.') }} m³@endif</div>
+                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ \App\Support\VehicleTypes::label($load->vehicle_type) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif@if($vol > 0) · {{ number_format($vol, 0, ',', '.') }} m³@endif</div>
                             <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}@if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }}@endif · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
                             <div class="load-card-badges">
                                 <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>
@@ -759,11 +759,13 @@ class extends Component {
                                 <div class="load-card-price-muted">Fiyat belirtilmemiş</div>
                             @endif
                             @if($plainPhone)
-                                <div class="flex flex-col items-end gap-1 tabular-nums">
+                                <div class="load-card-phones">
                                     @foreach(array_merge([$plainPhone], $extraPhones) as $phone)
-                                        <div class="flex items-center gap-3 whitespace-nowrap">
-                                            <a href="tel:+90{{ $phone }}" class="text-brand-500 font-bold hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
-                                            <a href="{{ $item->whatsappUrl($phone, auth()->user()) }}" target="_blank" rel="noopener" class="text-emerald-600 dark:text-emerald-400 font-bold hover:underline" title="Hazır mesajla WhatsApp sohbeti açar">WhatsApp</a>
+                                        <div class="load-card-phone">
+                                            <a href="tel:+90{{ $phone }}" class="text-brand-500 font-bold hover:underline tabular-nums whitespace-nowrap">{{ \App\Support\Phone::format($phone) }}</a>
+                                            <a href="{{ $item->whatsappUrl($phone, auth()->user()) }}" target="_blank" rel="noopener" class="load-card-wa" title="Hazır mesajla WhatsApp sohbeti açar">
+                                                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.5-.3z"/></svg>WhatsApp
+                                            </a>
                                         </div>
                                     @endforeach
                                 </div>

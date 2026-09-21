@@ -231,9 +231,9 @@ new class extends Component {
     </div>
 
     <div class="flex flex-col lg:flex-row lg:items-center gap-3 apple-glass p-3 rounded-2xl">
-        <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
-            <button type="button" wire:click="$set('role', 'driver')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $role === 'driver' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Şoförler</button>
-            <button type="button" wire:click="$set('role', 'cargo_owner')" class="flex-1 px-4 py-2 text-xs font-semibold rounded-lg {{ $role === 'cargo_owner' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Yük sahipleri</button>
+        <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+            <button type="button" wire:click="$set('role', 'driver')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $role === 'driver' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Şoförler</button>
+            <button type="button" wire:click="$set('role', 'cargo_owner')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $role === 'cargo_owner' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Yük sahipleri</button>
         </div>
         <select wire:model.live="statusFilter" class="{{ $input }} lg:w-44">
             <option value="pending">İncelenmeyi bekleyenler</option>

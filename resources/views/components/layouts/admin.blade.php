@@ -183,7 +183,7 @@
                 class="h-16 shrink-0 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 md:px-8 flex justify-between items-center gap-3 sticky top-0 z-40 no-print">
 
                 <!-- Mobil Cihazlar İçin Sidebar Açma Butonu ve Ferah Ekmek Kırıntısı (Breadcrumb) Başlığı -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-4 min-w-0">
                     <button @click="sidebarOpen = !sidebarOpen"
                         class="md:hidden p-2 -ml-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Menüyü aç">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,7 +200,7 @@
                 </div>
 
                 <!-- Sağ Taraf Kontrolleri (Tema Değiştirici ve Siteye Git) -->
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center gap-1 sm:gap-3 shrink-0">
                     <livewire:notifications.bell index-route="admin.notifications" />
                     <button @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500 bg-brand-500/10' : 'text-neutral-600 dark:text-neutral-300'"
                         class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors" title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
@@ -221,8 +221,9 @@
                     </button>
 
                     <div class="relative" x-data="{ open: false }" @click.outside="open = false">
-                        <button type="button" @click="open = !open" class="inline-flex btn-secondary py-2 px-3 text-xs items-center gap-1.5" title="Siteyi ve panelleri yönetici olarak görüntüle">
-                            <span>Görünüm</span>
+                        <button type="button" @click="open = !open" class="inline-flex btn-secondary py-2 px-2.5 sm:px-3 text-xs items-center gap-1.5" title="Siteyi ve panelleri yönetici olarak görüntüle" aria-label="Görünüm">
+                            <svg class="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7-9.5-7-9.5-7z"/></svg>
+                            <span class="hidden sm:inline">Görünüm</span>
                             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <div x-show="open" x-cloak x-transition class="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-apple-lg p-1.5 text-xs z-50">

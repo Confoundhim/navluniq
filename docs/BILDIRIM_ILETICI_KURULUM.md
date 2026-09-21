@@ -315,6 +315,13 @@ Telefondan SSH gerekirse: Natro konsolu yerine **Termius** (iOS/Android) uygulam
 sunucu şifresi (Natro panel şifresi değil). Konsolda Türkçe klavye karakterleri karışabildiği için şifre yanlış girilmiş
 sayılabilir; Termius'ta yapıştırma çalışır.
 
+## Mobil uyumluluk denetimi
+
+`scripts/mobile-audit.cjs` bütün sayfaları (site, şoför, yük sahibi, yönetici) 390 px genişlikte, normal ve büyük yazı
+kipinde açar; yatay taşma ve sağa taşan ögeleri raporlar, taşan sayfaların görüntüsünü alır (`SHOTS=all` ile hepsinin).
+Yerelde sunucu 8085'te çalışırken: `BASE=http://127.0.0.1:8085 CHROME=<chromium yolu> node scripts/mobile-audit.cjs`.
+Giriş için `review_login_emails` ayarındaki hesaplar sabit kodla girer. Her tasarım değişikliğinden sonra çalıştırın.
+
 ## Yedekleme
 
 Panel → **Yedekleme** (Yönetim ve sistem). "Şimdi tam yedek al" veritabanını (tüm ayarlar, kaynaklar, ilanlar,

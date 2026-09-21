@@ -163,7 +163,7 @@ class extends Component {
                                 </div>
                                 <div class="text-sm font-semibold text-neutral-900 dark:text-white truncate">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                                 <div class="text-neutral-500">
-                                    {{ \App\Models\DriverVehicle::getVehicleTypes()[$load->vehicle_type] ?? $load->vehicle_type }} · {{ $load->goods_type }}
+                                    {{ \App\Support\VehicleTypes::label($load->vehicle_type) }} · {{ $load->goods_type }}
                                     @if($load->status === 'active_seeking') · {{ (int) $load->pending_offers_count }} bekleyen teklif @endif
                                 </div>
                             </div>

@@ -158,7 +158,7 @@ class extends Component {
                     <div class="flex flex-wrap items-center gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Araç:</span>
-                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $vehicleTypes[$load->vehicle_type] ?? $load->vehicle_type }}</span>
+                            <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ \App\Support\VehicleTypes::label($load->vehicle_type) }}</span>
                         </div>
                         <div class="flex items-center gap-1">
                             <span class="text-neutral-500">Yük:</span>
