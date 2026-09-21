@@ -295,6 +295,26 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
 - **Yayın anı denetimi:** "Yayınla" ya da otomatik onay sırasında aynı metin (7 gün) ya da aynı numara + il çifti (48 saat)
   zaten yayındaysa aday yayınlanmaz, "tekrar (#N yayında)" diye reddedilir ve görüldüğü grup yayındaki ilanın sayacına eklenir.
 
+## Telefondan güncelleme (panelden "Siteyi güncelle")
+
+Sunucuya konsolla girmeye gerek yok. Akış: GitHub uygulamasında (telefon) PR'ı **Merge** → Panel → **Sistem Sağlığı** →
+**Siteyi güncelle**. Düğme sunucudaki `update.sh`'yi arka planda çalıştırır; çıktı aynı sayfada 15 saniyede bir
+yenilenir, bitince "[navluniq-update] TAMAM" görünür. Çalışırken ikinci kez basılamaz.
+
+Tek seferlik sunucu kurulumu (root olarak, bir kez):
+
+```bash
+bash /var/www/navluniq/deploy/install-update-button.sh
+```
+
+Bu betik `/usr/local/bin/navluniq-update` sarmalayıcısını yazar ve `www-data` kullanıcısına yalnız bu komut için
+şifresiz `sudo` izni verir (`/etc/sudoers.d/navluniq-update`). `update.sh` başka yerdeyse `UPDATE_SH=/yol/update.sh bash ...`.
+Düğme "izin yok" derse bu kurulum yapılmamıştır.
+
+Telefondan SSH gerekirse: Natro konsolu yerine **Termius** (iOS/Android) uygulaması; sunucu 185.22.187.140, kullanıcı root,
+sunucu şifresi (Natro panel şifresi değil). Konsolda Türkçe klavye karakterleri karışabildiği için şifre yanlış girilmiş
+sayılabilir; Termius'ta yapıştırma çalışır.
+
 ## Yedekleme
 
 Panel → **Yedekleme** (Yönetim ve sistem). "Şimdi tam yedek al" veritabanını (tüm ayarlar, kaynaklar, ilanlar,
