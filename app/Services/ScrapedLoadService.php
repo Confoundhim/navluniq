@@ -228,11 +228,14 @@ class ScrapedLoadService
             throw new RuntimeException('Kalkış ya da varış ili çözülemedi; ilanı düzenleyip ili seçin.');
         }
 
+        $metaAfter = (array) $load->parse_metadata;
+        unset($metaAfter['auto_approve_error']);
         $load->update([
             'status' => 'parsed_success',
             'visibility' => 'public',
             'available_to_free_at' => null, // dış kaynak ilanları yalnız premium üyelere görünür; herkese açılmaz
             'auto_approved_at' => $auto ? now() : null,
+            'parse_metadata' => $metaAfter,
         ]);
 
         ActivityLog::record(
@@ -301,6 +304,13 @@ class ScrapedLoadService
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
         }
+        if ($load->created_at && $load->created_at->lt(now()->subDays(self::AUTO_APPROVE_MAX_AGE_DAYS))) {
+            return 'eski aday';
+        }
+        $meta = (array) ($load->parse_metadata ?? []);
+        if (! empty($meta['auto_approve_error']) && empty($meta['admin_edited'])) {
+            return 'onay hatası: '.($meta['auto_approve_error']['message'] ?? 'bilinmiyor');
+        }
         if (! $load->pickup_location || ! $load->delivery_location) {
             return 'rota eksik';
         }
@@ -323,7 +333,6 @@ class ScrapedLoadService
         if (Settings::bool('scraper_auto_approve_require_weight') && (int) $load->weight <= 0) {
             return 'tonaj yok';
         }
-        $meta = (array) ($load->parse_metadata ?? []);
         if (! empty($meta['ai_conflict']) && empty($meta['admin_edited'])) {
             return 'kural ve yapay zeka farklı il buldu; elle kontrol';
         }
@@ -417,6 +426,17 @@ class ScrapedLoadService
     }
 
     /** Ayar açıksa bekleyen adayları tarar; kriterleri sağlayanları yayınlar ve sayısını döndürür. */
+    /** Bu kadar günden eski adaylar otomatik onaya girmez; elle karar verilir. */
+    public const AUTO_APPROVE_MAX_AGE_DAYS = 7;
+
+    /** Bir çalıştırmada en çok bu kadar aday yayınlanır; kalan bir sonraki dakikada devam eder. */
+    public const AUTO_APPROVE_BATCH = 500;
+
+    /**
+     * Her dakika çalışır. Bekleyen TÜM adaylar (eskiden yeniye) taranır; önceden yalnız en eski 200 aday bakılıyordu ve
+     * onlar engelliyse (yapay zeka bekliyor vb.) daha yeni, uygun adaylar hiç sıraya gelmiyordu. Onay sırasında hata
+     * çıkarsa neden adaya yazılır ve listede "uygun" yerine o neden görünür.
+     */
     public function autoApproveDue(): int
     {
         if (! Settings::bool('scraper_auto_approve')) {
@@ -424,20 +444,30 @@ class ScrapedLoadService
         }
 
         $approved = 0;
+        $started = microtime(true);
         ScrapedLoad::query()->with('scraper')
             ->where('visibility', 'private')->where('status', '!=', 'rejected')
-            ->where('created_at', '>=', now()->subDays(3))
-            ->orderBy('id')->limit(200)->get()
-            ->each(function (ScrapedLoad $load) use (&$approved): void {
-                if ($this->autoApprovalBlocker($load) !== null) {
-                    return;
+            ->where('created_at', '>=', now()->subDays(self::AUTO_APPROVE_MAX_AGE_DAYS))
+            ->chunkById(200, function ($loads) use (&$approved, $started): bool {
+                foreach ($loads as $load) {
+                    if ($approved >= self::AUTO_APPROVE_BATCH || microtime(true) - $started > 50) {
+                        return false;
+                    }
+                    if ($this->autoApprovalBlocker($load) !== null) {
+                        continue;
+                    }
+                    try {
+                        $this->approve($load, null, true);
+                        $approved++;
+                    } catch (\Throwable $e) {
+                        $meta = (array) ($load->parse_metadata ?? []);
+                        $meta['auto_approve_error'] = ['message' => mb_substr($e->getMessage(), 0, 300), 'at' => now()->toDateTimeString(), 'attempts' => (int) ($meta['auto_approve_error']['attempts'] ?? 0) + 1];
+                        $load->forceFill(['parse_metadata' => $meta])->save();
+                        Log::warning('Otomatik onay başarısız.', ['scraped_load_id' => $load->id, 'error' => $e->getMessage()]);
+                    }
                 }
-                try {
-                    $this->approve($load, null, true);
-                    $approved++;
-                } catch (\Throwable $e) {
-                    Log::warning('Otomatik onay başarısız.', ['scraped_load_id' => $load->id, 'error' => $e->getMessage()]);
-                }
+
+                return true;
             });
 
         return $approved;

@@ -4,14 +4,17 @@ namespace Tests\Feature\Services;
 
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Models\User;
 use App\Services\LoadIntakeService;
 use App\Services\ScrapedLoadService;
 use App\Services\TelegramPublisher;
 use App\Support\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class ScrapedLoadAutomationTest extends TestCase
@@ -66,6 +69,57 @@ class ScrapedLoadAutomationTest extends TestCase
         $inactive = Scraper::create(['name' => 'Grup B', 'type' => 'notification', 'source_identifier' => 'notif:grup-b', 'is_active' => false]);
         $this->candidate($inactive);
         $this->assertSame(0, $service->autoApproveDue(), 'Pasif kaynağın adayı otomatik onaylanmamalı');
+    }
+
+    public function test_auto_approval_scans_past_blocked_candidates_and_records_failures(): void
+    {
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_price', '1');
+        $source = $this->source();
+        $service = app(ScrapedLoadService::class);
+
+        // 250 eski aday fiyatsız (engelli); daha yeni tek aday uygun → eskiden ilk 200'de kalıp hiç sıraya gelmezdi.
+        for ($i = 0; $i < 250; $i++) {
+            $this->candidate($source, ['price' => null]);
+        }
+        $eligible = $this->candidate($source, ['price' => 45000]);
+        $this->assertSame(1, $service->autoApproveDue());
+        $this->assertSame('public', $eligible->fresh()->visibility);
+
+        // 7 günden eski aday otomatik onaya girmez ve nedeni görünür.
+        $old = $this->candidate($source, ['price' => 45000]);
+        $old->forceFill(['created_at' => now()->subDays(8)])->save();
+        $old->refresh();
+        $this->assertSame('eski aday', $service->autoApprovalBlocker($old));
+        $this->assertSame(0, $service->autoApproveDue());
+
+        // Onay sırasında hata çıkarsa aday "uygun" görünmez; neden kayda yazılır, başarılı onay temizler.
+        $broken = $this->candidate($source, ['price' => 45000]);
+        $mock = \Mockery::mock(ScrapedLoadService::class)->makePartial();
+        $mock->shouldReceive('approve')->once()->andThrow(new \RuntimeException('deneme hatası'));
+        $this->assertSame(0, $mock->autoApproveDue());
+        $broken->refresh();
+        $this->assertSame('deneme hatası', $broken->meta('auto_approve_error')['message']);
+        $this->assertSame('onay hatası: deneme hatası', $service->autoApprovalBlocker($broken));
+        $service->approve($broken, null, true);
+        $this->assertNull($broken->fresh()->meta('auto_approve_error'));
+    }
+
+    public function test_queue_can_be_filtered_by_auto_approval_eligibility(): void
+    {
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_price', '1');
+        $source = $this->source();
+        $ok = $this->candidate($source, ['price' => 45000, 'raw_message' => 'UYGUN-ILAN Ankara İzmir 0532 123 45 67']);
+        $blocked = $this->candidate($source, ['price' => null, 'raw_message' => 'ENGELLI-ILAN Ankara İzmir 0532 123 45 67']);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin->fresh());
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'queue');
+        $c->set('flag', 'auto_ok')->assertSee('UYGUN-ILAN')->assertDontSee('ENGELLI-ILAN');
+        $c->set('flag', 'auto_blocked')->assertSee('ENGELLI-ILAN')->assertDontSee('UYGUN-ILAN')->assertSee('Fiyat yok');
     }
 
     public function test_duplicates_from_other_groups_increase_counter_instead_of_creating_rows(): void

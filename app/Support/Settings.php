@@ -24,6 +24,8 @@ final class Settings
         'scraper_auto_approve' => 0,            // 1: kriterleri sağlayan adaylar her dakika otomatik onaylanır
         'scraper_auto_approve_require_price' => 0,
         'scraper_auto_approve_require_weight' => 0,
+        // Şoför dış kaynak ilanı için WhatsApp'ı açınca hazır gelen mesaj; {rota} {yuk} {arac} {ad} yer tutucuları
+        'scraper_contact_message' => 'Merhaba, NavlunIQ platformunda belgeleri onaylanmış bir şoförüm. {rota} ilanınız ({yuk}) için size ulaşıyorum. Yük hâlâ uygunsa detayları konuşabilir miyiz? Teşekkürler, {ad}',
         'scraper_auto_approve_require_vehicle' => 0, // 1: araç tipi çözülemeyen aday otomatik onaylanmaz
         'scraper_auto_approve_require_ai' => 1,      // 1: yapay zeka bakmadan / yeterli güven vermeden aday otomatik onaylanmaz
         'scraper_auto_approve_min_confidence' => 75, // yapay zeka güveni (yüzde) bu değerin altındaysa elle kontrol

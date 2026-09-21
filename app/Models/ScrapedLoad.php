@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\Phone;
+use App\Support\Settings;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -131,6 +132,37 @@ class ScrapedLoad extends Model
     public function routeLabel(): string
     {
         return ($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş');
+    }
+
+    /**
+     * Şoförün WhatsApp'ta ilan sahibine göndereceği hazır mesaj (panelden düzenlenen şablon; {rota} {yuk} {arac} {ad}).
+     * Şablon "-" ise null: sohbet mesajsız açılır (boş bırakılırsa varsayılan metin kullanılır).
+     */
+    public function contactMessage(?User $driver = null): ?string
+    {
+        $template = trim((string) Settings::get('scraper_contact_message'));
+        if ($template === '' || $template === '-') { // boş: varsayılan metin (Settings), "-": mesajsız aç
+            return null;
+        }
+        $details = array_values(array_filter([$this->goods_type, $this->weightLabel(), $this->vehicleLabel()]));
+        $vehicle = $driver?->driverProfile?->activeVehicle;
+        $vehicleLabel = $vehicle ? trim(VehicleTypes::label($vehicle->vehicle_type).' '.($vehicle->plate ?? '')) : '';
+        $text = strtr($template, [
+            '{rota}' => $this->routeLabel(),
+            '{yuk}' => $details !== [] ? implode(' · ', $details) : 'yük',
+            '{arac}' => $vehicleLabel,
+            '{ad}' => trim((string) ($driver?->full_name ?? '')),
+        ]);
+
+        return trim(preg_replace('/[ \t]{2,}/', ' ', $text) ?? $text);
+    }
+
+    /** wa.me bağlantısı: numara + (varsa) hazır mesaj. */
+    public function whatsappUrl(string $phone, ?User $driver = null): string
+    {
+        $message = $this->contactMessage($driver);
+
+        return 'https://wa.me/90'.$phone.($message !== null ? '?text='.rawurlencode($message) : '');
     }
 
     /** "45.000 ₺", "1.000 ₺/ton", "1.200 $" ya da null (fiyat yok). */

@@ -255,6 +255,20 @@ ve kayıtta `price_unit` = `per_ton` olarak tutar; listelerde "1.000 ₺/ton" ya
 (dökme, damper, kömür, kum, hububat, üzüm, gübre…) ile birlikte 5.000'in altındaki "+kdv" tutarları. Yönetici düzenleme
 penceresinde fiyatın yanındaki "Toplam / Ton başına" seçimiyle düzeltilebilir; yapay zeka da `price_per_ton` alanıyla bildirir.
 
+## Otomatik onay neden bekletir?
+
+Kuyruk satırı "Otomatik onay: uygun" diyorsa aday bir sonraki dakikada yayınlanmalıdır. Yayınlanmıyorsa sırayla:
+
+1. Üst çubuktaki **Zamanlayıcı** rozeti "nabız yok" diyorsa sunucuda cron çalışmıyordur: `bash /root/update.sh` cron'u
+   yeniden kurar (`crontab -u www-data -l` satırında `schedule:run` olmalı).
+2. Her çalıştırma bekleyen **tüm** adayları eskiden yeniye tarar, en çok 500 aday yayınlar, kalanı sonraki dakikada sürer
+   (eski sürüm yalnız en eski 200 adaya bakıyordu; onlar yapay zeka beklerken daha yeni uygun adaylar sıraya gelmiyordu).
+3. 7 günden eski adaylar otomatik onaya girmez; satırda "7 günden eski; elle karar verin" yazar.
+4. Onay sırasında hata çıkarsa (örneğin yayında bir ikizi bulunur, il yeniden çözülemez) neden adaya yazılır ve satırda
+   "onay hatası: …" görünür; düzenleyip kaydetmek ya da elle yayınlamak nedeni temizler.
+
+Kuyruk süzgecindeki **Otomatik onay: uygun / engelli** seçenekleri bu iki grubu ayrı listeler (en yeni 2.000 aday taranır).
+
 ## Aynı ilanın iki gruptan gelmesi
 
 Aynı metin iki gruptan aynı saniyede gelince iletici her grubu ayrı istek olarak yollar. İki istek yan yana işlenirken tekrar
