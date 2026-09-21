@@ -523,15 +523,6 @@ new class extends Component {
         session()->flash('success_message', 'Bağlantı anahtarı yenilendi; telefonlardaki makro gövdesini yeni metinle değiştirin.');
     }
 
-    public function regenerateSetupCode(): void
-    {
-        if (! $this->can()) {
-            return;
-        }
-        ScrapedLoadService::regenerateSetupCode(auth()->id());
-        session()->flash('success_message', 'Kurulum bağlantısı yenilendi; eski bağlantı artık açılmaz.');
-    }
-
     public function with(): array
     {
         $service = app(ScrapedLoadService::class);
@@ -556,7 +547,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'setupUrl' => '', 'setupQr' => '', 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(),
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'deletedSources' => collect(),
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
 
@@ -577,8 +568,6 @@ new class extends Component {
             $data['sources'] = Scraper::query()->withCount('scrapedLoads')->latest('id')->paginate(15);
             $data['deletedSources'] = Scraper::onlyTrashed()->withCount('scrapedLoads')->latest('deleted_at')->limit(50)->get();
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
-            $data['setupUrl'] = ScrapedLoadService::setupUrl();
-            $data['setupQr'] = ScrapedLoadService::setupQrSvg();
             $data['pingUrl'] = ScrapedLoadService::pingUrl();
             $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
         } else {
@@ -817,31 +806,18 @@ new class extends Component {
 
     @if($activeTab === 'sources')
         <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs" x-data="{ copied: '' , copy(text, key) { navigator.clipboard.writeText(text).then(() => { this.copied = key; setTimeout(() => this.copied = '', 2000); }); } }">
-            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Telefon bağlantısı (MacroDroid)</h2>
-            <p class="text-[11px] text-neutral-400">Bu adres ve gövde hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; anahtar gövdenin içinde hazırdır, başka ayar gerekmez. En kolayı: aşağıdaki <strong>kurulum bağlantısını</strong> telefon sahibine gönderin (ya da QR'ı okutun); sayfa kurulumu adım adım anlatır ve alanları hazır verir.</p>
-
-            <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start p-4 rounded-2xl bg-brand-50/60 dark:bg-brand-950/20 border border-brand-200/50 dark:border-brand-900/40">
-                <div class="space-y-2 min-w-0">
-                    <span class="font-bold text-neutral-900 dark:text-white">Kurulum bağlantısı (telefon sahibine gönderin)</span>
-                    <code class="block px-3 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $setupUrl }}</code>
-                    <div class="flex flex-wrap items-center gap-3">
-                        <button type="button" @click="copy(@js($setupUrl), 'setup')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'setup' ? 'Kopyalandı' : 'Bağlantıyı kopyala'"></button>
-                        <a href="https://wa.me/?text={{ urlencode('NavlunIQ ilan iletici kurulumu (5 dk): '.$setupUrl) }}" target="_blank" rel="noopener" class="btn-secondary py-2 px-3 text-xs">WhatsApp ile gönder</a>
-                        <button type="button" wire:click="regenerateSetupCode" wire:confirm="Eski bağlantı artık açılmaz. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline">Bağlantıyı yenile</button>
-                    </div>
-                </div>
-                <div class="justify-self-center md:justify-self-end w-36 h-36 p-2 bg-white rounded-2xl border border-neutral-200/60 [&>svg]:w-full [&>svg]:h-full" title="Telefonla okutun">{!! $setupQr !!}</div>
-            </div>
+            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Telefon bağlantısı (bildirim iletici)</h2>
+            <p class="text-[11px] text-neutral-400">Aşağıdaki adres ve alanlar hangi telefondaki bildirim iletici uygulamasına yazılırsa o telefon sunucuya ilan iletmeye başlar; anahtar alanların içinde hazırdır, sunucu tarafında telefon başına ayar yoktur. Adım adım kurulum: <span class="font-mono">docs/BILDIRIM_ILETICI_KURULUM.md</span>.</p>
 
             <div class="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40">
                 <span class="font-bold text-neutral-900 dark:text-white">Sorun giderme</span>
-                <span class="text-[11px] text-neutral-500">Telefon istek atmıyor gibi görünüyorsa: bu bağlantıyı <strong>telefonun tarayıcısında</strong> açın; Canlı akışa "Bağlantı sınaması" düşerse ağ ve anahtar tamamdır, sorun MacroDroid tetikleyicisindedir (bildirim erişimi, sessize alınmış grup, kendi yazdığınız mesaj bildirim üretmez).</span>
+                <span class="text-[11px] text-neutral-500">Telefon istek atmıyor gibi görünüyorsa: sınama bağlantısını <strong>telefonun tarayıcısında</strong> açın; Canlı akışa "Bağlantı sınaması" düşerse ağ ve anahtar tamamdır, sorun telefondaki makro tetikleyicisindedir (bildirim erişimi, sessize alınmış grup, kendi yazdığınız mesaj bildirim üretmez).</span>
                 <button type="button" @click="copy(@js($pingUrl), 'ping')" class="btn-secondary py-2 px-3 text-xs" x-text="copied === 'ping' ? 'Kopyalandı' : 'Sınama bağlantısını kopyala'"></button>
                 <a href="{{ $pingUrl }}" target="_blank" rel="noopener" class="text-brand-600 font-semibold hover:underline text-xs">Buradan aç</a>
             </div>
 
-            <details class="text-xs">
-                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum için adres ve alanlar</summary>
+            <details class="text-xs" open>
+                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Kurulum için adres ve alanlar</summary>
                 <p class="text-[11px] text-neutral-500 mt-2">Önerilen: içerik türü <strong>application/x-www-form-urlencoded</strong>, "Parametreler" bölümüne şu alanlar (mesajdaki tırnak/satır sonu JSON'u bozabilir, form alanlarını bozamaz):</p>
                 <table class="text-[11px] font-mono mt-1">
                     @foreach($phoneParams as $k => $v)<tr><td class="pr-3 font-bold">{{ $k }}</td><td class="break-all">{{ $v }}</td></tr>@endforeach
@@ -855,7 +831,7 @@ new class extends Component {
                     <button type="button" @click="copy(@js($tokenBody), 'body')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'body' ? 'Kopyalandı' : 'Kopyala'"></button>
                 </div>
                 <div class="flex items-center gap-3 pt-2">
-                    <button type="button" wire:click="regenerateToken" wire:confirm="Anahtar yenilenince telefonlardaki eski gövde çalışmaz (hazır makro dosyası yeni anahtarla indirilir). Devam edilsin mi?" class="text-red-600 font-semibold hover:underline">Anahtarı yenile</button>
+                    <button type="button" wire:click="regenerateToken" wire:confirm="Anahtar yenilenince telefonlardaki eski alanlar çalışmaz; yeni anahtarı telefonlara yeniden girmeniz gerekir. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline">Anahtarı yenile</button>
                     <span class="text-[11px] text-neutral-400">İçerik türü: application/json · Zaman aşımı: 20 sn · "Yanıtı değişkene kaydet" gerekmez.</span>
                 </div>
             </details>

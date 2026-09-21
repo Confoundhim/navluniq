@@ -3,15 +3,13 @@
 WhatsApp'a hiçbir cihaz bağlanmaz. Telefonda çalışan MacroDroid uygulaması, seçili grupların
 bildirim metnini NavlunIQ'ya iletir; sunucu tekrarları eler, ilanı ayrıştırır ve onay kuyruğuna alır.
 
-## 1. Kurulum bağlantısı
+## 1. Kurulum nasıl yapılır
 
-Panel → **Dış Kaynak İlanları → Kaynaklar ve telefon** → "Kurulum bağlantısı". Bu bağlantıyı (ya da QR'ı) telefon
-sahibine gönderin; sayfa kurulumu adım adım anlatır, MacroDroid'e girilecek adres ve alanları hazır verir,
-"Bu telefondan sunucuya ulaşabiliyor muyum? Sına" düğmesi ve "Sunucuya son ulaşan istek" satırıyla kurulumun
-çalıştığını gösterir. Bağlantıyı bilen herkes kurabilir; **Bağlantıyı yenile** eski bağlantıyı öldürür.
-
-Adres + alanlar hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon başına ayar
-yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez.
+Herkese açık bir kurulum sayfası **yoktur**. Kurulum, panel → **Dış Kaynak İlanları → Kaynaklar ve telefon**
+sekmesindeki adres ve alanlarla, aşağıdaki 3. ve 4. bölümlerdeki adımlar izlenerek yöneticinin kendisi tarafından
+yapılır. Adres + alanlar hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon
+başına ayar yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez. Kurulumun çalıştığını aynı sekmedeki
+"Sınama bağlantısı" ile (telefonun tarayıcısında açılır, Canlı akışa "Bağlantı sınaması" düşer) doğrularsınız.
 
 ## 2. Sunucu: gizli anahtar (panelden)
 

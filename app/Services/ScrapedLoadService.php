@@ -7,9 +7,6 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
-use chillerlan\QRCode\Output\QRMarkupSVG;
-use chillerlan\QRCode\QRCode;
-use chillerlan\QRCode\QROptions;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
@@ -54,50 +51,7 @@ class ScrapedLoadService
         return $token;
     }
 
-    // ---- Telefon kurulum bağlantısı ----
-
-    /** Herkese açık kurulum sayfasının gizli kodu (bağlantıyı bilen kurar; yenilenince eski bağlantı ölür). */
-    public static function setupCode(): string
-    {
-        $code = Settings::string('scraper_setup_code');
-        if ($code === '') {
-            $code = bin2hex(random_bytes(12));
-            Settings::set('scraper_setup_code', $code);
-        }
-
-        return $code;
-    }
-
-    public static function regenerateSetupCode(?int $userId = null): string
-    {
-        $code = bin2hex(random_bytes(12));
-        Settings::set('scraper_setup_code', $code, $userId);
-        ActivityLog::record('scraper.setup_link_regenerated', 'Telefon kurulum bağlantısı yenilendi', $userId);
-
-        return $code;
-    }
-
-    public static function setupUrl(): string
-    {
-        return route('phone-setup.show', ['code' => self::setupCode()]);
-    }
-
-    /** Kurulum bağlantısının QR kodu (satır içi SVG; dış betik gerekmez). */
-    public static function setupQrSvg(): string
-    {
-        try {
-            $options = new QROptions;
-            $options->outputInterface = QRMarkupSVG::class;
-            $options->outputBase64 = false;
-            $options->svgAddXmlHeader = false;
-            $options->addQuietzone = true;
-            $options->quietzoneSize = 2;
-
-            return (new QRCode($options))->render(self::setupUrl());
-        } catch (\Throwable) {
-            return '';
-        }
-    }
+    // ---- Telefon (bildirim iletici) bağlantı bilgileri ----
 
     /** MacroDroid'e yapıştırılacak hazır istek gövdesi. */
     /** MacroDroid "Parametreler" (form alanları) kurulumu: metindeki tırnak/satır sonu JSON'u bozamaz. Önerilen yol. */

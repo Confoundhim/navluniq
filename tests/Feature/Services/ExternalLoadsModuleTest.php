@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -349,17 +350,11 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertNull($service->autoApprovalBlocker($waiting->fresh()), 'Zorunluluk kapalıysa beklemez');
     }
 
-    public function test_setup_page_shows_manual_steps_and_dies_when_link_is_regenerated(): void
+    public function test_public_phone_setup_page_is_gone(): void
     {
         $this->get('/kurulum/telefon/'.str_repeat('a', 24))->assertNotFound();
-        $url = ScrapedLoadService::setupUrl();
-        $this->get($url)->assertOk()->assertSee('Telefon kurulumu')->assertSee('2. Makroyu kurun')->assertSee('application/x-www-form-urlencoded')
-            ->assertSee(ScrapedLoadService::apiToken())->assertSee('ulaşabiliyor muyum');
-        $this->get($url.'/NavlunIQ.macro')->assertNotFound();
-
-        ScrapedLoadService::regenerateSetupCode();
-        $this->get($url)->assertNotFound();
-        $this->get(ScrapedLoadService::setupUrl())->assertOk();
+        $this->assertFalse(Route::has('phone-setup.show'));
+        $this->assertStringContainsString(ScrapedLoadService::apiToken(), ScrapedLoadService::phoneRequestBody());
     }
 
     public function test_provider_test_button_explains_errors_and_rate_limit_cooldown_is_short(): void
