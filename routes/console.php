@@ -70,3 +70,4 @@ Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlappi
 Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping();
 Schedule::command('shipments:auto-approve')->hourly();
 Schedule::command('accounts:purge-drafts')->daily();
+Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping();

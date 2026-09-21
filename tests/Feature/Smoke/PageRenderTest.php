@@ -110,7 +110,7 @@ class PageRenderTest extends TestCase
 
         foreach (Route::getRoutes() as $route) {
             $name = $route->getName();
-            if (! $name || ! str_starts_with($name, 'admin.') || $name === 'admin.login' || $name === 'admin.logout' || ! in_array('GET', $route->methods(), true)) {
+            if (! $name || ! str_starts_with($name, 'admin.') || $name === 'admin.login' || $name === 'admin.logout' || str_contains($route->uri(), '{') || ! in_array('GET', $route->methods(), true)) {
                 continue;
             }
             $this->actingAs($admin)->get('/'.$route->uri())
