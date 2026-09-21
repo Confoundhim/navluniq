@@ -61,7 +61,7 @@ class ScrapedLoadAutomationTest extends TestCase
         $load->refresh();
         $this->assertSame('public', $load->visibility);
         $this->assertNotNull($load->auto_approved_at);
-        $this->assertEqualsWithDelta(now()->addMinutes(30)->timestamp, $load->available_to_free_at->timestamp, 5);
+        $this->assertNull($load->available_to_free_at, 'Dış kaynak ilanı herkese açılmaz; yalnız premium görür');
 
         $inactive = Scraper::create(['name' => 'Grup B', 'type' => 'notification', 'source_identifier' => 'notif:grup-b', 'is_active' => false]);
         $this->candidate($inactive);

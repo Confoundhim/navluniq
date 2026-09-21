@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BackupDownloadController;
+use App\Http\Controllers\Admin\PanelSwitchController;
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
@@ -173,6 +174,7 @@ Route::prefix('adminsystem')->group(function () {
             return view('admin.backups-page');
         })->name('admin.backups');
         Route::get('/backups/{backup}/download', BackupDownloadController::class)->name('admin.backups.download');
+        Route::get('/panel-gecis/{panel}', PanelSwitchController::class)->where('panel', 'driver|cargo_owner')->name('admin.panel-switch');
 
         Route::post('/logout', function () {
             Auth::logout();

@@ -70,7 +70,7 @@ class SubscriptionService
 
         $this->notifications->notify($user, 'Premium üyelik hediye edildi',
             ["Hesabınıza {$days} günlük premium üyelik tanımlandı; ".$profile->fresh()->premium_until->format('d.m.Y H:i').' tarihine kadar geçerli.',
-                'Yeni ilanları herkesten 20 dakika önce görür, anında bildirim alırsınız; dış kaynak ilanlarında numaranın tamamı görünür.'],
+                'Yeni ilanları herkesten 20 dakika önce görür, anında bildirim alırsınız; yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görürsünüz.'],
             route('driver.premium.index'), 'Premium sayfam', 'subscription');
 
         return $subscription;

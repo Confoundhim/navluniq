@@ -367,6 +367,38 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertFalse($active->fresh()->is_active);
     }
 
+    public function test_sources_can_be_bulk_activated_deleted_restored_and_purged(): void
+    {
+        $this->actingAs($this->admin());
+        $a = Scraper::create(['name' => 'Bekleyen A', 'type' => 'notification', 'source_identifier' => 'notif:a', 'is_active' => false]);
+        $b = Scraper::create(['name' => 'Bekleyen B', 'type' => 'notification', 'source_identifier' => 'notif:b', 'is_active' => false]);
+        $cnd = $this->candidate($a);
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->set('sourceState', 'pending');
+        $c->set('selectSourcePage', true);
+        $this->assertEqualsCanonicalizing([(string) $a->id, (string) $b->id], $c->get('selectedSources'));
+        $c->call('bulkSources', 'activate')->assertSee('2 kaynak aktif edildi');
+        $this->assertTrue($a->fresh()->is_active && $b->fresh()->is_active);
+        $this->assertSame([], $c->get('selectedSources'));
+
+        $c->set('sourceState', 'active')->call('selectAllSources')->call('bulkSources', 'delete')->assertSee('2 kaynak silindi');
+        $this->assertSame(2, Scraper::onlyTrashed()->count());
+
+        $c->set('sourceState', 'deleted')->set('selectedSources', [(string) $a->id])->call('bulkSources', 'restore')->assertSee('1 kaynak geri alındı');
+        $this->assertFalse($a->fresh()->is_active);
+
+        $c->set('selectedSources', [(string) $b->id])->call('bulkSources', 'purge')->assertSee('1 kaynak adaylarıyla birlikte kalıcı silindi');
+        $this->assertNull(Scraper::withTrashed()->find($b->id));
+        $this->assertNotNull(ScrapedLoad::find($cnd->id), 'Geri alınan kaynağın adayı durur');
+
+        // İlan kuyruğunda "filtreye uyan tümünü seç" sayfa sınırını aşar.
+        for ($i = 0; $i < 3; $i++) {
+            $this->candidate($a);
+        }
+        $q = Volt::test('admin.scrapers-center')->set('activeTab', 'queue')->call('selectAllMatching');
+        $this->assertCount(4, $q->get('selected'));
+    }
+
     public function test_public_phone_setup_page_is_gone(): void
     {
         $this->get('/kurulum/telefon/'.str_repeat('a', 24))->assertNotFound();

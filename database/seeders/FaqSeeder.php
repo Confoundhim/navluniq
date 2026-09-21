@@ -44,12 +44,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Kısaca: yeni ilanları herkesten 20 dakika önce görürsünüz ve anında bildirim alırsınız. Yük sahiplerinin açtığı sistem ilanları ve onaylı dış kaynak ilanları önce premium üyelere açılır; standart üyelere ve Telegram kanalına 20 dakika sonra düşer. Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı da görünür. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur ve platform hizmet bedeli premium ile değişmez.',
+                'answer' => 'Kısaca: yeni ilanları herkesten 20 dakika önce görürsünüz ve anında bildirim alırsınız. Yük sahiplerinin açtığı sistem ilanları önce premium üyelere açılır; standart üyelere ve Telegram kanalına 20 dakika sonra düşer. Onaylı dış kaynak ilanları ise ilan sahibinin telefon numarasıyla birlikte yalnız premium üyelere gösterilir. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur ve platform hizmet bedeli premium ile değişmez.',
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni ilanlar (sistem ilanları ve dış kaynak ilanlar) ücretsiz hesaba premium üyelerden 20 dakika sonra açılır ve dış kaynak ilanlarında numara kısmen gizlenir. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
+                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni sistem ilanları ücretsiz hesaba premium üyelerden 20 dakika sonra açılır; dış kaynak ilanları ise yalnız premium üyelere görünür. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
             ],
             [
                 'order_num' => 6,

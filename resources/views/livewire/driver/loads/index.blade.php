@@ -265,7 +265,7 @@ class extends Component {
             ->with('scraper')
             ->where('status', 'parsed_success')
             ->where('visibility', 'public')
-            ->when(! $premium, fn (Builder $q) => $q->where(fn (Builder $w) => $w->whereNull('available_to_free_at')->orWhere('available_to_free_at', '<=', now())))
+            ->when(! $premium, fn (Builder $q) => $q->whereRaw('1 = 0')) // dış kaynak ilanları yalnız premium üyelere görünür
             ->when(trim($this->search) !== '', function (Builder $q): void {
                 $term = '%'.trim($this->search).'%';
                 $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
@@ -385,7 +385,7 @@ class extends Component {
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             'loads' => null,
             'offers' => null,
-            'externalLoads' => null,
+            'externalLoads' => null, 'webLoadsCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->count(),
         ];
 
         if ($this->tab === 'offers') {
@@ -440,7 +440,7 @@ class extends Component {
             </h3>
             <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
                 @if($kycStatus === 'pending')
-                    Ekibimiz belgelerinizi inceliyor. Onaylandığında ilan havuzu, dış kaynak ilanlar ve iletişim bilgileri hesabınıza açılır; size bildirim göndeririz.
+                    Ekibimiz belgelerinizi inceliyor. Onaylandığında ilan havuzu ve teklif verme hesabınıza açılır; size bildirim göndeririz. Dış kaynak ilanları premium üyelere özeldir.
                 @elseif($kycStatus === 'rejected')
                     Belgelerinizde düzeltilmesi gereken bir nokta var. Profil sayfasından yeniden yükleyin; onaylandığında ilanlara erişim açılır.
                 @else
@@ -719,21 +719,28 @@ class extends Component {
         </div>
     @endif
 
-    @if($kycApproved && $tab === 'external')
+    @if($kycApproved && $tab === 'external' && ! $isPremium)
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 text-center space-y-3">
+            <div class="mx-auto w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+            <h2 class="text-base font-bold text-neutral-900 dark:text-white">Dış kaynak ilanları premium üyelere özeldir</h2>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">İzinli gruplardan ve web mecralarından derlenip ekibimizce onaylanan ilanlar, ilan sahibinin telefon numarasıyla birlikte yalnız premium üyelere gösterilir. Şu anda {{ $webLoadsCount ?? '' }} onaylı dış kaynak ilanı yayında.</p>
+            <a href="{{ route('driver.premium.index') }}" wire:navigate class="btn-primary inline-flex py-2.5 px-5 text-xs">Premium'a geç</a>
+        </div>
+    @endif
+
+    @if($kycApproved && $tab === 'external' && $isPremium)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="text-xs">
                 <div class="text-[11px] text-neutral-500 leading-relaxed">
-                    Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır.
-                    @if(! $isPremium)
-                        Yeni dış kaynak ilanlar önce premium üyelere açılır; telefon numarasının tamamı premium üyelere gösterilir.
-                        <a href="{{ route('driver.premium.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Premium</a>
-                    @endif
+                    Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
                 </div>
             </div>
 
             <div class="space-y-3">
                 @forelse($externalLoads as $item)
-                    @php $plainPhone = $item->plainPhone(); $fullPhone = $isPremium && $plainPhone ? \App\Support\Phone::format($plainPhone) : null; $extraPhones = $item->extraPhones(); @endphp
+                    @php $plainPhone = $item->plainPhone(); $extraPhones = $item->extraPhones(); @endphp
                     <div class="load-card">
                         <div class="load-card-main">
                             <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
@@ -752,7 +759,7 @@ class extends Component {
                             @else
                                 <div class="load-card-price-muted">Fiyat belirtilmemiş</div>
                             @endif
-                            @if($fullPhone)
+                            @if($plainPhone)
                                 <div class="flex flex-col items-end gap-1 tabular-nums">
                                     @foreach(array_merge([$plainPhone], $extraPhones) as $phone)
                                         <div class="flex items-center gap-3 whitespace-nowrap">
@@ -762,10 +769,7 @@ class extends Component {
                                     @endforeach
                                 </div>
                             @else
-                                <div class="flex flex-col items-end gap-0.5 tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
-                                    <span>{{ \App\Models\ScrapedLoad::maskPhone($plainPhone) }}</span>
-                                    @if($extraPhones !== [])<span class="text-[11px]">+{{ count($extraPhones) }} numara daha</span>@endif
-                                </div>
+                                <div class="text-neutral-400 whitespace-nowrap">Numara yok</div>
                             @endif
                         </div>
                     </div>

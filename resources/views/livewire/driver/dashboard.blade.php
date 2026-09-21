@@ -90,7 +90,7 @@ class extends Component {
                     @else Belge doğrulaması tamamlanmadı
                     @endif
                 </div>
-                <div class="mt-0.5 opacity-90">İlan havuzu, dış kaynak ilanlar ve teklif verme, belgeleriniz onaylandığında açılır.</div>
+                <div class="mt-0.5 opacity-90">İlan havuzu ve teklif verme belgeleriniz onaylandığında açılır; dış kaynak ilanları premium üyelere özeldir.</div>
             </div>
             <a href="{{ route('driver.profile.index') }}" wire:navigate class="shrink-0 px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold hover:bg-neutral-200 dark:hover:bg-neutral-800">Belgelere git</a>
         </div>
