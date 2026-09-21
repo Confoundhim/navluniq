@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -249,11 +250,11 @@ class ExternalLoadsModuleTest extends TestCase
         $a = $this->candidate($source);
         $b = $this->candidate($source);
 
-        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->call('deleteSource', $source->id)->assertSee('Silinen kaynaklar')->assertSee('Grup A');
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources')->call('deleteSource', $source->id)->assertDontSee('Grup A')->set('sourceState', 'deleted')->assertSee('Silinen kaynaklar')->assertSee('Grup A');
         $this->assertNotNull(Scraper::onlyTrashed()->find($source->id));
         $this->assertSame(2, ScrapedLoad::count(), 'Silme adayları korur');
 
-        $c->call('restoreSource', $source->id)->assertDontSee('Silinen kaynaklar');
+        $c->call('restoreSource', $source->id)->set('sourceState', 'pending')->assertSee('Grup A')->assertSee('Onay bekliyor');
         $this->assertFalse(Scraper::find($source->id)->is_active, 'Geri alınan kaynak onay bekler');
 
         $c->call('deleteSource', $source->id)->call('purgeSource', $source->id);
@@ -349,17 +350,28 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertNull($service->autoApprovalBlocker($waiting->fresh()), 'Zorunluluk kapalıysa beklemez');
     }
 
-    public function test_setup_page_shows_manual_steps_and_dies_when_link_is_regenerated(): void
+    public function test_sources_tab_splits_active_pending_and_deleted_lists(): void
+    {
+        $this->actingAs($this->admin());
+        $active = $this->source();
+        $pending = Scraper::create(['name' => 'Grup Bekleyen', 'type' => 'notification', 'source_identifier' => 'notif:bekleyen', 'is_active' => false]);
+        $gone = Scraper::create(['name' => 'Grup Silinen', 'type' => 'notification', 'source_identifier' => 'notif:silinen', 'is_active' => true]);
+        $gone->delete();
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'sources');
+        $c->assertSee('Grup A')->assertDontSee('Grup Bekleyen')->assertDontSee('Grup Silinen');
+        $c->set('sourceState', 'pending')->assertSee('Grup Bekleyen')->assertDontSee('Grup Silinen');
+        $c->set('sourceState', 'deleted')->assertSee('Grup Silinen')->assertDontSee('Grup Bekleyen');
+        $c->set('sourceState', 'active')->set('sourceSearch', 'yok-boyle')->assertDontSee('Grup A')->assertSee('Aktif kaynak yok');
+        $c->set('sourceSearch', '')->call('toggleSource', $active->id)->assertDontSee('Grup A');
+        $this->assertFalse($active->fresh()->is_active);
+    }
+
+    public function test_public_phone_setup_page_is_gone(): void
     {
         $this->get('/kurulum/telefon/'.str_repeat('a', 24))->assertNotFound();
-        $url = ScrapedLoadService::setupUrl();
-        $this->get($url)->assertOk()->assertSee('Telefon kurulumu')->assertSee('2. Makroyu kurun')->assertSee('application/x-www-form-urlencoded')
-            ->assertSee(ScrapedLoadService::apiToken())->assertSee('ulaşabiliyor muyum');
-        $this->get($url.'/NavlunIQ.macro')->assertNotFound();
-
-        ScrapedLoadService::regenerateSetupCode();
-        $this->get($url)->assertNotFound();
-        $this->get(ScrapedLoadService::setupUrl())->assertOk();
+        $this->assertFalse(Route::has('phone-setup.show'));
+        $this->assertStringContainsString(ScrapedLoadService::apiToken(), ScrapedLoadService::phoneRequestBody());
     }
 
     public function test_provider_test_button_explains_errors_and_rate_limit_cooldown_is_short(): void

@@ -60,7 +60,6 @@ final class Settings
         'ai_ollama_base' => 'http://127.0.0.1:11434/v1', // Ollama OpenAI uyumlu adres
         'ai_ollama_model' => '',                     // boş: otomatik (qwen3 > qwen2.5 > gemma3 > llama3)
         'ai_claude_key' => '',                  // şifreli; boşsa .env CLAUDE_API_KEY
-        'scraper_setup_code' => '',             // herkese açık telefon kurulum sayfasının gizli kodu
 
         // Telegram kanalı
         'telegram_post_enabled' => 0,           // 1: herkese açılan SİSTEM ilanları kanala gönderilir (dış kaynak gönderilmez)
@@ -89,7 +88,7 @@ final class Settings
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
-    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token', 'scraper_setup_code'];
+    public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token'];
 
     /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
     public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];

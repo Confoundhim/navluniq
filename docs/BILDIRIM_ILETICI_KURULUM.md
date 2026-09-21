@@ -3,15 +3,13 @@
 WhatsApp'a hiçbir cihaz bağlanmaz. Telefonda çalışan MacroDroid uygulaması, seçili grupların
 bildirim metnini NavlunIQ'ya iletir; sunucu tekrarları eler, ilanı ayrıştırır ve onay kuyruğuna alır.
 
-## 1. Kurulum bağlantısı
+## 1. Kurulum nasıl yapılır
 
-Panel → **Dış Kaynak İlanları → Kaynaklar ve telefon** → "Kurulum bağlantısı". Bu bağlantıyı (ya da QR'ı) telefon
-sahibine gönderin; sayfa kurulumu adım adım anlatır, MacroDroid'e girilecek adres ve alanları hazır verir,
-"Bu telefondan sunucuya ulaşabiliyor muyum? Sına" düğmesi ve "Sunucuya son ulaşan istek" satırıyla kurulumun
-çalıştığını gösterir. Bağlantıyı bilen herkes kurabilir; **Bağlantıyı yenile** eski bağlantıyı öldürür.
-
-Adres + alanlar hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon başına ayar
-yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez.
+Herkese açık bir kurulum sayfası **yoktur**. Kurulum, panel → **Dış Kaynak İlanları → Kaynaklar ve telefon**
+sekmesindeki adres ve alanlarla, aşağıdaki 3. ve 4. bölümlerdeki adımlar izlenerek yöneticinin kendisi tarafından
+yapılır. Adres + alanlar hangi telefona yazılırsa o telefon sunucuya ilan iletmeye başlar; sunucu tarafında telefon
+başına ayar yoktur. "Yanıtı değişkene kaydet" seçeneği gerekmez. Kurulumun çalıştığını aynı sekmedeki
+"Sınama bağlantısı" ile (telefonun tarayıcısında açılır, Canlı akışa "Bağlantı sınaması" düşer) doğrularsınız.
 
 ## 2. Sunucu: gizli anahtar (panelden)
 
@@ -277,7 +275,7 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
   bildirim üretmez** (başkası yazmalı), WhatsApp Business kullanılıyorsa tetikleyicide o uygulama seçilmeli.
   MacroDroid'de HTTP İsteği eylemine uzun basıp "Eylemi test et" ile makronun istek atabildiği görülür (Canlı akışta "Atlandı").
 - Mesajda tırnak ya da satır sonu varsa JSON gövde bozulur; sunucu bunu onarır ama en sağlamı içerik türünü
-  **application/x-www-form-urlencoded** yapıp alanları "Parametreler" bölümüne girmektir (panel ve kurulum sayfası listeler).
+  **application/x-www-form-urlencoded** yapıp alanları "Parametreler" bölümüne girmektir (panel listeler).
 - Yanıt `401` (Canlı akışta "Anahtar hatalı"): telefondaki `token` panelde gösterilenle aynı değil; gövdeyi panelden yeniden kopyalayın.
 - Yanıt `status: filtered`: mesajda telefon numarası ya da lojistik işaret yok, il çözülemedi veya yapay zeka "ilan değil" dedi; Canlı akış nedenini yazar.
 - Yanıt `status: source_pending`: grup Kaynaklar listesine pasif düşmüştür; aktif edince sonraki mesajlar işlenir.
