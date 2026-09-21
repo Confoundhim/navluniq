@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\BackupDownloadController;
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
@@ -168,6 +169,10 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/firewall', function () {
             return view('admin.firewall-page');
         })->name('admin.firewall');
+        Route::get('/backups', function () {
+            return view('admin.backups-page');
+        })->name('admin.backups');
+        Route::get('/backups/{backup}/download', BackupDownloadController::class)->name('admin.backups.download');
 
         Route::post('/logout', function () {
             Auth::logout();

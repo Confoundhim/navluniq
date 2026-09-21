@@ -265,6 +265,22 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
 - **Yayın anı denetimi:** "Yayınla" ya da otomatik onay sırasında aynı metin (7 gün) ya da aynı numara + il çifti (48 saat)
   zaten yayındaysa aday yayınlanmaz, "tekrar (#N yayında)" diye reddedilir ve görüldüğü grup yayındaki ilanın sayacına eklenir.
 
+## Yedekleme
+
+Panel → **Yedekleme** (Yönetim ve sistem). "Şimdi tam yedek al" veritabanını (tüm ayarlar, kaynaklar, ilanlar,
+kullanıcılar), `.env` dosyasını ve yüklenen dosyaları (KYC belgeleri, faturalar, herkese açık dosyalar) tek zip'e
+yazar; **İndir** ile bilgisayarınıza alırsınız. Her gece 03:30'da otomatik tam yedek alınır, son 14 yedek sunucuda
+`storage/app/backups` altında tutulur (web'den erişilemez). Sunucudan elle:
+
+```bash
+cd /var/www/navluniq && sudo -u www-data php artisan system:backup          # tam yedek
+cd /var/www/navluniq && sudo -u www-data php artisan system:backup --type=database
+```
+
+Bilgisayara toplu kopyalama (PowerShell): `scp "root@185.22.187.140:/var/www/navluniq/storage/app/backups/*.zip" "$HOME\Downloads\"`.
+Zip'in içindeki `BENIOKU.txt` yeni sunucuda geri yükleme adımlarını anlatır (env.txt → .env, `mysql < database.sql`,
+storage klasörleri, `php artisan migrate --force`). Yedek dosyası anahtarları ve belgeleri içerir; paylaşmayın.
+
 ## Sorun giderme
 
 - Kaynak listesinde grup görünmüyor: MacroDroid'in bildirim erişimi ve WhatsApp'ın bildirim önizlemesi açık mı?

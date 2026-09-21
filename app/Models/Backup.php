@@ -16,6 +16,7 @@ class Backup extends Model
         'storage_path',
         'size_bytes',
         'size_mb',
+        'sha256',
         'status',
         'failure_message',
         'download_url',
@@ -24,5 +25,6 @@ class Backup extends Model
 
     protected $casts = [
         'size_mb' => 'decimal:2',
+        'completed_at' => 'datetime',
     ];
 }
