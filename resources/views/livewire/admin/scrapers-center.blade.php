@@ -34,6 +34,11 @@ new class extends Component {
 
     public string $sourceSearch = '';
 
+    /** Kaynaklar sekmesinde seçili kaynak kimlikleri (toplu işlem). */
+    public array $selectedSources = [];
+
+    public bool $selectSourcePage = false;
+
     #[Url(as: 'ara')]
     public string $search = '';
 
@@ -77,6 +82,11 @@ new class extends Component {
             $this->resetPage();
             $this->selected = [];
             $this->selectPage = false;
+            $this->selectedSources = [];
+            $this->selectSourcePage = false;
+        }
+        if ($name === 'selectSourcePage') {
+            $this->selectedSources = $this->selectSourcePage ? array_map('strval', $this->sourceQuery()->limit(20)->pluck('id')->all()) : [];
         }
         if ($name === 'selectPage') {
             $this->selected = $this->selectPage ? array_map('strval', $this->currentQuery()->pluck('id')->all()) : [];
@@ -213,6 +223,64 @@ new class extends Component {
         $ok = app(ScrapedLoadService::class)->reparseWithAi($load, $parser, true);
         $errors = collect($parser->lastErrors())->map(fn ($e, $p) => (AiParserService::PROVIDERS[$p]['label'] ?? $p).': '.AiParserService::humanizeError($e['message']))->implode(' · ');
         session()->flash($ok ? 'success_message' : 'error_message', $ok ? "#{$load->id} yapay zeka ile yeniden çözümlendi." : "#{$load->id} çözümlenemedi. ".($errors !== '' ? $errors : 'Sağlayıcı yanıt vermedi (kota/ağ).').' Ayarlar → Yapay zeka bölümünde "Bağlantıyı sına" ile ayrıntı görebilirsiniz; 5 dakika içinde otomatik yeniden denenir.');
+    }
+
+    /** Filtreye uyan TÜM adayları seçer (sayfa sınırı olmadan; en çok 2.000). */
+    public function selectAllMatching(): void
+    {
+        $this->selected = array_map('strval', $this->currentQuery()->limit(2000)->pluck('id')->all());
+        $this->selectPage = true;
+    }
+
+    /** Kaynaklar sekmesindeki listeyi (alt sekme + arama) veren sorgu. */
+    private function sourceQuery()
+    {
+        if (! in_array($this->sourceState, ['active', 'pending', 'deleted'], true)) {
+            $this->sourceState = 'active';
+        }
+        $term = trim($this->sourceSearch);
+        $q = $this->sourceState === 'deleted'
+            ? Scraper::onlyTrashed()->latest('deleted_at')
+            : Scraper::query()->where('is_active', $this->sourceState === 'active')->orderByDesc('last_message_at')->latest('id');
+
+        return $q->when($term !== '', fn ($w) => $w->where(fn ($x) => $x->where('name', 'like', "%{$term}%")->orWhere('source_identifier', 'like', "%{$term}%")));
+    }
+
+    public function selectAllSources(): void
+    {
+        $this->selectedSources = array_map('strval', $this->sourceQuery()->limit(2000)->pluck('id')->all());
+        $this->selectSourcePage = true;
+    }
+
+    /** Seçili kaynaklara toplu işlem: activate | deactivate | delete | restore | purge. */
+    public function bulkSources(string $action): void
+    {
+        if (! $this->can() || $this->selectedSources === []) {
+            return;
+        }
+        $ids = array_map('intval', $this->selectedSources);
+        $ok = 0;
+        $service = app(ScrapedLoadService::class);
+        foreach (Scraper::withTrashed()->whereIn('id', $ids)->get() as $scraper) {
+            $done = match ($action) {
+                'activate' => ! $scraper->trashed() && ! $scraper->is_active && $scraper->update(['is_active' => true]),
+                'deactivate' => ! $scraper->trashed() && $scraper->is_active && $scraper->update(['is_active' => false]),
+                'delete' => ! $scraper->trashed() && $scraper->forceFill(['is_active' => false, 'messages_since_deleted' => 0])->save() && $scraper->delete(),
+                'restore' => $scraper->trashed() && $scraper->restore() && $scraper->forceFill(['is_active' => false, 'messages_since_deleted' => 0])->save(),
+                'purge' => (bool) ($service->purgeSource($scraper, auth()->id()) + 1),
+                default => false,
+            };
+            if ($done) {
+                $ok++;
+                if ($action !== 'purge') {
+                    ActivityLog::record('scraper.'.['activate' => 'toggled', 'deactivate' => 'toggled', 'delete' => 'deleted', 'restore' => 'restored'][$action], "Kaynak {$scraper->name}: toplu ".['activate' => 'aktif edildi', 'deactivate' => 'pasife alındı', 'delete' => 'silindi', 'restore' => 'geri alındı'][$action], auth()->id());
+                }
+            }
+        }
+        $labels = ['activate' => 'aktif edildi', 'deactivate' => 'pasife alındı', 'delete' => 'silindi (Silinenler listesinde)', 'restore' => 'geri alındı; onay bekliyor', 'purge' => 'adaylarıyla birlikte kalıcı silindi'];
+        $this->selectedSources = [];
+        $this->selectSourcePage = false;
+        session()->flash('success_message', "{$ok} kaynak ".($labels[$action] ?? 'işlendi').'.');
     }
 
     // ---- Toplu işlemler ----
@@ -553,7 +621,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0],
+            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
 
@@ -571,21 +639,13 @@ new class extends Component {
             }
             $data['events'] = $q->paginate(30);
         } elseif ($this->activeTab === 'sources') {
-            if (! in_array($this->sourceState, ['active', 'pending', 'deleted'], true)) {
-                $this->sourceState = 'active';
-            }
             $data['sourceCounts'] = [
                 'active' => Scraper::query()->where('is_active', true)->count(),
                 'pending' => Scraper::query()->where('is_active', false)->count(),
                 'deleted' => Scraper::onlyTrashed()->count(),
             ];
-            $term = trim($this->sourceSearch);
-            $q = $this->sourceState === 'deleted'
-                ? Scraper::onlyTrashed()->latest('deleted_at')
-                : Scraper::query()->where('is_active', $this->sourceState === 'active')->orderByDesc('last_message_at')->latest('id');
-            $data['sources'] = $q->withCount('scrapedLoads')
-                ->when($term !== '', fn ($w) => $w->where(fn ($x) => $x->where('name', 'like', "%{$term}%")->orWhere('source_identifier', 'like', "%{$term}%")))
-                ->paginate(20);
+            $data['sources'] = $this->sourceQuery()->withCount('scrapedLoads')->paginate(20);
+            $data['sourceTotal'] = $this->sourceQuery()->count();
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
             $data['pingUrl'] = ScrapedLoadService::pingUrl();
             $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
@@ -602,7 +662,7 @@ new class extends Component {
     }
 }; ?>
 
-<div @if(! $editingId && $selected === []) wire:poll.5s @endif class="max-w-7xl mx-auto space-y-5">
+<div @if(! $editingId && $selected === [] && $selectedSources === []) wire:poll.5s @endif class="max-w-7xl mx-auto space-y-5">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];
@@ -659,6 +719,7 @@ new class extends Component {
         @if($selected !== [])
             <div class="sticky top-16 z-20 apple-glass rounded-2xl p-3 flex flex-wrap items-center gap-2 text-xs border border-brand-500/30">
                 <span class="font-bold text-neutral-900 dark:text-white mr-2">{{ count($selected) }} seçili</span>
+                <button type="button" wire:click="selectAllMatching" class="text-brand-600 font-semibold hover:underline mr-2">Filtreye uyan tümünü seç</button>
                 @if($activeTab !== 'published')<button type="button" wire:click="bulk('approve')" class="btn-primary py-1.5 px-3 text-xs">Yayınla</button>@endif
                 @if($activeTab !== 'rejected')<button type="button" wire:click="bulk('reject')" wire:confirm="Seçili adaylar reddedilecek." class="btn-secondary py-1.5 px-3 text-xs">Reddet</button>@endif
                 @if($activeTab === 'rejected')<button type="button" wire:click="bulk('restore')" class="btn-secondary py-1.5 px-3 text-xs">Kuyruğa geri al</button>@endif
@@ -875,6 +936,18 @@ new class extends Component {
                     @endforeach
                     <input type="text" wire:model.live.debounce.400ms="sourceSearch" placeholder="Kaynak adı ara" class="{{ $input }} ml-auto w-full sm:w-56">
                 </div>
+                @if($selectedSources !== [])
+                    <div class="p-3 border-b border-brand-500/30 bg-brand-500/5 flex flex-wrap items-center gap-2 text-xs">
+                        <span class="font-bold text-neutral-900 dark:text-white mr-2">{{ count($selectedSources) }} kaynak seçili</span>
+                        @if(count($selectedSources) < $sourceTotal)<button type="button" wire:click="selectAllSources" class="text-brand-600 font-semibold hover:underline mr-2">Listedeki tümünü seç ({{ $sourceTotal }})</button>@endif
+                        @if($sourceState === 'pending')<button type="button" wire:click="bulkSources('activate')" class="btn-primary py-1.5 px-3 text-xs">Aktif et</button>@endif
+                        @if($sourceState === 'active')<button type="button" wire:click="bulkSources('deactivate')" wire:confirm="Seçili kaynaklar pasife alınacak; mesajları işlenmez." class="btn-secondary py-1.5 px-3 text-xs">Pasife al</button>@endif
+                        @if($sourceState !== 'deleted')<button type="button" wire:click="bulkSources('delete')" wire:confirm="Seçili kaynaklar Silinenler listesine taşınacak." class="btn-secondary py-1.5 px-3 text-xs">Sil</button>@endif
+                        @if($sourceState === 'deleted')<button type="button" wire:click="bulkSources('restore')" class="btn-secondary py-1.5 px-3 text-xs">Geri al</button>@endif
+                        @if($sourceState === 'deleted')<button type="button" wire:click="bulkSources('purge')" wire:confirm="Seçili kaynaklar ve onlardan gelen TÜM adaylar kalıcı silinecek; geri alınamaz." class="py-1.5 px-3 text-xs font-semibold text-red-600 hover:bg-red-500/10 rounded-xl">Kalıcı sil</button>@endif
+                        <button type="button" wire:click="$set('selectedSources', [])" class="ml-auto text-neutral-400 hover:text-neutral-600">Seçimi temizle</button>
+                    </div>
+                @endif
                 @if($sourceState === 'deleted')
                     <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50">
                         <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Silinen kaynaklar</h2>
@@ -882,10 +955,11 @@ new class extends Component {
                     </div>
                     <div class="responsive-scroll">
                         <table class="w-full text-left text-xs">
-                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
+                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4 w-8"><input type="checkbox" wire:model.live="selectSourcePage" class="rounded" title="Sayfadakilerin tümünü seç"></th><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
                             <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                                 @forelse($sources as $source)
-                                    <tr class="align-top">
+                                    <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : '' }}">
+                                        <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
                                         <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->deleted_at?->diffForHumans() }}</td>
                                         <td class="p-4">
@@ -903,7 +977,7 @@ new class extends Component {
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="5" class="p-10 text-center text-neutral-500">Silinmiş kaynak yok.</td></tr>
+                                    <tr><td colspan="6" class="p-10 text-center text-neutral-500">Silinmiş kaynak yok.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -911,10 +985,11 @@ new class extends Component {
                 @else
                     <div class="responsive-scroll">
                         <table class="w-full text-left text-xs">
-                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kaynak</th><th class="p-4">Aday</th><th class="p-4">Son mesaj</th><th class="p-4">Durum</th><th class="p-4"></th></tr></thead>
+                            <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4 w-8"><input type="checkbox" wire:model.live="selectSourcePage" class="rounded" title="Sayfadakilerin tümünü seç"></th><th class="p-4">Kaynak</th><th class="p-4">Aday</th><th class="p-4">Son mesaj</th><th class="p-4">Durum</th><th class="p-4"></th></tr></thead>
                             <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                                 @forelse($sources as $source)
-                                    <tr class="align-top {{ ! $source->is_active ? 'bg-amber-500/5' : '' }}">
+                                    <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : (! $source->is_active ? 'bg-amber-500/5' : '') }}">
+                                        <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
                                         <td class="p-4">{{ $source->scraped_loads_count }}</td>
                                         <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_message_at ? $source->last_message_at->diffForHumans() : ($source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->diffForHumans() : 'Henüz yok') }}</td>
@@ -925,7 +1000,7 @@ new class extends Component {
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="5" class="p-10 text-center text-neutral-500">{{ $sourceState === 'active' ? 'Aktif kaynak yok. Onay bekleyenlerden "Aktif et" ile açın.' : 'Onay bekleyen kaynak yok. Telefondan yeni bir gruptan ilk mesaj gelince burada belirir.' }}</td></tr>
+                                    <tr><td colspan="6" class="p-10 text-center text-neutral-500">{{ $sourceState === 'active' ? 'Aktif kaynak yok. Onay bekleyenlerden "Aktif et" ile açın.' : 'Onay bekleyen kaynak yok. Telefondan yeni bir gruptan ilk mesaj gelince burada belirir.' }}</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
