@@ -33,7 +33,9 @@ class EnsureCargoOwner
             ]);
         }
 
-        if ($user->current_role !== 'cargo_owner' || ! $user->cargoOwnerProfile) {
+        // Yönetim paneli kullanıcısı, kendi (yönetici) yük sahibi profiliyle paneli görebilir ("Yük sahibi paneline git").
+        $godMode = $user->isAdminPanelUser() && $user->cargoOwnerProfile;
+        if (! $godMode && ($user->current_role !== 'cargo_owner' || ! $user->cargoOwnerProfile)) {
             // Eğer şoför rolündeyse şoför paneline yönlendir
             if ($user->current_role === 'driver') {
                 return redirect()->route('driver.dashboard');

@@ -7,6 +7,8 @@ use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
 use App\Models\Load;
+use App\Models\ScrapedLoad;
+use App\Models\Scraper;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Services\LoadReleaseService;
@@ -15,6 +17,7 @@ use App\Services\OfferService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Volt\Volt;
@@ -168,5 +171,24 @@ class PremiumReleaseTest extends TestCase
         $this->publish();
         $this->assertSame(0, UserNotification::where('user_id', $small->id)->count());
         $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count());
+    }
+
+    public function test_external_loads_are_visible_only_to_premium_drivers(): void
+    {
+        $scraper = Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        ScrapedLoad::create([
+            'scraper_id' => $scraper->id, 'content_hash' => hash('sha256', 'x'), 'raw_message' => 'Bursa Konya 10 ton 0532 123 45 67',
+            'encrypted_sender_phone' => Crypt::encryptString('5321234567'),
+            'pickup_location' => 'Bursa', 'delivery_location' => 'Konya', 'pickup_province_code' => 16, 'delivery_province_code' => 42,
+            'weight' => 10000, 'status' => 'parsed_success', 'visibility' => 'public', 'parsed_by_llm' => 'regex_verified',
+        ]);
+
+        $this->actingAs($this->free);
+        Volt::test('driver.loads.index')->set('tab', 'external')
+            ->assertSee('premium üyelere özeldir')->assertDontSee('0532 123 45 67')->assertDontSee('Gruptan derlendi');
+
+        $this->actingAs($this->premium);
+        Volt::test('driver.loads.index')->set('tab', 'external')
+            ->assertSee('Gruptan derlendi')->assertSee('0532 123 45 67')->assertDontSee('***');
     }
 }

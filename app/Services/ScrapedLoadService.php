@@ -231,7 +231,7 @@ class ScrapedLoadService
         $load->update([
             'status' => 'parsed_success',
             'visibility' => 'public',
-            'available_to_free_at' => now()->addMinutes($this->freeDelayMinutes()),
+            'available_to_free_at' => null, // dış kaynak ilanları yalnız premium üyelere görünür; herkese açılmaz
             'auto_approved_at' => $auto ? now() : null,
         ]);
 

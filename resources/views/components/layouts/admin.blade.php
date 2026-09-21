@@ -220,10 +220,24 @@
                         </svg>
                     </button>
 
-                    <a href="{{ route('home') }}" target="_blank" rel="noopener" class="hidden sm:inline-flex btn-secondary py-2 px-3 text-xs">
-                        <span>Siteye git</span>
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                    </a>
+                    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
+                        <button type="button" @click="open = !open" class="inline-flex btn-secondary py-2 px-3 text-xs items-center gap-1.5" title="Siteyi ve panelleri yönetici olarak görüntüle">
+                            <span>Görünüm</span>
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" x-cloak x-transition class="absolute right-0 mt-2 w-60 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-apple-lg p-1.5 text-xs z-50">
+                            <a href="{{ route('home') }}" target="_blank" rel="noopener" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-semibold">
+                                <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>Siteye git
+                            </a>
+                            <a href="{{ route('admin.panel-switch', 'cargo_owner') }}" target="_blank" rel="noopener" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-semibold">
+                                <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Yük sahibi paneline git
+                            </a>
+                            <a href="{{ route('admin.panel-switch', 'driver') }}" target="_blank" rel="noopener" class="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-semibold">
+                                <svg class="w-4 h-4 text-neutral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13h2l2-5h10l2 5h2v5h-2a2 2 0 11-4 0H9a2 2 0 11-4 0H3v-5z"/></svg>Şoför paneline git
+                            </a>
+                            <div class="px-3 pt-2 pb-1 text-[10px] text-neutral-400 leading-snug">Paneller yönetici hesabınızın kendi profiliyle açılır; yönetici yetkiniz sürer.</div>
+                        </div>
+                    </div>
                 </div>
             </header>
 

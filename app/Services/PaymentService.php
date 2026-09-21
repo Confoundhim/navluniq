@@ -334,6 +334,6 @@ class PaymentService
 
     private function merchantOid(string $prefix): string
     {
-        return $prefix.'T'.now()->format('ymdHis').random_int(10, 99);
+        return $prefix.'T'.now()->format('ymdHis').random_int(1000, 9999); // aynı saniyede iki sipariş çakışmasın
     }
 }

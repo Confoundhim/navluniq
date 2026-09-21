@@ -798,7 +798,6 @@ new class extends Component {
                                     @if($activeTab === 'queue')
                                         <div class="text-[11px] mt-1 {{ $blocker ? 'text-amber-600' : 'text-emerald-600' }}">{{ $autoApprove ? 'Otomatik onay: ' : 'Otomatik onay kapalı · ' }}{{ $blocker ? ($blockerLabels[$blocker] ?? $blocker) : 'uygun' }}</div>
                                     @endif
-                                    @if($load->available_to_free_at)<div class="text-[11px] text-neutral-400 mt-1">Herkese: {{ \Illuminate\Support\Carbon::parse($load->available_to_free_at)->format('d.m H:i') }}</div>@endif
                                 </td>
                                 <td class="p-3 whitespace-nowrap">
                                     <div class="flex flex-col gap-1 items-start">

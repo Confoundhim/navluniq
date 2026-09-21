@@ -78,7 +78,7 @@ class extends Component {
                 <h1 class="text-2xl font-black text-neutral-950 dark:text-white">Ödemeniz alındı</h1>
                 <p class="text-sm text-neutral-500 dark:text-neutral-400">
                     @if($isSubscription)
-                        Premium üyeliğiniz etkinleştirildi. Onaylı dış kaynak ilanlarını artık herkesten önce görüyorsunuz.
+                        Premium üyeliğiniz etkinleştirildi. Onaylı dış kaynak ilanları artık panelinizde; yeni sistem ilanlarını da herkesten önce görüyorsunuz.
                     @else
                         Navlun ödemesi lisanslı ödeme kuruluşu tarafından doğrulandı. Şoför artık yola çıkabilir; ödeme, teslimatı onayladığınızda tamamlanır.
                     @endif

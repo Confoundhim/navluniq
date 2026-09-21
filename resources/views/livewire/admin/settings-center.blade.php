@@ -647,7 +647,7 @@ new class extends Component {
                 <div>
                     <label class="form-label">{{ $scraperKeys['scraper_free_delay_minutes'] }}</label>
                     <input type="number" min="0" max="1440" wire:model="scraper.scraper_free_delay_minutes" class="{{ $input }}">
-                    <span class="text-[11px] text-neutral-400">Hem sistem hem dış kaynak ilanlar önce premium şoförlere açılır ve bildirilir; bu süre sonunda herkese açılır (sistem ilanları ayrıca Telegram kanalına gider).</span>
+                    <span class="text-[11px] text-neutral-400">Sistem ilanları önce premium şoförlere açılır ve bildirilir; bu süre sonunda herkese açılır (ayrıca Telegram kanalına gider). Dış kaynak ilanları süreden bağımsız olarak her zaman yalnız premium üyelere görünür.</span>
                     @error('scraper.scraper_free_delay_minutes') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
             </div>

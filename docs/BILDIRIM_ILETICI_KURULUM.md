@@ -73,7 +73,7 @@ Yönetim paneli → **Dış Kaynak İlanları → Canlı akış** sekmesinde tel
 (sonuç: kuyruğa alındı / tekrar / elendi + nedeni / kaynak onay bekliyor / anahtar hatalı). Telefon hiç istek
 atmıyorsa akış boş kalır; sorun telefondadır. **Kaynaklar ve telefon** listesinde grup adıyla pasif bir kaynak
 belirir; kaynağı **aktif** edin. Sonraki ilanlar **İnceleme kuyruğuna** düşer; yayınlananlar premium şoförlere
-anında, diğerlerine 20 dakika sonra açılır.
+açılır; standart üyeler dış kaynak ilanlarını görmez (yalnız premium).
 
 ## Yönetici ekranı
 

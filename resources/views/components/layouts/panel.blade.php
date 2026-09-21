@@ -124,6 +124,11 @@
                     <svg x-show="!$store.darkMode.on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
                     <svg x-show="$store.darkMode.on" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
                 </button>
+                @if(auth()->user()?->isAdminPanelUser())
+                    <a href="{{ route('admin.dashboard') }}" class="inline-flex btn-primary py-2 px-3 text-xs" title="Yönetici görünümü: bu paneli yönetici hesabınızla görüyorsunuz">
+                        <span>Yönetim paneline dön</span>
+                    </a>
+                @endif
                 <a href="{{ route('home') }}" target="_blank" rel="noopener" class="hidden sm:inline-flex btn-secondary py-2 px-3 text-xs">
                     <span>Siteye git</span>
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>

@@ -306,7 +306,7 @@ HTML;
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: Sözleşmeli Hizmetin Konusu, Bedeli ve Ödeme Şartları</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>2.1 Premium Sürücü Aboneliği:</strong> Sürücülere paylaşım izni doğrulanmış dış kaynak ilanlarına plan kapsamında 20 dakikaya kadar erken erişim ve bildirim özellikleri sağlayan, aylık <strong>satın alma ekranında gösterilen KDV dahil bedel</strong> üzerinden sunulan dijital üyelik hizmetidir.</li>
+            <li><strong>2.1 Premium Sürücü Aboneliği:</strong> Sürücülere paylaşım izni doğrulanmış dış kaynak ilanlarına erişim, sistem ilanlarına 20 dakikaya kadar erken erişim ve bildirim özellikleri sağlayan, aylık <strong>satın alma ekranında gösterilen KDV dahil bedel</strong> üzerinden sunulan dijital üyelik hizmetidir.</li>
             <li><strong>2.2 Aracılık Hizmet Komisyonu:</strong> Sürücü ile Gönderici arasında platform vasıtasıyla başarılı bir şekilde eşleşen her navlun işlemi üzerinden, mutabakat bedeli üzerinden hesaplanan veya sabit olarak tahsil edilen aracı hizmet komisyonudur.</li>
             <li><strong>2.3 Tüm Komisyon ve Abonelik Bedelleri:</strong> lisanslı ödeme kuruluşları ve bankalar aracılığıyla sunulan kredi kartı, banka kartı ve havale/EFT gibi ödeme yöntemleriyle tahsil edilir; KDV dâhil e-Fatura/e-Arşiv belgesi yetkili e-belge sağlayıcısının başarılı yanıtı sonrasında oluşturularak panel ve/veya e-posta üzerinden sunulur.</li>
         </ul>

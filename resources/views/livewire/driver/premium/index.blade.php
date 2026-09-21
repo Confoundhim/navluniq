@@ -47,7 +47,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alır; dış kaynak ilanlarında numaranın tamamını görür.</p>
+        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten 20 dakika önce görür, anında bildirim alır ve yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görür.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -97,7 +97,7 @@ class extends Component {
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">20 dakika önce görürsünüz</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Yük sahiplerinin açtığı sistem ilanları ve onaylı dış kaynak ilanları önce premium üyelere açılır; diğer üyeler 20 dakika sonra görür.</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Yük sahiplerinin açtığı sistem ilanları önce premium üyelere açılır; diğer üyeler 20 dakika sonra görür.</div>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Anında bildirim</div>
@@ -107,8 +107,8 @@ class extends Component {
                         </button>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">Dış kaynakta tam numara</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Dış kaynak ilanlarında ilan sahibinin telefon numarasının tamamı görünür; standart üyelerde kısmen gizlenir.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">Dış kaynak ilanları yalnız size</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
                     </div>
                 </div>
                 <p class="text-[11px] text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>

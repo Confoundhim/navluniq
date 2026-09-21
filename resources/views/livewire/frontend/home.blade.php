@@ -301,7 +301,7 @@ new class extends Component {
                     <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">NavlunIQ İlan Aboneliği</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Premium üyeler yeni sistem ilanlarını ve onaylı dış kaynak ilanlarını herkesten 20 dakika önce görür, anında bildirim alır. Sistem ilanları herkese açıldığı anda Telegram kanalında da yayınlanır.
+                        Premium üyeler yeni sistem ilanlarını herkesten 20 dakika önce görür, anında bildirim alır ve onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görür; standart üyeler dış kaynak ilanlarını görmez. Sistem ilanları herkese açıldığı anda Telegram kanalında da yayınlanır.
                     </p>
                 </div>
                 <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
@@ -389,7 +389,7 @@ new class extends Component {
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Yeni ilanları herkesten 20 dakika önce görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Dış kaynak ilanlarında numaranın tamamını görün</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görün (yalnız premium)</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
                     </ul>
                     <a href="{{ route('subscription') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Planları Karşılaştır</a>
