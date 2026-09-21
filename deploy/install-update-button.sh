@@ -12,14 +12,24 @@ if [ ! -f "$UPDATE_SH" ]; then
   echo "Güncelleme betiği bulunamadı: $UPDATE_SH (UPDATE_SH=... ile yolu verin)"; exit 1
 fi
 
-cat > /usr/local/bin/navluniq-update <<WRAP
+# Sarmalayıcı önce geçici dosyaya yazılıp yerine taşınır: çalışan bir güncelleme betiği yarım okunmaz.
+WRAP_TMP="$(mktemp /tmp/navluniq-update.XXXXXX)"
+cat > "$WRAP_TMP" <<WRAP
 #!/usr/bin/env bash
 # Panelden tetiklenen güncelleme: $UPDATE_SH'yi root olarak çalıştırır.
 set -o pipefail
+# Süreç kendi systemd kapsamına (scope) alınır: update.sh içindeki PHP-FPM yeniden başlatması
+# panelden başlayan bu süreci öldüremez. systemd yoksa doğrudan devam eder.
+if [ -z "\${NAVLUNIQ_SCOPED:-}" ] && command -v systemd-run >/dev/null 2>&1 \\
+   && systemd-run --scope --quiet --unit "navluniq-update-test-\$\$" true >/dev/null 2>&1; then
+    export NAVLUNIQ_SCOPED=1
+    exec systemd-run --scope --quiet --unit "navluniq-update-\$(date +%s)" bash "\$0" "\$@"
+fi
 echo "[navluniq-update] \$(date '+%d.%m.%Y %H:%M:%S') update.sh başlıyor"
 bash "$UPDATE_SH"
 WRAP
-chmod 755 /usr/local/bin/navluniq-update
+chmod 755 "$WRAP_TMP"
+mv -f "$WRAP_TMP" /usr/local/bin/navluniq-update
 
 cat > /etc/sudoers.d/navluniq-update <<SUDO
 $WEB_USER ALL=(root) NOPASSWD: /usr/local/bin/navluniq-update
