@@ -189,6 +189,19 @@ class PremiumReleaseTest extends TestCase
 
         $this->actingAs($this->premium);
         Volt::test('driver.loads.index')->set('tab', 'external')
-            ->assertSee('Gruptan derlendi')->assertSee('0532 123 45 67')->assertDontSee('***');
+            ->assertSee('Gruptan derlendi')->assertSee('0532 123 45 67')->assertDontSee('***')
+            ->assertSee('https://wa.me/905321234567?text=', false)->assertSee(rawurlencode('NavlunIQ platformunda belgeleri onaylanmış'), false);
+
+        // Hazır mesaj panelden düzenlenir; yer tutucular ilan ve şoför bilgisiyle dolar, boş şablon mesajsız açar.
+        $load = ScrapedLoad::first();
+        Settings::set('scraper_contact_message', '{ad} - {arac} - {rota} - {yuk}');
+        $msg = $load->contactMessage($this->premium);
+        $this->assertStringContainsString($this->premium->full_name, $msg);
+        $this->assertStringContainsString('TIR 06', $msg);
+        $this->assertStringContainsString('Bursa → Konya', $msg);
+        $this->assertStringContainsString('10 ton', $msg);
+        Settings::set('scraper_contact_message', '-');
+        $this->assertNull($load->contactMessage($this->premium));
+        $this->assertSame('https://wa.me/905321234567', $load->whatsappUrl('5321234567', $this->premium));
     }
 }

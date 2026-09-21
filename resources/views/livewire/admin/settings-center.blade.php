@@ -39,6 +39,7 @@ new class extends Component {
 
     public const SCRAPER_KEYS = [
         'scraper_free_delay_minutes' => 'Premium öncelik süresi (dakika)',
+        'scraper_contact_message' => 'Dış kaynak ilanında WhatsApp hazır mesajı',
         'scraper_auto_approve' => 'Otomatik onay',
         'scraper_auto_approve_require_price' => 'Otomatik onay için fiyat zorunlu',
         'scraper_auto_approve_require_weight' => 'Otomatik onay için tonaj zorunlu',
@@ -418,6 +419,7 @@ new class extends Component {
 
         $this->validate([
             'scraper.scraper_free_delay_minutes' => 'required|integer|min:0|max:1440',
+            'scraper.scraper_contact_message' => 'nullable|string|max:600',
             'scraper.telegram_bot_token' => ['nullable', 'string', 'max:120', 'regex:/^\d+:[A-Za-z0-9_-]+$/'],
             'scraper.telegram_channel_id' => ['nullable', 'string', 'max:120', 'regex:/^(@[A-Za-z0-9_]{4,}|-?\d+)$/'],
             'scraper.scraper_rejected_retention_days' => 'required|integer|min:0|max:365',
@@ -649,6 +651,12 @@ new class extends Component {
                     <input type="number" min="0" max="1440" wire:model="scraper.scraper_free_delay_minutes" class="{{ $input }}">
                     <span class="text-[11px] text-neutral-400">Sistem ilanları önce premium şoförlere açılır ve bildirilir; bu süre sonunda herkese açılır (ayrıca Telegram kanalına gider). Dış kaynak ilanları süreden bağımsız olarak her zaman yalnız premium üyelere görünür.</span>
                     @error('scraper.scraper_free_delay_minutes') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
+                </div>
+                <div class="md:col-span-2">
+                    <label class="form-label">{{ $scraperKeys['scraper_contact_message'] }}</label>
+                    <textarea wire:model="scraper.scraper_contact_message" rows="3" class="{{ $input }}"></textarea>
+                    <span class="text-[11px] text-neutral-400">Şoför ilan kartındaki WhatsApp düğmesine basınca sohbet bu metinle açılır; şoför göndermeden önce düzenleyebilir. Yer tutucular: <span class="font-mono">{rota}</span> (Bursa → Konya), <span class="font-mono">{yuk}</span> (yük · tonaj · araç), <span class="font-mono">{arac}</span> (şoförün aktif aracı), <span class="font-mono">{ad}</span> (şoförün adı). Boş bırakılırsa varsayılan metin kullanılır; mesaj istemiyorsanız tek bir tire (-) yazın.</span>
+                    @error('scraper.scraper_contact_message') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
             </div>
 
