@@ -175,7 +175,8 @@ new class extends Component {
     }
 }; ?>
 
-<div wire:poll.15s class="max-w-7xl mx-auto space-y-8">
+@php $update = \App\Services\DeployService::status(); @endphp
+<div wire:poll.{{ $update['running'] ? '5s' : '15s' }} class="max-w-7xl mx-auto space-y-8">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Sistem Sağlığı</h1>
@@ -194,7 +195,6 @@ new class extends Component {
         <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
-    @php $update = \App\Services\DeployService::status(); @endphp
     <section class="apple-glass rounded-3xl p-6 space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -209,10 +209,20 @@ new class extends Component {
             @if($update['running'])<span class="badge bg-amber-500/10 text-amber-600">Çalışıyor · başladı {{ $update['started_at'] }}</span>
             @elseif($update['ok'] === true)<span class="badge bg-emerald-500/10 text-emerald-600">Son güncelleme tamamlandı · {{ $update['finished_at'] }}</span>
             @elseif($update['ok'] === false)<span class="badge bg-red-500/10 text-red-600">Son güncelleme hata verdi · {{ $update['finished_at'] }}</span>
+            @elseif($update['interrupted'])<span class="badge bg-amber-500/10 text-amber-600">Son güncelleme sonuç yazamadan kesildi · {{ $update['finished_at'] }}</span>
             @else<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Panelden henüz güncelleme yapılmadı</span>@endif
         </div>
+        @if($update['running'])
+            <p class="text-[11px] text-amber-600">Güncelleme sırasında site kısa süre bakım modundadır; bu sayfa açık kalabilir, çıktı kendiliğinden yenilenir.</p>
+        @endif
+        @if($update['error'])
+            <div class="rounded-2xl border border-red-500/30 bg-red-500/5 p-3">
+                <div class="text-[11px] font-bold text-red-600 mb-1">Hata satırları (günlüğün sonu)</div>
+                <pre class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words text-red-700 dark:text-red-300">{{ $update['error'] }}</pre>
+            </div>
+        @endif
         @if($update['log'] !== '')
-            <pre class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto rounded-2xl bg-neutral-950 text-neutral-200 p-4">{{ $update['log'] }}</pre>
+            <pre wire:key="update-log-{{ md5($update['log']) }}" x-data x-init="$el.scrollTop = $el.scrollHeight" class="text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words max-h-64 overflow-auto rounded-2xl bg-neutral-950 text-neutral-200 p-4">{{ $update['log'] }}</pre>
         @endif
         <p class="text-[11px] text-neutral-400">Düğme "izin yok" ya da "komut bulunamadı" derse sunucuda bir kez şu çalıştırılır: <span class="font-mono">bash /var/www/navluniq/deploy/install-update-button.sh</span> (belgede anlatılır).</p>
     </section>
@@ -262,6 +272,20 @@ new class extends Component {
 
     <section class="apple-glass rounded-3xl p-6">
         <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yedekler</h2>
-        <p class="mt-1 text-xs text-neutral-500">Uygulama içinde yedekleme mekanizması yoktur; veritabanı yedekleri sunucu tarafında ayrı bir görevle alınmalıdır.</p>
+        <p class="mt-1 text-xs text-neutral-500">Her gece 03:30'da veritabanı ve dosyaların tam yedeği alınır; elle yedek almak ve indirmek için <a href="{{ route('admin.backups') }}" class="text-brand-500 font-semibold hover:underline" wire:navigate>Yedekler</a> sayfası.</p>
     </section>
 </div>
+
+@script
+<script>
+    // Güncelleme sırasında site bakım modundadır (503). Yoklama isteği 503 alınca Livewire'ın hata penceresi açılmasın;
+    // bir sonraki yoklamada sayfa kendiliğinden yenilenir.
+    Livewire.hook('request', ({ fail }) => {
+        fail(({ status, preventDefault }) => {
+            if (status === 503) {
+                preventDefault();
+            }
+        });
+    });
+</script>
+@endscript

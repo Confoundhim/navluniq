@@ -81,6 +81,11 @@ if [[ -f /root/update.sh ]] && ! cmp -s "$APP_DIR/deploy/update.sh" /root/update
     ok "/root/update.sh güncellendi (bir sonraki çalıştırmada geçerli)"
 fi
 
+# Panel "Siteyi güncelle" düğmesi kuruluysa sarmalayıcısı da depodaki güncel sürümle yenilenir.
+if [[ -f /etc/sudoers.d/navluniq-update ]]; then
+    bash "$APP_DIR/deploy/install-update-button.sh" >/dev/null 2>&1 && ok "Panel güncelleme düğmesi yenilendi" || echo "  ! Panel düğmesi yenilenemedi (bash deploy/install-update-button.sh)"
+fi
+
 # Crontab satırını ekler/yeniler. Boru yerine geçici dosya kullanılır: "crontab -" bazı
 # kurulumlarda stdin'i terminalden bekleyip takılıyordu; dosya ile bu olmaz. Her adım en çok 20 sn.
 ensure_cron() {  # ensure_cron <kullanıcı> <eşleşme metni> <satır>

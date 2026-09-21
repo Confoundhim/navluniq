@@ -49,6 +49,24 @@ class DeployButtonTest extends TestCase
         $this->assertFalse(app(DeployService::class)->start(), 'Kilit varken ikinci güncelleme başlamaz');
     }
 
+    public function test_status_strips_colour_codes_and_summarises_the_failing_lines(): void
+    {
+        file_put_contents(DeployService::logPath(), "[navluniq-update] başlatıldı\n\e[1;34m==> Veritabanı\e[0m\nMigration başarısız. Kilit bekleyen sorgular:\nÇözüm: KILL\n[navluniq-update] HATA (kod 1)\n");
+        $status = DeployService::status();
+        $this->assertFalse($status['ok']);
+        $this->assertFalse($status['interrupted']);
+        $this->assertStringNotContainsString("\e[", $status['log']);
+        $this->assertStringContainsString('==> Veritabanı', $status['log']);
+        $this->assertStringContainsString('Migration başarısız', $status['error']);
+        $this->assertStringContainsString('HATA (kod 1)', $status['error']);
+
+        // Sonuç satırı yoksa süreç kesilmiş sayılır (hata değil, belirsiz).
+        file_put_contents(DeployService::logPath(), "[navluniq-update] başlatıldı\n==> Bakım modu\n");
+        $status = DeployService::status();
+        $this->assertNull($status['ok']);
+        $this->assertTrue($status['interrupted']);
+    }
+
     public function test_non_admin_cannot_start_an_update(): void
     {
         $driver = User::factory()->create(['current_role' => 'driver']);
