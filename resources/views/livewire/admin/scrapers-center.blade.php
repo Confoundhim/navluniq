@@ -134,6 +134,7 @@ new class extends Component {
             'conflict' => $q->whereNotNull('parse_metadata->ai_conflict'),
             'urgent' => $q->where('parse_metadata->urgent', true),
             'duplicates' => $q->where('duplicate_count', '>', 1),
+            'auto_ok', 'auto_blocked' => $q->whereIn('id', $this->autoApprovalIds($this->flag === 'auto_ok')),
             default => null,
         };
         match ($this->sort) {
@@ -144,6 +145,32 @@ new class extends Component {
         };
 
         return $q;
+    }
+
+    /**
+     * "Otomatik onay: uygun" / "engelli" süzgeci: kuyruktaki adaylar (en yeni 2.000) kural kural denetlenir; sonuç aynı
+     * istek içinde önbelleğe alınır. Engel nedeni satırda görünür.
+     *
+     * @return list<int>
+     */
+    private function autoApprovalIds(bool $eligible): array
+    {
+        static $cache = [];
+        $key = $eligible ? 'ok' : 'blocked';
+        if (isset($cache[$key])) {
+            return $cache[$key];
+        }
+        $service = app(ScrapedLoadService::class);
+        $ids = [];
+        ScrapedLoad::query()->with('scraper')->where('visibility', 'private')->where('status', '!=', 'rejected')
+            ->latest('id')->limit(2000)->get()
+            ->each(function (ScrapedLoad $load) use (&$ids, $eligible, $service): void {
+                if (($service->autoApprovalBlocker($load) === null) === $eligible) {
+                    $ids[] = $load->id;
+                }
+            });
+
+        return $cache[$key] = $ids;
     }
 
     /** @return \Illuminate\Support\Collection<int, ScrapedLoad> */
@@ -667,7 +694,7 @@ new class extends Component {
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];
         $tabCount = ['queue' => $stats['pending'], 'published' => $stats['published'], 'rejected' => $stats['rejected'], 'events' => $stats['received'], 'sources' => null, 'lexicon' => null];
-        $blockerLabels = ['durum' => 'Durum uygun değil', 'kaynak pasif' => 'Kaynak pasif', 'rota eksik' => 'Rota eksik', 'il çözülemedi' => 'İl çözülemedi', 'araç tipi yok' => 'Araç tipi yok', 'telefon yok' => 'Telefon yok', 'fiyat yok' => 'Fiyat yok', 'tonaj yok' => 'Tonaj yok'];
+        $blockerLabels = ['durum' => 'Durum uygun değil', 'kaynak pasif' => 'Kaynak pasif', 'rota eksik' => 'Rota eksik', 'il çözülemedi' => 'İl çözülemedi', 'araç tipi yok' => 'Araç tipi yok', 'telefon yok' => 'Telefon yok', 'fiyat yok' => 'Fiyat yok', 'tonaj yok' => 'Tonaj yok', 'eski aday' => \App\Services\ScrapedLoadService::AUTO_APPROVE_MAX_AGE_DAYS.' günden eski; elle karar verin'];
     @endphp
 
     @if (session()->has('success_message'))
@@ -709,7 +736,7 @@ new class extends Component {
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} md:col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
             <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
             <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
-            <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
+            <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
             <div class="flex gap-2">
                 <select wire:model.live="period" class="{{ $input }}"><option value="1">Bugün</option><option value="7">7 gün</option><option value="30">30 gün</option><option value="all">Tümü</option></select>
                 <select wire:model.live="sort" class="{{ $input }}"><option value="newest">Yeni</option><option value="oldest">Eski</option><option value="price_desc">Fiyat</option><option value="weight_desc">Tonaj</option></select>
