@@ -275,7 +275,7 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
   bildirim üretmez** (başkası yazmalı), WhatsApp Business kullanılıyorsa tetikleyicide o uygulama seçilmeli.
   MacroDroid'de HTTP İsteği eylemine uzun basıp "Eylemi test et" ile makronun istek atabildiği görülür (Canlı akışta "Atlandı").
 - Mesajda tırnak ya da satır sonu varsa JSON gövde bozulur; sunucu bunu onarır ama en sağlamı içerik türünü
-  **application/x-www-form-urlencoded** yapıp alanları "Parametreler" bölümüne girmektir (panel ve kurulum sayfası listeler).
+  **application/x-www-form-urlencoded** yapıp alanları "Parametreler" bölümüne girmektir (panel listeler).
 - Yanıt `401` (Canlı akışta "Anahtar hatalı"): telefondaki `token` panelde gösterilenle aynı değil; gövdeyi panelden yeniden kopyalayın.
 - Yanıt `status: filtered`: mesajda telefon numarası ya da lojistik işaret yok, il çözülemedi veya yapay zeka "ilan değil" dedi; Canlı akış nedenini yazar.
 - Yanıt `status: source_pending`: grup Kaynaklar listesine pasif düşmüştür; aktif edince sonraki mesajlar işlenir.
