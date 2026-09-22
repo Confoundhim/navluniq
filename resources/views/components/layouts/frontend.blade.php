@@ -259,13 +259,7 @@
                     </div>
                 </div>
                 @endif
-                @if(\App\Support\Company::get('name') && \App\Support\Company::get('address'))
-                    <div class="mt-3 text-[11px] text-neutral-400 leading-relaxed">
-                        <div class="font-semibold text-neutral-500">{{ \App\Support\Company::get('name') }}</div>
-                        <div>{{ \App\Support\Company::get('address') }}</div>
-                        @if(\App\Support\Company::get('tax_office') || \App\Support\Company::get('tax_no'))<div>{{ \App\Support\Company::get('tax_office') }} VD · VKN {{ \App\Support\Company::get('tax_no') }}@if(\App\Support\Company::get('mersis_no')) · MERSİS {{ \App\Support\Company::get('mersis_no') }}@endif@if(\App\Support\Company::get('trade_registry_no')) · Ticaret Sicil {{ \App\Support\Company::get('trade_registry_no') }}@endif</div>@endif
-                    </div>
-                @endif
+                {{-- Şirket kimlik bilgileri (unvan, adres, vergi, MERSİS, sicil) yalnız İletişim ve sözleşme sayfalarında; alt bilgide yalnız ETBİS. --}}
             </div>
 
             <!-- 2. Sütun: Keşfet -->

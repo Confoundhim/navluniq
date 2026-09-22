@@ -23,7 +23,6 @@
         'WhatsApp' => \App\Models\CmsContent::getVal('social_whatsapp'),
         'Telegram' => \App\Models\CmsContent::getVal('social_telegram'),
     ]);
-    $etbis = trim((string) \App\Models\CmsContent::getVal('etbis_code'));
 @endphp
 <!DOCTYPE html>
 <html lang="tr" xmlns="http://www.w3.org/1999/xhtml">
@@ -106,11 +105,8 @@
                     </tr>
                     <tr>
                         <td align="center" style="padding:22px 24px 0;font-size:11px;line-height:17px;color:#a1a1aa;">
-                            {{ $company['name'] }}@if($company['address']) · {{ $company['address'] }}@endif<br>
-                            @if($company['tax_office'] || $company['tax_no']){{ $company['tax_office'] }} VD · VKN {{ $company['tax_no'] }}@endif
-                            @if($company['mersis_no']) · MERSİS {{ $company['mersis_no'] }}@endif
-                            @if($company['trade_registry_no']) · Ticaret Sicil {{ $company['trade_registry_no'] }}@endif
-                            @if($etbis !== '') · ETBİS {{ $etbis }}@endif<br>
+                            {{-- Vergi, MERSİS, sicil ve ETBİS bilgileri e-postada yer almaz; sitedeki İletişim ve sözleşme sayfalarında bulunur. --}}
+                            {{ $company['name'] }}<br>
                             Bu e-posta navluniq.com üzerindeki hesabınızla ilgili işlem bildirimidir; otomatik gönderilmiştir.
                             Sorularınız için <a href="{{ $siteUrl }}/iletisim" style="color:#a1a1aa;">iletişim sayfamızı</a> kullanın.
                             <br><a href="{{ $siteUrl }}/sozlesmeler/kvkk" style="color:#a1a1aa;">KVKK</a> · <a href="{{ $siteUrl }}/sozlesmeler/gizlilik-politikasi" style="color:#a1a1aa;">Gizlilik</a> · © {{ date('Y') }} NavlunIQ
