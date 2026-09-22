@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AiProviderUsage;
+use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\Settings;
@@ -598,6 +599,12 @@ class AiParserService
                 }
             }
         }
+        // Kasa, yük biçimi, araç adedi, teslim noktaları: kural bulamadıysa yapay zekanınki (standartlaştırıcı yeniden değerlendirir).
+        foreach (['body_types', 'load_kind', 'vehicle_count', 'delivery_stops'] as $key) {
+            if (empty($out[$key]) && ! empty($ai[$key])) {
+                $out[$key] = $ai[$key];
+            }
+        }
         $ruleKeyword = ($out['vehicle_type_source'] ?? null) === 'keyword';
         if (! empty($ai['vehicle_type']) && (empty($out['vehicle_type']) || ! $ruleKeyword)) {
             $out['vehicle_type'] = $ai['vehicle_type'];
@@ -682,6 +689,10 @@ class AiParserService
             'goods_category' => $goodsKey,
             'urgent' => (bool) ($data['urgent'] ?? false),
             'pickup_date_text' => self::cleanText($data['pickup_date_text'] ?? null, 60),
+            'body_types' => BodyTypes::clean($data['body_types'] ?? []),
+            'load_kind' => in_array($data['load_kind'] ?? null, ['komple', 'parca'], true) ? $data['load_kind'] : null,
+            'vehicle_count' => ($n = $this->positiveInteger($data['vehicle_count'] ?? null)) !== null && $n >= 2 && $n <= 30 ? $n : null,
+            'delivery_stops' => array_values(array_filter(array_map(fn ($p) => $this->placeText($p), is_array($data['delivery_stops'] ?? null) ? $data['delivery_stops'] : []))),
             'multiple_loads' => $count > 1 || (bool) ($data['multiple_loads'] ?? false),
             'notes' => self::cleanText($data['notes'] ?? null, 200),
             'ad_index' => $index,
@@ -769,6 +780,7 @@ class AiParserService
     {
         $vehicles = implode("\n", array_map(fn ($k, $v) => "- {$k}: {$v['label']} (~".number_format($v['capacity_kg'] / 1000, 0).' ton kapasite)', array_keys(VehicleTypes::TYPES), VehicleTypes::TYPES));
         $goods = implode(', ', array_map(fn ($k, $l) => "{$k} ({$l})", array_keys(GoodsCatalog::labels()), GoodsCatalog::labels()));
+        $bodies = implode(', ', array_map(fn ($k, $l) => "{$k} ({$l})", array_keys(BodyTypes::labels()), BodyTypes::labels()));
 
         return <<<TXT
 Sen Türkiye kara nakliye sektöründe WhatsApp gruplarına yazılan yük ilanlarını çözümleyen bir asistansın.
@@ -788,7 +800,10 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 9. ads: mesajdaki HER ayrı yük ilanı için bir öğe (bir mesajda 5-10 ilan olabilir). Ayrı ilan = ayrı rota ya da ayrı yük. Aynı firmanın farklı rotaları ayrı ilandır; aynı rotanın tekrar yazılması tek ilandır. Mesajın sonunda/başında ortak bir irtibat numarası varsa o numarayı her ilanın phones listesine ekle. excerpt: o ilana ait satırları mesajdan AYNEN kopyala (kısaltma, düzeltme, çeviri yapma); sistem her ilanı ayrı saklar ve alıntıyı gösterir. Yük ilanı yoksa ads boş liste olsun.
 10. confidence: 0 ile 1 arasında; mesaj belirsizse düşük ver (mesaj geneli için üstte, her ilan için ilanın içinde). Tahmin etmek zorunda kaldığın alanları notes içinde kısaca belirt.
 11. Reklam/imza satırlarını yok say ("Bu ilan VIP grubundan paylaşılmıştır", "gruba katılmak için…", web adresleri); bunlar konum ya da yük değildir.
-12. Emoji etiketli biçim yaygındır: 📍 genelde kalkış, 📦 ya da 🏁 varış, 💰 fiyat, 🚚 araç, ☎️ telefon. "1200+KDV" fiyatı 1200 TL, KDV hariç demektir (notes'a "KDV hariç" yaz). "1 araç" araç adedi, tonaj değildir.
+12. Emoji etiketli biçim yaygındır: 📍 genelde kalkış, 📦 ya da 🏁 varış, 💰 fiyat, 🚚 araç, ☎️ telefon. "1200+KDV" fiyatı 1200 TL, KDV hariç demektir (notes'a "KDV hariç" yaz). "1 araç" araç adedi, tonaj değildir. Yük emojileri yükü anlatır: 🍇 üzüm, 🦴 kemik, 🍅 domates, 🌾 buğday.
+13. body_types: kasa/dorse tipleri, şu anahtarlardan liste: {$bodies}. Sektör dili: "13.60" tek başına = damper hariç (tenteli, kapali, acik, frigo + uzun_dorse); "sadece frigo/damper/tenteli/sal açık" = yalnız o; "her türlü dorseye uygun / fark etmez" = boş liste; "dökme yük" = damperli; "dökme, damper ile 13.60 açık sal da uyar" = damperli + acik; "kasalı" (meyve/sebze) = kapali, tenteli, frigo; kemik/kömür/dökme üzüm/buğday/cüruf = damperli; donuk gıda = frigo. Kapalı ve tenteli AYRI tiplerdir; "tenteli" yazıyorsa kapali ekleme. Kasa yazmıyorsa ve yükten çıkmıyorsa boş liste.
+14. load_kind: "komple"/"tırlık"/tam araç ya da 18 ton ve üstü = "komple"; "parça yük"/"parsiyel"/birkaç palet/"araçta boşluk" = "parca"; belirsizse null. vehicle_count: istenen araç adedi ("2 yer" = 2 ayrı araç, "5 araç", "3 tır"); tek araçsa null.
+15. delivery_stops: aynı satırda "+" ile bağlı varışlar tek araçla sırayla boşaltılır ("Çorum+Ankara+Denizli" = 1 ilan, 3 teslim noktası); bunları sırayla yaz, delivery ilk nokta olsun. Alt alta yazılan farklı iller ise AYRI ilanlardır (her biri ayrı araç); onları ads listesine ayrı ayrı koy.
 Bilinmeyen alanları null bırak, uydurma.
 TXT;
     }
@@ -819,9 +834,13 @@ TXT;
                 'goods_category' => ['anyOf' => [['type' => 'string', 'enum' => array_keys(GoodsCatalog::labels())], ['type' => 'null']]],
                 'urgent' => ['type' => 'boolean'],
                 'pickup_date_text' => $nullable('string'),
+                'body_types' => ['type' => 'array', 'items' => ['type' => 'string', 'enum' => array_keys(BodyTypes::TYPES)]],
+                'load_kind' => ['anyOf' => [['type' => 'string', 'enum' => ['komple', 'parca']], ['type' => 'null']]],
+                'vehicle_count' => $nullable('integer'),
+                'delivery_stops' => ['type' => 'array', 'items' => $place],
                 'notes' => $nullable('string'),
             ],
-            'required' => ['post_type', 'confidence', 'phones', 'excerpt', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'price_per_ton', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'notes'],
+            'required' => ['post_type', 'confidence', 'phones', 'excerpt', 'pickup', 'delivery', 'vehicle_type', 'vehicle_flexible', 'weight_kg', 'price_try', 'price_per_ton', 'goods', 'goods_category', 'urgent', 'pickup_date_text', 'body_types', 'load_kind', 'vehicle_count', 'delivery_stops', 'notes'],
             'additionalProperties' => false,
         ];
 
@@ -1365,13 +1384,14 @@ TXT;
             if ($places === []) {
                 continue;
             }
-            $isPickup = preg_match(self::PICKUP_VERBS, $line) === 1 || preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $line) === 1;
-            $isDelivery = preg_match(self::DELIVERY_VERBS, $line) === 1;
+            // Büyük harfli Türkçe ("YÜKLEMELİ", "İNER") /i ile eşleşmez (İ ↔ i katlanmaz): küçük harfe indirilmiş satırda aranır
+            $lower = TurkishCities::lower($line);
+            $isPickup = preg_match(self::PICKUP_VERBS, $lower) === 1 || preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $lower) === 1;
+            $isDelivery = preg_match(self::DELIVERY_VERBS, $lower) === 1;
             if ($isPickup && $isDelivery && count($places) >= 2 && $pickup === null && $delivery === null) {
                 // "BOLU YÜKLER ANTALYA BOŞALTIR": her fiilden önceki en yakın yer adı o role aittir
-                $lower = TurkishCities::lower($line);
-                preg_match(self::PICKUP_VERBS, $line, $pm, PREG_OFFSET_CAPTURE);
-                preg_match(self::DELIVERY_VERBS, $line, $dm, PREG_OFFSET_CAPTURE);
+                preg_match(self::PICKUP_VERBS, $lower, $pm, PREG_OFFSET_CAPTURE);
+                preg_match(self::DELIVERY_VERBS, $lower, $dm, PREG_OFFSET_CAPTURE);
                 $before = function (int $offset) use ($places, $lower): ?string {
                     $best = null;
                     foreach ($places as $pl) {
@@ -1448,6 +1468,41 @@ TXT;
      *
      * @return array{0:string,1:string}|null
      */
+    /** Yalnız bağlaçlı rota ("X - Y", "Xden Yye"); satır sırası ya da yer listesi kullanılmaz. */
+    public static function connectorPair(string $text): ?array
+    {
+        $prov = self::placeResolver();
+        $label = fn (string $v) => str_replace('|', ' ', $v);
+        foreach (self::connectorMatches($text) as $m) {
+            $a = $prov($m['pickup']);
+            $b = $prov($m['delivery']);
+            if ($a !== null && $b !== null && $a !== $b) {
+                return [$label($a), $label($b)];
+            }
+        }
+
+        return null;
+    }
+
+    /** Yer metnini "İl|İlçe" ya da yurt dışı etiketine çözen kapanış. */
+    private static function placeResolver(): \Closure
+    {
+        return function (?string $v): ?string {
+            if ($v === null) {
+                return null;
+            }
+            $r = TurkishLocations::resolve($v, false);
+            if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && ($p = TurkishCities::fromText($v, fuzzy: true)) !== null) {
+                $r = TurkishLocations::resolve($p, false);
+            }
+            if ($r !== null) {
+                return $r['province'].(($r['district'] ?? null) ? '|'.$r['district'] : '');
+            }
+
+            return ForeignPlaces::match($v)['label'] ?? null;
+        };
+    }
+
     public static function routePair(string $text): ?array
     {
         $prov = function (?string $v): ?string {

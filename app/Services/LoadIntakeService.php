@@ -354,6 +354,11 @@ class LoadIntakeService
             'goods_type' => $std['goods_type'],
             'vehicle_type' => $std['vehicle_type'],
             'vehicle_type_source' => $std['vehicle_type_source'],
+            'body_types' => $std['body_types'],
+            'body_type_source' => $std['body_type_source'],
+            'load_kind' => $std['load_kind'],
+            'vehicle_count' => $std['vehicle_count'],
+            'delivery_stops' => $std['delivery_stops'],
             'weight' => $std['weight'],
             'price' => $std['price'],
             'price_unit' => $std['price_unit'],
@@ -502,23 +507,38 @@ class LoadIntakeService
             $headerPlace = null;
             $destInCurrent = false;
             $blockLines = preg_split('/\n/u', $block) ?: [];
-            $blockHasPairLine = array_filter($blockLines, fn ($l) => AiParserService::routePair($l) !== null) !== [];
+            $blockHasPairLine = array_filter($blockLines, fn ($l) => (self::isPlusChain($l) ? AiParserService::connectorPair($l) : AiParserService::routePair($l)) !== null) !== [];
+            // Kalkış satırı + alt alta yalnız yer adı taşıyan satırlar ("İstanbul Kartal 13.60 açık ⏎ Sivas ⏎ Aydın ⏎ Bursa"):
+            // sektör dilinde her satır ayrı araçlık yüktür; ilk satır başlık sayılır.
+            // ("İstanbul-Kartal" gibi aynı ilin ilçesiyle yazımı rota sayılmaz.)
+            $realPairLine = array_filter($blockLines, fn ($l) => ($p = self::isPlusChain($l) ? AiParserService::connectorPair($l) : AiParserService::routePair($l)) !== null && strtok($p[0], ' ') !== strtok($p[1], ' ')) !== [];
+            // Önceki bloktan taşınan başlık ("Çorlu yükler" + boş satır + liste) varsa liste zaten o başlığa bağlanır.
+            $listHeaderLine = $realPairLine || $carryHeader !== null ? null : self::listHeaderLine($blockLines);
+            if ($listHeaderLine !== null) {
+                // Başlıktaki "İl-İlçe" tiresi boşluk olur ki parça rotası başlık içindeki tireye değil listeye bakılsın.
+                $blockLines[$listHeaderLine] = preg_replace('/(?<=\p{L})\s*[-–—\/]\s*(?=\p{L})/u', ' ', $blockLines[$listHeaderLine]) ?? $blockLines[$listHeaderLine];
+            }
             if ($carryHeader !== null && ! $blockHasPairLine && AiParserService::placesIn($block, 1) !== []) {
                 $header = $carryHeader;
                 $headerPlace = $carryPlace;
                 $current[] = $carryHeader;
             }
-            foreach (preg_split('/\n/u', $block) ?: [] as $line) {
+            foreach ($blockLines as $lineIndex => $line) {
                 $lineProvinces = AiParserService::provincesIn($line, 2);
-                $linePair = AiParserService::routePair($line); // "Beykoz-Şanlıurfa" gibi ilçeli yazımlar da rota sayılır
+                // "Gönen+Merkez", "Çorum+Ankara+Denizli": aynı araçla sıralı boşaltma; rota değil, tek varış satırıdır
+                // "+"lı satırda yalnız açık bağlaç rota sayılır ("Bursa - İstanbul+Lüleburgaz" rota; "Kütahya+Uşak" değil)
+                $plusChain = self::isPlusChain($line);
+                $linePair = $plusChain ? AiParserService::connectorPair($line) : AiParserService::routePair($line); // "Beykoz-Şanlıurfa" gibi ilçeli yazımlar da rota sayılır
                 $split = false;
                 $linePlaces = AiParserService::placesIn($line, 2);
+                $lower = TurkishCities::lower(trim($line)); // "YÜKLEMELİ" gibi büyük İ'li sözcükler /i ile eşleşmez
                 // Başlık: "X yükler/yüklemeli/yükleme", "Xden", "X DAN", "NEVŞEHİR DENGE BİMSDEN" (son sözcük ayrılma ekli)
-                $isHeader = $linePair === null && $linePlaces !== [] && ! self::hasPhone($line)
-                    && (preg_match(AiParserService::PICKUP_VERBS, $line) === 1
-                        || preg_match('/^\p{L}+(?:dan|den|tan|ten)\s*$/iu', trim($line)) === 1
-                        || preg_match('/^\p{L}+(?:\s+\p{L}+){0,3}\s+(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*(?:\p{L}+\s*){0,2}$/iu', trim($line)) === 1
-                        || preg_match('/^(?:\p{L}+\s+){0,3}\p{L}{4,}(?:dan|den|tan|ten)\s*$/iu', trim($line)) === 1);
+                $isHeader = $linePlaces !== [] && ! self::hasPhone($line)
+                    && ($lineIndex === $listHeaderLine
+                        || $linePair === null && (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1
+                        || preg_match('/^\p{L}+(?:dan|den|tan|ten)\s*$/u', $lower) === 1
+                        || preg_match('/^\p{L}+(?:\s+\p{L}+){0,3}\s+(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*(?:\p{L}+\s*){0,2}$/u', $lower) === 1
+                        || preg_match('/^(?:\p{L}+\s+){0,3}\p{L}{4,}(?:dan|den|tan|ten)\s*$/u', $lower) === 1));
                 if ($isHeader) {
                     // Yeni başlık: önceki başlığın son varışını kapat.
                     if ($header !== null && $destInCurrent && $current !== []) {
@@ -703,6 +723,64 @@ class LoadIntakeService
         }
 
         return array_slice($out, 0, self::MAX_ADS_PER_MESSAGE);
+    }
+
+    /** Satırda "+" ile bağlı yer adları var mı ("Gönen+Merkez", "Çorum + Ankara")? */
+    public static function isPlusChain(string $line): bool
+    {
+        return preg_match('/\p{L}\s*\+\s*\p{L}/u', $line) === 1;
+    }
+
+    /**
+     * Blok "kalkış satırı + alt alta yer listesi" biçiminde mi? İlk yer satırından sonra en az iki satır yalnız
+     * yer adı (+ araç/ton sözcükleri) taşıyor ve hepsi farklı ilse ilk satır başlıktır; dizini döner.
+     * "Ankara ⏎ İstanbul ⏎ 24 ton" (iki yer = rota) başlık sayılmaz.
+     */
+    private static function listHeaderLine(array $lines): ?int
+    {
+        $placeOnly = [];
+        foreach ($lines as $i => $line) {
+            if (self::hasPhone($line)) {
+                continue;
+            }
+            // "İstanbul-Kartal" → "İstanbul Kartal": tire yer adını böler
+            $line = preg_replace('/(?<=\p{L})\s*[-–—\/]\s*(?=\p{L})/u', ' ', $line) ?? $line;
+            $places = AiParserService::placesIn($line, 2);
+            if ($places === []) {
+                continue;
+            }
+            // Klasik başlık ("Çorlu yüklemeli işlerimiz", "Samsundan") varsa liste düzeni o başlığa göre kurulur.
+            $lower = TurkishCities::lower(trim($line));
+            if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match('/(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*$/u', $lower) === 1) {
+                return null;
+            }
+            // Yer adı dışında kalan sözcükler araç/ton/kasa/adet sözcükleri ya da kısa bağlaçlar olmalı
+            $rest = TurkishCities::ascii($line);
+            foreach ($places as $pl) {
+                foreach (explode(' ', TurkishCities::ascii($pl['label'])) as $w) {
+                    $rest = preg_replace('/(?<![\p{L}])'.preg_quote($w, '/').'\w*/iu', ' ', $rest) ?? $rest;
+                }
+            }
+            $rest = trim(preg_replace('/(?<![\p{L}])(?:tir|tır|kamyon|kamyonet|kirkayak|dorse|tenteli|tente|kapali|acik|sal|frigo|damper\w*|13[.,\/\- ]?60|1360|ton|tn|palet|arac|araç|yer|adet|acil|yuk\w*|yükler|yuklemeli|iner|inecek|ve|ile|merkez|osb|sanayi|liman\w*|[\d.,\-\/()+:–—]+)(?![\p{L}])/iu', ' ', $rest) ?? $rest);
+            if (preg_replace('/[^\p{L}]/u', '', $rest) === '') {
+                $placeOnly[$i] = (string) strtok($places[0]['label'], ' ');
+            }
+        }
+        if (count($placeOnly) < 3) {
+            return null;
+        }
+        // Liste kesintisiz olmalı: araya numara/başka satır giren "📍 Ankara ⏎ 📦 İstanbul ⏎ ☎️ … ⏎ 📍 Bursa ⏎ 📦 Konya" iki ilandır
+        $keys = array_keys($placeOnly);
+        if (count($keys) - 1 !== $keys[array_key_last($keys)] - $keys[0]) {
+            return null;
+        }
+        $first = array_key_first($placeOnly);
+        $rest = array_slice($placeOnly, 1, null, true);
+        if (count(array_unique($rest)) < 2 || in_array($placeOnly[$first], $rest, true)) {
+            return null;
+        }
+
+        return $first;
     }
 
     /**

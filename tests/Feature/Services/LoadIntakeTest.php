@@ -7,6 +7,7 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
+use App\Services\LoadStandardizer;
 use App\Support\Settings;
 use App\Support\TurkishCities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -311,6 +312,43 @@ class LoadIntakeTest extends TestCase
         // Aynı rotayı iki satırda anlatan tek ilan bölünmez.
         $this->assertCount(1, LoadIntakeService::splitSegments("Ankara → İstanbul 24 ton tenteli\nAnkara Ostim yükleme İstanbul Kartal teslim\n0532 111 11 11"));
         $this->assertSame(['5321111111', '5332222222'], AiParserService::phonesIn('Ahmet 0532 111 11 11, Mehmet +90 (533) 222-22-22, sabit 0312 444 44 44'));
+    }
+
+    public function test_uppercase_headers_and_plus_chains_follow_sector_language(): void
+    {
+        // Büyük İ'li başlık ("YÜKLEMELİ") tanınır; her satır ayrı ilan; "+" aynı araçla sıralı teslim; "2 YER" = 2 araç
+        $msg = "22.09.2026 SALI YÜKLEMELİ İŞLER!\n\n‼️ ÇORLU YÜKLEMELİ İŞLERİMİZ‼️\n\n🚛SAMSUN 2 YER– TIR – 26 TON\n🚛ANKARA – TIR (KAPALI)– 5 TON\n🚛GÖNEN+MERKEZ – TIR – 26 TON\n🚛KÜTAHYA+UŞAK– TIR – 26 TON\n\n‼️ LÜLEBURGAZ YÜKLEMELİ İŞLERİMİZ‼️\n\n🚛ÜMRANİYE – KAMYON – 11 TON\n0532 111 11 11";
+        $parts = LoadIntakeService::splitSegments($msg);
+        $this->assertCount(5, $parts);
+        $std = app(LoadStandardizer::class);
+        $parser = app(AiParserService::class);
+        $rows = array_map(fn ($p) => $std->standardize($p['text'], $parser->parseCheap($p['text'])), $parts);
+        $this->assertSame(['Samsun', 'Ankara', 'Balıkesir Gönen', 'Kütahya', 'İstanbul Ümraniye'], array_column($rows, 'delivery_location'));
+        $this->assertSame(['Tekirdağ Çorlu', 'Tekirdağ Çorlu', 'Tekirdağ Çorlu', 'Tekirdağ Çorlu', 'Kırklareli Lüleburgaz'], array_column($rows, 'pickup_location'));
+        $this->assertSame(2, $rows[0]['vehicle_count']);
+        $this->assertSame('komple', $rows[0]['load_kind']);
+        $this->assertSame(['kapali'], $rows[1]['body_types']);
+        $this->assertSame(5000, $rows[1]['weight']);
+        $this->assertSame(['Balıkesir Gönen', 'Balıkesir Merkez'], $rows[2]['delivery_stops']);
+        $this->assertSame(['Kütahya', 'Uşak'], $rows[3]['delivery_stops']);
+        $this->assertSame('8_teker_kamyon', $rows[4]['vehicle_type']);
+
+        // Kalkış satırı + alt alta iller: her il ayrı araçlık yük
+        $list = LoadIntakeService::splitSegments("İstanbul-Kartal 13.60 açık\nSivas\nAydın\nBursa\nAnkara\nSamsun\n0532 111 11 11");
+        $this->assertCount(5, $list);
+        $r = $std->standardize($list[2]['text'], $parser->parseCheap($list[2]['text']));
+        $this->assertSame(['İstanbul Kartal', 'Bursa'], [$r['pickup_location'], $r['delivery_location']]);
+        $this->assertSame(['acik', 'uzun_dorse'], $r['body_types']);
+        $this->assertSame(['5321111111'], $list[4]['phones']);
+
+        // İki yer satırı bir rotadır, liste değil
+        $this->assertCount(1, LoadIntakeService::splitSegments("Ankara\nİstanbul\n24 ton tenteli\n0532 111 11 11"));
+
+        // "+"lı satırda açık bağlaç varsa yine rotadır
+        $r = $std->standardize("Samsun'dan 13.60 tenteneli yükümüz var\nÇorum+Ankara+Denizli\n0532 111 11 11", $parser->parseCheap("Samsun'dan 13.60 tenteneli yükümüz var\nÇorum+Ankara+Denizli\n0532 111 11 11"));
+        $this->assertSame(['Samsun', 'Çorum'], [$r['pickup_location'], $r['delivery_location']]);
+        $this->assertSame(['Çorum', 'Ankara', 'Denizli'], $r['delivery_stops']);
+        $this->assertSame(['tenteli', 'uzun_dorse'], $r['body_types']);
     }
 
     public function test_route_list_with_district_names_and_one_shared_phone_is_split_per_route(): void

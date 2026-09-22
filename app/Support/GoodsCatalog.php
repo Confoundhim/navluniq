@@ -22,6 +22,8 @@ final class GoodsCatalog
             'pattern' => '/\b(?:donuk|dondurulmus|donmus|sogutmali|soguk\s+zincir|tavuk|pilic|et\b|kirmizi\s+et|balik(?!esir)|sut\s+urun\w*|peynir|yogurt|dondurma|donma)\w*/'],
         'canli_hayvan' => ['label' => 'Canlı hayvan', 'min_vehicle' => '8_teker_kamyon', 'traits' => [],
             'pattern' => '/\b(?:canli\s+hayvan|buyukbas|kucukbas|koyun|kuzu|sigir|dana|inek|keci|hayvan\s+yuku)\b/'],
+        'kemik' => ['label' => 'Kemik / hayvansal yan ürün', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
+            'pattern' => '/\b(?:kemik|kemikler|kemik\s+yuk\w*|rendering|hayvansal\s+yan\s+urun\w*|mezbaha\s+atik\w*)\w*/'],
         'komur' => ['label' => 'Kömür', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
             'pattern' => '/\b(?:komur|komurler|torbali\s+komur|cuvalli\s+komur|dokme\s+komur|linyit|petrokok|pet\s?kok|kok\s+komur\w*|antrasit)\w*/'],
         'maden_dokme' => ['label' => 'Dökme maden / cevher', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
@@ -83,6 +85,31 @@ final class GoodsCatalog
     /**
      * @return array{key:string, label:string, min_vehicle:string, traits:list<string>, matched:string}|null
      */
+    /**
+     * İlanlarda yük yerine emoji kullanılır ("Buldan/Antalya 🍇🍇🍇", "🦴 kemik"). Emoji → yük sözcüğü (ASCII).
+     * Normalleştirme emojileri attığından bu sözcükler metne ayrıca eklenir.
+     */
+    public const EMOJI_GOODS = [
+        '🍇' => 'uzum', '🍅' => 'domates', '🍉' => 'karpuz', '🍈' => 'kavun', '🍊' => 'mandalina', '🍋' => 'limon', '🍎' => 'elma', '🍏' => 'elma',
+        '🍐' => 'armut', '🍑' => 'seftali', '🍒' => 'kiraz', '🍓' => 'cilek', '🥝' => 'kivi', '🍌' => 'muz', '🥔' => 'patates', '🧅' => 'sogan',
+        '🌽' => 'misir', '🌾' => 'bugday', '🥕' => 'havuc', '🥒' => 'salatalik', '🌶' => 'biber', '🍆' => 'patlican', '🥬' => 'marul', '🥦' => 'sebze',
+        '🍯' => 'bal', '🥚' => 'yumurta', '🐔' => 'canli tavuk', '🐄' => 'buyukbas', '🐑' => 'koyun', '🐟' => 'balik', '🦴' => 'kemik', '🪵' => 'tomruk',
+        '🧱' => 'tugla', '🪨' => 'tas', '⛏' => 'maden', '🛢' => 'varil', '📦' => 'koli', '🛋' => 'mobilya', '🧊' => 'donuk',
+    ];
+
+    /** Ham metindeki yük emojilerinin sözcük karşılıkları (boşlukla ayrılmış, ASCII). */
+    public static function emojiWords(string $raw): string
+    {
+        $words = [];
+        foreach (self::EMOJI_GOODS as $emoji => $word) {
+            if (str_contains($raw, $emoji) && ! in_array($word, $words, true)) {
+                $words[] = $word;
+            }
+        }
+
+        return implode(' ', $words);
+    }
+
     public static function detect(string $normalizedText): ?array
     {
         // Jargon sözlüğü: yöneticinin öğrettiği yük sözcükleri katalog kalıplarından önce gelir.

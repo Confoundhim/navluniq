@@ -13,6 +13,7 @@ class AiLexicon extends Model
         'location' => 'Konum kısaltması / semt',
         'vehicle' => 'Araç sözcüğü',
         'goods' => 'Yük sözcüğü',
+        'body' => 'Kasa sözcüğü (yük/ifade → kasa tipi)',
         'not_load' => '"İlan değil" ifadesi',
         'load_signal' => 'İlan işareti',
         'ignore' => 'Yok sayılacak sözcük',

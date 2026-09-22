@@ -126,8 +126,12 @@ class LoadStandardizerTest extends TestCase
             'status' => 'parsed_success', 'visibility' => 'private', 'message_id' => 'z', 'parse_metadata' => ['admin_edited' => true],
             'encrypted_sender_phone' => Crypt::encryptString('5321234567'),
         ]);
-        $this->assertFalse(app(LoadStandardizer::class)->restandardize($load));
+        // Yönetici alanları korunur; yalnız yeni eklenen kasa/yük biçimi boşsa doldurulur (bir kez)
+        $this->assertTrue(app(LoadStandardizer::class)->restandardize($load));
         $this->assertSame('tir', $load->fresh()->vehicle_type);
+        $this->assertSame('Tekstil', $load->fresh()->goods_type);
+        $this->assertSame(['tenteli', 'kapali'], $load->fresh()->body_types); // tekstil: yükten çıkarım
+        $this->assertFalse(app(LoadStandardizer::class)->restandardize($load->fresh()));
 
         $this->assertSame('Bursa → İzmir', $load->fresh()->routeLabel());
         $this->assertSame('10 ton', $load->fresh()->weightLabel());
@@ -164,6 +168,43 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame('1.200,50 $', $load->fresh()->priceLabel());
         $load->forceFill(['price' => null])->save();
         $this->assertNull($load->fresh()->priceLabel());
+    }
+
+    public function test_body_types_load_kind_and_backfill_of_existing_records(): void
+    {
+        $std = app(LoadStandardizer::class);
+        $r = $std->standardize('Denizli İzmir dökme yük fakat damper ile 13.60 açık sal dorse uygundur 26 ton 0532 111 11 11', []);
+        $this->assertSame(['acik', 'damperli', 'uzun_dorse'], $r['body_types']);
+        $this->assertSame('keyword', $r['body_type_source']);
+        $this->assertSame('komple', $r['load_kind']);
+
+        // Emoji yük + "dökme" → damper; "kasalı" → kapalı/tenteli/frigo; yapay zeka yalnız kural boşken
+        $this->assertSame(['damperli'], $std->standardize('Buldan/Antalya Dökme 🍇🍇🍇 vardır 0532 111 11 11', [])['body_types']);
+        $this->assertSame(['tenteli', 'kapali', 'frigo'], $std->standardize('Buldan/Antalya 🍇🍇🍇 kasalı vardır 0532 111 11 11', [])['body_types']);
+        $this->assertSame(['damperli'], $std->standardize('Denizli İzmir 🦴🦴 kemik yükümüz vardır 0532 111 11 11', [])['body_types']);
+        $r = $std->standardize('Ankara İzmir 24 ton 0532 111 11 11', ['body_types' => ['frigo'], 'load_kind' => 'parca']);
+        $this->assertSame(['frigo'], $r['body_types']);
+        $this->assertSame('ai', $r['body_type_source']);
+        $this->assertSame('komple', $r['load_kind']); // 24 ton: kural komple der, yapay zeka bunu değiştiremez
+        $r = $std->standardize('Ankara İzmir tenteli 24 ton 0532 111 11 11', ['body_types' => ['frigo']]);
+        $this->assertSame(['tenteli'], $r['body_types']); // açık kasa sözcüğü yapay zekaya üstün
+
+        // Yayındaki eski kayıt: kasa/biçim boş → classify komutu doldurur; yönetici düzenlemiş kayıtta yalnız boş alanlar
+        Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        $old = ScrapedLoad::create([
+            'scraper_id' => 1, 'content_hash' => 'h1', 'raw_message' => 'Ankara İzmir 13.60 tenteli 24 ton 0532 111 11 11', 'sender_phone' => null,
+            'pickup_location' => 'Ankara', 'pickup_province_code' => 6, 'delivery_location' => 'İzmir', 'delivery_province_code' => 35,
+            'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'weight' => 24000, 'status' => 'parsed_success', 'visibility' => 'public',
+            'parse_metadata' => ['admin_edited' => true, 'urgent' => false], 'retention_expires_at' => now()->addDays(30),
+        ]);
+        $this->artisan('scraped-loads:classify')->expectsOutputToContain('güncellenen: 1');
+        $old->refresh();
+        $this->assertSame(['tenteli', 'uzun_dorse'], $old->body_types);
+        $this->assertSame('komple', $old->load_kind);
+        $this->assertSame('13.60 · Tenteli', $old->bodyLabel());
+        $this->assertSame('TIR · 13.60 · Tenteli · Komple yük', $old->vehicleSummary());
+        $this->assertTrue($old->meta('admin_edited'));
+        $this->artisan('scraped-loads:classify')->expectsOutputToContain('güncellenen: 0');
     }
 
     public function test_short_province_names_resolve_to_canonical_province(): void

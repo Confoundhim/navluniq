@@ -125,6 +125,22 @@ final class Lexicon
         return $hit !== null && GoodsCatalog::label($hit['canonical']) !== null ? $hit : null;
     }
 
+    /**
+     * Kasa sözlüğü: yöneticinin öğrettiği sözcük → kasa tipleri ("kemik" → damperli, "kasalı" → kapali,tenteli,frigo).
+     *
+     * @return array{term:string, types:list<string>}|null
+     */
+    public static function matchBody(string $text): ?array
+    {
+        $hit = self::firstHit('body', self::normalize($text));
+        if ($hit === null) {
+            return null;
+        }
+        $types = BodyTypes::clean(array_map('trim', explode(',', $hit['canonical'])));
+
+        return ['term' => $hit['term'], 'types' => $types];
+    }
+
     public static function isNotLoad(string $text): bool
     {
         return self::firstHit('not_load', self::normalize($text)) !== null;
