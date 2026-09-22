@@ -186,6 +186,16 @@ new class extends Component {
                         <span class="text-neutral-400 block text-[10px]">Merkez Adresimiz</span>
                         <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('address') ?: 'Yakında' }}</span>
                     </div>
+                    {{-- Şirket kimlik bilgileri sitede yalnız burada ve sözleşme sayfalarında; alt bilgi ve e-postalarda tekrarlanmaz. --}}
+                    @if(\App\Support\Company::get('name'))
+                        <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                            <div class="font-semibold text-neutral-700 dark:text-neutral-200">{{ \App\Support\Company::get('name') }}</div>
+                            @if(\App\Support\Company::get('tax_office') || \App\Support\Company::get('tax_no'))<div>{{ \App\Support\Company::get('tax_office') }} VD · VKN {{ \App\Support\Company::get('tax_no') }}</div>@endif
+                            @if(\App\Support\Company::get('mersis_no'))<div>MERSİS {{ \App\Support\Company::get('mersis_no') }}</div>@endif
+                            @if(\App\Support\Company::get('trade_registry_no'))<div>Ticaret Sicil {{ \App\Support\Company::get('trade_registry_no') }}</div>@endif
+                            @if($etbis = \App\Models\CmsContent::getVal('etbis_code'))<div>ETBİS {{ $etbis }}</div>@endif
+                        </div>
+                    @endif
                 </div>
             </div>
 
