@@ -295,6 +295,39 @@ denetimi henüz yazılmamış kaydı göremiyordu ve aynı ilan iki kez yayınla
 - **Yayın anı denetimi:** "Yayınla" ya da otomatik onay sırasında aynı metin (7 gün) ya da aynı numara + il çifti (48 saat)
   zaten yayındaysa aday yayınlanmaz, "tekrar (#N yayında)" diye reddedilir ve görüldüğü grup yayındaki ilanın sayacına eklenir.
 
+## Kasa / dorse tipi, yük biçimi ve çoklu teslim
+
+Araç sınıfı (tır, kırkayak, kamyon, kamyonet, panelvan) ile **kasa tipi** ayrı boyutlardır: "13.60 tenteli" = TIR + Tenteli.
+Kasa tipleri: tenteli, kapalı, açık (sal), frigo, damperli, silobas, liftli; tırda ayrıca kısa dorse ve uzun dorse (13.60).
+Kapalı ve tenteli ayrı tiplerdir. Ayrıştırıcı sektör dilini şöyle okur:
+
+| Yük veren ne yazar | Kasa alanı |
+|---|---|
+| "13.60" (başka kasa sözcüğü yok) | 13.60 · damper hariç (tenteli, kapalı, açık, frigo) |
+| "sadece frigo / damper / sal açık / tenteli" | yalnız o kasa |
+| "her türlü dorseye uygun", "fark etmez" | boş (hepsi uygun) |
+| "dökme yük" | damperli |
+| "dökme, damper ile 13.60 açık sal da uyar" | damperli + açık |
+| "kasalı" (meyve/sebze) | kapalı / tenteli / frigo |
+| kemik, kömür, cüruf, dökme üzüm, buğday… (kasa yazmıyorsa) | yükten çıkarım: damperli |
+| donuk gıda, tavuk (kasa yazmıyorsa) | frigo |
+
+- **Yük biçimi:** "komple / tırlık / 18 ton ve üstü" → Komple yük; "parça yük / parsiyel / birkaç palet" → Parça yük.
+- **Araç adedi:** "SAMSUN 2 YER" = 2 ayrı tır (tek ilan, "2 araç" rozeti); "5 araç", "3 tır", "iki tır" de sayılır.
+- **Çoklu teslim:** aynı satırda "+" ile bağlı yerler tek araçla sırayla boşaltılır ("Çorum+Ankara+Denizli" → 1 ilan, 3 teslim
+  noktası; "Gönen+Merkez" → Gönen ve Balıkesir Merkez). Alt alta yazılan iller ise ayrı ilanlardır: "İstanbul Kartal 13.60 açık"
+  altında Sivas, Aydın, Bursa, Ankara, Samsun → 5 ilan (her biri ayrı araç).
+- **Büyük harfli başlıklar:** "ÇORLU YÜKLEMELİ İŞLERİMİZ" gibi büyük İ'li başlıklar artık tanınır (önce tanınmıyor, tüm liste
+  tek ilan oluyordu).
+- **Emoji yükler:** 🍇 üzüm, 🦴 kemik, 🍅 domates, 🌾 buğday gibi emojiler yük sözcüğü sayılır ("Dökme 🍇" → damperli).
+- **Sözlük:** Dış kaynak → Sözlük → tür "Kasa sözcüğü": "kemik" → Damperli gibi; sonraki her mesajda anında uygulanır.
+- **Yönetici düzenleme:** kuyrukta kasa kutuları (çoklu) ve yük biçimi seçilebilir; yönetici seçimi kuralın üstündedir.
+- **Tek biçim:** şoförün gördüğü her alan standarttır: yer adları sözcük başı büyük ("İstanbul Kartal"), yük türü cümle
+  biçimi ("Paletli yük"), büyük harf yığınları ve süs karakterleri (‼️ 🔥) atılır; ham mesaj şoföre gösterilmez. PHP'nin kendi
+  harf çevirisi Türkçede bozuk olduğundan (İ → i̇) `TurkishText` kullanılır.
+- **Eski kayıtlar:** `php artisan scraped-loads:classify` (update.sh her çalışmada çağırır) kasa ve yük biçimi boş olan tüm
+  ilanları (yayındakiler dahil) yeni kurallarla doldurur; yönetici düzenlemiş ilanlarda yalnız boş alanlar doldurulur.
+
 ## Telefondan güncelleme (panelden "Siteyi güncelle")
 
 Sunucuya konsolla girmeye gerek yok. Akış: GitHub uygulamasında (telefon) PR'ı **Merge** → Panel → **Sistem Sağlığı** →

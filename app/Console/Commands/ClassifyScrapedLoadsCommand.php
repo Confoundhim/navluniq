@@ -14,13 +14,15 @@ class ClassifyScrapedLoadsCommand extends Command
 {
     protected $signature = 'scraped-loads:classify {--all : Bütün kayıtları yeniden standartlaştır (yönetici düzenlemeleri korunur)}';
 
-    protected $description = 'Dış kaynak ilanlarını standartlaştırır: il/ilçe, yük kategorisi, araç tipi, tonaj, fiyat';
+    protected $description = 'Dış kaynak ilanlarını standartlaştırır: il/ilçe, yük kategorisi, araç tipi, kasa tipi, yük biçimi, tonaj, fiyat';
 
     public function handle(): int
     {
         $query = ScrapedLoad::query()->where('status', '!=', 'rejected');
         if (! $this->option('all')) {
-            $query->where(fn ($q) => $q->whereNull('vehicle_type')->orWhereNull('pickup_province_code')->orWhereNull('delivery_province_code')->orWhereNull('parse_metadata'));
+            // Araç/il boş olanlar ve kasa tipi ile yük biçimi henüz hesaplanmamış olanlar (yayındakiler dahil)
+            $query->where(fn ($q) => $q->whereNull('vehicle_type')->orWhereNull('pickup_province_code')->orWhereNull('delivery_province_code')->orWhereNull('parse_metadata')
+                ->orWhere(fn ($b) => $b->whereNull('body_types')->whereNull('load_kind')));
         }
 
         $updated = 0;

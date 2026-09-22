@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Support\BodyTypes;
 use App\Support\Phone;
 use App\Support\Settings;
+use App\Support\TurkishText;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -42,6 +44,11 @@ class ScrapedLoad extends Model
         'goods_type',
         'vehicle_type',
         'vehicle_type_source',
+        'body_types',
+        'body_type_source',
+        'load_kind',
+        'vehicle_count',
+        'delivery_stops',
         'weight',
         'price',
         'currency',
@@ -61,6 +68,8 @@ class ScrapedLoad extends Model
         'price' => 'decimal:2',
         'seen_sources' => 'array',
         'parse_metadata' => 'array',
+        'body_types' => 'array',
+        'delivery_stops' => 'array',
         'duplicate_count' => 'integer',
         'available_to_free_at' => 'datetime',
         'auto_approved_at' => 'datetime',
@@ -144,7 +153,7 @@ class ScrapedLoad extends Model
         if ($template === '' || $template === '-') { // boş: varsayılan metin (Settings), "-": mesajsız aç
             return null;
         }
-        $details = array_values(array_filter([$this->goods_type, $this->weightLabel(), $this->vehicleLabel()]));
+        $details = array_values(array_filter([$this->goods_type, $this->weightLabel(), $this->vehicleLabel(), $this->bodyLabel(), $this->loadKindLabel()]));
         $vehicle = $driver?->driverProfile?->activeVehicle;
         $vehicleLabel = $vehicle ? trim(VehicleTypes::label($vehicle->vehicle_type).' '.($vehicle->plate ?? '')) : '';
         $text = strtr($template, [
@@ -207,6 +216,44 @@ class ScrapedLoad extends Model
         $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template'], true) || $this->vehicle_type === 'tir';
 
         return $exact ? VehicleTypes::label($this->vehicle_type) : VehicleTypes::label($this->vehicle_type).' ve üzeri';
+    }
+
+    /** Yük türü her kaynaktan (kural, yapay zeka, yönetici) tek biçimde saklanır: "PALETLİ YÜK" → "Paletli yük". */
+    public function setGoodsTypeAttribute(mixed $value): void
+    {
+        $this->attributes['goods_type'] = is_string($value) ? TurkishText::sentence($value) : null;
+    }
+
+    /** Kasa etiketi: "Tenteli", "13.60 · damper hariç"; belirtilmemişse null. */
+    public function bodyLabel(): ?string
+    {
+        return BodyTypes::summary($this->body_types);
+    }
+
+    /** Yük biçimi etiketi: Komple yük / Parça yük. */
+    public function loadKindLabel(): ?string
+    {
+        return BodyTypes::LOAD_KINDS[$this->load_kind ?? ''] ?? null;
+    }
+
+    /** Teslim noktaları (çoklu ise), ilk nokta ana varış. */
+    public function deliveryStops(): array
+    {
+        return array_values(array_filter((array) ($this->delivery_stops ?? []), 'is_string'));
+    }
+
+    /** Kart satırı: "TIR · Tenteli · Komple · 2 araç · 3 teslim noktası" gibi tek satır. */
+    public function vehicleSummary(): string
+    {
+        $parts = array_values(array_filter([
+            $this->vehicleLabel() ?: 'Araç belirtilmemiş',
+            $this->bodyLabel(),
+            $this->loadKindLabel(),
+            ($this->vehicle_count ?? 1) > 1 ? $this->vehicle_count.' araç' : null,
+            count($this->deliveryStops()) > 1 ? count($this->deliveryStops()).' teslim noktası' : null,
+        ]));
+
+        return implode(' · ', $parts);
     }
 
     public function meta(string $key, mixed $default = null): mixed

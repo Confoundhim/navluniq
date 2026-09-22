@@ -8,6 +8,7 @@ use App\Models\Scraper;
 use App\Services\AiParserService;
 use App\Services\LocalClassifier;
 use App\Services\ScrapedLoadService;
+use App\Support\BodyTypes;
 use App\Support\GoodsCatalog;
 use App\Support\Lexicon;
 use App\Support\Settings;
@@ -365,6 +366,8 @@ new class extends Component {
             'delivery_province_code' => $load->delivery_province_code,
             'delivery_district' => $load->delivery_district ?? '',
             'vehicle_type' => $load->vehicle_type ?? '',
+            'body_types' => BodyTypes::clean($load->body_types ?? []),
+            'load_kind' => $load->load_kind ?? '',
             'goods_type' => $load->goods_type ?? '',
             'weight' => $load->weight ? (int) $load->weight : '',
             'price' => $load->price !== null ? (float) $load->price : '',
@@ -391,6 +394,9 @@ new class extends Component {
             'edit.pickup_district' => ['nullable', 'string', 'max:60'],
             'edit.delivery_district' => ['nullable', 'string', 'max:60'],
             'edit.vehicle_type' => ['nullable', Rule::in(array_keys(VehicleTypes::TYPES))],
+            'edit.body_types' => ['array'],
+            'edit.body_types.*' => [Rule::in(array_keys(BodyTypes::TYPES))],
+            'edit.load_kind' => ['nullable', Rule::in(array_keys(BodyTypes::LOAD_KINDS))],
             'edit.goods_type' => ['nullable', 'string', 'max:120'],
             'edit.weight' => ['nullable', 'integer', 'min:1', 'max:60000'],
             'edit.price' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
@@ -422,6 +428,9 @@ new class extends Component {
             'delivery_lat' => $delivery['lat'], 'delivery_lng' => $delivery['lng'],
             'vehicle_type' => $this->edit['vehicle_type'] !== '' ? $this->edit['vehicle_type'] : null,
             'vehicle_type_source' => $this->edit['vehicle_type'] !== '' ? 'admin' : null,
+            'body_types' => ($bodies = BodyTypes::clean($this->edit['body_types'] ?? [])) !== [] ? $bodies : null,
+            'body_type_source' => $bodies !== [] ? 'admin' : null,
+            'load_kind' => ($this->edit['load_kind'] ?? '') !== '' ? $this->edit['load_kind'] : null,
             'goods_type' => trim((string) $this->edit['goods_type']) ?: null,
             'weight' => $this->edit['weight'] !== '' ? (int) $this->edit['weight'] : null,
             'price' => $this->edit['price'] !== '' ? round((float) $this->edit['price'], 2) : null,
@@ -457,6 +466,7 @@ new class extends Component {
             $kind === 'location' && ($canonical === '' || TurkishLocations::resolve($canonical) === null) => 'Karşılık katalogda bulunan bir il ya da "İl İlçe" olmalı (ör. "Ankara" ya da "Kocaeli Gebze").',
             $kind === 'vehicle' && ! VehicleTypes::isValid($canonical) => 'Araç tipi seçin.',
             $kind === 'goods' && GoodsCatalog::label($canonical) === null => 'Yük kategorisi seçin.',
+            $kind === 'body' && BodyTypes::clean(explode(',', $canonical)) === [] => 'En az bir kasa tipi seçin.',
             default => null,
         };
         if ($error !== null) {
@@ -470,7 +480,7 @@ new class extends Component {
         }
         AiLexicon::updateOrCreate(
             ['kind' => $kind, 'term' => Lexicon::normalize((string) $this->lex['term'])],
-            ['canonical' => in_array($kind, ['location', 'vehicle', 'goods'], true) ? $canonical : null, 'status' => 'active', 'source' => 'admin', 'created_by' => auth()->id()]
+            ['canonical' => in_array($kind, ['location', 'vehicle', 'goods', 'body'], true) ? ($kind === 'body' ? implode(',', BodyTypes::clean(explode(',', $canonical))) : $canonical) : null, 'status' => 'active', 'source' => 'admin', 'created_by' => auth()->id()]
         );
         Lexicon::flush();
         $this->lex = ['kind' => $kind, 'term' => '', 'canonical' => ''];
@@ -535,6 +545,7 @@ new class extends Component {
                 'pickup' => $std['pickup_location'] ?? ($parsed['pickup_location'] ?? null), 'pickup_ok' => (bool) ($std['pickup_province_code'] ?? false),
                 'delivery' => $std['delivery_location'] ?? ($parsed['delivery_location'] ?? null), 'delivery_ok' => (bool) ($std['delivery_province_code'] ?? false),
                 'vehicle' => $std['vehicle_type'] ?? null, 'vehicle_source' => $std['vehicle_type_source'] ?? null,
+                'body' => BodyTypes::summary($std['body_types'] ?? null), 'load_kind' => $std['load_kind'] ?? null, 'vehicle_count' => $std['vehicle_count'] ?? null, 'stops' => $std['delivery_stops'] ?? null,
                 'goods' => $std['goods_type'] ?? null, 'weight' => $std['weight'] ?? null, 'price' => $std['price'] ?? null, 'price_unit' => $std['price_unit'] ?? null,
                 'needs_ai' => $parser->shouldUseAi($parsed) || ! $std || ! $std['pickup_province_code'] || ! $std['delivery_province_code'],
             ];
@@ -802,6 +813,10 @@ new class extends Component {
                                         @else
                                             <span class="badge bg-amber-500/10 text-amber-600">Araç tipi yok</span>
                                         @endif
+                                        @if($load->bodyLabel())<span class="badge bg-teal-500/10 text-teal-700 dark:text-teal-300" title="Kasa ({{ ['keyword' => 'kasa sözcüğü', 'lexicon' => 'sözlük', 'goods' => 'yükten çıkarım', 'ai' => 'yapay zeka', 'admin' => 'yönetici'][$load->body_type_source] ?? $load->body_type_source }})">{{ $load->bodyLabel() }}</span>@endif
+                                        @if($load->loadKindLabel())<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ $load->loadKindLabel() }}</span>@endif
+                                        @if(($load->vehicle_count ?? 1) > 1)<span class="badge bg-brand-500/10 text-brand-600">{{ $load->vehicle_count }} araç</span>@endif
+                                        @if(count($load->deliveryStops()) > 1)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200" title="{{ implode(' → ', $load->deliveryStops()) }}">{{ count($load->deliveryStops()) }} teslim noktası</span>@endif
                                         @if($load->goods_type)<span class="badge bg-sky-500/10 text-sky-700 dark:text-sky-300">{{ $load->goods_type }}</span>@endif
                                         @if($load->weightLabel())<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ $load->weightLabel() }}</span>@endif
                                         @foreach($load->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
@@ -862,6 +877,15 @@ new class extends Component {
                                                 <label class="form-label">Araç tipi (en küçük uygun)</label>
                                                 <select wire:model="edit.vehicle_type" class="{{ $input }}"><option value="">Belirsiz</option>@foreach(VehicleTypes::labels() as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
                                             </div>
+                                            <div class="col-span-2 md:col-span-4">
+                                                <label class="form-label">Kasa / dorse (birden çok seçilebilir; boş = fark etmez)</label>
+                                                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                                                    @foreach(BodyTypes::labels() as $bk => $bl)
+                                                        <label class="inline-flex items-center gap-1.5 text-xs"><input type="checkbox" wire:model="edit.body_types" value="{{ $bk }}" class="rounded border-neutral-300 dark:border-neutral-700 text-brand-500 focus:ring-brand-500"> {{ $bl }}</label>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                            <div><label class="form-label">Yük biçimi</label><select wire:model="edit.load_kind" class="{{ $input }}"><option value="">Belirsiz</option>@foreach(BodyTypes::LOAD_KINDS as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
                                             <div><label class="form-label">Yük türü</label><input type="text" wire:model="edit.goods_type" class="{{ $input }}" list="goods-catalog"></div>
                                             <div><label class="form-label">Tonaj (kg)</label><input type="number" wire:model="edit.weight" class="{{ $input }}" min="1" max="60000">@error('edit.weight')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
                                             <div><label class="form-label">Fiyat (₺)</label><div class="flex gap-2"><input type="number" step="0.01" wire:model="edit.price" class="{{ $input }}" min="0"><select wire:model="edit.price_unit" class="{{ $input }} w-32 shrink-0"><option value="total">Toplam</option><option value="per_ton">Ton başına</option></select></div>@error('edit.price')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
@@ -1061,7 +1085,7 @@ new class extends Component {
 
             <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs lg:col-span-2">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Jargon sözlüğüne ekle</h2>
-                <p class="text-[11px] text-neutral-400">Tırcıların dilini siz öğretirsiniz: "ostim" → Ankara Ostim, "tenteli mega" → TIR, "salça" → Gıda, "satılık" → ilan değil. Girilen sözcük sonraki her mesajda kural tarafından anında uygulanır; yapay zekaya gerek kalmaz.</p>
+                <p class="text-[11px] text-neutral-400">Tırcıların dilini siz öğretirsiniz: "ostim" → Ankara Ostim, "tenteli mega" → TIR, "salça" → Gıda, "kemik" → Damperli (kasa), "satılık" → ilan değil. Girilen sözcük sonraki her mesajda kural tarafından anında uygulanır; yapay zekaya gerek kalmaz.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                     <div><label class="form-label">Tür</label>
                         <select wire:model.live="lex.kind" class="{{ $input }}">@foreach($kinds as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
@@ -1071,6 +1095,8 @@ new class extends Component {
                             <select wire:model="lex.canonical" class="{{ $input }}"><option value="">Seçin</option>@foreach(\App\Support\VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
                         @elseif($lex['kind'] === 'goods')
                             <select wire:model="lex.canonical" class="{{ $input }}"><option value="">Seçin</option>@foreach(\App\Support\GoodsCatalog::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+                        @elseif($lex['kind'] === 'body')
+                            <select wire:model="lex.canonical" class="{{ $input }}"><option value="">Seçin</option>@foreach(\App\Support\BodyTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach<option value="kapali,tenteli,frigo">Kapalı / Tenteli / Frigo (kasalı)</option><option value="damperli,acik">Damperli / Açık</option><option value="tenteli,kapali,acik,frigo">Damper hariç hepsi</option></select>
                         @elseif($lex['kind'] === 'location')
                             <input type="text" wire:model="lex.canonical" class="{{ $input }}" placeholder="İl ya da İl İlçe (ör. Kocaeli Gebze)">
                         @else
@@ -1115,6 +1141,10 @@ new class extends Component {
                                 <span class="badge {{ $seg['pickup_ok'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600' }}">Kalkış: {{ $seg['pickup'] ?: '—' }}</span>
                                 <span class="badge {{ $seg['delivery_ok'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600' }}">Varış: {{ $seg['delivery'] ?: '—' }}</span>
                                 <span class="badge {{ $seg['vehicle'] ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900' : 'bg-amber-500/10 text-amber-600' }}">Araç: {{ $seg['vehicle'] ? \App\Support\VehicleTypes::label($seg['vehicle']).' ('.$seg['vehicle_source'].')' : 'yok' }}</span>
+                                @if($seg['body'] ?? null)<span class="badge bg-teal-500/10 text-teal-700 dark:text-teal-300">Kasa: {{ $seg['body'] }}</span>@endif
+                                @if($seg['load_kind'] ?? null)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ \App\Support\BodyTypes::LOAD_KINDS[$seg['load_kind']] }}</span>@endif
+                                @if(($seg['vehicle_count'] ?? 0) > 1)<span class="badge bg-brand-500/10 text-brand-600">{{ $seg['vehicle_count'] }} araç</span>@endif
+                                @if(count($seg['stops'] ?? []) > 1)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">Teslim: {{ implode(' → ', $seg['stops']) }}</span>@endif
                                 @if($seg['goods'])<span class="badge bg-sky-500/10 text-sky-700">{{ $seg['goods'] }}</span>@endif
                                 @if($seg['weight'])<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ number_format($seg['weight'], 0, ',', '.') }} kg</span>@endif
                                 @if($seg['price'])<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200">{{ number_format($seg['price'], 0, ',', '.') }} ₺{{ ($seg['price_unit'] ?? null) === 'per_ton' ? '/ton' : '' }}</span>@endif

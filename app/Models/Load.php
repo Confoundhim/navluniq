@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use App\Support\BodyTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -85,6 +86,9 @@ class Load extends Model
         'pickup_date',
         'delivery_date',
         'vehicle_type',
+        'body_types',
+        'load_kind',
+        'delivery_stops',
         'goods_type',
         'weight',
         'volume',
@@ -113,7 +117,20 @@ class Load extends Model
         'telegram_posted_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'price' => 'decimal:2',
+        'body_types' => 'array',
+        'delivery_stops' => 'array',
     ];
+
+    /** Kasa etiketi ("Tenteli", "Damper / Açık"); belirtilmemişse null. */
+    public function bodyLabel(): ?string
+    {
+        return BodyTypes::summary($this->body_types);
+    }
+
+    public function loadKindLabel(): ?string
+    {
+        return BodyTypes::LOAD_KINDS[$this->load_kind ?? ''] ?? null;
+    }
 
     /** Ücretsiz (premium olmayan) şoförlere açıldı mı? Süre tanımsızsa her zaman açık. */
     public function isAvailableToFree(): bool

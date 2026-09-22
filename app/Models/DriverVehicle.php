@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +18,8 @@ class DriverVehicle extends Model
         'brand',
         'model',
         'vehicle_type',
+        'body_type',
+        'trailer_length',
         'ruhsat_path',
         'vehicle_photo_path',
         'is_active',
@@ -37,7 +40,7 @@ class DriverVehicle extends Model
     /** Şoför kaydı ve ilan formunda ortak kullanılan araç türleri. */
     public static function getVehicleTypes(): array
     {
-        return \App\Support\VehicleTypes::labels();
+        return VehicleTypes::labels();
     }
 
     /**

@@ -33,6 +33,38 @@ final class VehicleTypes
 
     public const GROUPS = ['agir' => 'Ağır vasıta', 'orta' => 'Orta ticari', 'hafif' => 'Hafif ticari', 'hizli' => 'Hızlı teslimat'];
 
+    /** Sektörün konuştuğu 5 araç sınıfı (filtre ve form kutuları); alt tipler ayrıntıdır. Sıra: hafiften ağıra. */
+    public const CLASSES = [
+        'panelvan' => ['label' => 'Panelvan', 'types' => ['otomobil', 'minivan', 'orta_panelvan', 'uzun_panelvan']],
+        'kamyonet' => ['label' => 'Kamyonet', 'types' => ['kamyonet']],
+        'kamyon' => ['label' => 'Kamyon', 'types' => ['6_teker_kamyon', '8_teker_kamyon', '10_teker_kamyon']],
+        'kirkayak' => ['label' => 'Kırkayak', 'types' => ['kirkayak']],
+        'tir' => ['label' => 'TIR', 'types' => ['tir']],
+    ];
+
+    /** Araç tipinin sınıfı (tır, kırkayak, kamyon, kamyonet, panelvan). */
+    public static function classOf(?string $type): ?string
+    {
+        foreach (self::CLASSES as $class => $meta) {
+            if (in_array($type, $meta['types'], true)) {
+                return $class;
+            }
+        }
+
+        return null;
+    }
+
+    public static function classLabel(?string $class): string
+    {
+        return self::CLASSES[$class ?? '']['label'] ?? (string) $class;
+    }
+
+    /** @return array<string, string> sınıf → etiket */
+    public static function classLabels(): array
+    {
+        return array_map(fn ($c) => $c['label'], self::CLASSES);
+    }
+
     /** Kayıt ve ilan formlarındaki sıra: hafiften ağıra. */
     public const FORM_ORDER = ['otomobil', 'minivan', 'orta_panelvan', 'uzun_panelvan', 'kamyonet', '6_teker_kamyon', '8_teker_kamyon', '10_teker_kamyon', 'kirkayak', 'tir'];
 
