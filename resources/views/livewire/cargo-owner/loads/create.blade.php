@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\DriverVehicle;
+use App\Support\BodyTypes;
+use App\Support\VehicleTypes;
 use App\Models\Load;
 use App\Models\SavedAddress;
 use App\Services\LoadService;
@@ -37,6 +39,12 @@ class extends Component {
 
     public string $vehicle_type = '';
 
+    /** İstenen kasa tipleri (çoklu); boş: fark etmez. */
+    public array $body_types = [];
+
+    /** komple | parca */
+    public string $load_kind = 'komple';
+
     public string $weight = '';
 
     public string $volume = '';
@@ -54,6 +62,18 @@ class extends Component {
         $this->pickup_date = Carbon::now()->addDay()->format('Y-m-d');
         $this->goods_type = Load::GOODS_TYPES[0];
         $this->vehicle_type = array_key_first(DriverVehicle::getVehicleTypes());
+    }
+
+    /** Araç sınıfı değişince o sınıfta geçersiz kasa seçimleri düşer. */
+    public function updatedVehicleType(): void
+    {
+        $this->body_types = array_values(array_intersect(BodyTypes::clean($this->body_types), $this->bodyOptions()));
+    }
+
+    /** Seçili araç sınıfında geçerli kasa tipleri. */
+    public function bodyOptions(): array
+    {
+        return BodyTypes::forClass(VehicleTypes::classOf($this->vehicle_type));
     }
 
     public function updatedSelectedSavedPickup(string $value): void
@@ -104,6 +124,9 @@ class extends Component {
             $this->validate([
                 'goods_type' => ['required', Rule::in(Load::GOODS_TYPES)],
                 'vehicle_type' => ['required', Rule::in(array_keys(DriverVehicle::getVehicleTypes()))],
+                'body_types' => ['array'],
+                'body_types.*' => [Rule::in($this->bodyOptions())],
+                'load_kind' => ['required', Rule::in(array_keys(BodyTypes::LOAD_KINDS))],
                 'weight' => 'required|integer|min:1|max:100000',
                 'volume' => 'nullable|integer|min:0|max:10000',
                 'e_irsaliye_no' => 'nullable|string|max:40',
@@ -152,6 +175,8 @@ class extends Component {
                 'pickup_date' => Carbon::parse($this->pickup_date)->startOfDay(),
                 'delivery_date' => $this->delivery_date !== '' ? Carbon::parse($this->delivery_date)->endOfDay() : null,
                 'vehicle_type' => $this->vehicle_type,
+                'body_types' => $this->body_types,
+                'load_kind' => $this->load_kind,
                 'goods_type' => $this->goods_type,
                 'weight' => $this->weight,
                 'volume' => $this->volume,
@@ -185,6 +210,7 @@ class extends Component {
             'pickupAddresses' => $addresses->whereIn('type', ['pickup', 'both'])->values(),
             'deliveryAddresses' => $addresses->whereIn('type', ['delivery', 'both'])->values(),
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
+            'bodyOptions' => $this->bodyOptions(),
             'goodsTypes' => Load::GOODS_TYPES,
             'minPrice' => $this->minPrice(),
         ];
@@ -311,6 +337,36 @@ class extends Component {
                     </div>
 
                     <div>
+                        <label class="form-label">Kasa / dorse tipi <span class="text-neutral-400 font-normal">(birden çok seçilebilir; boş bırakırsanız fark etmez)</span></label>
+                        <div class="flex flex-wrap gap-2" wire:key="body-options-{{ $vehicle_type }}">
+                            @foreach($bodyOptions as $bk)
+                                <label class="cursor-pointer">
+                                    <input type="checkbox" wire:model="body_types" value="{{ $bk }}" class="peer sr-only">
+                                    <span class="inline-flex items-center px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-200 transition-colors peer-checked:border-brand-500 peer-checked:bg-brand-500/10 peer-checked:text-brand-600 dark:peer-checked:text-brand-400 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40">{{ \App\Support\BodyTypes::label($bk) }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <p class="text-[11px] text-neutral-500 mt-1">Şoförler kasasına uyan ilanları görür: dökme yük için "Damperli", soğuk zincir için "Frigo" seçin.</p>
+                        @error('body_types.*') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div>
+                        <label class="form-label">Yük biçimi <span class="text-brand-500">*</span></label>
+                        <div class="grid grid-cols-2 gap-2" role="radiogroup">
+                            @foreach(\App\Support\BodyTypes::LOAD_KINDS as $lk => $ll)
+                                <label class="cursor-pointer">
+                                    <input type="radio" wire:model="load_kind" value="{{ $lk }}" class="peer sr-only">
+                                    <span class="flex flex-col rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-3 transition-all peer-checked:border-brand-500 peer-checked:bg-brand-500/10 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40">
+                                        <span class="text-xs font-semibold text-neutral-800 dark:text-neutral-100">{{ $ll }}</span>
+                                        <span class="text-[11px] text-neutral-500">{{ $lk === 'komple' ? 'Aracın tamamı bu yüke ayrılır' : 'Araçta boşluk olan şoför alır (birkaç palet / koli)' }}</span>
+                                    </span>
+                                </label>
+                            @endforeach
+                        </div>
+                        @error('load_kind') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div>
                         <label class="form-label">Tahmini ağırlık (kg) <span class="text-brand-500">*</span></label>
                         <input type="number" wire:model="weight" inputmode="numeric" min="1" placeholder="Örn: 24000" class="form-input">
                         @error('weight') <span class="form-error">{{ $message }}</span> @enderror
@@ -372,7 +428,7 @@ class extends Component {
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Araç & yük</span>
-                            <span class="text-neutral-900 dark:text-white font-medium">{{ $vehicleTypes[$vehicle_type] ?? $vehicle_type }} · {{ $goods_type }}</span>
+                            <span class="text-neutral-900 dark:text-white font-medium">{{ implode(' · ', array_filter([$vehicleTypes[$vehicle_type] ?? $vehicle_type, \App\Support\BodyTypes::summary($body_types), \App\Support\BodyTypes::LOAD_KINDS[$load_kind] ?? null, $goods_type])) }}</span>
                         </div>
                         <div>
                             <span class="text-neutral-500 block">Yükleme tarihi</span>

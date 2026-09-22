@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CargoOwnerProfile;
 use App\Models\Load;
 use App\Models\Shipment;
+use App\Support\BodyTypes;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use Illuminate\Http\UploadedFile;
@@ -44,6 +45,8 @@ class LoadService
                 'pickup_date' => $data['pickup_date'],
                 'delivery_date' => $data['delivery_date'] ?? null,
                 'vehicle_type' => $data['vehicle_type'],
+                'body_types' => ($bodies = BodyTypes::clean($data['body_types'] ?? [])) !== [] ? $bodies : null,
+                'load_kind' => in_array($data['load_kind'] ?? null, ['komple', 'parca'], true) ? $data['load_kind'] : null,
                 'goods_type' => trim($data['goods_type']),
                 'weight' => isset($data['weight']) && $data['weight'] !== '' ? (int) $data['weight'] : null,
                 'volume' => isset($data['volume']) && $data['volume'] !== '' ? (int) $data['volume'] : null,

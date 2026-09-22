@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DriverProfile;
+use App\Support\BodyTypes;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,8 @@ class LoadFilterService
         return [
             'vehicle_mode' => 'mine',        // mine: aracımın taşıyabildikleri · any: tümü · custom: seçtiklerim
             'vehicle_types' => [],
+            'body_types' => [],              // seçili kasa tipleri (boş: hepsi); ilan kasa belirtmemişse gizlenmez
+            'load_kind' => '',               // '' hepsi · komple · parca
             'pickup_provinces' => [],
             'delivery_provinces' => [],
             'goods_keywords' => '',
@@ -47,6 +50,8 @@ class LoadFilterService
         $out = $d;
         $out['vehicle_mode'] = in_array($input['vehicle_mode'] ?? '', ['mine', 'any', 'custom'], true) ? $input['vehicle_mode'] : 'mine';
         $out['vehicle_types'] = array_values(array_filter((array) ($input['vehicle_types'] ?? []), fn ($v) => VehicleTypes::isValid((string) $v)));
+        $out['body_types'] = BodyTypes::clean($input['body_types'] ?? []);
+        $out['load_kind'] = array_key_exists((string) ($input['load_kind'] ?? ''), BodyTypes::LOAD_KINDS) ? (string) $input['load_kind'] : '';
         foreach (['pickup_provinces', 'delivery_provinces'] as $key) {
             $out[$key] = array_values(array_unique(array_filter(array_map('intval', (array) ($input[$key] ?? [])), fn ($c) => $c >= 1 && $c <= 81)));
         }
@@ -82,6 +87,8 @@ class LoadFilterService
     {
         $n = 0;
         $n += $f['vehicle_mode'] !== 'mine' ? 1 : 0;
+        $n += $f['body_types'] !== [] ? 1 : 0;
+        $n += $f['load_kind'] !== '' ? 1 : 0;
         $n += $f['pickup_provinces'] !== [] ? 1 : 0;
         $n += $f['delivery_provinces'] !== [] ? 1 : 0;
         $n += $f['goods_keywords'] !== '' ? 1 : 0;
@@ -102,6 +109,12 @@ class LoadFilterService
             'custom' => implode(', ', array_map(fn ($t) => VehicleTypes::label($t), $f['vehicle_types'])) ?: 'Araç tipi seçilmedi',
             default => 'Aracıma uygun',
         };
+        if ($f['body_types'] !== []) {
+            $chips[] = 'Kasa: '.implode(' / ', array_map(fn ($b) => BodyTypes::short($b), $f['body_types']));
+        }
+        if ($f['load_kind'] !== '') {
+            $chips[] = BodyTypes::LOAD_KINDS[$f['load_kind']];
+        }
         $prov = fn (array $codes) => implode(', ', array_map(fn ($c) => TurkishLocations::province($c)['name'] ?? $c, $codes));
         if ($f['pickup_provinces'] !== []) {
             $chips[] = 'Çıkış: '.$prov($f['pickup_provinces']);
@@ -174,6 +187,38 @@ class LoadFilterService
                     $w->orWhereNull('vehicle_type'); // dış kaynakta tip çözülemediyse gizlenmez
                 }
             });
+        }
+        // Kasa: "Aracıma uygun" kipinde şoförün aracının kasası; "Seçtiklerim"de seçilen kasalar. Kasa belirtmeyen ilan gizlenmez.
+        // JSON listede arama LIKE ile yapılır ('"tenteli"'), her veritabanında çalışır.
+        $vehicle = $f['vehicle_mode'] === 'mine' ? $profile?->activeVehicle()->first() : null;
+        if ($vehicle && $vehicle->body_type && BodyTypes::isValid($vehicle->body_type)) {
+            $body = $vehicle->body_type;
+            $length = $vehicle->trailer_length;
+            $q->where(function (Builder $w) use ($body): void {
+                $w->whereNull('body_types')->orWhere('body_types', 'like', '%"'.$body.'"%');
+                // Yalnız uzunluk yazan ilan ("13.60") her kasaya açıktır
+                $w->orWhere(function (Builder $k): void {
+                    foreach (BodyTypes::KINDS as $kind) {
+                        $k->where('body_types', 'not like', '%"'.$kind.'"%');
+                    }
+                });
+            });
+            if ($length === 'kisa') {
+                $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"uzun_dorse"%')->orWhere('body_types', 'like', '%"kisa_dorse"%'));
+            } elseif ($length === 'uzun') {
+                $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"kisa_dorse"%')->orWhere('body_types', 'like', '%"uzun_dorse"%'));
+            }
+        }
+        if ($f['body_types'] !== []) {
+            $q->where(function (Builder $w) use ($f): void {
+                $w->whereNull('body_types');
+                foreach ($f['body_types'] as $b) {
+                    $w->orWhere('body_types', 'like', '%"'.$b.'"%');
+                }
+            });
+        }
+        if ($f['load_kind'] !== '') {
+            $q->where(fn (Builder $w) => $w->where('load_kind', $f['load_kind'])->orWhereNull('load_kind'));
         }
         if ($f['pickup_provinces'] !== []) {
             $q->whereIn('pickup_province_code', $f['pickup_provinces']);

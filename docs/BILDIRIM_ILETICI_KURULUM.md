@@ -322,6 +322,10 @@ Kapalı ve tenteli ayrı tiplerdir. Ayrıştırıcı sektör dilini şöyle okur
 - **Emoji yükler:** 🍇 üzüm, 🦴 kemik, 🍅 domates, 🌾 buğday gibi emojiler yük sözcüğü sayılır ("Dökme 🍇" → damperli).
 - **Sözlük:** Dış kaynak → Sözlük → tür "Kasa sözcüğü": "kemik" → Damperli gibi; sonraki her mesajda anında uygulanır.
 - **Yönetici düzenleme:** kuyrukta kasa kutuları (çoklu) ve yük biçimi seçilebilir; yönetici seçimi kuralın üstündedir.
+- **Ekranlar:** yük sahibi ilan formunda araç tipi → o sınıfa uygun kasa kutuları (çoklu; boş = fark etmez) → yük biçimi
+  (komple / parça). Şoför "Araçlarım"da aracının kasa cinsini ve (tırda) dorse uzunluğunu girer; ilan havuzunda "Aracıma
+  uygun" kasaya da bakar (damperli araç tenteli yükü görmez; kasa belirtmeyen ilan her zaman görünür), Gelişmiş filtrelerde
+  "Kasa tipi" ve "Yük tipi" kutuları vardır. Yeni sistem ilanı bildirimi yalnız kasası uyan şoförlere gider.
 - **Tek biçim:** şoförün gördüğü her alan standarttır: yer adları sözcük başı büyük ("İstanbul Kartal"), yük türü cümle
   biçimi ("Paletli yük"), büyük harf yığınları ve süs karakterleri (‼️ 🔥) atılır; ham mesaj şoföre gösterilmez. PHP'nin kendi
   harf çevirisi Türkçede bozuk olduğundan (İ → i̇) `TurkishText` kullanılır.

@@ -58,12 +58,12 @@ class PremiumReleaseTest extends TestCase
         return $user->fresh();
     }
 
-    private function publish(): Load
+    private function publish(array $extra = []): Load
     {
-        return app(LoadService::class)->publish($this->owner->fresh()->cargoOwnerProfile, [
+        return app(LoadService::class)->publish($this->owner->fresh()->cargoOwnerProfile, array_merge([
             'pickup_location' => 'Ankara', 'delivery_location' => 'İzmir', 'pickup_date' => now()->addDay()->toDateString(),
             'vehicle_type' => 'tir', 'goods_type' => 'Paletli Yük', 'weight' => 24000, 'price' => 45000,
-        ]);
+        ], $extra));
     }
 
     public function test_new_system_load_is_premium_first_then_released_to_everyone_and_telegram(): void
@@ -171,6 +171,21 @@ class PremiumReleaseTest extends TestCase
         $this->publish();
         $this->assertSame(0, UserNotification::where('user_id', $small->id)->count());
         $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count());
+    }
+
+    public function test_driver_whose_body_does_not_match_is_not_notified(): void
+    {
+        $damper = User::factory()->driver()->create();
+        $damper->syncRoles(['driver']);
+        $profile = DriverProfile::create(['user_id' => $damper->id, 'kyc_status' => 'approved', 'premium_until' => now()->addMonth()]);
+        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34DMP01', 'brand' => 'Mercedes', 'model' => 'Actros', 'vehicle_type' => 'tir', 'body_type' => 'damperli', 'is_active' => true]);
+
+        $this->publish(['body_types' => ['tenteli', 'kapali'], 'load_kind' => 'komple']);
+        $this->assertSame(0, UserNotification::where('user_id', $damper->id)->count(), 'Damperli araç tenteli yükü almaz');
+        $n = UserNotification::where('user_id', $this->premium->id)->first();
+        $this->assertNotNull($n);
+        $this->assertStringContainsString('Tenteli / Kapalı', implode(' ', (array) $n->lines));
+        $this->assertStringContainsString('Komple yük', implode(' ', (array) $n->lines));
     }
 
     public function test_external_loads_are_visible_only_to_premium_drivers(): void

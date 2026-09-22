@@ -97,6 +97,43 @@ class LoadFilterServiceTest extends TestCase
         $this->assertEqualsCanonicalizing([$tir->id, $frigo->id], $ids);
     }
 
+    public function test_body_type_and_load_kind_filters(): void
+    {
+        // Şoförün aracı: kamyonet, kapalı kasa
+        DriverVehicle::query()->where('driver_profile_id', $this->driver->id)->update(['body_type' => 'kapali']);
+        $none = $this->load([]);                                             // kasa belirtmemiş: her zaman görünür
+        $kapali = $this->load(['body_types' => ['kapali', 'tenteli'], 'load_kind' => 'parca']);
+        $frigo = $this->load(['body_types' => ['frigo'], 'load_kind' => 'komple']);
+        $svc = app(LoadFilterService::class);
+
+        // "Aracıma uygun": kapalı kasa frigo yükünü görmez
+        $ids = $svc->applyToLoads(Load::query(), LoadFilterService::normalize([]), $this->driver)->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$none->id, $kapali->id], $ids);
+
+        // Kasa filtresi (seçtiklerim): frigo → frigo + kasa belirtmeyen
+        $ids = $svc->applyToLoads(Load::query(), LoadFilterService::normalize(['vehicle_mode' => 'any', 'body_types' => ['frigo', 'bogus']]), $this->driver)->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$none->id, $frigo->id], $ids);
+
+        // Yük tipi: parça → parça + biçimi bilinmeyen
+        $ids = $svc->applyToLoads(Load::query(), LoadFilterService::normalize(['vehicle_mode' => 'any', 'load_kind' => 'parca']), $this->driver)->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$none->id, $kapali->id], $ids);
+
+        $n = LoadFilterService::normalize(['body_types' => ['damperli'], 'load_kind' => 'komple']);
+        $this->assertSame(2, LoadFilterService::activeCount($n));
+        $this->assertContains('Kasa: Damper', LoadFilterService::chips($n));
+        $this->assertContains('Komple yük', LoadFilterService::chips($n));
+
+        // Tır + uzun dorse şoförü: yalnız kısa dorse isteyen ilanı görmez, "13.60" isteyeni görür
+        DriverVehicle::query()->where('driver_profile_id', $this->driver->id)->update(['vehicle_type' => 'tir', 'body_type' => 'tenteli', 'trailer_length' => 'uzun']);
+        $short = $this->load(['vehicle_type' => 'tir', 'body_types' => ['kisa_dorse', 'tenteli']]);
+        $long = $this->load(['vehicle_type' => 'tir', 'body_types' => ['uzun_dorse']]);
+        $ids = $svc->applyToLoads(Load::query(), LoadFilterService::normalize([]), $this->driver->fresh())->pluck('id')->all();
+        $this->assertContains($long->id, $ids);
+        $this->assertContains($kapali->id, $ids, 'tenteli listede: uygun');
+        $this->assertNotContains($short->id, $ids);
+        $this->assertNotContains($frigo->id, $ids);
+    }
+
     public function test_normalize_and_presets(): void
     {
         $n = LoadFilterService::normalize(['vehicle_mode' => 'weird', 'pickup_provinces' => ['34', 99, 'x'], 'near_radius_km' => 50, 'sort' => 'distance', 'min_weight' => '-5']);

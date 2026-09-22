@@ -9,6 +9,7 @@ use App\Services\LoadFilterService;
 use App\Services\OfferService;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
+use App\Support\BodyTypes;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
@@ -126,6 +127,16 @@ class extends Component {
         $this->filters['vehicle_mode'] = 'custom';
         $types = $this->filters['vehicle_types'];
         $this->filters['vehicle_types'] = in_array($type, $types, true) ? array_values(array_diff($types, [$type])) : [...$types, $type];
+        $this->updatedFilters();
+    }
+
+    public function toggleBodyType(string $type): void
+    {
+        if (! BodyTypes::isValid($type)) {
+            return;
+        }
+        $types = $this->filters['body_types'] ?? [];
+        $this->filters['body_types'] = in_array($type, $types, true) ? array_values(array_diff($types, [$type])) : [...$types, $type];
         $this->updatedFilters();
     }
 
@@ -381,6 +392,8 @@ class extends Component {
             'sorts' => LoadFilterService::SORTS,
             'withinDays' => LoadFilterService::WITHIN_DAYS,
             'myVehicleType' => $profile?->activeVehicle()->value('vehicle_type'),
+            'myVehicleBody' => $profile?->activeVehicle()->value('body_type'),
+            'myVehicleLength' => $profile?->activeVehicle()->value('trailer_length'),
             'minPrice' => Settings::float('min_load_price'),
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             'loads' => null,
@@ -534,7 +547,7 @@ class extends Component {
                     <div class="space-y-2">
                         <label class="form-label">Araç tipi</label>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" wire:click="$set('filters.vehicle_mode', 'mine')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'mine' ? 'tab-pill-active' : '' }}">Aracıma uygun{{ $myVehicleType ? ' ('.\App\Support\VehicleTypes::label($myVehicleType).' ve altı)' : '' }}</button>
+                            <button type="button" wire:click="$set('filters.vehicle_mode', 'mine')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'mine' ? 'tab-pill-active' : '' }}">Aracıma uygun{{ $myVehicleType ? ' ('.implode(' · ', array_filter([\App\Support\VehicleTypes::label($myVehicleType).' ve altı', $myVehicleLength ? \App\Support\BodyTypes::TRAILER_LENGTHS[$myVehicleLength] ?? null : null, $myVehicleBody ? \App\Support\BodyTypes::label($myVehicleBody) : null])).')' : '' }}</button>
                             <button type="button" wire:click="$set('filters.vehicle_mode', 'any')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'any' ? 'tab-pill-active' : '' }}">Tüm tipler</button>
                             <button type="button" wire:click="$set('filters.vehicle_mode', 'custom')" class="tab-pill {{ $normalizedFilters['vehicle_mode'] === 'custom' ? 'tab-pill-active' : '' }}">Seçtiklerim</button>
                         </div>
@@ -547,6 +560,28 @@ class extends Component {
                                 @endforeach
                             </div>
                         @endif
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="form-label">Kasa tipi <span class="text-neutral-400 font-normal">(kasa belirtmeyen ilanlar her zaman görünür)</span></label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach(\App\Support\BodyTypes::TYPES as $bk => $bmeta)
+                                <button type="button" wire:click="toggleBodyType('{{ $bk }}')" class="inline-flex items-center px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-colors {{ in_array($bk, $normalizedFilters['body_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $bmeta['label'] }}</button>
+                            @endforeach
+                        </div>
+                        @if($normalizedFilters['vehicle_mode'] === 'mine' && $myVehicleType && ! $myVehicleBody)
+                            <p class="text-[11px] text-amber-600">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" class="underline" wire:navigate>Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
+                        @endif
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="form-label">Yük tipi</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" wire:click="$set('filters.load_kind', '')" class="tab-pill {{ $normalizedFilters['load_kind'] === '' ? 'tab-pill-active' : '' }}">Fark etmez</button>
+                            @foreach(\App\Support\BodyTypes::LOAD_KINDS as $lk => $ll)
+                                <button type="button" wire:click="$set('filters.load_kind', '{{ $lk }}')" class="tab-pill {{ $normalizedFilters['load_kind'] === $lk ? 'tab-pill-active' : '' }}">{{ $ll }}</button>
+                            @endforeach
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
