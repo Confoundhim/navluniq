@@ -46,7 +46,7 @@
     <div x-show="mobileSidebarOpen" x-cloak @click="mobileSidebarOpen = false"
         x-transition.opacity class="fixed inset-0 z-40 bg-neutral-950/60 backdrop-blur-sm md:hidden"></div>
 
-    <aside :class="{ 'translate-x-0': mobileSidebarOpen, '-translate-x-full': !mobileSidebarOpen }"
+    <aside id="panel-sidebar" :class="{ 'translate-x-0': mobileSidebarOpen, '-translate-x-full': !mobileSidebarOpen }"
         class="-translate-x-full fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col transition-transform duration-300 ease-in-out md:translate-x-0 safe-top">
 
         <div class="h-16 shrink-0 flex items-center justify-between px-5 border-b border-neutral-200 dark:border-neutral-800">
@@ -111,8 +111,9 @@
 
     <div class="flex-1 md:pl-64 flex flex-col min-h-screen">
         <header class="h-16 shrink-0 sticky top-0 z-30 flex items-center gap-3 px-4 md:px-8 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 safe-top">
-            <button type="button" @click="mobileSidebarOpen = true" class="md:hidden p-2 -ml-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Menüyü aç">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            {{-- Mobil menü düğmesi: sitedeki ile aynı biçim (çerçeveli, "Menü" yazılı) ki menünün nerede olduğu anlaşılsın --}}
+            <button type="button" @click="mobileSidebarOpen = true" class="md:hidden shrink-0 inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-xs font-bold shadow-sm active:scale-95 transition" aria-label="Menüyü aç" aria-controls="panel-sidebar" :aria-expanded="mobileSidebarOpen">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menü</span>
             </button>
             <h1 class="flex-1 min-w-0 truncate text-base md:text-lg font-semibold text-neutral-900 dark:text-white">{{ $title }}</h1>
             <div class="flex items-center gap-2 shrink-0">
