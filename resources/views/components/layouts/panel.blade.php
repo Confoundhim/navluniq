@@ -111,9 +111,9 @@
 
     <div class="flex-1 md:pl-64 flex flex-col min-h-screen">
         <header class="h-16 shrink-0 sticky top-0 z-30 flex items-center gap-3 px-4 md:px-8 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 safe-top">
-            {{-- Mobil menü düğmesi: sitedeki ile aynı biçim (çerçeveli, "Menü" yazılı) ki menünün nerede olduğu anlaşılsın --}}
-            <button type="button" @click="mobileSidebarOpen = true" class="md:hidden shrink-0 inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-xs font-bold shadow-sm active:scale-95 transition" aria-label="Menüyü aç" aria-controls="panel-sidebar" :aria-expanded="mobileSidebarOpen">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menü</span>
+            {{-- Mobil menü düğmesi: sitedeki ile aynı sade biçim (gri dolgulu kutu içinde çizgi simgesi) --}}
+            <button type="button" @click="mobileSidebarOpen = true" class="md:hidden shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" aria-label="Menüyü aç" aria-controls="panel-sidebar" :aria-expanded="mobileSidebarOpen">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
             </button>
             <h1 class="flex-1 min-w-0 truncate text-base md:text-lg font-semibold text-neutral-900 dark:text-white">{{ $title }}</h1>
             <div class="flex items-center gap-2 shrink-0">
