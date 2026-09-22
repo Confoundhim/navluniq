@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\DriverVehicle;
+use App\Support\BodyTypes;
+use App\Support\VehicleTypes;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
@@ -25,6 +27,12 @@ class extends Component {
 
     public string $vehicle_type = '';
 
+    /** Kasa cinsi (tenteli, kapalı, açık, frigo, damperli…); boş: belirtilmedi. */
+    public string $body_type = '';
+
+    /** Dorse uzunluğu (yalnız tır): kisa | uzun. */
+    public string $trailer_length = '';
+
     public $ruhsat = null;
 
     private function profileId(): int
@@ -39,7 +47,7 @@ class extends Component {
 
     public function openCreate(): void
     {
-        $this->reset(['editingId', 'plate', 'ruhsat']);
+        $this->reset(['editingId', 'plate', 'ruhsat', 'body_type', 'trailer_length']);
         $this->vehicle_type = array_key_first(DriverVehicle::getVehicleTypes());
         $this->resetErrorBag();
         $this->formOpen = true;
@@ -57,6 +65,8 @@ class extends Component {
         $this->editingId = $vehicle->id;
         $this->plate = $vehicle->plate;
         $this->vehicle_type = $vehicle->vehicle_type;
+        $this->body_type = (string) ($vehicle->body_type ?? '');
+        $this->trailer_length = (string) ($vehicle->trailer_length ?? '');
         $this->ruhsat = null;
         $this->resetErrorBag();
         $this->formOpen = true;
@@ -65,8 +75,25 @@ class extends Component {
     public function closeForm(): void
     {
         $this->formOpen = false;
-        $this->reset(['editingId', 'plate', 'vehicle_type', 'ruhsat']);
+        $this->reset(['editingId', 'plate', 'vehicle_type', 'ruhsat', 'body_type', 'trailer_length']);
         $this->resetErrorBag();
+    }
+
+    /** Araç sınıfı değişince o sınıfta olmayan kasa seçimi düşer. */
+    public function updatedVehicleType(): void
+    {
+        if ($this->body_type !== '' && ! in_array($this->body_type, $this->bodyOptions(), true)) {
+            $this->body_type = '';
+        }
+        if (VehicleTypes::classOf($this->vehicle_type) !== 'tir') {
+            $this->trailer_length = '';
+        }
+    }
+
+    /** Seçili araç sınıfında geçerli kasa cinsleri (uzunluk hariç). */
+    public function bodyOptions(): array
+    {
+        return BodyTypes::kindsOf(BodyTypes::forClass(VehicleTypes::classOf($this->vehicle_type)));
     }
 
     public function save(): void
@@ -76,6 +103,8 @@ class extends Component {
         $this->validate([
             'plate' => ['required', 'string', 'max:32', DriverVehicle::PLATE_RULE, Rule::unique('driver_vehicles', 'plate')->ignore($this->editingId)],
             'vehicle_type' => ['required', Rule::in(array_keys(DriverVehicle::getVehicleTypes()))],
+            'body_type' => ['nullable', Rule::in($this->bodyOptions())],
+            'trailer_length' => ['nullable', Rule::in(array_keys(BodyTypes::TRAILER_LENGTHS))],
             'ruhsat' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ], [
             'plate.required' => 'Plaka zorunludur.',
@@ -96,6 +125,8 @@ class extends Component {
         $data = [
             'plate' => $this->plate,
             'vehicle_type' => $this->vehicle_type,
+            'body_type' => $this->body_type !== '' ? $this->body_type : null,
+            'trailer_length' => VehicleTypes::classOf($this->vehicle_type) === 'tir' && $this->trailer_length !== '' ? $this->trailer_length : null,
         ];
 
         if ($this->ruhsat) {
@@ -174,6 +205,8 @@ class extends Component {
         return [
             'vehicles' => DriverVehicle::query()->where('driver_profile_id', $this->profileId())->orderByDesc('is_active')->latest('id')->get(),
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
+            'bodyOptions' => $this->bodyOptions(),
+            'isTir' => VehicleTypes::classOf($this->vehicle_type) === 'tir',
         ];
     }
 }; ?>
@@ -209,6 +242,11 @@ class extends Component {
                 <div class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
                     <svg class="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($vehicle->vehicle_type) !!}</svg>
                     <span class="font-semibold">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</span>
+                    @if($vehicle->body_type || $vehicle->trailer_length)
+                        <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null])) }}</span>
+                    @else
+                        <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="text-[11px] text-amber-600 hover:underline">Kasa tipini ekleyin</button>
+                    @endif
                 </div>
                 <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500' }}">
                     {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
@@ -242,6 +280,25 @@ class extends Component {
                     <x-vehicle-type-picker model="vehicle_type" columns="grid-cols-2 sm:grid-cols-3" />
                     @error('vehicle_type') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
+                <div>
+                    <label class="form-label">Kasa / dorse cinsi</label>
+                    <select wire:model="body_type" class="form-input">
+                        <option value="">Belirtilmedi (her kasa)</option>
+                        @foreach($bodyOptions as $bk)<option value="{{ $bk }}">{{ \App\Support\BodyTypes::label($bk) }}</option>@endforeach
+                    </select>
+                    <p class="text-[11px] text-neutral-500 mt-1">İlan havuzunda "Aracıma uygun" seçimi kasanıza göre süzülür: damperli araç tenteli yükü görmez.</p>
+                    @error('body_type') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+                @if($isTir)
+                    <div>
+                        <label class="form-label">Dorse uzunluğu</label>
+                        <select wire:model="trailer_length" class="form-input">
+                            <option value="">Belirtilmedi</option>
+                            @foreach(\App\Support\BodyTypes::TRAILER_LENGTHS as $lk => $ll)<option value="{{ $lk }}">{{ $ll }}</option>@endforeach
+                        </select>
+                        @error('trailer_length') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+                @endif
 
                 <div>
                     <label class="form-label">Ruhsat (JPG, PNG, PDF; en fazla 10 MB, isteğe bağlı)</label>

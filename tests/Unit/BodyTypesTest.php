@@ -97,6 +97,18 @@ class BodyTypesTest extends TestCase
         $this->assertNull(BodyTypes::detectVehicleCount($n('8.60 kamyon')));
     }
 
+    public function test_vehicle_fits_load_bodies(): void
+    {
+        $this->assertTrue(BodyTypes::vehicleFits('damperli', null, null));          // ilan kasa belirtmemiş
+        $this->assertTrue(BodyTypes::vehicleFits(null, null, ['tenteli']));         // şoför kasasını girmemiş
+        $this->assertTrue(BodyTypes::vehicleFits('tenteli', 'uzun', ['tenteli', 'kapali', 'uzun_dorse']));
+        $this->assertFalse(BodyTypes::vehicleFits('damperli', null, ['tenteli', 'kapali']));
+        $this->assertTrue(BodyTypes::vehicleFits('frigo', 'kisa', ['uzun_dorse', 'kisa_dorse']));
+        $this->assertFalse(BodyTypes::vehicleFits('tenteli', 'kisa', ['uzun_dorse']));       // 13.60 isteyen, kısa dorse uymaz
+        $this->assertTrue(BodyTypes::vehicleFits('tenteli', 'uzun', ['uzun_dorse']));
+        $this->assertTrue(BodyTypes::vehicleFits('damperli', 'uzun', ['tenteli', 'kapali', 'acik', 'frigo', 'damperli']));
+    }
+
     public function test_body_types_are_bound_to_vehicle_classes(): void
     {
         $this->assertSame('tir', VehicleTypes::classOf('tir'));

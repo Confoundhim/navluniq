@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DriverProfile;
 use App\Models\Load;
+use App\Support\BodyTypes;
 use App\Support\Settings;
 use App\Support\VehicleTypes;
 use Illuminate\Support\Facades\Log;
@@ -80,7 +81,7 @@ class LoadReleaseService
                     $mail = $premium && self::wantsLoadMail($profile);
                     $title = ($premium ? '⭐ Erken erişim: ' : 'Yeni ilan: ').$load->pickup_location.' → '.$load->delivery_location;
                     $lines = array_values(array_filter([
-                        $load->goods_type.($load->weight ? ' · '.number_format((int) $load->weight / 1000, 1, ',', '.').' ton' : '').' · '.VehicleTypes::label($load->vehicle_type),
+                        $load->goods_type.($load->weight ? ' · '.number_format((int) $load->weight / 1000, 1, ',', '.').' ton' : '').' · '.implode(' · ', array_filter([VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])),
                         (float) $load->price > 0 ? 'Navlun: '.number_format((float) $load->price, 0, ',', '.').' ₺' : null,
                         $load->pickup_date ? 'Yükleme: '.$load->pickup_date->format('d.m.Y') : null,
                         $premium ? 'Premium üyelere '.$this->delayMinutes().' dakika önce açıldı; teklifinizi şimdi verin.' : null,
@@ -109,7 +110,8 @@ class LoadReleaseService
             return true; // araç bilgisi yoksa ilanı gizleme
         }
 
-        return VehicleTypes::canCarry((string) $vehicle->vehicle_type, (string) $load->vehicle_type);
+        return VehicleTypes::canCarry((string) $vehicle->vehicle_type, (string) $load->vehicle_type)
+            && BodyTypes::vehicleFits($vehicle->body_type, $vehicle->trailer_length, $load->body_types);
     }
 
     private function postToTelegram(Load $load): void

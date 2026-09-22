@@ -230,6 +230,32 @@ final class BodyTypes
     }
 
     /**
+     * Şoförün aracı (kasa cinsi + dorse uzunluğu) ilanın kasa listesine uyar mı?
+     * İlan kasa belirtmemişse ya da şoför aracının kasasını girmemişse gizlenmez.
+     */
+    public static function vehicleFits(?string $driverBody, ?string $driverLength, ?array $loadBodies): bool
+    {
+        $loadBodies = self::clean($loadBodies ?? []);
+        if ($loadBodies === []) {
+            return true;
+        }
+        $kinds = self::kindsOf($loadBodies);
+        if ($kinds !== [] && $driverBody !== null && ! in_array($driverBody, $kinds, true)) {
+            return false;
+        }
+        if ($driverLength === 'kisa' && in_array('uzun_dorse', $loadBodies, true) && ! in_array('kisa_dorse', $loadBodies, true)) {
+            return false;
+        }
+        if ($driverLength === 'uzun' && in_array('kisa_dorse', $loadBodies, true) && ! in_array('uzun_dorse', $loadBodies, true)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public const TRAILER_LENGTHS = ['kisa' => 'Kısa dorse', 'uzun' => 'Uzun dorse (13.60)'];
+
+    /**
      * Yük biçimi: komple (aracın tamamı) / parça (kısmi) / null.
      */
     public static function detectLoadKind(string $norm, ?int $weightKg = null, ?int $vehicleCount = null): ?string
