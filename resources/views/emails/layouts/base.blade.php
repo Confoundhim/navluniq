@@ -47,8 +47,9 @@
         }
     </style>
 </head>
+{{-- Gizli ön-izleme satırı bilerek yok: display:none + görünmez karakterler bazı barındırıcı süzgeçlerinde
+     "gizli metin / kimlik avı" sayılıp ileti sessizce düşürülüyordu (Natro'da doğrulandı). --}}
 <body style="margin:0;padding:0;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#f4f4f6;font-size:1px;line-height:1px;">{{ $preheader ?? '' }}&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;">
         <tr>
             <td align="center" style="padding:32px 12px;">
@@ -64,7 +65,7 @@
                         <td style="background:#ffffff;border-radius:20px;border:1px solid #e9e9ee;">
                             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="height:5px;background:linear-gradient(90deg,#f97316,#fb923c);border-radius:20px 20px 0 0;font-size:0;line-height:0;">&nbsp;</td>
+                                    <td height="5" bgcolor="#f97316" style="height:5px;background:#f97316;border-radius:20px 20px 0 0;line-height:5px;"></td>
                                 </tr>
                                 <tr>
                                     <td class="pad" style="padding:32px 36px 12px;">
