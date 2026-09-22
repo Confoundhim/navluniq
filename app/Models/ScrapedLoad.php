@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\BodyTypes;
 use App\Support\Phone;
 use App\Support\Settings;
+use App\Support\TurkishText;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -215,6 +216,12 @@ class ScrapedLoad extends Model
         $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template'], true) || $this->vehicle_type === 'tir';
 
         return $exact ? VehicleTypes::label($this->vehicle_type) : VehicleTypes::label($this->vehicle_type).' ve üzeri';
+    }
+
+    /** Yük türü her kaynaktan (kural, yapay zeka, yönetici) tek biçimde saklanır: "PALETLİ YÜK" → "Paletli yük". */
+    public function setGoodsTypeAttribute(mixed $value): void
+    {
+        $this->attributes['goods_type'] = is_string($value) ? TurkishText::sentence($value) : null;
     }
 
     /** Kasa etiketi: "Tenteli", "13.60 · damper hariç"; belirtilmemişse null. */

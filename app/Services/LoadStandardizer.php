@@ -8,6 +8,7 @@ use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\TextPrep;
 use App\Support\TurkishLocations;
+use App\Support\TurkishText;
 use App\Support\VehicleClassifier;
 use App\Support\VehicleTypes;
 
@@ -54,10 +55,8 @@ class LoadStandardizer
 
         // Yük
         $goods = GoodsCatalog::detect($norm);
-        $goodsLabel = $goods['label'] ?? $this->titleCase($parsed['goods_type'] ?? null);
-        if ($goodsLabel === null && ! empty($parsed['goods_type'])) {
-            $goodsLabel = $this->titleCase($parsed['goods_type']);
-        }
+        // Yük türü tek biçimde: katalog etiketi ya da cümle biçimi ("PALETLİ YÜK" → "Paletli yük")
+        $goodsLabel = $goods['label'] ?? TurkishText::sentence($parsed['goods_type'] ?? null);
 
         // Tonaj ve fiyat
         $weight = isset($parsed['weight']) && (int) $parsed['weight'] > 0 ? (int) $parsed['weight'] : VehicleClassifier::weightFromText($norm);
@@ -335,13 +334,9 @@ class LoadStandardizer
         return null;
     }
 
+    /** Yer adı biçimi: sözcük başları büyük, Türkçe İ/ı doğru ("İSTANBUL KARTAL" → "İstanbul Kartal"). */
     private function titleCase(mixed $text): ?string
     {
-        if (! is_string($text) || trim($text) === '') {
-            return null;
-        }
-        $clean = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
-
-        return mb_convert_case(mb_substr($clean, 0, 120), MB_CASE_TITLE, 'UTF-8');
+        return is_string($text) ? TurkishText::title($text) : null;
     }
 }

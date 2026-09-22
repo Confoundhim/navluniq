@@ -322,6 +322,9 @@ Kapalı ve tenteli ayrı tiplerdir. Ayrıştırıcı sektör dilini şöyle okur
 - **Emoji yükler:** 🍇 üzüm, 🦴 kemik, 🍅 domates, 🌾 buğday gibi emojiler yük sözcüğü sayılır ("Dökme 🍇" → damperli).
 - **Sözlük:** Dış kaynak → Sözlük → tür "Kasa sözcüğü": "kemik" → Damperli gibi; sonraki her mesajda anında uygulanır.
 - **Yönetici düzenleme:** kuyrukta kasa kutuları (çoklu) ve yük biçimi seçilebilir; yönetici seçimi kuralın üstündedir.
+- **Tek biçim:** şoförün gördüğü her alan standarttır: yer adları sözcük başı büyük ("İstanbul Kartal"), yük türü cümle
+  biçimi ("Paletli yük"), büyük harf yığınları ve süs karakterleri (‼️ 🔥) atılır; ham mesaj şoföre gösterilmez. PHP'nin kendi
+  harf çevirisi Türkçede bozuk olduğundan (İ → i̇) `TurkishText` kullanılır.
 - **Eski kayıtlar:** `php artisan scraped-loads:classify` (update.sh her çalışmada çağırır) kasa ve yük biçimi boş olan tüm
   ilanları (yayındakiler dahil) yeni kurallarla doldurur; yönetici düzenlemiş ilanlarda yalnız boş alanlar doldurulur.
 

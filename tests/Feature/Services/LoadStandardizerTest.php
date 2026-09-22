@@ -131,6 +131,8 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame('tir', $load->fresh()->vehicle_type);
         $this->assertSame('Tekstil', $load->fresh()->goods_type);
         $this->assertSame(['tenteli', 'kapali'], $load->fresh()->body_types); // tekstil: yükten çıkarım
+        $load->forceFill(['goods_type' => 'MERMER BLOK ‼️'])->save(); // yönetici ne yazarsa yazsın kayıt cümle biçiminde
+        $this->assertSame('Mermer blok', $load->fresh()->goods_type);
         $this->assertFalse(app(LoadStandardizer::class)->restandardize($load->fresh()));
 
         $this->assertSame('Bursa → İzmir', $load->fresh()->routeLabel());
@@ -182,6 +184,10 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame(['damperli'], $std->standardize('Buldan/Antalya Dökme 🍇🍇🍇 vardır 0532 111 11 11', [])['body_types']);
         $this->assertSame(['tenteli', 'kapali', 'frigo'], $std->standardize('Buldan/Antalya 🍇🍇🍇 kasalı vardır 0532 111 11 11', [])['body_types']);
         $this->assertSame(['damperli'], $std->standardize('Denizli İzmir 🦴🦴 kemik yükümüz vardır 0532 111 11 11', [])['body_types']);
+        // Yük türü ve yer adları tek biçimde: büyük harf yığını cümle/sözcük biçimine iner (Türkçe İ/ı doğru)
+        $r = $std->standardize('ANKARA İZMİR 24 TON 0532 111 11 11', array_merge(app(AiParserService::class)->parseCheap('ANKARA İZMİR 24 TON 0532 111 11 11'), ['goods_type' => 'İZOLASYON MALZEMESİ']));
+        $this->assertSame('İzolasyon malzemesi', $r['goods_type']);
+        $this->assertSame(['Ankara', 'İzmir'], [$r['pickup_location'], $r['delivery_location']]);
         $r = $std->standardize('Ankara İzmir 24 ton 0532 111 11 11', ['body_types' => ['frigo'], 'load_kind' => 'parca']);
         $this->assertSame(['frigo'], $r['body_types']);
         $this->assertSame('ai', $r['body_type_source']);

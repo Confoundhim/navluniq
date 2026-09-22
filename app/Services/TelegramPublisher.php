@@ -36,7 +36,7 @@ class TelegramPublisher
             $facts[] = '⚖️ '.rtrim(rtrim(number_format((int) $load->weight / 1000, 1, ',', '.'), '0'), ',').' ton';
         }
         if ($load->vehicle_type) {
-            $facts[] = '🚚 '.$e(VehicleTypes::label($load->vehicle_type));
+            $facts[] = '🚚 '.$e(implode(' · ', array_filter([VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])));
         }
         if ($facts !== []) {
             $lines[] = implode(' · ', $facts);
