@@ -1,11 +1,12 @@
 @php
     $message = $message ?? null;
     $company = \App\Support\Company::all();
-    // Gönderim sırasında $message vardır: logolar iletiye gömülür (cid:), uzak görselleri engelleyen
-    // istemcilerde de görünür. Önizleme/render'da mutlak adres kullanılır.
-    $embed = function (string $file) use ($message) {
+    // Logolar varsayılan olarak siteden yüklenir (mutlak adres): ekli/gömülü görselli iletileri sessizce düşüren
+    // barındırıcı süzgeçlerine takılmaz. Panelden "iletiye gömülsün" seçilirse gönderimde cid: olarak gömülür.
+    $embedImages = \App\Support\Settings::bool('mail_embed_images');
+    $embed = function (string $file) use ($message, $embedImages) {
         $path = public_path($file);
-        if ($message !== null && is_file($path)) {
+        if ($embedImages && $message !== null && is_file($path)) {
             try {
                 return $message->embed($path);
             } catch (\Throwable) {

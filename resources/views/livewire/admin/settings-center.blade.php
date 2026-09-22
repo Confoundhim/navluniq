@@ -106,6 +106,7 @@ new class extends Component {
         'mail_password' => 'Şifre',
         'mail_from_address' => 'Gönderici adresi',
         'mail_from_name' => 'Gönderici adı',
+        'mail_embed_images' => 'Logolar iletiye gömülsün',
     ];
 
     /** @var array<string, string> */
@@ -147,7 +148,7 @@ new class extends Component {
         }
         $this->company['etbis_code'] = (string) CmsContent::getVal('etbis_code', '');
         foreach (array_keys(self::MAIL_KEYS) as $key) {
-            $this->mailForm[$key] = $key === 'mail_password' ? '' : (string) Settings::get($key);
+            $this->mailForm[$key] = $key === 'mail_password' ? '' : ($key === 'mail_embed_images' ? (Settings::bool($key) ? '1' : '0') : (string) Settings::get($key));
         }
         $this->mailForm['mail_password_set'] = Settings::string('mail_password') !== '' ? '1' : '0';
         foreach (array_keys(self::PAYMENT_KEYS) as $key) {
@@ -225,6 +226,7 @@ new class extends Component {
             'mailForm.mail_password' => 'nullable|string|max:190',
             'mailForm.mail_from_address' => 'required|email|max:190',
             'mailForm.mail_from_name' => 'required|string|max:80',
+            'mailForm.mail_embed_images' => 'nullable|in:0,1',
         ]);
 
         $changed = 0;
@@ -867,6 +869,9 @@ new class extends Component {
                     <div><label class="form-label">Şifre {{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="mailForm.mail_password" class="{{ $input }}" placeholder="{{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '••••••••' : 'Posta kutusu şifresi' }}"></div>
                     <div><label class="form-label">Gönderici adı</label><input type="text" wire:model="mailForm.mail_from_name" class="{{ $input }}"></div>
                     <div class="sm:col-span-3"><label class="form-label">Gönderici adresi</label><input type="email" wire:model="mailForm.mail_from_address" class="{{ $input }}">@error('mailForm.mail_from_address')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div class="sm:col-span-3"><label class="form-label">Logo görselleri</label>
+                        <select wire:model="mailForm.mail_embed_images" class="{{ $input }}"><option value="0">Siteden yüklensin (önerilir; ekli ileti düşüren süzgeçlere takılmaz)</option><option value="1">İletiye gömülsün (ek olarak; görsel engelleyen istemcilerde de görünür)</option></select>
+                    </div>
                 </div>
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">SMTP ayarlarını kaydet</button>
             </form>
