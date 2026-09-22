@@ -83,6 +83,7 @@ final class Settings
         'mail_password' => '',                  // şifreli saklanır
         'mail_from_address' => 'info@navluniq.com',
         'mail_from_name' => 'NavlunIQ',
+        'mail_embed_images' => 0,               // 1: logolar iletiye gömülür (ek olarak); 0: siteden yüklenen adres. Bazı barındırıcılar ekli iletileri düşürür.
 
         // Ödeme kuruluşu — panelden; boşsa .env PAYMENT_PROVIDER
         'payment_provider' => '',               // paytr | iyzico

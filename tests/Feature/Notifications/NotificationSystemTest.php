@@ -154,6 +154,13 @@ class NotificationSystemTest extends TestCase
 
         Password::sendResetLink(['email' => $user->email]);
         Mail::assertSent(PasswordResetMail::class, fn (PasswordResetMail $m) => $m->hasTo($user->email) && str_contains($m->url, '/sifre-sifirla/') && str_contains($m->render(), 'Yeni şifre belirle'));
+
+        // Logolar varsayılan olarak siteden yüklenir (gömülü ek yok); panelden gömme açılabilir.
+        $html = (new UserOtpMail('123456'))->render();
+        $this->assertStringContainsString('/images/logo-dark.png', $html);
+        $this->assertStringNotContainsString('src="cid:', $html);
+        Settings::set('mail_embed_images', '1');
+        $this->assertTrue(Settings::bool('mail_embed_images'));
     }
 
     public function test_offer_reject_and_load_cancel_notify_drivers(): void
