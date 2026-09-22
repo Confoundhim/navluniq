@@ -185,8 +185,8 @@
                 <!-- Mobil Cihazlar İçin Sidebar Açma Butonu ve Ferah Ekmek Kırıntısı (Breadcrumb) Başlığı -->
                 <div class="flex items-center space-x-4 min-w-0">
                     <button type="button" @click="sidebarOpen = !sidebarOpen"
-                        class="md:hidden shrink-0 inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-100 text-xs font-bold shadow-sm active:scale-95 transition" aria-label="Menüyü aç" :aria-expanded="sidebarOpen">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg><span>Menü</span>
+                        class="md:hidden shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" aria-label="Menüyü aç" :aria-expanded="sidebarOpen">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
                     </button>
 
                     <div class="flex items-center gap-2 min-w-0">
