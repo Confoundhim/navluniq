@@ -23,6 +23,7 @@ yeniden dener. Doğrulama kodları (OTP) ve şifre sıfırlama bağlantısı ise
 | Uyuşmazlık açıldı / savunma / karar | Taraflar ve `manage disputes` personeli | dispute / admin |
 | Destek talebi | Talep sahibi (onay), `manage support tickets` personeli; yanıt talep sahibine | support / admin |
 | Premium etkinleşti / 3 gün kala / sona erdi | Şoför | subscription |
+| Dönüş yükü: açık seferin varış yeri çevresinden (aynı il ya da `return_load_radius_km`) çıkan, araca uyan yeni ilan | Şoför; her 10 dakikada tarama, aynı ilan bir kez; e-posta sefer başına `return_load_mail_hours` aralıkla, uygulama içi her seferinde | return_load |
 | Değerlendirme | Değerlendirilen taraf | review |
 | Hesap kapatma | Kapatma onayı (anonimleştirme öncesi adrese) | mail |
 

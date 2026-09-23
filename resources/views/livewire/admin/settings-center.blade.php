@@ -27,6 +27,9 @@ new class extends Component {
         'offer_validity_days' => 'Teklif geçerlilik süresi (gün)',
         'premium_monthly_price' => 'Premium abonelik aylık ücreti (₺)',
         'min_load_price' => 'Asgari navlun bedeli (₺)',
+        'return_load_radius_km' => 'Dönüş yükü arama yarıçapı (km)',
+        'return_load_mail_hours' => 'Dönüş yükü e-postası aralığı (saat)',
+        'trip_auto_close_days' => 'Seferin teslimden sonra kapanma süresi (gün)',
     ];
 
     public string $activeTab = 'general';
@@ -329,7 +332,7 @@ new class extends Component {
     {
         $raw = str_replace(',', '.', trim($raw));
 
-        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days'], true)
+        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days', 'return_load_radius_km', 'return_load_mail_hours', 'trip_auto_close_days'], true)
             ? (string) (int) $raw
             : number_format((float) $raw, 2, '.', '');
     }
@@ -401,6 +404,9 @@ new class extends Component {
             'limits.offer_validity_days' => 'required|integer|min:1|max:60',
             'limits.premium_monthly_price' => 'required|numeric|min:0|max:1000000',
             'limits.min_load_price' => 'required|numeric|min:0|max:10000000',
+            'limits.return_load_radius_km' => 'required|integer|min:0|max:1000',
+            'limits.return_load_mail_hours' => 'required|integer|min:0|max:168',
+            'limits.trip_auto_close_days' => 'required|integer|min:1|max:30',
         ]);
 
         $changed = 0;

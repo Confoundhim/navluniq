@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\AccountService;
+use App\Services\DriverTripService;
 use App\Services\LoadReleaseService;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
@@ -58,7 +59,18 @@ Artisan::command('scraped-loads:purge-expired', function (ScrapedLoadService $lo
     $this->info('Saklama süresi dolan reddedilmiş aday sayısı: '.$loads->purgeRejected());
 })->purpose('Saklama süresi dolan dış kaynak ilanlarını havuzdan kaldırır; eski reddedilmiş adayları kalıcı siler');
 
+Artisan::command('trips:scan-return-loads', function (DriverTripService $trips) {
+    $r = $trips->scanReturnLoads();
+    $this->info("Taranan sefer: {$r['trips']}, bildirim gönderilen: {$r['notified']}");
+})->purpose('Açık seferlerin varış yeri çevresinden çıkan yeni ilanları (dönüş yükü) şoföre bildirir');
+
+Artisan::command('trips:auto-close', function (DriverTripService $trips) {
+    $this->info('Kapatılan sefer sayısı: '.$trips->autoClose());
+})->purpose('Teslimden sonra süresi dolan seferleri kapatır');
+
 Schedule::command('offers:expire')->hourly();
+Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('trips:auto-close')->dailyAt('04:10');
 Schedule::command('subscriptions:expire')->hourly();
 Schedule::command('subscriptions:remind')->dailyAt('09:00');
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();

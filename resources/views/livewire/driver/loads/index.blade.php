@@ -1,10 +1,13 @@
 <?php
 
 use App\Models\DriverFilterPreset;
+use App\Models\DriverSavedLoad;
+use App\Models\DriverTrip;
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Offer;
 use App\Models\ScrapedLoad;
+use App\Services\DriverTripService;
 use App\Services\LoadFilterService;
 use App\Services\OfferService;
 use App\Support\Settings;
@@ -43,9 +46,21 @@ class extends Component {
 
     public bool $presetDefault = false;
 
+    /** "Bu işi aldım" penceresi (dış kaynak ilanı) */
+    public bool $takeModalOpen = false;
+
+    #[Locked]
+    public ?int $takeLoadId = null;
+
+    public string $takePickupDate = '';
+
+    public string $takeDeliveryDate = '';
+
+    public bool $takeNotify = true;
+
     public function mount(): void
     {
-        $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external'], true) ? request()->query('tab') : 'pool';
+        $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external', 'saved'], true) ? request()->query('tab') : 'pool';
         $this->filters = LoadFilterService::defaults();
 
         $requested = (int) request()->query('preset', 0);
@@ -266,7 +281,7 @@ class extends Component {
 
     public function setTab(string $tab): void
     {
-        $this->tab = in_array($tab, ['pool', 'offers', 'external'], true) ? $tab : 'pool';
+        $this->tab = in_array($tab, ['pool', 'offers', 'external', 'saved'], true) ? $tab : 'pool';
         $this->resetPage();
     }
 
@@ -396,10 +411,84 @@ class extends Component {
         session()->flash('success_message', 'Teklifiniz geri çekildi.');
     }
 
+    /** Kaydet / kaydı kaldır (yıldız). */
+    public function toggleSave(string $kind, int $id): void
+    {
+        $profile = $this->profile();
+        if (! $profile || ! $profile->isKycApproved()) {
+            return;
+        }
+        $column = $kind === 'external' ? 'scraped_load_id' : 'load_id';
+        if ($kind === 'external' && ! $profile->isPremium()) {
+            return;
+        }
+        $existing = DriverSavedLoad::query()->where('driver_profile_id', $profile->id)->where($column, $id)->first();
+        if ($existing) {
+            $existing->delete();
+
+            return;
+        }
+        $exists = $kind === 'external'
+            ? ScrapedLoad::query()->whereKey($id)->where('visibility', 'public')->exists()
+            : Load::query()->whereKey($id)->where('visibility', 'public')->exists();
+        if ($exists) {
+            DriverSavedLoad::create(['driver_profile_id' => $profile->id, $column => $id]);
+        }
+    }
+
+    public function openTake(int $scrapedId): void
+    {
+        $profile = $this->profile();
+        if (! $profile?->isPremium() || ! ScrapedLoad::query()->whereKey($scrapedId)->where('visibility', 'public')->exists()) {
+            session()->flash('error_message', 'İlan bulunamadı.');
+
+            return;
+        }
+        $this->takeLoadId = $scrapedId;
+        $this->takePickupDate = now()->toDateString();
+        $this->takeDeliveryDate = now()->addDay()->toDateString();
+        $this->takeNotify = true;
+        $this->resetErrorBag();
+        $this->takeModalOpen = true;
+    }
+
+    public function closeTake(): void
+    {
+        $this->takeModalOpen = false;
+        $this->takeLoadId = null;
+        $this->resetErrorBag();
+    }
+
+    public function submitTake(DriverTripService $trips): void
+    {
+        $this->validate([
+            'takePickupDate' => ['required', 'date'],
+            'takeDeliveryDate' => ['required', 'date', 'after_or_equal:takePickupDate'],
+        ], ['takeDeliveryDate.after_or_equal' => 'Teslim tarihi yükleme tarihinden önce olamaz.']);
+        $profile = $this->profile();
+        $load = $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null;
+        if (! $profile || ! $load) {
+            $this->closeTake();
+
+            return;
+        }
+        try {
+            $trips->takeExternal($profile, $load, \Illuminate\Support\Carbon::parse($this->takePickupDate), \Illuminate\Support\Carbon::parse($this->takeDeliveryDate), $this->takeNotify);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+            $this->closeTake();
+
+            return;
+        }
+        $this->closeTake();
+        session()->flash('success_message', 'Sefer kaydedildi. '.($this->takeNotify ? 'Varış yerinizin çevresinden çıkan yeni ilanlar size bildirilecek.' : 'Seferlerim sayfasından takip edebilirsiniz.'));
+    }
+
     public function with(): array
     {
         $profile = $this->profile();
         $profileId = $profile?->id ?? 0;
+        $saved = DriverSavedLoad::query()->where('driver_profile_id', $profileId)->get();
 
         $data = [
             'profile' => $profile,
@@ -423,6 +512,11 @@ class extends Component {
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             'loads' => null,
             'offers' => null,
+            'savedSystemIds' => $saved->pluck('load_id')->filter()->map(fn ($v) => (int) $v)->all(),
+            'savedExternalIds' => $saved->pluck('scraped_load_id')->filter()->map(fn ($v) => (int) $v)->all(),
+            'takenExternalIds' => DriverTrip::query()->where('driver_profile_id', $profileId)->open()->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all(),
+            'savedItems' => null,
+            'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
             'externalLoads' => null, 'webLoadsCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->count(),
         ];
 
@@ -432,6 +526,10 @@ class extends Component {
             // Belgeleri onaylanmamış sürücüye ilan içeriği ve iletişim bilgisi gösterilmez.
         } elseif ($this->tab === 'external') {
             $data['externalLoads'] = $this->externalQuery()->paginate(15);
+        } elseif ($this->tab === 'saved') {
+            $data['savedItems'] = DriverSavedLoad::query()->with(['cargoLoad.cargoOwnerProfile.user', 'scrapedLoad'])
+                ->where('driver_profile_id', $profileId)->latest('id')->get()
+                ->filter(fn (DriverSavedLoad $s) => $s->kind() === 'external' ? ($s->scrapedLoad && $data['isPremium']) : (bool) $s->cargoLoad)->values();
         } else {
             $data['loads'] = $this->poolQuery()->paginate(15);
         }
@@ -455,7 +553,7 @@ class extends Component {
             <p class="page-subtitle">Açık ilanlara teklif verin, tekliflerinizi takip edin ve dış kaynaklı ilanları inceleyin.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs">
-            @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanlar'] as $key => $label)
+            @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanlar', 'saved' => 'Kaydettiklerim'] as $key => $label)
                 <button type="button" wire:click="setTab('{{ $key }}')"
                     class="px-4 py-2 rounded-xl font-bold border transition-colors {{ $tab === $key ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white' }}">
                     {{ $label }}
@@ -744,7 +842,13 @@ class extends Component {
                         </div>
                         <div class="load-card-side">
                             <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
-                            <button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>
+                            <div class="flex items-center gap-1.5">
+                                @php $isSaved = in_array($load->id, $savedSystemIds, true); @endphp
+                                <button type="button" wire:click="toggleSave('system', {{ $load->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-pressed="{{ $isSaved ? 'true' : 'false' }}">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg>
+                                </button>
+                                <button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>
+                            </div>
                         </div>
                     </div>
                 @empty
@@ -807,6 +911,94 @@ class extends Component {
         </div>
     @endif
 
+    @if($kycApproved && $tab === 'saved')
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            <div class="text-[11px] text-neutral-500 leading-relaxed">Yıldızladığınız ilanlar burada durur. Kaldırmak için yıldıza yeniden basın. İlan yayından kalkınca listeden düşer.</div>
+            <div class="space-y-3">
+                @forelse($savedItems as $saved)
+                    @if($saved->kind() === 'system')
+                        @php $load = $saved->cargoLoad; $lp = (float) ($load->price ?? 0); $stillOpen = $load->status === \App\Models\Load::STATUS_ACTIVE; @endphp
+                        <div class="load-card" wire:key="saved-s-{{ $load->id }}">
+                            <div class="load-card-main">
+                                <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}</div>
+                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · Kaydedildi: {{ $saved->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>@if(! $stillOpen)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{{ $load->statusLabel() }}</span>@endif</div>
+                            </div>
+                            <div class="load-card-side">
+                                <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
+                                <div class="flex items-center gap-1.5">
+                                    <button type="button" wire:click="toggleSave('system', {{ $load->id }})" class="load-card-star load-card-star-on" title="Kaydedilenlerden çıkar" aria-label="Kaydedilenlerden çıkar"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg></button>
+                                    @if($stillOpen)<button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>@endif
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        @php $item = $saved->scrapedLoad; $phone = $item->plainPhone(); $isTaken = in_array($item->id, $takenExternalIds, true); @endphp
+                        <div class="load-card" wire:key="saved-e-{{ $item->id }}">
+                            <div class="load-card-main">
+                                <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
+                                <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
+                                <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · Kaydedildi: {{ $saved->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>@if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif</div>
+                            </div>
+                            <div class="load-card-side">
+                                <div class="load-card-price">{{ $item->priceLabel() ?: 'Fiyat belirtilmemiş' }}</div>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <button type="button" wire:click="toggleSave('external', {{ $item->id }})" class="load-card-star load-card-star-on" title="Kaydedilenlerden çıkar" aria-label="Kaydedilenlerden çıkar"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg></button>
+                                    @if($phone)<a href="tel:+90{{ $phone }}" class="load-card-action-ghost tabular-nums">{{ \App\Support\Phone::format($phone) }}</a>@endif
+                                    @if($isTaken)
+                                        <a href="{{ route('driver.trips.index') }}" wire:navigate class="load-card-action-ghost text-emerald-700 dark:text-emerald-400 border-emerald-500/40">✓ Seferimde</a>
+                                    @else
+                                        <button type="button" wire:click="openTake({{ $item->id }})" class="load-card-action-ghost">Bu işi aldım</button>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                @empty
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz kaydettiğiniz ilan yok. İlan kartındaki yıldıza basarak buraya ekleyin.</div>
+                @endforelse
+            </div>
+        </div>
+    @endif
+
+    @if($takeModalOpen && $takeLoad)
+        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeTake"></div>
+            <form wire:submit.prevent="submitTake" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+                <div class="border-b border-neutral-200 dark:border-neutral-800 pb-3">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Bu işi aldım</h3>
+                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $takeLoad->pickup_location ?: 'Belirtilmemiş' }} &rarr; {{ $takeLoad->delivery_location ?: 'Belirtilmemiş' }}@if($takeLoad->goods_type) · {{ $takeLoad->goods_type }}@endif</p>
+                </div>
+                <p class="text-neutral-600 dark:text-neutral-300 leading-relaxed">İlan sahibiyle anlaştıysanız seferinizi kaydedin. Teslim tarihinden itibaren <strong>{{ $takeLoad->delivery_location ?: 'varış yeriniz' }}</strong> çevresinden çıkan, aracınıza uyan yeni ilanlar size bildirilir; boş dönmezsiniz.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="form-label">Yükleme tarihi</label>
+                        <input type="date" wire:model="takePickupDate" class="form-input">
+                        @error('takePickupDate') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="form-label">Tahmini teslim tarihi</label>
+                        <input type="date" wire:model="takeDeliveryDate" class="form-input">
+                        @error('takeDeliveryDate') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+                <label class="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model="takeNotify" class="rounded mt-0.5">
+                    <span class="text-neutral-700 dark:text-neutral-200">Dönüş yükü çıkınca bana bildir <span class="text-neutral-400">(uygulama içi ve e-posta; Seferlerim'den kapatabilirsiniz)</span></span>
+                </label>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" wire:click="closeTake" class="btn-secondary flex-1">Vazgeç</button>
+                    <button type="submit" class="btn-primary flex-1" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="submitTake">Seferi kaydet</span>
+                        <span wire:loading wire:target="submitTake">Kaydediliyor...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    @endif
+
     @if($kycApproved && $tab === 'external' && ! $isPremium)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 text-center space-y-3">
             <div class="mx-auto w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
@@ -846,6 +1038,17 @@ class extends Component {
                             @else
                                 <div class="load-card-price-muted">Fiyat belirtilmemiş</div>
                             @endif
+                            @php $isSaved = in_array($item->id, $savedExternalIds, true); $isTaken = in_array($item->id, $takenExternalIds, true); @endphp
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" wire:click="toggleSave('external', {{ $item->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-pressed="{{ $isSaved ? 'true' : 'false' }}">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg>
+                                </button>
+                                @if($isTaken)
+                                    <a href="{{ route('driver.trips.index') }}" wire:navigate class="load-card-action-ghost text-emerald-700 dark:text-emerald-400 border-emerald-500/40" title="Bu ilan için açık seferiniz var">✓ Seferimde</a>
+                                @else
+                                    <button type="button" wire:click="openTake({{ $item->id }})" class="load-card-action-ghost" title="İşi aldıysanız seferinizi kaydedin; varış yerinize göre dönüş yükü bildirilir">Bu işi aldım</button>
+                                @endif
+                            </div>
                             @if($plainPhone)
                                 @php $allPhones = array_values(array_unique(array_merge([$plainPhone], $extraPhones))); $waIcon = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.5-.3z"/></svg>'; @endphp
                                 <div class="load-card-phones" x-data="{ open: false }">

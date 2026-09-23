@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DriverProfile;
+use App\Models\DriverTrip;
 use App\Models\Load;
 use App\Models\Shipment;
 use App\Models\ShipmentEvidence;
@@ -43,6 +44,7 @@ class ShipmentService
             ]);
             $load->update(['status' => Load::STATUS_ON_THE_WAY]);
         });
+        app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_ON_THE_WAY);
 
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
             $this->notifications->notify($ownerUser, 'Yükünüz yola çıktı',
@@ -92,6 +94,7 @@ class ShipmentService
 
             return $evidence;
         });
+        app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_DELIVERED);
 
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
             $hours = max(1, Settings::int('delivery_auto_approval_hours'));
@@ -128,6 +131,7 @@ class ShipmentService
 
             $this->payouts->createForLoad($load->fresh());
         });
+        app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
 
         if ($driverUser = $shipment->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',

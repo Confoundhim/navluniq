@@ -196,6 +196,9 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .load-card-side { @apply flex items-center justify-between gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-3 sm:flex-col sm:items-end sm:justify-start sm:border-t-0 sm:pt-0 sm:min-h-[4.5rem]; }
     .load-card-price { @apply text-base font-black leading-6 tabular-nums text-neutral-900 dark:text-white whitespace-nowrap; }
     .load-card-price-muted { @apply text-xs font-semibold leading-6 text-neutral-400 whitespace-nowrap; }
+    .load-card-star { @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-400 transition-colors hover:border-amber-400 hover:text-amber-500; }
+    .load-card-star-on { @apply border-amber-400 bg-amber-500/10 text-amber-500; }
+    .load-card-action-ghost { @apply inline-flex h-9 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 font-bold text-neutral-700 dark:text-neutral-200 transition-colors hover:border-brand-500 hover:text-brand-500 whitespace-nowrap; }
     .load-card-action { @apply inline-flex h-9 items-center justify-center rounded-xl bg-brand-500 px-4 font-bold text-white transition-colors hover:bg-brand-600 whitespace-nowrap; }
     /* Dış kaynak kartında numaralar: mobilde fiyatın altında tam genişlik satırlar (numara solda, WhatsApp sağda);
        masaüstünde sağ sütunda sağa yaslı. Büyük yazıda bile yan yana sıkışmaz. */

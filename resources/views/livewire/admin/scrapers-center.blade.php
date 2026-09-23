@@ -107,7 +107,7 @@ new class extends Component {
     /** Aktif sekme ve filtrelere göre aday sorgusu (sayfalama öncesi). */
     private function currentQuery()
     {
-        $q = ScrapedLoad::query()->with('scraper');
+        $q = ScrapedLoad::query()->with('scraper')->withCount('trips');
         match ($this->activeTab) {
             'published' => $q->where('visibility', 'public'),
             'rejected' => $q->where('status', 'rejected'),
@@ -798,7 +798,7 @@ new class extends Component {
                                     <div class="font-bold">#{{ $load->id }}
                                         @if((int) $load->duplicate_count > 1)<span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold align-middle" title="{{ implode(', ', (array) $load->seen_sources) }}">{{ $load->duplicate_count }}</span>@endif
                                         @if($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
-                                        
+                                        @if((int) ($load->trips_count ?? 0) > 0)<span class="ml-1 badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 align-middle" title="Bu ilanı 'Bu işi aldım' diye işaretleyen şoför sayısı">{{ $load->trips_count }} şoför aldı</span>@endif
                                     </div>
                                     <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<br>{{ $load->created_at?->format('d.m.Y H:i') }}<br>{{ $load->masked_phone }}@if(($extra = $load->extraPhones()) !== [])<br><span class="text-brand-500 font-semibold" title="{{ implode(', ', array_map(fn ($p) => \App\Support\Phone::format($p), $extra)) }}">+{{ count($extra) }} numara</span>@endif@if($load->meta('message_part'))<br><span title="Aynı mesajdan ayrılan ilanlardan biri">mesajın {{ (int) $load->meta('message_part')['index'] + 1 }}/{{ $load->meta('message_part')['count'] }}. ilanı</span>@endif</div>
                                 </td>

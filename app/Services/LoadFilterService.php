@@ -284,6 +284,25 @@ class LoadFilterService
         }
     }
 
+    /**
+     * Çıkış yeri verilen ilin içinde YA DA verilen noktaya yarıçap (km) içinde olan ilanlar
+     * (dönüş yükü taraması: seferin varış yeri çevresi).
+     */
+    public function applyPickupAround(Builder $q, ?int $provinceCode, ?float $lat, ?float $lng, int $radiusKm): Builder
+    {
+        return $q->where(function (Builder $w) use ($provinceCode, $lat, $lng, $radiusKm): void {
+            if ($provinceCode) {
+                $w->where('pickup_province_code', $provinceCode);
+            }
+            if ($lat !== null && $lng !== null && $radiusKm > 0) {
+                $w->orWhere(fn (Builder $n) => $this->applyNear($n, $lat, $lng, $radiusKm));
+            }
+            if (! $provinceCode && ($lat === null || $lng === null)) {
+                $w->whereRaw('1 = 0');
+            }
+        });
+    }
+
     /** Yakınımda: taşınabilir sınırlayıcı kutu, MySQL'de ayrıca kesin haversine. */
     private function applyNear(Builder $q, float $lat, float $lng, int $radiusKm): void
     {
