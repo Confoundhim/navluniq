@@ -27,6 +27,7 @@ class ScrapedLoad extends Model
         'duplicate_count',
         'seen_sources',
         'auto_approved_at',
+        'published_at',
         'telegram_posted_at',
         'telegram_attempts',
         'raw_message',
@@ -74,6 +75,7 @@ class ScrapedLoad extends Model
         'duplicate_count' => 'integer',
         'available_to_free_at' => 'datetime',
         'auto_approved_at' => 'datetime',
+        'published_at' => 'datetime',
         'telegram_posted_at' => 'datetime',
     ];
 

@@ -657,6 +657,7 @@ new class extends Component {
                 'rejected' => ScrapedLoad::query()->where('status', 'rejected')->count(),
             ],
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
+            'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [],
             'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
@@ -735,6 +736,14 @@ new class extends Component {
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Onay bekleyen</span><span class="text-xl font-black text-amber-600">{{ $stats['pending'] }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Yayında</span><span class="text-xl font-black text-emerald-600">{{ $stats['published'] }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Reddedilen</span><span class="text-xl font-black text-neutral-500">{{ $stats['rejected'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $rejectedRetention }} gün sonra silinir</span></div>
+    </div>
+
+    {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugüne kadar yayınlanan</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_total'], 0, ',', '.') }}</span>@if($lifetime['external_since'])<span class="text-[10px] text-neutral-400 block">{{ $lifetime['external_since'] }}'den beri</span>@endif</div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün yayınlanan</span><span class="text-xl font-black text-brand-500 tabular-nums">{{ number_format($lifetime['external_today'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">son 7 gün {{ number_format($lifetime['external_7d'], 0, ',', '.') }} · son 30 gün {{ number_format($lifetime['external_30d'], 0, ',', '.') }}</span></div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Günlük ortalama</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_daily_avg'], 1, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">ilan / gün</span></div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">En çok ilan çıkan iller (30 gün)</span><span class="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 block leading-relaxed">{{ $lifetime['top_provinces'] === [] ? '—' : implode(' · ', array_map(fn ($p) => $p['name'].' '.$p['count'], $lifetime['top_provinces'])) }}</span></div>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
