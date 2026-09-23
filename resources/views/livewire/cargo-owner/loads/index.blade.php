@@ -82,7 +82,7 @@ class extends Component {
             ->with(['shipment'])
             ->withCount(['offers as pending_offers_count' => fn ($q) => $q->where('status', 'pending')])
             ->latest()
-            ->paginate(15);
+            ->paginate(50);
 
         return [
             'loads' => $loads,

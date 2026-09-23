@@ -128,11 +128,23 @@ class extends Component {
         $this->newCount = $count;
     }
 
-    /** "N yeni ilan · Göster": liste yeni ana taşınır. */
+    /** "N yeni ilan · Göster": liste yeni ana taşınır ve listenin başına kaydırılır. */
     public function showNew(): void
     {
         $this->pinList();
         $this->resetPage();
+        $this->scrollToList();
+    }
+
+    /** Sayfa numarası değişince listenin başına kaydırılır (sayfa yenilenmez). */
+    public function updatedPage(): void
+    {
+        $this->scrollToList();
+    }
+
+    private function scrollToList(): void
+    {
+        $this->js("requestAnimationFrame(() => document.getElementById('ilan-listesi')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))");
     }
 
     public function applyPreset(?int $id): void
@@ -501,17 +513,17 @@ class extends Component {
         ];
 
         if ($this->tab === 'offers') {
-            $data['offers'] = Offer::query()->with('cargoLoad')->where('driver_profile_id', $profileId)->latest('id')->paginate(15);
+            $data['offers'] = Offer::query()->with('cargoLoad')->where('driver_profile_id', $profileId)->latest('id')->paginate(50);
         } elseif (! $data['kycApproved']) {
             // Belgeleri onaylanmamış sürücüye ilan içeriği ve iletişim bilgisi gösterilmez.
         } elseif ($this->tab === 'external') {
-            $data['externalLoads'] = $this->externalQuery()->paginate(15);
+            $data['externalLoads'] = $this->externalQuery()->paginate(50);
         } elseif ($this->tab === 'saved') {
             $data['savedItems'] = DriverSavedLoad::query()->with(['cargoLoad.cargoOwnerProfile.user', 'scrapedLoad'])
                 ->where('driver_profile_id', $profileId)->latest('id')->get()
                 ->filter(fn (DriverSavedLoad $s) => $s->kind() === 'external' ? ($s->scrapedLoad && $data['isPremium']) : (bool) $s->cargoLoad)->values();
         } else {
-            $data['loads'] = $this->poolQuery()->paginate(15);
+            $data['loads'] = $this->poolQuery()->paginate(50);
         }
 
         return $data;
@@ -823,7 +835,7 @@ class extends Component {
                     <a href="{{ route('driver.premium.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Premium ile anında görün</a>
                 </div>
             @endif
-            <div class="space-y-3">
+            <div class="space-y-3 scroll-mt-24" id="ilan-listesi">
                 @forelse($loads as $load)
                     @php $kg = (int) ($load->weight ?? 0); $vol = (int) ($load->volume ?? 0); $lp = (float) ($load->price ?? 0); @endphp
                     <div class="load-card">
@@ -859,7 +871,7 @@ class extends Component {
     @endif
 
     @if($tab === 'offers')
-        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 scroll-mt-24" id="ilan-listesi">
             @forelse($offers as $offer)
                 @php $offerLoad = $offer->cargoLoad; @endphp
                 <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
@@ -960,7 +972,7 @@ class extends Component {
                 </div>
             </div>
 
-            <div class="space-y-3">
+            <div class="space-y-3 scroll-mt-24" id="ilan-listesi">
                 @forelse($externalLoads as $item)
                     <x-external-load-card :item="$item" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="ext-{{ $item->id }}" />
                 @empty
