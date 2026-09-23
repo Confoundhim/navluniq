@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\HandlesExternalLoadActions;
 use App\Models\DriverFilterPreset;
 use App\Models\DriverSavedLoad;
 use App\Models\DriverTrip;
@@ -20,16 +21,7 @@ new
 #[Layout('components.layouts.driver')]
 #[Title('Genel Bakış')]
 class extends Component {
-    public function toggleSave(string $kind, int $id): void
-    {
-        $profile = Auth::user()->driverProfile;
-        if (! $profile || ! $profile->isKycApproved() || ($kind === 'external' && ! $profile->isPremium())) {
-            return;
-        }
-        $column = $kind === 'external' ? 'scraped_load_id' : 'load_id';
-        $existing = DriverSavedLoad::query()->where('driver_profile_id', $profile->id)->where($column, $id)->first();
-        $existing ? $existing->delete() : DriverSavedLoad::create(['driver_profile_id' => $profile->id, $column => $id]);
-    }
+    use HandlesExternalLoadActions;
 
     public function with(): array
     {
@@ -96,6 +88,8 @@ class extends Component {
             'returnLoads' => $returnLoads,
             'savedSystemIds' => $saved->pluck('load_id')->filter()->map(fn ($v) => (int) $v)->all(),
             'savedExternalIds' => $saved->pluck('scraped_load_id')->filter()->map(fn ($v) => (int) $v)->all(),
+            'takenExternalIds' => $profileId ? DriverTrip::query()->where('driver_profile_id', $profileId)->open()->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all() : [],
+            'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
         ];
     }
 }; ?>
@@ -213,17 +207,7 @@ class extends Component {
                                     </div>
                                 @endforeach
                                 @foreach($rlExternal as $item)
-                                    <div class="load-card" wire:key="rl-e-{{ $item->id }}">
-                                        <div class="load-card-main">
-                                            <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
-                                            <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · <x-time-ago :at="$item->created_at" /></div>
-                                            <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span></div>
-                                        </div>
-                                        <div class="load-card-side sm:min-h-0">
-                                            <div class="load-card-price">{{ $item->priceLabel() ?: 'Fiyat belirtilmemiş' }}</div>
-                                            <a href="{{ route('driver.trips.index', ['sefer' => $activeTrip->id]) }}" wire:navigate class="load-card-action">Numarayı gör</a>
-                                        </div>
-                                    </div>
+                                    <x-external-load-card :item="$item" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $item->id }}" />
                                 @endforeach
                             </div>
                         @endif
@@ -272,22 +256,7 @@ class extends Component {
                             </div>
                         </div>
                     @else
-                        <div class="load-card">
-                            <div class="load-card-main">
-                                <div class="load-card-title">{{ $load->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $load->delivery_location ?: 'Belirtilmemiş' }}</div>
-                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $load->vehicleSummary() }}@if($load->weightLabel()) · {{ $load->weightLabel() }}@endif</div>
-                                <div class="load-card-line">Yükleme: {{ $load->meta('pickup_note') ?: 'Belirtilmemiş' }} · <x-time-ago :at="$load->created_at" /></div>
-                                <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>@if($load->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif</div>
-                            </div>
-                            <div class="load-card-side sm:min-h-0">
-                                <div class="load-card-price">{{ $load->priceLabel() ?: 'Fiyat belirtilmemiş' }}</div>
-                                <div class="flex items-center gap-1.5">
-                                    @php $isSaved = in_array($load->id, $savedExternalIds, true); @endphp
-                                    <button type="button" wire:click="toggleSave('external', {{ $load->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg></button>
-                                    <a href="{{ route('driver.loads.index', ['tab' => 'external']) }}" wire:navigate class="load-card-action">Numarayı gör</a>
-                                </div>
-                            </div>
-                        </div>
+                        <x-external-load-card :item="$load" :saved="in_array($load->id, $savedExternalIds, true)" :taken="in_array($load->id, $takenExternalIds, true)" wire:key="m-e-{{ $load->id }}" />
                     @endif
                 @empty
                     <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">
@@ -334,4 +303,5 @@ class extends Component {
             </div>
         </div>
     </div>
+    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" />
 </div>

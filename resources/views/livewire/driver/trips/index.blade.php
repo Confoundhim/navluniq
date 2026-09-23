@@ -1,6 +1,9 @@
 <?php
 
+use App\Livewire\Concerns\HandlesExternalLoadActions;
+use App\Models\DriverSavedLoad;
 use App\Models\DriverTrip;
+use App\Models\ScrapedLoad;
 use App\Services\DriverTripService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -11,6 +14,8 @@ new
 #[Layout('components.layouts.driver')]
 #[Title('Seferlerim')]
 class extends Component {
+    use HandlesExternalLoadActions;
+
     public string $tab = 'open';
 
     /** Dönüş yükleri açık gösterilen sefer */
@@ -81,7 +86,12 @@ class extends Component {
             $returnLoads = app(DriverTripService::class)->returnLoadsFor($trip, onlyNew: false, limit: 10);
         }
 
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+
         return [
+            'savedExternalIds' => DriverSavedLoad::query()->where('driver_profile_id', $profileId)->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all(),
+            'takenExternalIds' => $trips->pluck('scraped_load_id')->filter()->map(fn ($v) => (int) $v)->all(),
+            'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
             'trips' => $trips,
             'returnLoads' => $returnLoads,
             'radiusKm' => \App\Support\Settings::int('return_load_radius_km'),
@@ -166,18 +176,7 @@ class extends Component {
                                 </div>
                             @endforeach
                             @foreach($returnLoads['external'] as $item)
-                                @php $phone = $item->plainPhone(); @endphp
-                                <div class="load-card" wire:key="rl-e-{{ $item->id }}">
-                                    <div class="load-card-main">
-                                        <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
-                                        <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · <x-time-ago :at="$item->created_at" /></div>
-                                        <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span></div>
-                                    </div>
-                                    <div class="load-card-side sm:min-h-0">
-                                        <div class="load-card-price">{{ $item->priceLabel() ?: 'Fiyat belirtilmemiş' }}</div>
-                                        @if($phone)<a href="tel:+90{{ $phone }}" class="load-card-action-ghost tabular-nums">{{ \App\Support\Phone::format($phone) }}</a>@else<span class="text-neutral-400">Numara yok</span>@endif
-                                    </div>
-                                </div>
+                                <x-external-load-card :item="$item" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $item->id }}" />
                             @endforeach
                             @if($returnLoads['system']->isEmpty() && $returnLoads['external']->isEmpty())
                                 <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-neutral-500">Şu anda {{ $trip->delivery_location ?: 'varış yeri' }} çevresinden çıkan, aracınıza uyan ilan yok. Yeni ilan gelince {{ $trip->notify_return ? 'bildirilecek' : 'burada görünecek' }}.@if(! $isPremium) Gruptan derlenen ilanlar premium üyelere gösterilir.@endif</div>
@@ -194,4 +193,5 @@ class extends Component {
             </div>
         @endforelse
     </div>
+    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" />
 </div>
