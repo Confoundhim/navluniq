@@ -8,6 +8,7 @@ use App\Models\DriverTripMatch;
 use App\Models\Load;
 use App\Models\ScrapedLoad;
 use App\Models\Shipment;
+use App\Models\UserNotification;
 use App\Support\BodyTypes;
 use App\Support\Settings;
 use App\Support\VehicleTypes;
@@ -220,15 +221,29 @@ class DriverTripService
                 }
                 $mailHours = max(0, Settings::int('return_load_mail_hours'));
                 $sendMail = $trip->last_mailed_at === null || $trip->last_mailed_at->lte(now()->subHours($mailHours));
-                $count = $rows->count();
-                $lines = $rows->take(5)->pluck('line')->all();
+                $actionUrl = route('driver.trips.index', ['sefer' => $trip->id]);
+                // Aynı sefer için okunmamış bir dönüş yükü bildirimi varsa üstüne yazılır; bildirimler yığılmaz.
+                $existing = UserNotification::query()->where('user_id', $user->id)->where('type', 'return_load')
+                    ->where('action_url', $actionUrl)->whereNull('read_at')->latest('id')->first();
+                $newLines = $rows->pluck('line')->all();
+                $prevLines = $existing ? array_values(array_filter((array) $existing->lines, fn ($l) => str_contains((string) $l, ' → ') && ! str_starts_with((string) $l, 'Seferiniz:'))) : [];
+                $all = array_values(array_unique(array_merge($newLines, $prevLines)));
+                $count = count($all);
+                $lines = array_slice($all, 0, 5);
                 if ($count > 5) {
                     $lines[] = '… ve '.($count - 5).' ilan daha.';
                 }
                 $lines[] = 'Seferiniz: '.$trip->routeLabel().($trip->delivery_date ? ' · teslim '.$trip->delivery_date->format('d.m.Y') : '').'. Bildirimleri Seferlerim sayfasından kapatabilirsiniz.';
-                $this->notifications->notify($user,
-                    'Dönüş yükü: '.($trip->delivery_location ?: 'varış yeri').' çevresinde '.$count.' yeni ilan',
-                    $lines, route('driver.trips.index', ['sefer' => $trip->id]), 'Dönüş yüklerini gör', 'return_load', $sendMail);
+                $title = 'Dönüş yükü: '.($trip->delivery_location ?: 'varış yeri').' çevresinde '.$count.' yeni ilan';
+                if ($existing) {
+                    $existing->forceFill(['title' => mb_substr($title, 0, 160), 'lines' => $lines, 'created_at' => now()])->save();
+                    if ($sendMail) {
+                        $this->notifications->sendMail($existing->setRelation('user', $user));
+                    }
+                } else {
+                    $this->notifications->notify($user, $title, $lines, $actionUrl, 'Dönüş yüklerini gör', 'return_load', $sendMail);
+                }
+                $count = $rows->count();
                 $trip->forceFill(['match_count' => $trip->match_count + $count, 'last_mailed_at' => $sendMail ? now() : $trip->last_mailed_at])->save();
                 $notified++;
             } catch (\Throwable $e) {

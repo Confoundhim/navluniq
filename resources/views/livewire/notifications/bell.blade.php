@@ -3,6 +3,7 @@
 use App\Models\UserNotification;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 
 /** Panel üst çubuğundaki bildirim zili: okunmamış sayısı, son bildirimler, okundu işaretleme. */
@@ -27,6 +28,13 @@ new class extends Component {
     public function markAllRead(): void
     {
         Auth::user()?->userNotifications()->whereNull('read_at')->update(['read_at' => now()]);
+        unset($this->unreadCount, $this->recent);
+    }
+
+    /** Bildirimler sayfasında okundu/silme yapılınca zil beklemeden güncellenir. */
+    #[On('notifications-changed')]
+    public function refreshBell(): void
+    {
         unset($this->unreadCount, $this->recent);
     }
 
