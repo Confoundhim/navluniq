@@ -231,6 +231,7 @@ new class extends Component {
             @endforeach
         </select>
         <input type="text" wire:model.live.debounce.400ms="search" placeholder="İlan no, güzergah veya yük türü" class="{{ $input }} lg:flex-1">
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1.5 text-xs font-bold tabular-nums self-center" title="Seçili durum ve aramaya uyan ilan sayısı">{{ number_format($loads->total(), 0, ',', '.') }} ilan</span>
     </div>
 
     <div class="grid grid-cols-1 {{ $selected ? 'xl:grid-cols-2' : '' }} gap-6 items-start">

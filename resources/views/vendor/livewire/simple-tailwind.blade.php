@@ -51,5 +51,7 @@
             </div>
             <div class="text-[11px] text-neutral-500 tabular-nums">Sayfa {{ $current }} / {{ $last }} · toplam kayıt</div>
         </nav>
+    @elseif ($paginator->total() > 0)
+        <div class="text-[11px] text-neutral-500 tabular-nums">Toplam {{ number_format($paginator->total(), 0, ',', '.') }} kayıt</div>
     @endif
 </div>
