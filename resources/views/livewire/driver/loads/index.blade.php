@@ -49,6 +49,14 @@ class extends Component {
 
     public bool $presetDefault = false;
 
+    /**
+     * Liste bu ana sabitlenir: arka plandaki yenileme listeyi kaydırmaz, yalnız "N yeni ilan · Göster" düğmesi
+     * çıkarır; şoför dokununca liste yeni ana taşınır. Filtre/sekme/arama değişince de yeni ana taşınır.
+     */
+    public int $listAsOf = 0;
+
+    public int $newCount = 0;
+
     /** "Bu işi aldım" penceresi (dış kaynak ilanı) */
     public bool $takeModalOpen = false;
 
@@ -63,6 +71,7 @@ class extends Component {
 
     public function mount(): void
     {
+        $this->pinList();
         $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external', 'saved'], true) ? request()->query('tab') : 'pool';
         $this->filters = LoadFilterService::defaults();
 
@@ -90,6 +99,50 @@ class extends Component {
     public function updatedFilters(): void
     {
         $this->filters = LoadFilterService::normalize($this->filters);
+        $this->pinList();
+        $this->resetPage();
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->pinList();
+        $this->resetPage();
+    }
+
+    /** Sabitleme anı, uygulama saat diliminde (UTC ile karşılaştırma listeyi boşaltır). */
+    private function asOfTime(): \Illuminate\Support\Carbon
+    {
+        return \Illuminate\Support\Carbon::createFromTimestamp($this->listAsOf, config('app.timezone'));
+    }
+
+    private function pinList(): void
+    {
+        $this->listAsOf = now()->getTimestamp();
+        $this->newCount = 0;
+    }
+
+    /** wire:poll: listeyi çizmeden yalnız yeni ilan sayısını bakar; sayı değişmediyse hiçbir şey çizilmez. */
+    public function checkNew(): void
+    {
+        $count = 0;
+        if (in_array($this->tab, ['pool', 'external'], true) && ($this->profile()?->isKycApproved() ?? false)) {
+            $since = $this->asOfTime();
+            $count = $this->tab === 'pool'
+                ? $this->poolQuery(pinned: false)->where('created_at', '>', $since)->count()
+                : $this->externalQuery(pinned: false)->where('created_at', '>', $since)->count();
+        }
+        if ($count === $this->newCount) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->newCount = $count;
+    }
+
+    /** "N yeni ilan · Göster": liste yeni ana taşınır. */
+    public function showNew(): void
+    {
+        $this->pinList();
         $this->resetPage();
     }
 
@@ -109,6 +162,7 @@ class extends Component {
         $this->presetId = $preset->id;
         $this->filters = LoadFilterService::normalize((array) $preset->filters);
         $preset->forceFill(['last_used_at' => now()])->save();
+        $this->pinList();
         $this->resetPage();
     }
 
@@ -117,6 +171,7 @@ class extends Component {
         $this->presetId = null;
         $this->search = '';
         $this->filters = LoadFilterService::defaults();
+        $this->pinList();
         $this->resetPage();
     }
 
@@ -285,14 +340,10 @@ class extends Component {
 
     public string $message = '';
 
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
-    }
-
     public function setTab(string $tab): void
     {
         $this->tab = in_array($tab, ['pool', 'offers', 'external', 'saved'], true) ? $tab : 'pool';
+        $this->pinList();
         $this->resetPage();
     }
 
@@ -302,7 +353,7 @@ class extends Component {
     }
 
     /** Teklif verilebilir açık ilanlar: şoförün aktif teklifi olan ilanlar hariç. */
-    private function poolQuery(): Builder
+    private function poolQuery(bool $pinned = true): Builder
     {
         $profileId = $this->profile()?->id ?? 0;
 
@@ -310,6 +361,7 @@ class extends Component {
             ->with('cargoOwnerProfile.user')
             ->where('status', Load::STATUS_ACTIVE)
             ->where('visibility', 'public')
+            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
             ->openTo($this->profile())
             ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))
             ->when(trim($this->search) !== '', function (Builder $q): void {
@@ -319,7 +371,7 @@ class extends Component {
             ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToLoads($q, LoadFilterService::normalize($this->filters), $this->profile()));
     }
 
-    private function externalQuery(): Builder
+    private function externalQuery(bool $pinned = true): Builder
     {
         $premium = $this->profile()?->isPremium() ?? false;
 
@@ -327,6 +379,7 @@ class extends Component {
             ->with('scraper')
             ->where('status', 'parsed_success')
             ->where('visibility', 'public')
+            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
             ->when(! $premium, fn (Builder $q) => $q->whereRaw('1 = 0')) // dış kaynak ilanları yalnız premium üyelere görünür
             ->when(trim($this->search) !== '', function (Builder $q): void {
                 $term = '%'.trim($this->search).'%';
@@ -549,7 +602,19 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.15s class="space-y-6">
+<div wire:poll.15s="checkNew" class="space-y-6">
+
+    @if($newCount > 0 && in_array($tab, ['pool', 'external'], true))
+        {{-- Yeni ilan geldi: liste yerinden oynamaz, şoför isteyince gösterilir --}}
+        <div class="fixed bottom-6 inset-x-0 z-40 flex justify-center pointer-events-none">
+            <button type="button" wire:click="showNew" class="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 pl-4 pr-3 py-2.5 text-xs font-bold shadow-2xl">
+                <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                {{ $newCount }} yeni ilan
+                <span class="rounded-full bg-brand-500 text-white px-2.5 py-1">Göster</span>
+            </button>
+        </div>
+    @endif
+
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
