@@ -21,6 +21,9 @@ new class extends Component {
     public int $vehicleCount = 0;
     public int $systemLoadsCount = 0;
     public int $webLoadsCount = 0;
+
+    /** @var array<string, mixed> */
+    public array $stats = [];
     public int $completedCount = 0;
 
     public function mount(): void
@@ -38,9 +41,11 @@ new class extends Component {
 
         // Veritabanı Sayaçları
         $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
-        $this->systemLoadsCount = Load::whereIn('status', ['active_seeking', 'driver_assigned', 'on_the_way'])->count();
-        $this->webLoadsCount = ScrapedLoad::where('visibility', 'public')->count();
-        $this->completedCount = Load::whereIn('status', [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED])->count();
+        // "Bugüne kadar" sayaçları hiç düşmez (arşivlenen ilanlar da sayılır); yanında bugün gelen ve şu an açık olan
+        $this->stats = app(\App\Services\LoadStatsService::class)->summary();
+        $this->systemLoadsCount = $this->stats['system_total'];
+        $this->webLoadsCount = $this->stats['external_total'];
+        $this->completedCount = $this->stats['completed'];
     }
 
     public function getAllFaqs()
@@ -172,13 +177,13 @@ new class extends Component {
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sistem İlanları</span>
-                <div class="text-3xl sm:text-4xl font-black text-brand-500">{{ number_format($systemLoadsCount) }}</div>
-                <span class="text-[10px] text-neutral-400 font-medium">Platform ilanları</span>
+                <div class="text-3xl sm:text-4xl font-black text-brand-500 tabular-nums">{{ number_format($systemLoadsCount, 0, ',', '.') }}</div>
+                <span class="text-[10px] text-neutral-400 font-medium">Bugüne kadar açılan · şu an açık {{ number_format($stats['system_open'] ?? 0, 0, ',', '.') }}</span>
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Dış Kaynak İlanları</span>
-                <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white">{{ number_format($webLoadsCount) }}</div>
-                <span class="text-[10px] text-brand-500 font-bold">Gruplardan ve webden derlenen</span>
+                <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white tabular-nums">{{ number_format($webLoadsCount, 0, ',', '.') }}</div>
+                <span class="text-[10px] text-brand-500 font-bold">Bugün {{ number_format($stats['external_today'] ?? 0, 0, ',', '.') }} yeni · günde ortalama {{ number_format($stats['external_daily_avg'] ?? 0, 0, ',', '.') }}</span>
             </div>
             <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
                 <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Başarılı Sevkiyat</span>

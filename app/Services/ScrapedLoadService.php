@@ -235,8 +235,12 @@ class ScrapedLoadService
             'visibility' => 'public',
             'available_to_free_at' => null, // dış kaynak ilanları yalnız premium üyelere görünür; herkese açılmaz
             'auto_approved_at' => $auto ? now() : null,
+            'published_at' => $load->published_at ?? now(),
+            // Listede kalma süresi yayından itibaren sayılır; sonra arşivlenir (silinmez, sayaçta kalır)
+            'retention_expires_at' => now()->addDays(max(1, Settings::int('scraper_list_days'))),
             'parse_metadata' => $metaAfter,
         ]);
+        app(LoadStatsService::class)->forget();
 
         ActivityLog::record(
             $auto ? 'scraped_load.auto_approved' : 'scraped_load.approved',
