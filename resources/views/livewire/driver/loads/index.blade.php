@@ -116,6 +116,31 @@ class extends Component {
     {
         $key = $side === 'delivery' ? 'delivery_provinces' : 'pickup_provinces';
         $this->filters[$key] = array_values(array_filter($this->filters[$key], fn ($c) => (int) $c !== $code));
+        unset($this->filters[$side === 'delivery' ? 'delivery_districts' : 'pickup_districts'][$code]);
+        $this->updatedFilters();
+    }
+
+    /** Kutudaki il etiketi: seçiliyse kaldırır, değilse ekler. */
+    public function toggleProvince(string $side, int $code): void
+    {
+        $key = $side === 'delivery' ? 'delivery_provinces' : 'pickup_provinces';
+        in_array($code, array_map('intval', $this->filters[$key] ?? []), true) ? $this->removeProvince($side, $code) : $this->addProvince($side, $code);
+    }
+
+    /** Seçili ilin ilçe etiketi: seçiliyse kaldırır, değilse ekler; hiç ilçe kalmazsa ilin tamamı. */
+    public function toggleDistrict(string $side, int $code, string $name): void
+    {
+        $key = $side === 'delivery' ? 'delivery_districts' : 'pickup_districts';
+        $current = (array) ($this->filters[$key][$code] ?? []);
+        $this->filters[$key][$code] = in_array($name, $current, true) ? array_values(array_diff($current, [$name])) : [...$current, $name];
+        $this->updatedFilters();
+    }
+
+    /** "Her yer": o yöndeki il ve ilçe seçimlerini temizler. */
+    public function clearSide(string $side): void
+    {
+        $this->filters[$side === 'delivery' ? 'delivery_provinces' : 'pickup_provinces'] = [];
+        $this->filters[$side === 'delivery' ? 'delivery_districts' : 'pickup_districts'] = [];
         $this->updatedFilters();
     }
 
@@ -493,20 +518,54 @@ class extends Component {
                     <label class="form-label">Rota ara</label>
                     <input type="text" wire:model.live.debounce.400ms="search" placeholder="Şehir veya ilçe" class="form-input">
                 </div>
-                <div>
-                    <label class="form-label">Çıkış ili ekle</label>
-                    <select class="form-input" wire:change="addProvince('pickup', $event.target.value); $event.target.value = ''">
-                        <option value="">Seçin…</option>
-                        @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="form-label">Varış ili ekle</label>
-                    <select class="form-input" wire:change="addProvince('delivery', $event.target.value); $event.target.value = ''">
-                        <option value="">Seçin…</option>
-                        @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
-                    </select>
-                </div>
+                @foreach(['pickup' => 'Çıkış', 'delivery' => 'Varış'] as $side => $sideLabel)
+                    @php $selCodes = array_map('intval', $normalizedFilters[$side.'_provinces']); $selDistricts = $normalizedFilters[$side.'_districts']; @endphp
+                    <div x-data="{ open: false, q: '' }" @click.outside="open = false" class="relative">
+                        <label class="form-label">{{ $sideLabel }} <span class="text-neutral-400 font-normal">(il ve ilçe; boş = her yer)</span></label>
+                        {{-- Seçim kutusu: seçilenler kutunun içinde etiket olarak görünür; boşsa "Her yer" --}}
+                        <button type="button" @click="open = !open" class="form-input min-h-[42px] flex flex-wrap items-center gap-1.5 text-left cursor-pointer" :aria-expanded="open" aria-label="{{ $sideLabel }} yeri seç">
+                            @forelse($selCodes as $code)
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold {{ $side === 'pickup' ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }}">
+                                    {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }}@if(($selDistricts[$code] ?? []) !== []) <span class="font-normal opacity-80">({{ count($selDistricts[$code]) }} ilçe)</span>@endif
+                                    <span role="button" wire:click.stop="removeProvince('{{ $side }}', {{ $code }})" class="ml-0.5 hover:text-rose-500" aria-label="Kaldır">×</span>
+                                </span>
+                            @empty
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Her yer</span>
+                            @endforelse
+                            <svg class="w-4 h-4 ml-auto text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        {{-- Açılır il listesi: etiketler, arama, "Her yer" --}}
+                        <div x-show="open" x-cloak x-transition.opacity class="absolute z-30 mt-1 w-full sm:w-[28rem] max-w-[calc(100vw-2rem)] rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-apple-lg p-3 space-y-2">
+                            <div class="flex items-center gap-2">
+                                <input type="text" x-model="q" placeholder="İl ara" class="form-input py-1.5 text-xs flex-1" autocomplete="off">
+                                <button type="button" wire:click="clearSide('{{ $side }}')" class="tab-pill {{ $selCodes === [] ? 'tab-pill-active' : '' }}">Her yer</button>
+                            </div>
+                            <div class="max-h-56 overflow-y-auto flex flex-wrap gap-1.5 pr-1">
+                                @foreach($provinces as $province)
+                                    <button type="button" wire:click="toggleProvince('{{ $side }}', {{ $province['code'] }})" x-show="!q || {{ json_encode(\App\Support\TurkishText::lower($province['name'])) }}.includes(q.toLocaleLowerCase('tr'))"
+                                        class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors {{ in_array((int) $province['code'], $selCodes, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $province['name'] }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                        {{-- Seçili illerin ilçeleri: etiket olarak, birden çok seçilir; hiçbiri seçili değilse ilin tamamı --}}
+                        @foreach($selCodes as $code)
+                            @php $districtNames = \App\Support\TurkishLocations::districtsOf($code); $picked = $selDistricts[$code] ?? []; @endphp
+                            @if($districtNames !== [])
+                                <details class="mt-2 group" @if($picked !== []) open @endif>
+                                    <summary class="cursor-pointer text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 list-none flex items-center gap-1">
+                                        <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                        {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} ilçeleri{{ $picked !== [] ? ': '.implode(', ', $picked) : ' (tümü)' }}
+                                    </summary>
+                                    <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                        @foreach($districtNames as $dn)
+                                            <button type="button" wire:click="toggleDistrict('{{ $side }}', {{ $code }}, @js($dn))" class="px-2 py-0.5 rounded-lg border text-[11px] transition-colors {{ in_array($dn, $picked, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $dn }}</button>
+                                        @endforeach
+                                    </div>
+                                </details>
+                            @endif
+                        @endforeach
+                    </div>
+                @endforeach
                 <div>
                     <label class="form-label">Sıralama</label>
                     <select wire:model.live="filters.sort" class="form-input">
@@ -519,12 +578,6 @@ class extends Component {
 
             {{-- Seçili il rozetleri ve yakınımda --}}
             <div class="flex flex-wrap items-center gap-2">
-                @foreach($normalizedFilters['pickup_provinces'] as $code)
-                    <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Çıkış: {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} <button type="button" wire:click="removeProvince('pickup', {{ $code }})" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
-                @endforeach
-                @foreach($normalizedFilters['delivery_provinces'] as $code)
-                    <span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Varış: {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} <button type="button" wire:click="removeProvince('delivery', {{ $code }})" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
-                @endforeach
                 @if($normalizedFilters['near_radius_km'] !== null)
                     <span class="badge bg-sky-500/10 text-sky-700 dark:text-sky-400">{{ $normalizedFilters['near_label'] ?: 'Konumum' }} çevresi {{ $normalizedFilters['near_radius_km'] }} km <button type="button" wire:click="clearNear" class="ml-1 hover:text-rose-500" aria-label="Kaldır">×</button></span>
                 @else

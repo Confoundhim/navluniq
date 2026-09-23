@@ -29,6 +29,8 @@ class LoadFilterService
             'load_kind' => '',               // '' hepsi · komple · parca
             'pickup_provinces' => [],
             'delivery_provinces' => [],
+            'pickup_districts' => [],        // il kodu → ilçe adları (boş: ilin tamamı)
+            'delivery_districts' => [],
             'goods_keywords' => '',
             'min_weight' => null,
             'max_weight' => null,
@@ -52,8 +54,22 @@ class LoadFilterService
         $out['vehicle_types'] = array_values(array_filter((array) ($input['vehicle_types'] ?? []), fn ($v) => VehicleTypes::isValid((string) $v)));
         $out['body_types'] = BodyTypes::clean($input['body_types'] ?? []);
         $out['load_kind'] = array_key_exists((string) ($input['load_kind'] ?? ''), BodyTypes::LOAD_KINDS) ? (string) $input['load_kind'] : '';
-        foreach (['pickup_provinces', 'delivery_provinces'] as $key) {
-            $out[$key] = array_values(array_unique(array_filter(array_map('intval', (array) ($input[$key] ?? [])), fn ($c) => $c >= 1 && $c <= 81)));
+        foreach (['pickup', 'delivery'] as $side) {
+            $out[$side.'_provinces'] = array_values(array_unique(array_filter(array_map('intval', (array) ($input[$side.'_provinces'] ?? [])), fn ($c) => $c >= 1 && $c <= 81)));
+            // İlçeler yalnız seçili illerde ve katalogda olanlar; "İl İlçe" adı değil salt ilçe adı saklanır
+            $districts = [];
+            foreach ((array) ($input[$side.'_districts'] ?? []) as $code => $names) {
+                $code = (int) $code;
+                if (! in_array($code, $out[$side.'_provinces'], true)) {
+                    continue;
+                }
+                $valid = TurkishLocations::districtsOf($code);
+                $keep = array_values(array_unique(array_filter(array_map(fn ($n) => is_string($n) ? trim($n) : '', (array) $names), fn ($n) => $n !== '' && in_array($n, $valid, true))));
+                if ($keep !== []) {
+                    $districts[$code] = $keep;
+                }
+            }
+            $out[$side.'_districts'] = $districts;
         }
         $out['goods_keywords'] = mb_substr(trim((string) ($input['goods_keywords'] ?? '')), 0, 120);
         foreach (['min_weight', 'max_weight', 'min_price'] as $key) {
@@ -115,12 +131,11 @@ class LoadFilterService
         if ($f['load_kind'] !== '') {
             $chips[] = BodyTypes::LOAD_KINDS[$f['load_kind']];
         }
-        $prov = fn (array $codes) => implode(', ', array_map(fn ($c) => TurkishLocations::province($c)['name'] ?? $c, $codes));
         if ($f['pickup_provinces'] !== []) {
-            $chips[] = 'Çıkış: '.$prov($f['pickup_provinces']);
+            $chips[] = 'Çıkış: '.self::placesLabel($f['pickup_provinces'], $f['pickup_districts']);
         }
         if ($f['delivery_provinces'] !== []) {
-            $chips[] = 'Varış: '.$prov($f['delivery_provinces']);
+            $chips[] = 'Varış: '.self::placesLabel($f['delivery_provinces'], $f['delivery_districts']);
         }
         if ($f['near_radius_km'] !== null) {
             $chips[] = ($f['near_label'] !== '' ? $f['near_label'] : 'Konumum').' çevresi '.$f['near_radius_km'].' km';
@@ -141,6 +156,21 @@ class LoadFilterService
         }
 
         return $chips;
+    }
+
+    /** "Adana (Ceyhan, Kozan), Aydın" gibi il + seçili ilçe etiketi; hiç il yoksa "Her yer". */
+    public static function placesLabel(array $codes, array $districts = []): string
+    {
+        if ($codes === []) {
+            return 'Her yer';
+        }
+
+        return implode(', ', array_map(function ($c) use ($districts) {
+            $name = TurkishLocations::province((int) $c)['name'] ?? (string) $c;
+            $d = $districts[(int) $c] ?? [];
+
+            return $d !== [] ? $name.' ('.implode(', ', $d).')' : $name;
+        }, $codes));
     }
 
     /** Aracıma uygun tipler: aktif aracın kapasitesini aşmayan tüm tipler. */
@@ -220,11 +250,22 @@ class LoadFilterService
         if ($f['load_kind'] !== '') {
             $q->where(fn (Builder $w) => $w->where('load_kind', $f['load_kind'])->orWhereNull('load_kind'));
         }
-        if ($f['pickup_provinces'] !== []) {
-            $q->whereIn('pickup_province_code', $f['pickup_provinces']);
-        }
-        if ($f['delivery_provinces'] !== []) {
-            $q->whereIn('delivery_province_code', $f['delivery_provinces']);
+        // İl + ilçe: il seçili ve ilçe seçilmişse yalnız o ilçeler; ilçe seçilmemişse ilin tamamı
+        foreach (['pickup', 'delivery'] as $side) {
+            if ($f[$side.'_provinces'] === []) {
+                continue;
+            }
+            $q->where(function (Builder $w) use ($f, $side): void {
+                foreach ($f[$side.'_provinces'] as $code) {
+                    $names = $f[$side.'_districts'][$code] ?? [];
+                    $w->orWhere(function (Builder $p) use ($side, $code, $names): void {
+                        $p->where($side.'_province_code', $code);
+                        if ($names !== []) {
+                            $p->whereIn($side.'_district', $names);
+                        }
+                    });
+                }
+            });
         }
         if ($f['goods_keywords'] !== '') {
             $words = array_filter(array_map('trim', preg_split('/[,\s]+/u', $f['goods_keywords']) ?: []));

@@ -1,7 +1,12 @@
 <?php
 
+use App\Models\DriverFilterPreset;
 use App\Models\Load;
 use App\Models\Offer;
+use App\Models\ScrapedLoad;
+use App\Services\LoadFilterService;
+use App\Support\BodyTypes;
+use App\Support\VehicleTypes;
 use App\Services\PayoutService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -12,14 +17,6 @@ new
 #[Layout('components.layouts.driver')]
 #[Title('Genel Bakış')]
 class extends Component {
-    /** Tercih edilen rota metnini şehir/kelime parçalarına ayırır. */
-    private function routeTokens(?string $routes): array
-    {
-        $parts = preg_split('/[,\-\/>]+/u', (string) $routes) ?: [];
-
-        return array_values(array_unique(array_filter(array_map('trim', $parts), fn ($p) => mb_strlen($p) >= 2)));
-    }
-
     public function with(): array
     {
         $user = Auth::user();
@@ -33,40 +30,49 @@ class extends Component {
             ->latest('id')
             ->first();
 
-        $tokens = $this->routeTokens($profile?->preferences['preferred_routes'] ?? null);
-        $poolQuery = fn () => Load::query()
-            ->with('cargoOwnerProfile.user')
-            ->where('status', Load::STATUS_ACTIVE)
-            ->where('visibility', 'public')
-            ->openTo($profile)
-            ->latest('published_at')
-            ->latest('id');
+        // "Size uygun ilanlar": varsayılan filtre seti (yoksa "Aracıma uygun") ile süzülmüş sistem + (premium ise) dış kaynak ilanları
+        $preset = $profileId ? DriverFilterPreset::query()->where('driver_profile_id', $profileId)->where('is_default', true)->first() : null;
+        $filters = LoadFilterService::normalize($preset?->filters ?? []);
+        $filterSvc = app(LoadFilterService::class);
+        $vehicle = $profile?->activeVehicle()->first();
+        $canSeePool = $profile && $profile->kyc_status === 'approved';
 
-        $matchedByPreference = false;
-        $recentLoads = collect();
-
-        if ($tokens !== []) {
-            $recentLoads = $poolQuery()->where(function ($q) use ($tokens): void {
-                foreach ($tokens as $token) {
-                    $q->orWhere('pickup_location', 'like', '%'.$token.'%')
-                        ->orWhere('delivery_location', 'like', '%'.$token.'%');
-                }
-            })->take(5)->get();
-            $matchedByPreference = $recentLoads->isNotEmpty();
+        $systemLoads = collect();
+        $externalLoads = collect();
+        if ($canSeePool) {
+            $systemLoads = Load::query()
+                ->with('cargoOwnerProfile.user')
+                ->where('status', Load::STATUS_ACTIVE)
+                ->where('visibility', 'public')
+                ->where(fn ($q) => $q->whereNull('cargo_owner_profile_id')->orWhereHas('cargoOwnerProfile', fn ($o) => $o->where('user_id', '!=', $user->id)))
+                ->openTo($profile)
+                ->tap(fn ($q) => $filterSvc->applyToLoads($q, $filters, $profile))
+                ->take(8)->get();
+            if ($profile->isPremium()) {
+                $externalLoads = ScrapedLoad::query()
+                    ->where('status', 'parsed_success')->where('visibility', 'public')
+                    ->tap(fn ($q) => $filterSvc->applyToScraped($q, $filters, $profile))
+                    ->take(8)->get();
+            }
         }
-
-        if ($recentLoads->isEmpty()) {
-            $recentLoads = $poolQuery()->take(5)->get();
-        }
+        $matchedLoads = $systemLoads->map(fn ($l) => ['kind' => 'system', 'at' => $l->published_at ?? $l->created_at, 'load' => $l])
+            ->concat($externalLoads->map(fn ($l) => ['kind' => 'external', 'at' => $l->created_at, 'load' => $l]))
+            ->sortByDesc('at')->take(8)->values();
+        $matchSummary = array_values(array_filter(array_merge(
+            [$vehicle ? implode(' · ', array_filter([VehicleTypes::label($vehicle->vehicle_type), $vehicle->trailer_length ? (BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null) : null, $vehicle->body_type ? BodyTypes::label($vehicle->body_type) : null])) : null],
+            array_slice(LoadFilterService::chips($filters), 1)
+        )));
 
         return [
             'profile' => $profile,
             'pendingOffers' => Offer::query()->where('driver_profile_id', $profileId)->where('status', 'pending')->count(),
             'activeLoad' => $activeLoad,
             'wallet' => app(PayoutService::class)->walletSummary($user),
-            'recentLoads' => $recentLoads,
-            'matchedByPreference' => $matchedByPreference,
-            'hasPreferredRoutes' => $tokens !== [],
+            'matchedLoads' => $matchedLoads,
+            'matchSummary' => $matchSummary,
+            'matchPreset' => $preset,
+            'vehicle' => $vehicle,
+            'canSeePool' => $canSeePool,
         ];
     }
 }; ?>
@@ -152,36 +158,58 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <h3 class="section-title">Son ilanlar</h3>
+                    <div class="min-w-0">
+                        <h3 class="section-title">Size uygun ilanlar</h3>
                         <p class="text-[11px] text-neutral-500 mt-1">
-                            @if($matchedByPreference)
-                                Tercih ettiğiniz rotalarla eşleşen en yeni açık ilanlar.
-                            @elseif($hasPreferredRoutes)
-                                Tercih ettiğiniz rotalarda açık ilan bulunmadı; en yeni açık ilanlar gösteriliyor.
+                            @if($matchSummary !== [])
+                                {{ implode(' · ', $matchSummary) }}
+                                @if($matchPreset) · filtre: {{ $matchPreset->name }}@endif
+                                · <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Filtreyi değiştir</a>
                             @else
-                                En yeni açık ilanlar. <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Kalıcı filtre oluşturun</a>, havuz size göre süzülsün.
+                                Aracınıza ve kaydettiğiniz filtreye göre süzülür. <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Filtre oluşturun</a>.
                             @endif
                         </p>
+                        @if($vehicle && ! $vehicle->body_type)
+                            <p class="text-[11px] text-amber-600 mt-1">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="underline">Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
+                        @endif
                     </div>
-                    <a href="{{ route('driver.loads.index') }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline shrink-0">İlan havuzuna git</a>
+                    <a href="{{ route('driver.loads.index') }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline shrink-0">Tümünü gör</a>
                 </div>
 
-                @forelse($recentLoads as $load)
-                    @php $kg = (int) ($load->weight ?? 0); $lp = (float) ($load->price ?? 0); @endphp
-                    <div class="load-card">
-                        <div class="load-card-main">
-                            <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ \App\Support\VehicleTypes::label($load->vehicle_type) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif</div>
-                            <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
+                @forelse($matchedLoads as $row)
+                    @php $load = $row['load']; @endphp
+                    @if($row['kind'] === 'system')
+                        @php $kg = (int) ($load->weight ?? 0); $lp = (float) ($load->price ?? 0); @endphp
+                        <div class="load-card">
+                            <div class="load-card-main">
+                                <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif</div>
+                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
+                                <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
+                            </div>
+                            <div class="load-card-side sm:min-h-0">
+                                <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
+                                <a href="{{ route('driver.loads.index', ['ilan' => $load->id]) }}" wire:navigate class="load-card-action">Teklif ver</a>
+                            </div>
                         </div>
-                        <div class="load-card-side sm:min-h-0">
-                            <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
-                            <a href="{{ route('driver.loads.index') }}" wire:navigate class="load-card-action">Teklif ver</a>
+                    @else
+                        <div class="load-card">
+                            <div class="load-card-main">
+                                <div class="load-card-title">{{ $load->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $load->delivery_location ?: 'Belirtilmemiş' }}</div>
+                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $load->vehicleSummary() }}@if($load->weightLabel()) · {{ $load->weightLabel() }}@endif</div>
+                                <div class="load-card-line">Yükleme: {{ $load->meta('pickup_note') ?: 'Belirtilmemiş' }} · {{ $load->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>@if($load->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif</div>
+                            </div>
+                            <div class="load-card-side sm:min-h-0">
+                                <div class="load-card-price">{{ $load->priceLabel() ?: 'Fiyat belirtilmemiş' }}</div>
+                                <a href="{{ route('driver.loads.index', ['tab' => 'external']) }}" wire:navigate class="load-card-action">Numarayı gör</a>
+                            </div>
                         </div>
-                    </div>
+                    @endif
                 @empty
-                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Henüz açık ilan yok.</div>
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">
+                        @if(! $canSeePool) İlanlar belgeleriniz onaylandığında görünür. @else Filtrenize uyan açık ilan yok. <a href="{{ route('driver.loads.index', ['filters' => 1]) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Filtreyi genişletin</a>. @endif
+                    </div>
                 @endforelse
             </div>
         </div>

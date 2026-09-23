@@ -134,6 +134,27 @@ class LoadFilterServiceTest extends TestCase
         $this->assertNotContains($frigo->id, $ids);
     }
 
+    public function test_district_filters_narrow_within_selected_provinces(): void
+    {
+        $ceyhan = $this->load(['pickup_location' => 'Adana Ceyhan', 'pickup_province_code' => 1, 'pickup_district' => 'Ceyhan']);
+        $kozan = $this->load(['pickup_location' => 'Adana Kozan', 'pickup_province_code' => 1, 'pickup_district' => 'Kozan']);
+        $adana = $this->load(['pickup_location' => 'Adana', 'pickup_province_code' => 1, 'pickup_district' => null]);
+        $aydin = $this->load(['pickup_location' => 'Aydın Nazilli', 'pickup_province_code' => 9, 'pickup_district' => 'Nazilli']);
+        $svc = app(LoadFilterService::class);
+        $ids = fn (array $f) => $svc->applyToLoads(Load::query(), LoadFilterService::normalize($f + ['vehicle_mode' => 'any']), $this->driver)->pluck('id')->all();
+
+        // İl seçili, ilçe yok: ilin tamamı
+        $this->assertEqualsCanonicalizing([$ceyhan->id, $kozan->id, $adana->id], $ids(['pickup_provinces' => [1]]));
+        // Adana yalnız Ceyhan + Aydın tamamı
+        $this->assertEqualsCanonicalizing([$ceyhan->id, $aydin->id], $ids(['pickup_provinces' => [1, 9], 'pickup_districts' => [1 => ['Ceyhan']]]));
+        // Seçili olmayan ilin ilçesi ve katalogda olmayan ilçe atılır
+        $n = LoadFilterService::normalize(['pickup_provinces' => [1], 'pickup_districts' => [1 => ['Ceyhan', 'Uydurma'], 9 => ['Nazilli']]]);
+        $this->assertSame([1 => ['Ceyhan']], $n['pickup_districts']);
+        $this->assertContains('Çıkış: Adana (Ceyhan)', LoadFilterService::chips($n));
+        $this->assertSame('Her yer', LoadFilterService::placesLabel([]));
+        $this->assertSame('Adana (Ceyhan, Kozan), Aydın', LoadFilterService::placesLabel([1, 9], [1 => ['Ceyhan', 'Kozan']]));
+    }
+
     public function test_normalize_and_presets(): void
     {
         $n = LoadFilterService::normalize(['vehicle_mode' => 'weird', 'pickup_provinces' => ['34', 99, 'x'], 'near_radius_km' => 50, 'sort' => 'distance', 'min_weight' => '-5']);
