@@ -80,7 +80,7 @@ new class extends Component {
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Son başarılı yedek</span><span class="text-sm font-black text-neutral-900 dark:text-white">{{ $lastOk?->completed_at?->diffForHumans() ?? 'Henüz yok' }}</span></div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Son başarılı yedek</span><span class="text-sm font-black text-neutral-900 dark:text-white"><x-time-ago :at="$lastOk?->completed_at" empty="Henüz yok" /></span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Sunucudaki yedekler</span><span class="text-sm font-black text-neutral-900 dark:text-white">{{ number_format($total, 1, ',', '.') }} MB</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Boş disk</span><span class="text-sm font-black text-neutral-900 dark:text-white">{{ $freeGb !== null ? $freeGb.' GB' : '—' }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Sunucu klasörü</span><span class="text-[11px] font-mono text-neutral-700 dark:text-neutral-200 break-all">{{ $directory }}</span></div>

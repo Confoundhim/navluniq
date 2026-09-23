@@ -216,7 +216,7 @@ class extends Component {
                                     <div class="load-card" wire:key="rl-e-{{ $item->id }}">
                                         <div class="load-card-main">
                                             <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
-                                            <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · {{ $item->created_at?->diffForHumans() }}</div>
+                                            <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · <x-time-ago :at="$item->created_at" /></div>
                                             <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span></div>
                                         </div>
                                         <div class="load-card-side sm:min-h-0">
@@ -276,7 +276,7 @@ class extends Component {
                             <div class="load-card-main">
                                 <div class="load-card-title">{{ $load->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $load->delivery_location ?: 'Belirtilmemiş' }}</div>
                                 <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $load->vehicleSummary() }}@if($load->weightLabel()) · {{ $load->weightLabel() }}@endif</div>
-                                <div class="load-card-line">Yükleme: {{ $load->meta('pickup_note') ?: 'Belirtilmemiş' }} · {{ $load->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-line">Yükleme: {{ $load->meta('pickup_note') ?: 'Belirtilmemiş' }} · <x-time-ago :at="$load->created_at" /></div>
                                 <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>@if($load->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif</div>
                             </div>
                             <div class="load-card-side sm:min-h-0">

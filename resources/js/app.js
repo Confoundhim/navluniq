@@ -95,3 +95,30 @@ document.addEventListener('livewire:init', () => {
     });
 });
 document.addEventListener('livewire:navigating', () => { applyTheme(preferredTheme()); applyTextSize(preferredTextSize()); });
+
+
+// Göreli zaman etiketleri ("az önce", "3 dk önce") tarayıcıda kendi kendine ilerler; ekranın yeniden
+// çizilmesine bağlı değildir. Kural App\Support\TimeAgo ile aynıdır (saniye gösterilmez).
+function agoLabel(ts) {
+    const diff = Math.round(Date.now() / 1000) - ts;
+    const future = diff < 0, s = Math.abs(diff), suffix = future ? ' sonra' : ' önce';
+    if (s < 60) return future ? 'birazdan' : 'az önce';
+    if (s < 3600) return Math.floor(s / 60) + ' dk' + suffix;
+    if (s < 86400) return Math.floor(s / 3600) + ' sa' + suffix;
+    const days = Math.floor(s / 86400);
+    if (days === 1) return future ? 'yarın' : 'dün';
+    if (days < 30) return days + ' gün' + suffix;
+    const d = new Date(ts * 1000), p = (n) => String(n).padStart(2, '0');
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear();
+}
+function tickAgo() {
+    document.querySelectorAll('[data-ago]').forEach((el) => {
+        const ts = parseInt(el.getAttribute('data-ago'), 10);
+        if (!Number.isFinite(ts)) return;
+        const label = agoLabel(ts);
+        if (el.textContent !== label) el.textContent = label;
+    });
+}
+setInterval(tickAgo, 15000);
+document.addEventListener('DOMContentLoaded', tickAgo);
+document.addEventListener('livewire:navigated', tickAgo);

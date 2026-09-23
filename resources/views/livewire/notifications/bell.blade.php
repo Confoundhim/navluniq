@@ -67,7 +67,7 @@ new class extends Component {
                         <div class="min-w-0 flex-1">
                             <div class="text-xs font-semibold text-neutral-900 dark:text-white truncate">{{ $n->title }}</div>
                             <div class="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-relaxed">{{ $n->lines[0] ?? '' }}</div>
-                            <div class="text-[10px] text-neutral-400 mt-1">{{ $n->created_at->diffForHumans() }} · {{ $n->typeLabel() }}</div>
+                            <div class="text-[10px] text-neutral-400 mt-1"><x-time-ago :at="$n->created_at" /> · {{ $n->typeLabel() }}</div>
                         </div>
                     </div>
                 </button>

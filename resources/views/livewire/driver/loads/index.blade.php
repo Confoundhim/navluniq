@@ -937,7 +937,7 @@ class extends Component {
                             <div class="load-card-main">
                                 <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                                 <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}</div>
-                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · Kaydedildi: {{ $saved->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · Kaydedildi: <x-time-ago :at="$saved->created_at" /></div>
                                 <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>@if(! $stillOpen)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{{ $load->statusLabel() }}</span>@endif</div>
                             </div>
                             <div class="load-card-side">
@@ -954,7 +954,7 @@ class extends Component {
                             <div class="load-card-main">
                                 <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
                                 <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
-                                <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · Kaydedildi: {{ $saved->created_at?->diffForHumans() }}</div>
+                                <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · Kaydedildi: <x-time-ago :at="$saved->created_at" /></div>
                                 <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>@if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif</div>
                             </div>
                             <div class="load-card-side">
@@ -1040,7 +1040,7 @@ class extends Component {
                         <div class="load-card-main">
                             <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
                             <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
-                            <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · {{ $item->created_at?->diffForHumans() }}</div>
+                            <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · <x-time-ago :at="$item->created_at" /></div>
                             <div class="load-card-badges">
                                 <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
                                 @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
