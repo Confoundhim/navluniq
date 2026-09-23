@@ -170,7 +170,7 @@ class extends Component {
                                 <div class="load-card" wire:key="rl-e-{{ $item->id }}">
                                     <div class="load-card-main">
                                         <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
-                                        <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · {{ $item->created_at?->diffForHumans() }}</div>
+                                        <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif · <x-time-ago :at="$item->created_at" /></div>
                                         <div class="load-card-badges"><span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span></div>
                                     </div>
                                     <div class="load-card-side sm:min-h-0">

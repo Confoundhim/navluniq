@@ -1016,11 +1016,11 @@ new class extends Component {
                                     <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : '' }}">
                                         <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
-                                        <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->deleted_at?->diffForHumans() }}</td>
+                                        <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$source->deleted_at" /></td>
                                         <td class="p-4">
                                             @if($source->messages_since_deleted > 0)
                                                 <span class="badge bg-amber-500/10 text-amber-600">{{ $source->messages_since_deleted }} mesaj</span>
-                                                <span class="text-[11px] text-neutral-400">son: {{ $source->last_message_at?->diffForHumans() }}</span>
+                                                <span class="text-[11px] text-neutral-400">son: <x-time-ago :at="$source->last_message_at" /></span>
                                             @else
                                                 <span class="text-neutral-400">yok</span>
                                             @endif
@@ -1047,7 +1047,7 @@ new class extends Component {
                                         <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
                                         <td class="p-4">{{ $source->scraped_loads_count }}</td>
-                                        <td class="p-4 whitespace-nowrap text-neutral-500">{{ $source->last_message_at ? $source->last_message_at->diffForHumans() : ($source->last_success_at ? \Illuminate\Support\Carbon::parse($source->last_success_at)->diffForHumans() : 'Henüz yok') }}</td>
+                                        <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$source->last_message_at ?? $source->last_success_at" empty="Henüz yok" /></td>
                                         <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>
                                         <td class="p-4 whitespace-nowrap space-x-2">
                                             <button type="button" wire:click="toggleSource({{ $source->id }})" class="{{ $source->is_active ? 'text-neutral-500' : 'text-emerald-600' }} font-semibold">{{ $source->is_active ? 'Pasife al' : 'Aktif et' }}</button>

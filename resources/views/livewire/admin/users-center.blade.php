@@ -253,12 +253,12 @@ new class extends Component {
                             </td>
                             <td class="p-4">
                                 @if($dp)
-                                    @if($isPremium)<span class="badge bg-brand-500/10 text-brand-600">Premium</span><div class="text-[11px] text-neutral-400">{{ $dp->premium_until->format('d.m.Y H:i') }}'e kadar ({{ $dp->premium_until->diffForHumans() }})</div>
+                                    @if($isPremium)<span class="badge bg-brand-500/10 text-brand-600">Premium</span><div class="text-[11px] text-neutral-400">{{ $dp->premium_until->format('d.m.Y H:i') }}'e kadar (<x-time-ago :at="$dp->premium_until" />)</div>
                                     @else<span class="text-neutral-400">Standart</span>@if($dp->premium_until)<div class="text-[11px] text-neutral-400">bitti: {{ $dp->premium_until->format('d.m.Y') }}</div>@endif
                                     @endif
                                 @else<span class="text-neutral-400">—</span>@endif
                             </td>
-                            <td class="p-4 whitespace-nowrap text-neutral-500">{{ $user->last_login_at?->diffForHumans() ?? 'Hiç' }}</td>
+                            <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$user->last_login_at" empty="Hiç" /></td>
                             <td class="p-4 whitespace-nowrap text-right"><button type="button" wire:click="toggle({{ $user->id }})" class="text-brand-600 font-semibold hover:underline">{{ $openId === $user->id ? 'Kapat' : 'İşlemler' }}</button></td>
                         </tr>
                         @if($openId === $user->id)

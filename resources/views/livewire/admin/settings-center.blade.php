@@ -533,7 +533,7 @@ new class extends Component {
         return [
             'scraperKeys' => self::SCRAPER_KEYS,
             'aiUsage' => \App\Models\AiProviderUsage::query()->whereDate('usage_date', now()->toDateString())->get()
-                ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture()), 'resets' => $u->quota_resets_at?->diffForHumans(null, true) ?? '']])->all(),
+                ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture()), 'resets' => $u->quota_resets_at ? \App\Support\TimeAgo::label($u->quota_resets_at) : '']])->all(),
             'aiErrors' => app(\App\Services\AiParserService::class)->lastErrors(),
             'aiModelOptions' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->mapWithKeys(fn ($p) => [$p => app(\App\Services\AiParserService::class)->modelOptions($p)])->all(),
             'aiAuto' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->mapWithKeys(fn ($p) => [$p => (string) \Illuminate\Support\Facades\Cache::get('ai:auto_model:'.$p, '')])->all(),
@@ -737,7 +737,7 @@ new class extends Component {
                             @if(($aiTest[$pk] ?? null) !== null)
                                 <p class="text-[11px] font-semibold mb-2 {{ $aiTest[$pk]['ok'] ? 'text-emerald-600' : 'text-rose-600' }}">{{ $aiTest[$pk]['ok'] ? 'Çalışıyor: ' : 'Hata: ' }}{{ $aiTest[$pk]['message'] }}</p>
                             @elseif(isset($aiErrors[$pk]))
-                                <p class="text-[11px] text-rose-600 mb-2">Son hata ({{ \Illuminate\Support\Carbon::parse($aiErrors[$pk]['at'])->diffForHumans() }}): {{ \App\Services\AiParserService::humanizeError($aiErrors[$pk]['message']) }}</p>
+                                <p class="text-[11px] text-rose-600 mb-2">Son hata (<x-time-ago :at="$aiErrors[$pk]['at']" />): {{ \App\Services\AiParserService::humanizeError($aiErrors[$pk]['message']) }}</p>
                             @endif
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_model'] }}</label>
