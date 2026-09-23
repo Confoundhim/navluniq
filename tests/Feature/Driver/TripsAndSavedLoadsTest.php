@@ -162,14 +162,22 @@ class TripsAndSavedLoadsTest extends TestCase
         $this->assertSame(0, app(DriverTripService::class)->scanReturnLoads()['notified']);
         $this->assertSame(1, UserNotification::query()->where('type', 'return_load')->count());
 
-        // Yeni ilan gelince yalnız o bildirilir; e-posta aralığı dolmadığından uygulama içi kalır
+        // Yeni ilan gelince okunmamış bildirimin üstüne yazılır (yığılmaz): sayı artar, yeni ilan en üstte
         $this->load($owner, ['pickup_location' => 'İzmir Bornova']);
         $this->assertSame(1, app(DriverTripService::class)->scanReturnLoads()['notified']);
+        $this->assertSame(1, UserNotification::query()->where('type', 'return_load')->count(), 'Aynı sefer için ikinci bildirim açılmaz');
         $second = UserNotification::query()->where('type', 'return_load')->latest('id')->first();
-        $this->assertStringContainsString('1 yeni ilan', $second->title);
-        $this->assertStringContainsString('İzmir Bornova', implode("\n", $second->lines));
-        $this->assertStringNotContainsString('Torbalı', implode("\n", $second->lines));
-        $this->assertSame(UserNotification::MAIL_SKIPPED, $second->mail_status);
+        $this->assertStringContainsString('4 yeni ilan', $second->title);
+        $this->assertStringContainsString('İzmir Bornova', $second->lines[0]);
+        $this->assertStringContainsString('Torbalı', implode("\n", $second->lines));
+        $this->assertSame(4, $trip->fresh()->match_count);
+
+        // Bildirim okunduysa bir sonraki yeni ilan yeni bildirim açar
+        $second->markRead();
+        $this->load($owner, ['pickup_location' => 'İzmir Gaziemir']);
+        app(DriverTripService::class)->scanReturnLoads();
+        $this->assertSame(2, UserNotification::query()->where('type', 'return_load')->count());
+        $this->assertStringContainsString('1 yeni ilan', UserNotification::query()->where('type', 'return_load')->latest('id')->first()->title);
 
         // Bildirim kapalıysa taranmaz; kapalı sefer taranmaz
         $trip->forceFill(['notify_return' => false])->save();
@@ -178,7 +186,7 @@ class TripsAndSavedLoadsTest extends TestCase
 
         // Sayfada canlı liste (bildirimden bağımsız) ve premium olmayanda dış kaynak yok
         $found = app(DriverTripService::class)->returnLoadsFor($trip->fresh());
-        $this->assertCount(4, $found['system']);
+        $this->assertCount(5, $found['system']);
         $this->assertCount(1, $found['external']);
         $driver->driverProfile->forceFill(['premium_until' => null])->save();
         $this->assertCount(0, app(DriverTripService::class)->returnLoadsFor($trip->fresh())['external']);

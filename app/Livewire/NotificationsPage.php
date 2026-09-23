@@ -20,6 +20,21 @@ abstract class NotificationsPage extends Component
     public function markRead(int $id): void
     {
         Auth::user()?->userNotifications()->whereKey($id)->first()?->markRead();
+        $this->dispatch('notifications-changed');
+    }
+
+    public function delete(int $id): void
+    {
+        Auth::user()?->userNotifications()->whereKey($id)->delete();
+        $this->dispatch('notifications-changed');
+    }
+
+    /** Okunmuş bildirimleri temizler; okunmamışlar kalır. */
+    public function deleteRead(): void
+    {
+        Auth::user()?->userNotifications()->whereNotNull('read_at')->delete();
+        $this->resetPage();
+        $this->dispatch('notifications-changed');
     }
 
     public function open(int $id): void
@@ -37,6 +52,7 @@ abstract class NotificationsPage extends Component
     public function markAllRead(): void
     {
         Auth::user()?->userNotifications()->whereNull('read_at')->update(['read_at' => now()]);
+        $this->dispatch('notifications-changed');
     }
 
     public function setFilter(string $filter): void
@@ -55,6 +71,7 @@ abstract class NotificationsPage extends Component
         return [
             'notifications' => $query->paginate(20),
             'unreadCount' => Auth::user()->unreadNotificationCount(),
+            'readCount' => Auth::user()->userNotifications()->whereNotNull('read_at')->count(),
             'typeLabels' => UserNotification::TYPE_LABELS,
         ];
     }

@@ -24,6 +24,7 @@ class UserNotification extends Model
     /** Bildirim türü → panelde gösterilen etiket. */
     public const TYPE_LABELS = [
         'general' => 'Genel',
+        'return_load' => 'Dönüş yükü',
         'welcome' => 'Hoş geldiniz',
         'security' => 'Güvenlik',
         'kyc' => 'Belge doğrulama',
