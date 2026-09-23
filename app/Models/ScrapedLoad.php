@@ -10,6 +10,7 @@ use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
 
@@ -82,6 +83,12 @@ class ScrapedLoad extends Model
     public function scraper(): BelongsTo
     {
         return $this->belongsTo(Scraper::class);
+    }
+
+    /** Bu ilanı "aldım" diye işaretleyen şoförlerin seferleri */
+    public function trips(): HasMany
+    {
+        return $this->hasMany(DriverTrip::class);
     }
 
     /** Şifreli saklanan gönderen numarasını çözer; eski kayıtlar için düz kolona düşer. */

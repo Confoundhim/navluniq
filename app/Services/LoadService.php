@@ -116,6 +116,7 @@ class LoadService
                 'visibility' => 'private',
             ]);
         });
+        app(DriverTripService::class)->closeForLoad($load->id);
 
         $notifications = app(NotificationService::class);
         foreach ($affected as $offer) {

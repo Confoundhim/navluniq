@@ -67,6 +67,18 @@ class DriverProfile extends Model
         return $this->hasMany(DriverFilterPreset::class)->orderByDesc('is_default')->orderBy('name');
     }
 
+    /** Kaydedilen (yıldızlanan) ilanlar */
+    public function savedLoads(): HasMany
+    {
+        return $this->hasMany(DriverSavedLoad::class);
+    }
+
+    /** "Bu işi aldım" sefer kayıtları */
+    public function trips(): HasMany
+    {
+        return $this->hasMany(DriverTrip::class);
+    }
+
     public function activeVehicle(): HasOne
     {
         return $this->hasOne(DriverVehicle::class)->where('is_active', true);

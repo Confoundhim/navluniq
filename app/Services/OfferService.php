@@ -12,6 +12,7 @@ use App\Models\Shipment;
 use App\Support\Settings;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -176,6 +177,12 @@ class OfferService
 
             return $shipment;
         }, 3);
+
+        try {
+            app(DriverTripService::class)->fromShipment($shipment);
+        } catch (\Throwable $e) {
+            Log::warning('Sefer kaydı açılamadı.', ['shipment_id' => $shipment->id, 'error' => $e->getMessage()]);
+        }
 
         if ($driverUser = $shipment->driverProfile?->user) {
             $this->notifications->notify(

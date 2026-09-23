@@ -17,6 +17,9 @@ final class Settings
         'offer_validity_days' => 2,             // Teklif geçerlilik süresi (gün)
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
+        'return_load_radius_km' => 150,         // Dönüş yükü: varış noktasına bu kadar km içinden çıkan ilanlar bildirilir (aynı il her zaman)
+        'return_load_mail_hours' => 3,          // Dönüş yükü e-postası sefer başına en çok bu kadar saatte bir (uygulama içi bildirim her zaman)
+        'trip_auto_close_days' => 3,            // Teslim edildikten bu kadar gün sonra sefer kendiliğinden kapanır
         'payment_vat_rate' => 20.0,             // Abonelik ve hizmet bedeli faturalarında KDV oranı (%)
 
         // Dış kaynak ilanları

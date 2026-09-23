@@ -225,6 +225,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
     Volt::route('/sevkiyatlarim', 'driver.shipments.index')->name('shipments.index');
+    Volt::route('/seferlerim', 'driver.trips.index')->name('trips.index');
     Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show')->whereNumber('loadId');
     Volt::route('/premium', 'driver.premium.index')->name('premium.index');
     Volt::route('/premium/odeme', 'driver.premium.checkout')->name('premium.checkout');
