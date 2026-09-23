@@ -12,7 +12,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('driver_saved_loads', function (Blueprint $table) {
+        // MariaDB'de tablo oluşturma işlemsel değildir: yarım kalmış bir denemeden sonra yeniden çalıştırmak güvenli olsun.
+        Schema::hasTable('driver_saved_loads') || Schema::create('driver_saved_loads', function (Blueprint $table) {
             $table->id();
             $table->foreignId('driver_profile_id')->constrained()->cascadeOnDelete();
             $table->foreignId('load_id')->nullable()->constrained('loads')->cascadeOnDelete();
@@ -22,7 +23,7 @@ return new class extends Migration
             $table->unique(['driver_profile_id', 'scraped_load_id']);
         });
 
-        Schema::create('driver_trips', function (Blueprint $table) {
+        Schema::hasTable('driver_trips') || Schema::create('driver_trips', function (Blueprint $table) {
             $table->id();
             $table->foreignId('driver_profile_id')->constrained()->cascadeOnDelete();
             $table->string('source', 12)->default('external'); // external (gruptan) | system (NavlunIQ ilanı)
@@ -46,7 +47,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('driver_trip_matches', function (Blueprint $table) {
+        Schema::hasTable('driver_trip_matches') || Schema::create('driver_trip_matches', function (Blueprint $table) {
             $table->id();
             $table->foreignId('driver_trip_id')->constrained('driver_trips')->cascadeOnDelete();
             $table->string('kind', 8); // system | external

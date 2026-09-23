@@ -50,10 +50,16 @@ npm ci --silent --no-audit --no-fund
 npm run build --silent
 
 log "Veritabanı"
-if ! php artisan migrate --force --no-interaction; then
-    echo "Migration başarısız. Kilit bekleyen sorgular:"
+# Bakım modunda bile açık kalmış işlemler (uyuyan bağlantıdaki yarım işlem) tablo kilidini tutar; migrate en çok
+# 120 sn bekler (lock_wait_timeout). Önce 60 sn'den eski açık işlemler kapatılır, sonra migrate çalışır.
+mysql -N -e "SELECT trx_mysql_thread_id FROM information_schema.innodb_trx WHERE trx_started < NOW() - INTERVAL 60 SECOND" 2>/dev/null \
+    | while read -r tid; do [[ -n "$tid" ]] && { echo "  ! ${tid} numaralı eski açık işlem kapatıldı"; mysql -e "KILL ${tid}" 2>/dev/null || true; }; done
+if ! timeout 900 php artisan migrate --force --no-interaction; then
+    echo "Migration başarısız. Açık işlemler ve kilit bekleyen sorgular:"
+    mysql -e "SELECT trx_mysql_thread_id AS id, trx_started, trx_state, LEFT(IFNULL(trx_query, ''), 100) AS query FROM information_schema.innodb_trx" 2>/dev/null || true
     mysql -e "SELECT id, user, time, state, LEFT(info, 120) AS info FROM information_schema.processlist WHERE command <> 'Sleep' ORDER BY time DESC LIMIT 10" 2>/dev/null || true
-    echo "Çözüm: yukarıdaki uzun süreli bağlantıyı 'mysql -e \"KILL <id>\"' ile sonlandırıp betiği yeniden çalıştırın."
+    echo "Çözüm: yukarıdaki eski bağlantıyı 'mysql -e \"KILL <id>\"' ile sonlandırıp panelden 'Siteyi güncelle' deyin."
+    echo "Yarım kalmış tablo hatası ('already exists') alırsanız migration'lar yeniden çalıştırılabilir; güncellemeyi tekrar başlatmanız yeterlidir."
     exit 1
 fi
 # Araç tipi boş kalmış dış kaynak ilanlarını sınıflandırıcıyla doldur (yalnız boş olanlar; tekrar çalıştırmak güvenli).
