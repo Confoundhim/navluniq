@@ -71,6 +71,27 @@ final class TurkishText
         return preg_replace_callback('/^(\p{Ll})/u', fn ($m) => self::upper($m[1]), $out) ?? $out;
     }
 
+    /** Türk alfabesi sırası (ç c'den, ş s'den, ı i'den önce vb.); sunucuda intl/locale gerekmez. */
+    private const ALPHABET = 'aâbcçdefgğhıiîjklmnoöprsştuüûvyzqwx';
+
+    /** Türkçe alfabe sırasına göre karşılaştırma (usort için). */
+    public static function compare(string $a, string $b): int
+    {
+        return strcmp(self::sortKey($a), self::sortKey($b));
+    }
+
+    /** Sıralama anahtarı: her harf alfabedeki sırasına göre iki haneli koda çevrilir. */
+    public static function sortKey(string $text): string
+    {
+        $out = '';
+        foreach (mb_str_split(self::lower($text), 1, 'UTF-8') as $ch) {
+            $pos = mb_strpos(self::ALPHABET, $ch, 0, 'UTF-8');
+            $out .= $pos === false ? ($ch === ' ' ? '00' : '99'.$ch) : str_pad((string) ($pos + 1), 2, '0', STR_PAD_LEFT);
+        }
+
+        return $out;
+    }
+
     /** Cümle biçiminde büyük kalması gereken kısaltmalar. */
     private const ACRONYMS = ['adr', 'osb', 'pvc', 'mdf', 'osb', 'tır', 'tir', 'lpg', 'cng', 'ips', 'oem', 'abs', 'pe', 'pp', 'pet', 'ytong', 'dap', 'npk', 'led', 'tv', 'kdv', 'usd', 'eur', 'try', 'ftl', 'ltl'];
 }

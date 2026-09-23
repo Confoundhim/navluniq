@@ -77,4 +77,21 @@ document.addEventListener('alpine:init', () => {
 
 // wire:navigate ile sayfa değişince <html> sınıfları yeni sayfadan gelir; temayı yeniden uygula.
 document.addEventListener('livewire:navigated', () => { applyTheme(preferredTheme()); applyTextSize(preferredTextSize()); });
+
+// Süreli yenileme (wire:poll) kullanıcıyı rahatsız etmesin: son etkileşimden bu yana geçen süre her
+// Livewire isteğine başlık olarak eklenir; sunucu kısa süre içinde etkileşim varsa yenilemeyi çizmez
+// (App\Livewire\PausePollWhileInteracting). Odaklı bir form alanı varsa kullanıcı hâlâ meşguldür.
+let lastInteraction = 0;
+const touch = () => { lastInteraction = Date.now(); };
+['pointerdown', 'pointermove', 'keydown', 'input', 'touchstart', 'wheel', 'scroll'].forEach((ev) =>
+    document.addEventListener(ev, touch, { capture: true, passive: true }));
+document.addEventListener('livewire:init', () => {
+    window.Livewire.hook('request', ({ options }) => {
+        if (! options) return;
+        options.headers = options.headers || {};
+        const el = document.activeElement;
+        const focused = el && ['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName) && el.type !== 'hidden';
+        options.headers['X-User-Idle-Ms'] = String(focused ? 0 : Date.now() - lastInteraction);
+    });
+});
 document.addEventListener('livewire:navigating', () => { applyTheme(preferredTheme()); applyTextSize(preferredTextSize()); });

@@ -157,8 +157,9 @@ final class TurkishLocations
     public static function districtsOf(int $provinceCode): array
     {
         self::load();
-        $names = array_map(fn ($d) => $d['n'], array_values(self::$districtIndex[$provinceCode] ?? []));
-        sort($names, SORT_LOCALE_STRING);
+        // Takma adlar (Kazan → Kahramankazan) aynı ilçeyi gösterir; liste tekilleştirilir.
+        $names = array_values(array_unique(array_map(fn ($d) => $d['n'], array_values(self::$districtIndex[$provinceCode] ?? []))));
+        usort($names, [TurkishText::class, 'compare']);
 
         return $names;
     }
