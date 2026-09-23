@@ -40,6 +40,9 @@ class extends Component {
 
     public bool $advancedOpen = false;
 
+    /** Açık tutulan ilçe listeleri ("pickup:6" gibi); sunucuda tutulur, yenilemede kapanmaz. */
+    public array $openDistricts = [];
+
     public bool $presetModalOpen = false;
 
     public string $presetName = '';
@@ -149,6 +152,14 @@ class extends Component {
         $current = (array) ($this->filters[$key][$code] ?? []);
         $this->filters[$key][$code] = in_array($name, $current, true) ? array_values(array_diff($current, [$name])) : [...$current, $name];
         $this->updatedFilters();
+    }
+
+    public function toggleDistrictBox(string $side, int $code): void
+    {
+        $key = $side.':'.$code;
+        $this->openDistricts = in_array($key, $this->openDistricts, true)
+            ? array_values(array_diff($this->openDistricts, [$key]))
+            : [...$this->openDistricts, $key];
     }
 
     /** "Her yer": o yöndeki il ve ilçe seçimlerini temizler. */
@@ -538,7 +549,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.5s class="space-y-6">
+<div wire:poll.15s class="space-y-6">
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
@@ -644,24 +655,28 @@ class extends Component {
                                         class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors {{ in_array((int) $province['code'], $selCodes, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $province['name'] }}</button>
                                 @endforeach
                             </div>
-                        </div>
-                        {{-- Seçili illerin ilçeleri: etiket olarak, birden çok seçilir; hiçbiri seçili değilse ilin tamamı --}}
-                        @foreach($selCodes as $code)
-                            @php $districtNames = \App\Support\TurkishLocations::districtsOf($code); $picked = $selDistricts[$code] ?? []; @endphp
-                            @if($districtNames !== [])
-                                <details class="mt-2 group" @if($picked !== []) open @endif>
-                                    <summary class="cursor-pointer text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 list-none flex items-center gap-1">
-                                        <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                                        {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} ilçeleri{{ $picked !== [] ? ': '.implode(', ', $picked) : ' (tümü)' }}
-                                    </summary>
-                                    <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                        @foreach($districtNames as $dn)
-                                            <button type="button" wire:click="toggleDistrict('{{ $side }}', {{ $code }}, @js($dn))" class="px-2 py-0.5 rounded-lg border text-[11px] transition-colors {{ in_array($dn, $picked, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $dn }}</button>
-                                        @endforeach
+                        {{-- Seçili illerin ilçeleri (aynı panelde): etiket olarak, birden çok seçilir; hiçbiri seçili değilse ilin tamamı --}}
+                            @foreach($selCodes as $code)
+                                @php $districtNames = \App\Support\TurkishLocations::districtsOf($code); $picked = $selDistricts[$code] ?? []; @endphp
+                                @if($districtNames !== [])
+                                    @php $boxOpen = $picked !== [] || in_array($side.':'.$code, $openDistricts, true); @endphp
+                                    <div class="pt-2 border-t border-neutral-100 dark:border-neutral-800" wire:key="districts-{{ $side }}-{{ $code }}">
+                                        <button type="button" wire:click="toggleDistrictBox('{{ $side }}', {{ $code }})" class="cursor-pointer text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1 text-left" aria-expanded="{{ $boxOpen ? 'true' : 'false' }}">
+                                            <svg class="w-3 h-3 transition-transform {{ $boxOpen ? 'rotate-90' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                                            {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} ilçeleri{{ $picked !== [] ? ': '.implode(', ', $picked) : ' (tümü)' }}
+                                        </button>
+                                        <div class="mt-1.5 flex flex-wrap gap-1.5 {{ $boxOpen ? '' : 'hidden' }}">
+                                            @foreach($districtNames as $dn)
+                                                <button type="button" wire:click="toggleDistrict('{{ $side }}', {{ $code }}, @js($dn))" class="px-2 py-0.5 rounded-lg border text-[11px] transition-colors {{ in_array($dn, $picked, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $dn }}</button>
+                                            @endforeach
+                                        </div>
                                     </div>
-                                </details>
-                            @endif
-                        @endforeach
+                                @endif
+                            @endforeach
+                            <div class="flex justify-end pt-1">
+                                <button type="button" @click="open = false" class="btn-primary py-1.5 px-4 text-xs">Tamam</button>
+                            </div>
+                        </div>
                     </div>
                 @endforeach
                 <div>

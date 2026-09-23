@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Livewire\PausePollWhileInteracting;
 use App\Payments\GatewayManager;
 use App\Support\RuntimeMailConfig;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Livewire\ComponentHookRegistry;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -14,6 +16,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Kullanıcı ekranla uğraşırken süreli yenileme (wire:poll) ekranı yeniden çizmez.
+        // Livewire kancaları kendi sağlayıcısı önyüklenmeden önce kayıtlı olmalıdır (register aşaması).
+        ComponentHookRegistry::register(PausePollWhileInteracting::class);
         // Ödeme kuruluşu yöneticisi tekildir: etkin geçit ve test ortamında takılan sahte geçit süreç boyunca aynı kalır.
         $this->app->singleton(GatewayManager::class);
     }
