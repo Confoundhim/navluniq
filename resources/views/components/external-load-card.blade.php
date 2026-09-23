@@ -1,13 +1,14 @@
 {{-- Dış kaynak ilan kartı: her ekranda aynı yapı (yıldız, "Bu işi aldım", numara, WhatsApp). Kullanan Livewire bileşeni
      HandlesExternalLoadActions trait'ini kullanmalıdır (toggleSave / openTake). --}}
-@props(['item', 'saved' => false, 'taken' => false])
+@props(['item', 'saved' => false, 'taken' => false, 'variant' => null])
 @php $plainPhone = $item->plainPhone(); $extraPhones = $item->extraPhones(); $isSaved = (bool) $saved; $isTaken = (bool) $taken; @endphp
-<div {{ $attributes->merge(['class' => 'load-card']) }}>
+<div {{ $attributes->merge(['class' => 'load-card'.($variant === 'return' ? ' load-card-return' : '')]) }}>
     <div class="load-card-main">
         <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
         <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
         <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · <x-time-ago :at="$item->created_at" /></div>
         <div class="load-card-badges">
+            @if($variant === 'return')<span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span>@endif
             <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
             @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
             @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach

@@ -2,6 +2,8 @@ import defaultTheme from 'tailwindcss/defaultTheme';
 
 /** @type {import('tailwindcss').Config} */
 export default {
+    // Blade'de dinamik üretilen sınıflar (trip-status-{{ $status }}) derlemede silinmesin
+    safelist: ['trip-status-planned', 'trip-status-on_the_way', 'trip-status-delivered', 'trip-status-closed'],
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',

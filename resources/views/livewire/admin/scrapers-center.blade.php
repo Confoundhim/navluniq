@@ -753,6 +753,11 @@ new class extends Component {
     </div>
 
     @if(in_array($activeTab, ['queue', 'published', 'rejected'], true))
+        @php $filtered = $search !== '' || $sourceId !== '' || $vehicle !== '' || $flag !== ''; $what = ['queue' => 'onay bekleyen aday', 'published' => 'yayında', 'rejected' => 'reddedilen'][$activeTab]; @endphp
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1 font-bold tabular-nums">{{ number_format($queue?->total() ?? 0, 0, ',', '.') }} ilan</span>
+            <span class="text-neutral-500">{{ $filtered ? 'filtreye uyan' : $what }}{{ $period !== 'all' ? ' · son '.$period.' gün' : ' · tüm zamanlar' }}</span>
+        </div>
         <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} md:col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
             <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
