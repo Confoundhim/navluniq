@@ -179,10 +179,10 @@ class extends Component {
                         <h3 class="section-title">Aktif seferim</h3>
                         <a href="{{ route('driver.trips.index', ['sefer' => $activeTrip->id]) }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline">Seferlerim</a>
                     </div>
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-2 text-xs">
+                    <div class="trip-card">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $activeTrip->pickup_location ?: 'Belirtilmemiş' }} <span class="text-brand-500">&rarr;</span> {{ $activeTrip->delivery_location ?: 'Belirtilmemiş' }}</div>
-                            <span class="self-start px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-600 dark:text-sky-300 font-bold text-[11px]">{{ $activeTrip->statusLabel() }}</span>
+                            <span class="trip-status trip-status-{{ $activeTrip->status }}"><span class="inline-flex h-1.5 w-1.5 rounded-full bg-current"></span>{{ $activeTrip->statusLabel() }}</span>
                         </div>
                         <div class="text-neutral-500 dark:text-neutral-400">Yükleme: {{ $activeTrip->pickup_date?->format('d.m.Y') ?? '—' }} · Teslim: {{ $activeTrip->delivery_date?->format('d.m.Y') ?? '—' }} · {{ $activeTrip->isSystem() ? 'NavlunIQ ilanı' : 'Gruptan derlendi' }}{{ $activeTrip->notify_return ? '' : ' · dönüş yükü bildirimi kapalı' }}</div>
                     </div>
@@ -194,11 +194,11 @@ class extends Component {
                         @else
                             <div class="space-y-2">
                                 @foreach($rlSystem as $load)
-                                    <div class="load-card" wire:key="rl-s-{{ $load->id }}">
+                                    <div class="load-card load-card-return" wire:key="rl-s-{{ $load->id }}">
                                         <div class="load-card-main">
                                             <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                                             <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel()])) }} · Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }}</div>
-                                            <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
+                                            <div class="load-card-badges"><span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
                                         </div>
                                         <div class="load-card-side sm:min-h-0">
                                             <div class="load-card-price">{{ number_format((float) ($load->price ?? 0), 0, ',', '.') }} ₺</div>
@@ -207,7 +207,7 @@ class extends Component {
                                     </div>
                                 @endforeach
                                 @foreach($rlExternal as $item)
-                                    <x-external-load-card :item="$item" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $item->id }}" />
+                                    <x-external-load-card :item="$item" variant="return" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $item->id }}" />
                                 @endforeach
                             </div>
                         @endif
