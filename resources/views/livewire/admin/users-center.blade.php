@@ -231,7 +231,7 @@ new class extends Component {
 
     <div class="apple-glass rounded-3xl overflow-hidden">
         <div class="responsive-scroll">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Kullanıcı</th><th class="p-4">Belgeler</th><th class="p-4">Premium</th><th class="p-4">Son giriş</th><th class="p-4"></th></tr></thead>
                 <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                     @forelse($users as $user)
@@ -246,20 +246,20 @@ new class extends Component {
                                     <span class="text-[11px] text-neutral-400">kayıt {{ $user->created_at?->format('d.m.Y') }}</span>
                                 </div>
                             </td>
-                            <td class="p-4 space-y-1">
+                            <td class="p-4 space-y-1 tc-block" data-label="Belgeler">
                                 @if($dp)<div><span class="text-[11px] text-neutral-400 mr-1">Şoför:</span><span class="badge {{ $kycBadge[$dp->kyc_status] ?? '' }}">{{ $kycLabels[$dp->kyc_status] ?? $dp->kyc_status }}</span></div>@endif
                                 @if($cp)<div><span class="text-[11px] text-neutral-400 mr-1">Yük sahibi:</span><span class="badge {{ $kycBadge[$cp->kyc_status] ?? '' }}">{{ $kycLabels[$cp->kyc_status] ?? $cp->kyc_status }}</span></div>@endif
                                 <div class="text-[11px] text-neutral-400">{{ $docCounts[$user->id] ?? 0 }} belge yüklü</div>
                             </td>
-                            <td class="p-4">
+                            <td class="p-4" data-label="Premium">
                                 @if($dp)
                                     @if($isPremium)<span class="badge bg-brand-500/10 text-brand-600">Premium</span><div class="text-[11px] text-neutral-400">{{ $dp->premium_until->format('d.m.Y H:i') }}'e kadar (<x-time-ago :at="$dp->premium_until" />)</div>
                                     @else<span class="text-neutral-400">Standart</span>@if($dp->premium_until)<div class="text-[11px] text-neutral-400">bitti: {{ $dp->premium_until->format('d.m.Y') }}</div>@endif
                                     @endif
                                 @else<span class="text-neutral-400">—</span>@endif
                             </td>
-                            <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$user->last_login_at" empty="Hiç" /></td>
-                            <td class="p-4 whitespace-nowrap text-right"><button type="button" wire:click="toggle({{ $user->id }})" class="text-brand-600 font-semibold hover:underline">{{ $openId === $user->id ? 'Kapat' : 'İşlemler' }}</button></td>
+                            <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Son giriş"><x-time-ago :at="$user->last_login_at" empty="Hiç" /></td>
+                            <td class="p-4 whitespace-nowrap text-right tc-actions"><button type="button" wire:click="toggle({{ $user->id }})" class="text-brand-600 font-semibold hover:underline">{{ $openId === $user->id ? 'Kapat' : 'İşlemler' }}</button></td>
                         </tr>
                         @if($openId === $user->id)
                             <tr class="bg-neutral-50 dark:bg-neutral-900/40">

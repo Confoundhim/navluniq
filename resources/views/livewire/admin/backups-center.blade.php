@@ -88,20 +88,20 @@ new class extends Component {
 
     <div class="apple-glass rounded-3xl overflow-hidden">
         <div class="responsive-scroll">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4">Dosya</th><th class="p-4">Tür</th><th class="p-4">Boyut</th><th class="p-4">Durum</th><th class="p-4">Tarih</th><th class="p-4"></th></tr></thead>
                 <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                     @forelse($backups as $backup)
                         <tr class="align-top">
                             <td class="p-4"><div class="font-mono font-bold">{{ $backup->filename }}</div>@if($backup->sha256)<div class="text-[10px] text-neutral-400 font-mono">sha256 {{ substr($backup->sha256, 0, 16) }}…</div>@endif</td>
-                            <td class="p-4">{{ $backup->backup_type === 'database' ? 'Veritabanı' : 'Tam (veritabanı + dosyalar)' }}</td>
-                            <td class="p-4 whitespace-nowrap tabular-nums">{{ number_format((float) $backup->size_mb, 2, ',', '.') }} MB</td>
-                            <td class="p-4">
+                            <td class="p-4" data-label="Tür">{{ $backup->backup_type === 'database' ? 'Veritabanı' : 'Tam (veritabanı + dosyalar)' }}</td>
+                            <td class="p-4 whitespace-nowrap tabular-nums" data-label="Boyut">{{ number_format((float) $backup->size_mb, 2, ',', '.') }} MB</td>
+                            <td class="p-4" data-label="Durum">
                                 <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $backup->status === 'completed' ? 'bg-emerald-500/10 text-emerald-600' : ($backup->status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ ['completed' => 'Hazır', 'failed' => 'Başarısız', 'running' => 'Alınıyor'][$backup->status] ?? $backup->status }}</span>
                                 @if($backup->failure_message)<div class="text-[11px] text-red-500 mt-1 max-w-xs">{{ $backup->failure_message }}</div>@endif
                             </td>
-                            <td class="p-4 whitespace-nowrap text-neutral-500">{{ $backup->created_at?->format('d.m.Y H:i') }}</td>
-                            <td class="p-4 whitespace-nowrap space-x-3">
+                            <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ $backup->created_at?->format('d.m.Y H:i') }}</td>
+                            <td class="p-4 whitespace-nowrap space-x-3 tc-actions">
                                 @if($backup->status === 'completed')<a href="{{ route('admin.backups.download', $backup) }}" class="text-brand-600 font-semibold hover:underline">İndir</a>@endif
                                 <button type="button" wire:click="deleteBackup({{ $backup->id }})" wire:confirm="Bu yedek sunucudan silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
                             </td>

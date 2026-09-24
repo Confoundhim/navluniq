@@ -236,7 +236,7 @@ new class extends Component {
             <div class="apple-glass rounded-3xl overflow-hidden">
                 <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50 text-sm font-bold">Açık uyuşmazlıklar</div>
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Dava</th>
@@ -249,9 +249,9 @@ new class extends Component {
                             @forelse($open as $dispute)
                                 <tr wire:click="select({{ $dispute->id }})" class="cursor-pointer hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 {{ $selectedId === $dispute->id ? 'bg-brand-500/5' : '' }}">
                                     <td class="p-4 font-bold">#{{ $dispute->id }}</td>
-                                    <td class="p-4">#{{ $dispute->load_id }} · {{ $dispute->cargoLoad?->pickup_location }} → {{ $dispute->cargoLoad?->delivery_location }}<div class="text-[11px] text-neutral-400">{{ number_format((float) ($dispute->cargoLoad?->price ?? 0), 2, ',', '.') }} ₺</div></td>
-                                    <td class="p-4 text-neutral-500">{{ $dispute->cargoLoad?->cargoOwnerProfile?->displayName() ?: '—' }} / {{ $dispute->cargoLoad?->driverProfile?->user?->full_name ?? '—' }}</td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $dispute->created_at?->format('d.m.Y H:i') }}</td>
+                                    <td class="p-4" data-label="İlan">#{{ $dispute->load_id }} · {{ $dispute->cargoLoad?->pickup_location }} → {{ $dispute->cargoLoad?->delivery_location }}<div class="text-[11px] text-neutral-400">{{ number_format((float) ($dispute->cargoLoad?->price ?? 0), 2, ',', '.') }} ₺</div></td>
+                                    <td class="p-4 text-neutral-500" data-label="Taraflar">{{ $dispute->cargoLoad?->cargoOwnerProfile?->displayName() ?: '—' }} / {{ $dispute->cargoLoad?->driverProfile?->user?->full_name ?? '—' }}</td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Açılış">{{ $dispute->created_at?->format('d.m.Y H:i') }}</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="4" class="p-10 text-center text-neutral-500">Açık uyuşmazlık yok.</td></tr>
@@ -324,7 +324,7 @@ new class extends Component {
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50 text-sm font-bold">Karara bağlananlar</div>
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Dava</th>
@@ -338,10 +338,10 @@ new class extends Component {
                         @forelse($history as $dispute)
                             <tr>
                                 <td class="p-4 font-bold">#{{ $dispute->id }}</td>
-                                <td class="p-4">#{{ $dispute->load_id }} · {{ $dispute->cargoLoad?->pickup_location }} → {{ $dispute->cargoLoad?->delivery_location }}</td>
-                                <td class="p-4">{{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}<div class="text-[11px] text-neutral-400">{{ $dispute->resolved_at?->format('d.m.Y H:i') }}</div></td>
-                                <td class="p-4 text-neutral-500">{{ $dispute->resolver?->full_name ?? '—' }}</td>
-                                <td class="p-4 text-neutral-500 max-w-xs">{{ \Illuminate\Support\Str::limit((string) $dispute->arbitration_notes, 120) }}</td>
+                                <td class="p-4" data-label="İlan">#{{ $dispute->load_id }} · {{ $dispute->cargoLoad?->pickup_location }} → {{ $dispute->cargoLoad?->delivery_location }}</td>
+                                <td class="p-4" data-label="Karar">{{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}<div class="text-[11px] text-neutral-400">{{ $dispute->resolved_at?->format('d.m.Y H:i') }}</div></td>
+                                <td class="p-4 text-neutral-500" data-label="Hakem">{{ $dispute->resolver?->full_name ?? '—' }}</td>
+                                <td class="p-4 text-neutral-500 max-w-xs tc-block" data-label="Not"><x-clamp-text :text="(string) $dispute->arbitration_notes" lines="3" /></td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="p-10 text-center text-neutral-500">Henüz karara bağlanmış uyuşmazlık yok.</td></tr>
@@ -365,7 +365,7 @@ new class extends Component {
         <div class="grid grid-cols-1 {{ $ticket ? 'xl:grid-cols-2' : '' }} gap-6 items-start">
             <div class="apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Bilet</th>
@@ -378,9 +378,9 @@ new class extends Component {
                             @forelse($tickets as $row)
                                 <tr wire:click="selectTicket({{ $row->id }})" class="cursor-pointer hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 {{ $selectedTicketId === $row->id ? 'bg-brand-500/5' : '' }}">
                                     <td class="p-4"><span class="font-bold">#{{ $row->id }}</span> {{ \Illuminate\Support\Str::limit((string) $row->subject, 50) ?: '—' }}<div class="text-[11px] text-neutral-400">{{ $row->created_at?->format('d.m.Y H:i') }}</div></td>
-                                    <td class="p-4">{{ $row->name }}<div class="text-[11px] text-neutral-400">{{ $row->email }}{{ $row->user ? '' : ' · Üye değil' }}</div></td>
-                                    <td class="p-4 text-neutral-500">{{ \App\Models\SupportTicket::CATEGORIES[$row->category] ?? $row->category }}</td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $row->status === 'open' ? 'bg-amber-500/10 text-amber-600' : ($row->status === 'answered' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500') }}">{{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapalı'][$row->status] ?? $row->status }}</span></td>
+                                    <td class="p-4" data-label="Gönderen">{{ $row->name }}<div class="text-[11px] text-neutral-400">{{ $row->email }}{{ $row->user ? '' : ' · Üye değil' }}</div></td>
+                                    <td class="p-4 text-neutral-500" data-label="Kategori">{{ \App\Models\SupportTicket::CATEGORIES[$row->category] ?? $row->category }}</td>
+                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $row->status === 'open' ? 'bg-amber-500/10 text-amber-600' : ($row->status === 'answered' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500') }}">{{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapalı'][$row->status] ?? $row->status }}</span></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="4" class="p-10 text-center text-neutral-500">Bu durumda bilet yok.</td></tr>

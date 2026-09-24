@@ -248,7 +248,7 @@ new class extends Component {
     <div class="grid grid-cols-1 {{ $selected ? 'xl:grid-cols-2' : '' }} gap-6 items-start">
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Kullanıcı</th>
@@ -265,15 +265,15 @@ new class extends Component {
                                     <div class="font-bold text-neutral-900 dark:text-white">{{ $user->full_name }}</div>
                                     <div class="text-[11px] text-neutral-400">{{ $user->email }}</div>
                                 </td>
-                                <td class="p-4 text-neutral-500">
+                                <td class="p-4 text-neutral-500" data-label="{{ $role === 'driver' ? 'Aktif araç' : 'Tür' }}">
                                     @if($role === 'driver')
                                         {{ $p?->activeVehicle?->plate ?? 'Araç kaydı yok' }}
                                     @else
                                         {{ $p?->type === 'corporate' ? 'Kurumsal' : 'Bireysel' }}
                                     @endif
                                 </td>
-                                <td class="p-4 text-neutral-500 whitespace-nowrap">{{ $p?->kyc_submitted_at?->format('d.m.Y H:i') ?? '—' }}</td>
-                                <td class="p-4">
+                                <td class="p-4 text-neutral-500 whitespace-nowrap" data-label="Başvuru">{{ $p?->kyc_submitted_at?->format('d.m.Y H:i') ?? '—' }}</td>
+                                <td class="p-4" data-label="Durum">
                                     @php $st = $p?->kyc_status ?? 'unsubmitted'; @endphp
                                     <span class="px-2.5 py-1 rounded-full font-semibold text-[10px] {{ $badge[$st] ?? '' }}">{{ $kycLabels[$st] ?? $st }}</span>
                                 </td>

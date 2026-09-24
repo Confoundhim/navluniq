@@ -758,8 +758,8 @@ new class extends Component {
             <span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1 font-bold tabular-nums">{{ number_format($queue?->total() ?? 0, 0, ',', '.') }} ilan</span>
             <span class="text-neutral-500">{{ $filtered ? 'filtreye uyan' : $what }}{{ $period !== 'all' ? ' · son '.$period.' gün' : ' · tüm zamanlar' }}</span>
         </div>
-        <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
-            <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} md:col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
+        <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 lg:grid-cols-6 gap-2 text-xs">
+            <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
             <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
             <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
             <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
@@ -791,7 +791,7 @@ new class extends Component {
 
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-3 w-8"><input type="checkbox" wire:model.live="selectPage" class="rounded" title="Sayfadakilerin tümünü seç"></th>
@@ -807,14 +807,14 @@ new class extends Component {
                         @forelse($queue as $load)
                             @php $warnings = (array) $load->meta('warnings', []); $blocker = $blockers[$load->id] ?? null; $aiMeta = (array) $load->meta('ai', []); @endphp
                             <tr wire:key="load-{{ $load->id }}" class="align-top {{ in_array((string) $load->id, $selected, true) ? 'bg-brand-500/5' : ((int) $load->duplicate_count > 1 ? 'bg-amber-500/5' : '') }}">
-                                <td class="p-3"><input type="checkbox" wire:model.live="selected" value="{{ $load->id }}" class="rounded mt-1"></td>
+                                <td class="p-3 tc-check"><input type="checkbox" wire:model.live="selected" value="{{ $load->id }}" class="rounded mt-1"></td>
                                 <td class="p-3">
                                     <div class="font-bold">#{{ $load->id }}
                                         @if((int) $load->duplicate_count > 1)<span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold align-middle" title="{{ implode(', ', (array) $load->seen_sources) }}">{{ $load->duplicate_count }}</span>@endif
                                         @if($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
                                         @if((int) ($load->trips_count ?? 0) > 0)<span class="ml-1 badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 align-middle" title="Bu ilanı 'Bu işi aldım' diye işaretleyen şoför sayısı">{{ $load->trips_count }} şoför aldı</span>@endif
                                     </div>
-                                    <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<br>{{ $load->created_at?->format('d.m.Y H:i') }}<br>{{ $load->masked_phone }}@if(($extra = $load->extraPhones()) !== [])<br><span class="text-brand-500 font-semibold" title="{{ implode(', ', array_map(fn ($p) => \App\Support\Phone::format($p), $extra)) }}">+{{ count($extra) }} numara</span>@endif@if($load->meta('message_part'))<br><span title="Aynı mesajdan ayrılan ilanlardan biri">mesajın {{ (int) $load->meta('message_part')['index'] + 1 }}/{{ $load->meta('message_part')['count'] }}. ilanı</span>@endif</div>
+                                    <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<span class="lg:hidden"> · </span><br class="hidden lg:block">{{ $load->created_at?->format('d.m.Y H:i') }}<span class="lg:hidden"> · </span><br class="hidden lg:block">{{ $load->masked_phone }}@if(($extra = $load->extraPhones()) !== [])<span class="lg:hidden"> · </span><br class="hidden lg:block"><span class="text-brand-500 font-semibold" title="{{ implode(', ', array_map(fn ($p) => \App\Support\Phone::format($p), $extra)) }}">+{{ count($extra) }} numara</span>@endif@if($load->meta('message_part'))<span class="lg:hidden"> · </span><br class="hidden lg:block"><span title="Aynı mesajdan ayrılan ilanlardan biri">mesajın {{ (int) $load->meta('message_part')['index'] + 1 }}/{{ $load->meta('message_part')['count'] }}. ilanı</span>@endif</div>
                                 </td>
                                 <td class="p-3">
                                     <div class="font-bold text-neutral-900 dark:text-white text-sm">
@@ -847,9 +847,9 @@ new class extends Component {
                                         <div class="mt-1 text-[11px] text-red-600 font-semibold">İl çözülemedi; yayın öncesi düzenleyin ya da yapay zeka ile çözümleyin.</div>
                                     @endif
                                 </td>
-                                <td class="p-3 whitespace-nowrap font-semibold">{{ $load->priceLabel() ?? '—' }}</td>
-                                <td class="p-3 max-w-xs text-neutral-500"><span title="{{ $load->raw_message }}">{{ \Illuminate\Support\Str::limit($load->raw_message, 140) }}</span></td>
-                                <td class="p-3">
+                                <td class="p-3 whitespace-nowrap font-semibold" data-label="Fiyat">{{ $load->priceLabel() ?? '—' }}</td>
+                                <td class="p-3 max-w-xs text-neutral-500 tc-block" data-label="Ham mesaj"><x-clamp-text :text="$load->raw_message" lines="3" /></td>
+                                <td class="p-3" data-label="Durum">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
                                     @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
                                     @if($r = $load->meta('auto_rejected'))<div class="text-[11px] text-neutral-400 mt-1">Otomatik ret: {{ $r['reason'] ?? '' }}</div>@endif
@@ -860,7 +860,7 @@ new class extends Component {
                                         @endif
                                     @endif
                                 </td>
-                                <td class="p-3 whitespace-nowrap">
+                                <td class="p-3 whitespace-nowrap tc-actions">
                                     <div class="flex flex-col gap-1 items-start">
                                         @if($load->visibility !== 'public' && $load->status !== 'rejected')<button type="button" wire:click="approve({{ $load->id }})" class="text-emerald-600 font-semibold">Yayınla</button>@endif
                                         @if($load->status === 'rejected')<button type="button" wire:click="restore({{ $load->id }})" class="text-emerald-600 font-semibold">Kuyruğa geri al</button>@endif
@@ -872,7 +872,7 @@ new class extends Component {
                                 </td>
                             </tr>
                             @if($editingId === $load->id)
-                                <tr class="bg-neutral-50 dark:bg-neutral-900/60">
+                                <tr class="bg-neutral-50 dark:bg-neutral-900/60 tc-editor">
                                     <td colspan="7" class="p-4">
                                         <form wire:submit.prevent="saveEdit" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                                             <div>
@@ -931,17 +931,17 @@ new class extends Component {
         </div>
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-3">Zaman</th><th class="p-3">Kaynak</th><th class="p-3">Sonuç</th><th class="p-3">Mesaj</th><th class="p-3">Aday</th></tr></thead>
                     <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @forelse($events as $e)
                             @php $tone = ['created' => 'bg-emerald-500/10 text-emerald-600', 'duplicate' => 'bg-sky-500/10 text-sky-600', 'source_pending' => 'bg-amber-500/10 text-amber-600', 'unauthorized' => 'bg-red-500/10 text-red-600', 'failed' => 'bg-red-500/10 text-red-600'][$e->status] ?? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'; @endphp
                             <tr class="align-top">
-                                <td class="p-3 whitespace-nowrap text-neutral-500">{{ $e->created_at->format('d.m H:i:s') }}</td>
-                                <td class="p-3">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
-                                <td class="p-3"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'foreign_script' => 'yabancı alfabe (Rusça/Arapça)', 'not_load_pattern' => 'ilan değil: boş araç / şoför ilanı / reklam / satılık', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
-                                <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300"><span title="{{ $e->excerpt }}">{{ \Illuminate\Support\Str::limit($e->excerpt, 160) }}</span></td>
-                                <td class="p-3 whitespace-nowrap">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
+                                <td class="p-3 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $e->created_at->format('d.m H:i:s') }}</td>
+                                <td class="p-3" data-label="Kaynak">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
+                                <td class="p-3" data-label="Sonuç"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'foreign_script' => 'yabancı alfabe (Rusça/Arapça)', 'not_load_pattern' => 'ilan değil: boş araç / şoför ilanı / reklam / satılık', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
+                                <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300 tc-block" data-label="Mesaj"><x-clamp-text :text="$e->excerpt" lines="3" /></td>
+                                <td class="p-3 whitespace-nowrap" data-label="Aday">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
                             </tr>
                         @empty
                             <tr><td colspan="5" class="p-10 text-center text-neutral-500">Henüz istek gelmedi. Telefondaki makro çalışınca her deneme burada görünür.</td></tr>
@@ -968,9 +968,9 @@ new class extends Component {
             <details class="text-xs" open>
                 <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Kurulum için adres ve alanlar</summary>
                 <p class="text-[11px] text-neutral-500 mt-2">Önerilen: içerik türü <strong>application/x-www-form-urlencoded</strong>, "Parametreler" bölümüne şu alanlar (mesajdaki tırnak/satır sonu JSON'u bozabilir, form alanlarını bozamaz):</p>
-                <table class="text-[11px] font-mono mt-1">
-                    @foreach($phoneParams as $k => $v)<tr><td class="pr-3 font-bold">{{ $k }}</td><td class="break-all">{{ $v }}</td></tr>@endforeach
-                </table>
+                <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[11px] font-mono mt-1">
+                    @foreach($phoneParams as $k => $v)<dt class="font-bold">{{ $k }}</dt><dd class="break-all min-w-0">{{ $v }}</dd>@endforeach
+                </dl>
                 <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 items-center mt-3">
                     <span class="text-neutral-400">Adres (POST)</span>
                     <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $webhookUrl }}</code>
@@ -980,7 +980,7 @@ new class extends Component {
                     <button type="button" @click="copy(@js($tokenBody), 'body')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'body' ? 'Kopyalandı' : 'Kopyala'"></button>
                 </div>
                 <div class="flex items-center gap-3 pt-2">
-                    <button type="button" wire:click="regenerateToken" wire:confirm="Anahtar yenilenince telefonlardaki eski alanlar çalışmaz; yeni anahtarı telefonlara yeniden girmeniz gerekir. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline">Anahtarı yenile</button>
+                    <button type="button" wire:click="regenerateToken" wire:confirm="Anahtar yenilenince telefonlardaki eski alanlar çalışmaz; yeni anahtarı telefonlara yeniden girmeniz gerekir. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline whitespace-nowrap">Anahtarı yenile</button>
                     <span class="text-[11px] text-neutral-400">İçerik türü: application/json · Zaman aşımı: 20 sn · "Yanıtı değişkene kaydet" gerekmez.</span>
                 </div>
             </details>
@@ -1023,15 +1023,15 @@ new class extends Component {
                         <p class="text-[11px] text-neutral-400">Bu gruplardan gelen mesajlar yok sayılır ama sayılır. Mesaj atmaya devam eden grubu <strong>Geri al</strong> ile onaya alabilir; <strong>Kalıcı sil</strong> ile grubu ve ondan gelen tüm adayları hiç okunmamış gibi silebilirsiniz.</p>
                     </div>
                     <div class="responsive-scroll">
-                        <table class="w-full text-left text-xs">
+                        <table class="table-cards w-full text-left text-xs">
                             <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4 w-8"><input type="checkbox" wire:model.live="selectSourcePage" class="rounded" title="Sayfadakilerin tümünü seç"></th><th class="p-4">Kaynak</th><th class="p-4">Silinme</th><th class="p-4">Silindikten sonra gelen</th><th class="p-4">Aday</th><th class="p-4"></th></tr></thead>
                             <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                                 @forelse($sources as $source)
                                     <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : '' }}">
-                                        <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
+                                        <td class="p-4 tc-check"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400 font-mono">{{ $source->source_identifier }}</div></td>
-                                        <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$source->deleted_at" /></td>
-                                        <td class="p-4">
+                                        <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Silinme"><x-time-ago :at="$source->deleted_at" /></td>
+                                        <td class="p-4" data-label="Silindikten sonra gelen">
                                             @if($source->messages_since_deleted > 0)
                                                 <span class="badge bg-amber-500/10 text-amber-600">{{ $source->messages_since_deleted }} mesaj</span>
                                                 <span class="text-[11px] text-neutral-400">son: <x-time-ago :at="$source->last_message_at" /></span>
@@ -1039,8 +1039,8 @@ new class extends Component {
                                                 <span class="text-neutral-400">yok</span>
                                             @endif
                                         </td>
-                                        <td class="p-4">{{ $source->scraped_loads_count }}</td>
-                                        <td class="p-4 whitespace-nowrap space-x-2">
+                                        <td class="p-4" data-label="Aday">{{ $source->scraped_loads_count }}</td>
+                                        <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                             <button type="button" wire:click="restoreSource({{ $source->id }})" class="text-emerald-600 font-semibold">Geri al</button>
                                             <button type="button" wire:click="purgeSource({{ $source->id }})" wire:confirm="Kaynak ve ondan gelen {{ $source->scraped_loads_count }} aday kalıcı silinecek; geri alınamaz. Devam edilsin mi?" class="text-red-600 font-semibold">Kalıcı sil</button>
                                         </td>
@@ -1053,17 +1053,17 @@ new class extends Component {
                     </div>
                 @else
                     <div class="responsive-scroll">
-                        <table class="w-full text-left text-xs">
+                        <table class="table-cards w-full text-left text-xs">
                             <thead><tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400"><th class="p-4 w-8"><input type="checkbox" wire:model.live="selectSourcePage" class="rounded" title="Sayfadakilerin tümünü seç"></th><th class="p-4">Kaynak</th><th class="p-4">Aday</th><th class="p-4">Son mesaj</th><th class="p-4">Durum</th><th class="p-4"></th></tr></thead>
                             <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                                 @forelse($sources as $source)
                                     <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : (! $source->is_active ? 'bg-amber-500/5' : '') }}">
-                                        <td class="p-4"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
+                                        <td class="p-4 tc-check"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
                                         <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
-                                        <td class="p-4">{{ $source->scraped_loads_count }}</td>
-                                        <td class="p-4 whitespace-nowrap text-neutral-500"><x-time-ago :at="$source->last_message_at ?? $source->last_success_at" empty="Henüz yok" /></td>
-                                        <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>
-                                        <td class="p-4 whitespace-nowrap space-x-2">
+                                        <td class="p-4" data-label="Aday">{{ $source->scraped_loads_count }}</td>
+                                        <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Son mesaj"><x-time-ago :at="$source->last_message_at ?? $source->last_success_at" empty="Henüz yok" /></td>
+                                        <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>
+                                        <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                             <button type="button" wire:click="toggleSource({{ $source->id }})" class="{{ $source->is_active ? 'text-neutral-500' : 'text-emerald-600' }} font-semibold">{{ $source->is_active ? 'Pasife al' : 'Aktif et' }}</button>
                                             <button type="button" wire:click="deleteSource({{ $source->id }})" wire:confirm="Kaynak silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
                                         </td>
@@ -1172,17 +1172,17 @@ new class extends Component {
                 @if($lexicon->isEmpty())
                     <p class="text-[11px] text-neutral-400">Henüz girdi yok. Kuyrukta bir adayın ilini düzelttiğinizde konum kısaltmaları kendiliğinden buraya düşer.</p>
                 @else
-                    <div class="responsive-scroll"><table class="w-full text-left text-xs">
+                    <div class="responsive-scroll"><table class="table-cards w-full text-left text-xs">
                         <thead><tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/50"><th class="p-2">Tür</th><th class="p-2">Sözcük</th><th class="p-2">Karşılığı</th><th class="p-2">Kaynak</th><th class="p-2">Kullanım</th><th class="p-2"></th></tr></thead>
                         <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @foreach($lexicon as $row)
                             <tr wire:key="lex-{{ $row->id }}">
-                                <td class="p-2 text-neutral-500">{{ $kinds[$row->kind] ?? $row->kind }}</td>
-                                <td class="p-2 font-semibold text-neutral-900 dark:text-white">{{ $row->term }}</td>
-                                <td class="p-2">{{ $row->kind === 'vehicle' ? \App\Support\VehicleTypes::label($row->canonical) : ($row->kind === 'goods' ? (\App\Support\GoodsCatalog::label($row->canonical) ?? $row->canonical) : ($row->canonical ?: '—')) }}</td>
-                                <td class="p-2 text-neutral-500">{{ $row->source === 'learned' ? 'öğrenildi' : 'yönetici' }}</td>
-                                <td class="p-2 text-neutral-500">{{ $row->hits }}</td>
-                                <td class="p-2 text-right"><button type="button" wire:click="deleteLexicon({{ $row->id }})" wire:confirm="Sözlükten silinsin mi?" class="text-red-600 text-[11px] font-semibold hover:underline">Sil</button></td>
+                                <td class="p-2 text-neutral-500" data-label="Tür">{{ $kinds[$row->kind] ?? $row->kind }}</td>
+                                <td class="p-2 font-semibold text-neutral-900 dark:text-white" data-label="Sözcük">{{ $row->term }}</td>
+                                <td class="p-2" data-label="Karşılığı">{{ $row->kind === 'vehicle' ? \App\Support\VehicleTypes::label($row->canonical) : ($row->kind === 'goods' ? (\App\Support\GoodsCatalog::label($row->canonical) ?? $row->canonical) : ($row->canonical ?: '—')) }}</td>
+                                <td class="p-2 text-neutral-500" data-label="Kaynak">{{ $row->source === 'learned' ? 'öğrenildi' : 'yönetici' }}</td>
+                                <td class="p-2 text-neutral-500" data-label="Kullanım">{{ $row->hits }}</td>
+                                <td class="p-2 text-right tc-actions"><button type="button" wire:click="deleteLexicon({{ $row->id }})" wire:confirm="Sözlükten silinsin mi?" class="text-red-600 text-[11px] font-semibold hover:underline">Sil</button></td>
                             </tr>
                         @endforeach
                         </tbody></table></div>

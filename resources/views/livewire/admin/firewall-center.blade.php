@@ -176,7 +176,7 @@ new class extends Component {
             <div class="apple-glass rounded-3xl overflow-hidden">
                 <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50 text-sm font-bold">Aktif yasaklar</div>
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">IP</th>
@@ -190,10 +190,10 @@ new class extends Component {
                             @forelse($active as $ban)
                                 <tr>
                                     <td class="p-4 font-mono font-bold">{{ $ban->ip_address }}</td>
-                                    <td class="p-4">{{ $ban->reason }}</td>
-                                    <td class="p-4 whitespace-nowrap">{{ $ban->banned_until?->format('d.m.Y H:i') ?? 'Kalıcı' }}</td>
-                                    <td class="p-4 text-neutral-500">{{ $staff[$ban->banned_by]?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $ban->created_at?->format('d.m.Y H:i') }}</div></td>
-                                    <td class="p-4"><button type="button" wire:click="unban({{ $ban->id }})" wire:confirm="Yasak kaldırılacak. Devam edilsin mi?" class="text-brand-500 font-semibold">Kaldır</button></td>
+                                    <td class="p-4" data-label="Gerekçe">{{ $ban->reason }}</td>
+                                    <td class="p-4 whitespace-nowrap" data-label="Bitiş">{{ $ban->banned_until?->format('d.m.Y H:i') ?? 'Kalıcı' }}</td>
+                                    <td class="p-4 text-neutral-500" data-label="Ekleyen">{{ $staff[$ban->banned_by]?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $ban->created_at?->format('d.m.Y H:i') }}</div></td>
+                                    <td class="p-4 tc-actions"><button type="button" wire:click="unban({{ $ban->id }})" wire:confirm="Yasak kaldırılacak. Devam edilsin mi?" class="text-brand-500 font-semibold">Kaldır</button></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="5" class="p-10 text-center text-neutral-500">Aktif yasak yok.</td></tr>
@@ -207,7 +207,7 @@ new class extends Component {
             <div class="apple-glass rounded-3xl overflow-hidden">
                 <div class="p-4 border-b border-neutral-100 dark:border-neutral-800/50 text-sm font-bold">Süresi dolmuş yasaklar</div>
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">IP</th>
@@ -220,9 +220,9 @@ new class extends Component {
                             @forelse($expired as $ban)
                                 <tr>
                                     <td class="p-4 font-mono">{{ $ban->ip_address }}</td>
-                                    <td class="p-4">{{ $ban->reason }}</td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $ban->banned_until?->format('d.m.Y H:i') }}</td>
-                                    <td class="p-4"><button type="button" wire:click="unban({{ $ban->id }})" class="text-neutral-500 font-semibold">Kaydı sil</button></td>
+                                    <td class="p-4" data-label="Gerekçe">{{ $ban->reason }}</td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Bitti">{{ $ban->banned_until?->format('d.m.Y H:i') }}</td>
+                                    <td class="p-4 tc-actions"><button type="button" wire:click="unban({{ $ban->id }})" class="text-neutral-500 font-semibold">Kaydı sil</button></td>
                                 </tr>
                             @empty
                                 <tr><td colspan="4" class="p-10 text-center text-neutral-500">Süresi dolmuş yasak yok.</td></tr>

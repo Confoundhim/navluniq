@@ -72,6 +72,10 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (sefer, dönüş yükü
   taraması 10 dk'da bir), `App\Livewire\Concerns\HandlesExternalLoadActions` (yıldız, "Bu işi aldım"),
   ortak kart bileşenleri `components/external-load-card`, `components/take-trip-modal`, `components/time-ago`.
+- Tablolar: her veri tablosu `table-cards` sınıfı taşır (`resources/css/app.css`): 1024 px altında (telefon dikey/yatay,
+  kenar çubuklu orta ekran) her satır kart olur, hücre başına `data-label` sütun adı yazar; `tc-check` seçim kutusu,
+  `tc-actions` düğme satırı, `tc-block` uzun içerik. Uzun serbest metin `<x-clamp-text :text lines="3" />` ile kısaltılır,
+  "Devamı" ile yerinde açılır (pencere açılmaz). Yeni tablo eklerken aynı kalıp kullanılır.
 - Listeler: sayfada 50 kayıt; sayfa numaraları tek görünümde `resources/views/vendor/livewire/tailwind.blade.php`
   ("‹ Önceki 1 … 5 … 12 Sonraki ›", "Toplam N kayıt"). İlan havuzu listeye sabitlenir; yeni ilan gelince
   "N yeni ilan · Göster" düğmesi çıkar, liste yerinden oynamaz.
