@@ -7,6 +7,7 @@ use App\Support\Phone;
 use App\Support\Settings;
 use App\Support\TurkishText;
 use App\Support\VehicleTypes;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -51,6 +52,8 @@ class ScrapedLoad extends Model
         'load_kind',
         'vehicle_count',
         'vehicle_any',
+        'is_incomplete',
+        'completed_by',
         'delivery_stops',
         'weight',
         'price',
@@ -69,6 +72,7 @@ class ScrapedLoad extends Model
 
     protected $casts = [
         'vehicle_any' => 'boolean',
+        'is_incomplete' => 'boolean',
         'price' => 'decimal:2',
         'seen_sources' => 'array',
         'parse_metadata' => 'array',
@@ -224,7 +228,7 @@ class ScrapedLoad extends Model
         if (! VehicleTypes::isValid($this->vehicle_type)) {
             return $this->vehicle_any ? 'Araç fark etmez' : null;
         }
-        $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template'], true) || $this->vehicle_type === 'tir';
+        $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template', 'driver'], true) || $this->vehicle_type === 'tir';
 
         return $exact ? VehicleTypes::label($this->vehicle_type) : VehicleTypes::label($this->vehicle_type).' ve üzeri';
     }
@@ -265,6 +269,12 @@ class ScrapedLoad extends Model
         ]));
 
         return implode(' · ', $parts);
+    }
+
+    /** Bilgisi tam (eksik bilgili olarak yayınlanmamış) ilanlar: şoför listesi, genel bakış ve dönüş yükü taraması bunları kullanır. */
+    public function scopeComplete(Builder $q): Builder
+    {
+        return $q->where('is_incomplete', false);
     }
 
     public function meta(string $key, mixed $default = null): mixed

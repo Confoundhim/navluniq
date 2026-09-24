@@ -10,9 +10,21 @@
         <div class="load-card-badges">
             @if($variant === 'return')<span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span>@endif
             <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
+            @if($item->is_incomplete)<span class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">Bilgi eksik · arayıp sorun</span>@elseif($item->completed_by === 'driver')<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Şoför doğruladı</span>@endif
             @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
             @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
         </div>
+        @if($item->is_incomplete)
+            {{-- Aradı, öğrendi: tek seçimle ilan tamamlanır; pencere yok, kaydet düğmesi yok --}}
+            <label class="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                <span class="font-semibold">Aradım, araç:</span>
+                <select wire:change="completeExternal({{ $item->id }}, $event.target.value)" class="form-input !w-auto !py-1.5 !text-xs">
+                    <option value="">Seçin</option>
+                    <option value="any">Fark etmez</option>
+                    @foreach(\App\Support\VehicleTypes::labels() as $vk => $vl)<option value="{{ $vk }}">{{ $vl }}</option>@endforeach
+                </select>
+            </label>
+        @endif
     </div>
     <div class="load-card-side">
         @if($item->priceLabel())

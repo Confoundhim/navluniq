@@ -65,7 +65,7 @@ class extends Component {
                 ->take(8)->get();
             if ($profile->isPremium()) {
                 $externalLoads = ScrapedLoad::query()
-                    ->where('status', 'parsed_success')->where('visibility', 'public')
+                    ->where('status', 'parsed_success')->where('visibility', 'public')->complete()
                     ->tap(fn ($q) => $filterSvc->applyToScraped($q, $filters, $profile))
                     ->take(8)->get();
             }
