@@ -847,7 +847,7 @@ new class extends Component {
                                         <div class="mt-1 text-[11px] text-red-600 font-semibold">İl çözülemedi; yayın öncesi düzenleyin ya da yapay zeka ile çözümleyin.</div>
                                     @endif
                                 </td>
-                                <td class="p-3 whitespace-nowrap font-semibold" data-label="Fiyat">{{ $load->priceLabel() ?? '—' }}</td>
+                                <td class="p-3 whitespace-nowrap" data-label="Fiyat">@if($load->priceLabel())<span class="font-semibold">{{ $load->priceLabel() }}</span>@else<span class="text-neutral-400">belirtilmemiş</span>@endif</td>
                                 <td class="p-3 max-w-xs text-neutral-500 tc-block" data-label="Ham mesaj"><x-clamp-text :text="$load->raw_message" lines="3" /></td>
                                 <td class="p-3" data-label="Durum">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>

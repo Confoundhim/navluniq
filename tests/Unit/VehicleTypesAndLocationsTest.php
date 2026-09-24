@@ -37,6 +37,8 @@ class VehicleTypesAndLocationsTest extends TestCase
         $this->assertSame(['İstanbul', 'Arnavutköy'], [TurkishLocations::resolve('Hadımköy')['province'], TurkishLocations::resolve('Hadımköy')['district']]);
         $this->assertSame('Reyhanlı', TurkishLocations::resolve('Cilvegözü')['district']);
         $this->assertSame('Kahramanmaraş', TurkishLocations::resolve('K.Maraş')['province']);
+        $this->assertSame('Ayvacık', TurkishLocations::resolve('Çanakkale Ayvacık')['district']); // veri dosyasında "Ayvacik" yazılıydı
+        $this->assertNotContains('Ayvacik', TurkishLocations::districtsOf(17));
         $this->assertNull(TurkishLocations::resolve('Bilinmeyen Yer'));
 
         $this->assertSame(81, count(TurkishLocations::provinces()));
