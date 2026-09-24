@@ -298,6 +298,38 @@ class TripsAndSavedLoadsTest extends TestCase
         Volt::test('driver.jobs.index')->call('setTab', 'past')->assertSee('Tamamlandı');
     }
 
+    public function test_incomplete_loads_have_their_own_section_and_a_driver_can_complete_them(): void
+    {
+        $driver = $this->driver();
+        $inc = $this->scraped(['is_incomplete' => true, 'vehicle_type' => null, 'vehicle_type_source' => null, 'pickup_location' => 'Konya Karatay', 'pickup_province_code' => 42]); // il seçici her il adını basar; ilçeli ad ayırt eder
+        $this->scraped();
+        $this->actingAs($driver);
+
+        // Normal listede görünmez; kendi bölümünde görünür, araç filtresi orada uygulanmaz
+        Volt::test('driver.loads.index')->call('setTab', 'external')->assertSee('Ankara Kazan')->assertDontSee('Konya Karatay')->assertSee('Eksik bilgili ilanlar')
+            ->call('setIncomplete', true)->assertSee('Konya Karatay')->assertDontSee('Ankara Kazan')->assertSee('Bilgi eksik')->assertSee('Aradım, araç:')
+            ->call('completeExternal', $inc->id, 'tir')->assertSee('ilan tamamlandı');
+        $inc->refresh();
+        $this->assertSame([false, 'tir', 'driver', 'driver'], [$inc->is_incomplete, $inc->vehicle_type, $inc->vehicle_type_source, $inc->completed_by]);
+        Volt::test('driver.loads.index')->call('setTab', 'external')->assertSee('Konya Karatay')->assertSee('Şoför doğruladı');
+
+        // Genel bakış ve dönüş yükü taraması eksik bilgili ilanı göstermez; tamamlanınca gösterir
+        $inc2 = $this->scraped(['is_incomplete' => true, 'pickup_location' => 'İzmir Menemen', 'pickup_province_code' => 35, 'delivery_location' => 'Bursa', 'delivery_province_code' => 16]);
+        $trip = app(DriverTripService::class)->takeExternal($driver->driverProfile, $this->scraped(), now(), now()->addDay());
+        Volt::test('driver.dashboard')->assertDontSee('İzmir Menemen');
+        $this->assertCount(0, app(DriverTripService::class)->returnLoadsFor($trip)['external']);
+        $inc2->update(['is_incomplete' => false]);
+        Volt::test('driver.dashboard')->assertSee('İzmir Menemen');
+        $this->assertCount(1, app(DriverTripService::class)->returnLoadsFor($trip->fresh())['external']);
+
+        // Premium olmayan şoför tamamlayamaz
+        $inc3 = $this->scraped(['is_incomplete' => true]);
+        $free = $this->driver(premium: false);
+        $this->actingAs($free);
+        Volt::test('driver.loads.index')->call('completeExternal', $inc3->id, 'tir');
+        $this->assertTrue($inc3->fresh()->is_incomplete);
+    }
+
     public function test_old_addresses_redirect_to_jobs(): void
     {
         $driver = $this->driver();

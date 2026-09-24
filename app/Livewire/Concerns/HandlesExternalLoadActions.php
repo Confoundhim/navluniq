@@ -7,6 +7,7 @@ use App\Models\DriverSavedLoad;
 use App\Models\Load;
 use App\Models\ScrapedLoad;
 use App\Services\DriverTripService;
+use App\Services\ScrapedLoadService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Locked;
@@ -57,6 +58,24 @@ trait HandlesExternalLoadActions
         if ($exists) {
             DriverSavedLoad::create(['driver_profile_id' => $profile->id, $column => $id]);
         }
+    }
+
+    /** Eksik bilgili ilan: şoför arayıp öğrendiği araç tipini girer, ilan tamamlanır ve normal listeye geçer. */
+    public function completeExternal(int $scrapedId, string $vehicleType): void
+    {
+        $profile = $this->actionProfile();
+        $load = ScrapedLoad::query()->whereKey($scrapedId)->where('visibility', 'public')->where('is_incomplete', true)->first();
+        if (! $profile?->isPremium() || ! $profile->isKycApproved() || ! $load || $vehicleType === '') {
+            return;
+        }
+        try {
+            app(ScrapedLoadService::class)->completeByDriver($load, $profile, $vehicleType);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+        session()->flash('success_message', 'Teşekkürler, ilan tamamlandı; artık herkese normal listede görünür.');
     }
 
     public function openTake(int $scrapedId): void

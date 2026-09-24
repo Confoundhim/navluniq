@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\DriverProfile;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
+use App\Support\VehicleTypes;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
@@ -205,7 +207,7 @@ class ScrapedLoadService
         return true;
     }
 
-    public function approve(ScrapedLoad $load, ?int $userId = null, bool $auto = false): void
+    public function approve(ScrapedLoad $load, ?int $userId = null, bool $auto = false, bool $incomplete = false): void
     {
         if ($load->visibility === 'public') {
             throw new RuntimeException('İlan adayı zaten yayında.');
@@ -234,6 +236,8 @@ class ScrapedLoadService
         $load->update([
             'status' => 'parsed_success',
             'visibility' => 'public',
+            'is_incomplete' => $incomplete,
+            'completed_by' => $incomplete ? null : ($load->is_incomplete ? ($userId ? 'admin' : $load->completed_by) : $load->completed_by),
             'available_to_free_at' => null, // dış kaynak ilanları yalnız premium üyelere görünür; herkese açılmaz
             'auto_approved_at' => $auto ? now() : null,
             'published_at' => $load->published_at ?? now(),
@@ -244,8 +248,8 @@ class ScrapedLoadService
         app(LoadStatsService::class)->forget();
 
         ActivityLog::record(
-            $auto ? 'scraped_load.auto_approved' : 'scraped_load.approved',
-            ($auto ? 'Dış kaynak ilanı otomatik yayınlandı' : 'Dış kaynak ilanı yayınlandı')." #{$load->id}",
+            $auto ? ($incomplete ? 'scraped_load.auto_published_incomplete' : 'scraped_load.auto_approved') : 'scraped_load.approved',
+            ($auto ? ($incomplete ? 'Dış kaynak ilanı eksik bilgili olarak yayınlandı' : 'Dış kaynak ilanı otomatik yayınlandı') : 'Dış kaynak ilanı yayınlandı')." #{$load->id}",
             $userId,
             $load
         );
@@ -374,6 +378,51 @@ class ScrapedLoadService
      *
      * @return array{score: float, rule: float, ai: ?float, local: ?float, wait: bool, basis: string}
      */
+    /**
+     * Eksik bilgili yayın: kalkış-varış ili ve telefon belli, kural/yapay zeka çelişmiyor, yapay zeka beklenmiyor;
+     * karar puanı otomatik ret sınırının üstünde ve "eksik bilgili" üst sınırının altında. Araç, kasa, yük, tonaj,
+     * fiyat eksik olabilir; şoför arayıp sorar. Üst sınırın üstündekiler kuyrukta kalır (sistemi eğitir).
+     */
+    public function incompleteEligible(ScrapedLoad $load, ?string $blocker = null): bool
+    {
+        if (! Settings::bool('scraper_incomplete_publish')) {
+            return false;
+        }
+        $blocker ??= $this->autoApprovalBlocker($load);
+        if ($blocker === null) {
+            return false; // normal otomatik yayın
+        }
+        $soft = in_array($blocker, ['araç tipi yok', 'fiyat yok', 'tonaj yok'], true) || str_starts_with($blocker, 'karar puanı %');
+        if (! $soft) {
+            return false; // durum, kaynak, rota, il, telefon, çelişki, bekleme: bunlar eksik bilgiyle kapatılamaz
+        }
+        $d = $this->decision($load);
+
+        return ! $d['wait']
+            && $d['score'] > self::pct('scraper_auto_reject_max_score')
+            && $d['score'] <= self::pct('scraper_incomplete_max_score')
+            && $d['score'] < self::pct('scraper_auto_approve_min_confidence');
+    }
+
+    /** Şoför ilan sahibini arayıp öğrendi: araç tipi (ya da "fark etmez") girilince ilan tamamlanır. */
+    public function completeByDriver(ScrapedLoad $load, DriverProfile $driver, string $vehicleType): void
+    {
+        if (! $load->is_incomplete || $load->visibility !== 'public') {
+            throw new RuntimeException('Bu ilan tamamlanmayı beklemiyor.');
+        }
+        if ($vehicleType !== 'any' && ! VehicleTypes::isValid($vehicleType)) {
+            throw new RuntimeException('Geçersiz araç tipi.');
+        }
+        $load->update([
+            'vehicle_type' => $vehicleType === 'any' ? null : $vehicleType,
+            'vehicle_any' => $vehicleType === 'any',
+            'vehicle_type_source' => 'driver',
+            'is_incomplete' => false,
+            'completed_by' => 'driver',
+        ]);
+        ActivityLog::record('scraped_load.completed_by_driver', "Dış kaynak ilanı #{$load->id} şoför tarafından tamamlandı (araç: {$vehicleType})", $driver->user_id, $load);
+    }
+
     public function decision(ScrapedLoad $load): array
     {
         $intl = (array) $load->meta('international', []);
@@ -484,6 +533,17 @@ class ScrapedLoadService
                         return false;
                     }
                     $blocker = $this->autoApprovalBlocker($load);
+                    if ($blocker !== null && $this->incompleteEligible($load, $blocker)) {
+                        // Rotası ve telefonu belli, puanı ret ile onay arasında: kuyrukta bekletmeden eksik bilgili yayın
+                        try {
+                            $this->approve($load, null, true, incomplete: true);
+                            $approved++;
+                        } catch (\Throwable $e) {
+                            Log::warning('Eksik bilgili yayın başarısız.', ['scraped_load_id' => $load->id, 'error' => $e->getMessage()]);
+                        }
+
+                        continue;
+                    }
                     if ($blocker !== null) {
                         if (str_starts_with($blocker, 'karar puanı çok düşük')) {
                             $this->autoReject($load, $blocker);

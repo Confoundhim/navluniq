@@ -135,6 +135,7 @@ new class extends Component {
             'conflict' => $q->whereNotNull('parse_metadata->ai_conflict'),
             'urgent' => $q->where('parse_metadata->urgent', true),
             'duplicates' => $q->where('duplicate_count', '>', 1),
+            'incomplete' => $q->where('is_incomplete', true),
             'auto_ok', 'auto_blocked' => $q->whereIn('id', $this->autoApprovalIds($this->flag === 'auto_ok')),
             default => null,
         };
@@ -429,6 +430,8 @@ new class extends Component {
             'vehicle_type' => ! in_array($this->edit['vehicle_type'], ['', 'any'], true) ? $this->edit['vehicle_type'] : null,
             'vehicle_type_source' => $this->edit['vehicle_type'] !== '' ? 'admin' : null,
             'vehicle_any' => $this->edit['vehicle_type'] === 'any',
+            'is_incomplete' => $load->is_incomplete && $this->edit['vehicle_type'] === '',
+            'completed_by' => $load->is_incomplete && $this->edit['vehicle_type'] !== '' ? 'admin' : $load->completed_by,
             'body_types' => ($bodies = BodyTypes::clean($this->edit['body_types'] ?? [])) !== [] ? $bodies : null,
             'body_type_source' => $bodies !== [] ? 'admin' : null,
             'load_kind' => ($this->edit['load_kind'] ?? '') !== '' ? $this->edit['load_kind'] : null,
@@ -660,7 +663,7 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
-            'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [],
+            'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
             'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
@@ -695,6 +698,7 @@ new class extends Component {
                 foreach ($data['queue'] as $load) {
                     $data['blockers'][$load->id] = $service->autoApprovalBlocker($load);
                     $data['decisions'][$load->id] = $service->decision($load);
+                    $data['incompleteEligible'][$load->id] = $data['blockers'][$load->id] !== null && $service->incompleteEligible($load, $data['blockers'][$load->id]);
                 }
             }
         }
@@ -763,7 +767,7 @@ new class extends Component {
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
             <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
             <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option><option value="any">Araç fark etmez</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
-            <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
+            <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="incomplete">Eksik bilgili yayın</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
             <div class="flex gap-2">
                 <select wire:model.live="period" class="{{ $input }}"><option value="1">Bugün</option><option value="7">7 gün</option><option value="30">30 gün</option><option value="all">Tümü</option></select>
                 <select wire:model.live="sort" class="{{ $input }}"><option value="newest">Yeni</option><option value="oldest">Eski</option><option value="price_desc">Fiyat</option><option value="weight_desc">Tonaj</option></select>
@@ -812,7 +816,8 @@ new class extends Component {
                                 <td class="p-3">
                                     <div class="font-bold">#{{ $load->id }}
                                         @if((int) $load->duplicate_count > 1)<span class="ml-1 inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold align-middle" title="{{ implode(', ', (array) $load->seen_sources) }}">{{ $load->duplicate_count }}</span>@endif
-                                        @if($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
+                                        @if($load->is_incomplete)<span class="ml-1 badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 align-middle" title="Puanı ret ile onay arasında; rotası ve telefonu belli. Şoför arayıp araç tipini girince tamamlanır.">Eksik bilgili</span>@elseif($load->auto_approved_at)<span class="ml-1 badge bg-sky-500/10 text-sky-600 align-middle">Otomatik</span>@endif
+                                    @if($load->completed_by === 'driver')<span class="ml-1 badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 align-middle">Şoför tamamladı</span>@endif
                                         @if((int) ($load->trips_count ?? 0) > 0)<span class="ml-1 badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 align-middle" title="Bu ilanı 'Bu işi aldım' diye işaretleyen şoför sayısı">{{ $load->trips_count }} şoför aldı</span>@endif
                                     </div>
                                     <div class="text-[11px] text-neutral-400">{{ $load->scraper?->name ?? 'Kaynak silinmiş' }}<span class="lg:hidden"> · </span><br class="hidden lg:block">{{ $load->created_at?->format('d.m.Y H:i') }}<span class="lg:hidden"> · </span><br class="hidden lg:block">{{ $load->masked_phone }}@if(($extra = $load->extraPhones()) !== [])<span class="lg:hidden"> · </span><br class="hidden lg:block"><span class="text-brand-500 font-semibold" title="{{ implode(', ', array_map(fn ($p) => \App\Support\Phone::format($p), $extra)) }}">+{{ count($extra) }} numara</span>@endif@if($load->meta('message_part'))<span class="lg:hidden"> · </span><br class="hidden lg:block"><span title="Aynı mesajdan ayrılan ilanlardan biri">mesajın {{ (int) $load->meta('message_part')['index'] + 1 }}/{{ $load->meta('message_part')['count'] }}. ilanı</span>@endif</div>
@@ -857,7 +862,11 @@ new class extends Component {
                                     @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
                                     @if($r = $load->meta('auto_rejected'))<div class="text-[11px] text-neutral-400 mt-1">Otomatik ret: {{ $r['reason'] ?? '' }}</div>@endif
                                     @if($activeTab === 'queue')
-                                        <div class="text-[11px] mt-1 {{ $blocker ? 'text-amber-600' : 'text-emerald-600' }}">{{ $autoApprove ? 'Otomatik onay: ' : 'Otomatik onay kapalı · ' }}{{ $blocker ? ($blockerLabels[$blocker] ?? $blocker) : 'uygun' }}</div>
+                                        @if($blocker && ($incompleteEligible[$load->id] ?? false))
+                                            <div class="text-[11px] mt-1 text-sky-600">{{ $autoApprove ? 'Eksik bilgili yayına gidecek' : 'Otomatik onay kapalı · eksik bilgili yayına uygun' }} · {{ $blockerLabels[$blocker] ?? $blocker }}</div>
+                                        @else
+                                            <div class="text-[11px] mt-1 {{ $blocker ? 'text-amber-600' : 'text-emerald-600' }}">{{ $autoApprove ? 'Otomatik onay: ' : 'Otomatik onay kapalı · ' }}{{ $blocker ? ($blockerLabels[$blocker] ?? $blocker) : 'uygun' }}</div>
+                                        @endif
                                         @if($d = $decisions[$load->id] ?? null)
                                             <div class="text-[11px] text-neutral-400" title="{{ $d['basis'] }}">Karar puanı %{{ (int) round($d['score'] * 100) }} · kural %{{ (int) round($d['rule'] * 100) }}@if($d['ai'] !== null) · yapay zeka %{{ (int) round($d['ai'] * 100) }}@endif @if($d['local'] !== null) · yerel %{{ (int) round($d['local'] * 100) }}@endif</div>
                                         @endif

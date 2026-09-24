@@ -243,6 +243,51 @@ class LocalLearningTest extends TestCase
         rmdir($dir);
     }
 
+    public function test_mid_score_candidates_publish_as_incomplete_instead_of_waiting_in_queue(): void
+    {
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_ai', '0');
+        $source = $this->source();
+        $service = app(ScrapedLoadService::class);
+
+        // il çifti + telefon = kural %65; yerel %50 ile puan %57,5 → ret (25) ile eksik üst sınırı (60) arasında: eksik bilgili yayın
+        $mid = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
+        // yerel yoksa puan %65 → 60-75 arası: kuyrukta kalır, sistemi eğitir
+        $queue = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null]);
+        // varış ili çözülemeyen aday puanı ne olursa olsun eksik bilgili yayınlanmaz
+        $noRoute = $this->candidate($source, ['ai_status' => 'skipped', 'delivery_location' => 'Bilinmeyenköy', 'delivery_province_code' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
+        // puanı %25 altı: otomatik ret
+        $low = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.0]]);
+        Settings::set('scraper_auto_reject_max_score', '35');
+
+        $this->assertTrue($service->incompleteEligible($mid));
+        $this->assertFalse($service->incompleteEligible($queue));
+        $this->assertFalse($service->incompleteEligible($noRoute));
+        $this->assertFalse($service->incompleteEligible($low));
+
+        $service->autoApproveDue();
+        $this->assertSame(['public', true], [$mid->fresh()->visibility, $mid->fresh()->is_incomplete]);
+        $this->assertSame(['private', false], [$queue->fresh()->visibility, $queue->fresh()->is_incomplete]);
+        $this->assertSame('private', $noRoute->fresh()->visibility);
+        $this->assertSame('rejected', $low->fresh()->status);
+
+        // Ayar kapalıysa aday kuyrukta bekler
+        $mid2 = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
+        Settings::set('scraper_incomplete_publish', '0');
+        $this->assertFalse($service->incompleteEligible($mid2));
+        Settings::set('scraper_incomplete_publish', '1');
+
+        // Yönetici: Yayında sekmesinde "Eksik bilgili yayın" filtresi ve rozet; araç tipi girilince tamamlanır
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin->fresh());
+        Volt::test('admin.scrapers-center')->set('activeTab', 'queue')->assertSee('Eksik bilgili yayına gidecek')
+            ->set('activeTab', 'published')->set('flag', 'incomplete')->assertSee('Eksik bilgili')->assertSee('#'.$mid->id)->assertDontSee('#'.$queue->id)
+            ->call('startEdit', $mid->id)->set('edit.vehicle_type', 'tir')->call('saveEdit')->assertHasNoErrors();
+        $this->assertSame([false, 'admin', 'tir'], [$mid->fresh()->is_incomplete, $mid->fresh()->completed_by, $mid->fresh()->vehicle_type]);
+    }
+
     public function test_rule_only_candidates_publish_when_rule_evidence_reaches_threshold(): void
     {
         Settings::set('scraper_auto_approve', '1');

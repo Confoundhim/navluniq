@@ -30,6 +30,9 @@ class extends Component {
 
     public string $tab = 'pool';
 
+    /** Dış kaynak sekmesi: true = "Eksik bilgili ilanlar" bölümü (araç filtresi uygulanmaz; şoför arayıp sorar) */
+    public bool $incomplete = false;
+
     public string $search = '';
 
     /** @var array<string, mixed> LoadFilterService::defaults() yapısı */
@@ -62,6 +65,7 @@ class extends Component {
     {
         $this->pinList();
         $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external', 'saved'], true) ? request()->query('tab') : 'pool';
+        $this->incomplete = $this->tab === 'external' && request()->query('eksik') === '1';
         $this->filters = LoadFilterService::defaults();
 
         $requested = (int) request()->query('preset', 0);
@@ -376,17 +380,31 @@ class extends Component {
     {
         $premium = $this->profile()?->isPremium() ?? false;
 
+        $filters = LoadFilterService::normalize($this->filters);
+        if ($this->incomplete) {
+            $filters['vehicle_mode'] = 'any'; // araç zaten belirsiz; il ve arama süzgeci yine geçerli
+        }
+
         return ScrapedLoad::query()
             ->with('scraper')
             ->where('status', 'parsed_success')
             ->where('visibility', 'public')
+            ->where('is_incomplete', $this->incomplete)
             ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
             ->when(! $premium, fn (Builder $q) => $q->whereRaw('1 = 0')) // dış kaynak ilanları yalnız premium üyelere görünür
             ->when(trim($this->search) !== '', function (Builder $q): void {
                 $term = '%'.trim($this->search).'%';
                 $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
             })
-            ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToScraped($q, LoadFilterService::normalize($this->filters), $this->profile()));
+            ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToScraped($q, $filters, $this->profile()));
+    }
+
+    /** Dış kaynak sekmesinde normal ↔ eksik bilgili bölüm; liste yeniden sabitlenir. */
+    public function setIncomplete(bool $on): void
+    {
+        $this->incomplete = $on;
+        $this->pinList();
+        $this->resetPage();
     }
 
     public function openOffer(int $loadId): void
@@ -509,7 +527,8 @@ class extends Component {
             'takenExternalIds' => DriverTrip::query()->where('driver_profile_id', $profileId)->open()->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all(),
             'savedItems' => null,
             'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
-            'externalLoads' => null, 'webLoadsCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->count(),
+            'externalLoads' => null, 'webLoadsCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->complete()->count(),
+            'incompleteCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->where('is_incomplete', true)->count(),
         ];
 
         if ($this->tab === 'offers') {
@@ -966,17 +985,24 @@ class extends Component {
 
     @if($kycApproved && $tab === 'external' && $isPremium)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-            <div class="text-xs">
+            <div class="text-xs space-y-3">
                 <div class="text-[11px] text-neutral-500 leading-relaxed">
                     Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
                 </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" wire:click="setIncomplete(false)" class="tab-pill {{ ! $incomplete ? 'tab-pill-active' : '' }}">Dış kaynak ilanlar <span class="opacity-70">{{ number_format($webLoadsCount, 0, ',', '.') }}</span></button>
+                    <button type="button" wire:click="setIncomplete(true)" class="tab-pill {{ $incomplete ? 'tab-pill-active' : '' }}">Eksik bilgili ilanlar <span class="opacity-70">{{ number_format($incompleteCount, 0, ',', '.') }}</span></button>
+                </div>
+                @if($incomplete)
+                    <div class="text-[11px] text-neutral-500 leading-relaxed">Aracı, kasası ya da yükü belirsiz ilanlar; kalkış, varış ve telefon bellidir. Arayıp öğrendiğiniz araç tipini karta girerseniz ilan tamamlanır ve herkese normal listede görünür.</div>
+                @endif
             </div>
 
             <div class="space-y-3 scroll-mt-24" id="ilan-listesi">
                 @forelse($externalLoads as $item)
                     <x-external-load-card :item="$item" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="ext-{{ $item->id }}" />
                 @empty
-                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Şu anda görüntülenebilir dış kaynak ilan yok.</div>
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">{{ $incomplete ? 'Şu anda eksik bilgili ilan yok.' : 'Şu anda görüntülenebilir dış kaynak ilan yok.' }}</div>
                 @endforelse
             </div>
 

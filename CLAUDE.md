@@ -60,6 +60,11 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "her türlü" = kısıt yok; lowbed ilanları alınmaz.
 - "Samsun 2 yer" = 2 ayrı tır (vehicle_count), "Adana + Urfa" = çok teslim noktası (delivery_stops).
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
+- **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
+  kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak
+  sekmesinin "Eksik bilgili ilanlar" bölümünde (araç filtresi uygulanmaz), genel bakış ve dönüş yükü taramasında görünmez
+  (`ScrapedLoad::complete()`). Şoför karttaki "Aradım, araç:" seçimiyle (`completeByDriver`) ya da yönetici düzenlemeyle
+  tamamlar; ilan normal listeye geçer ("Şoför doğruladı"). %60-%75 arası kuyrukta kalır (sistemi eğitir); ayarlar panelde.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
