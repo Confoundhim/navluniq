@@ -17,21 +17,32 @@ namespace App\Support;
  */
 final class BodyTypes
 {
-    /** Anahtar → etiket ve geçerli araç sınıfları (VehicleTypes::CLASSES). */
+    /**
+     * Anahtar → etiket ve geçerli araç sınıfları (VehicleTypes::CLASSES). Sektör matrisi (2026-09 revizyonu):
+     *  - Panelvan: kapalı, frigo.
+     *  - Kamyonet: tenteli, kapalı, açık, frigo (+ liftli).
+     *  - Kamyon ve kırkayak: tenteli, kapalı, açık, frigo, damperli (+ liftli).
+     *  - TIR: tenteli, kapalı, açık, frigo, damperli, silobas, lowbed (+ liftli); dorse boyu kısa / 13.60 ayrı boyut.
+     * "liftli" bir kasa cinsi değil ek özelliktir (kuyruk lifti): ilan isterse şoförün aracında olmalıdır.
+     */
     public const TYPES = [
-        'tenteli' => ['label' => 'Tenteli', 'short' => 'Tenteli', 'classes' => ['tir', 'kirkayak', 'kamyon']],
+        'tenteli' => ['label' => 'Tenteli', 'short' => 'Tenteli', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet']],
         'kapali' => ['label' => 'Kapalı kasa', 'short' => 'Kapalı', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet', 'panelvan']],
-        'acik' => ['label' => 'Açık (sal)', 'short' => 'Açık', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet']],
+        'acik' => ['label' => 'Açık kasa (sal)', 'short' => 'Açık', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet']],
         'frigo' => ['label' => 'Frigo (soğutmalı)', 'short' => 'Frigo', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet', 'panelvan']],
         'damperli' => ['label' => 'Damperli', 'short' => 'Damper', 'classes' => ['tir', 'kirkayak', 'kamyon']],
         'silobas' => ['label' => 'Silobas', 'short' => 'Silobas', 'classes' => ['tir']],
-        'liftli' => ['label' => 'Liftli', 'short' => 'Liftli', 'classes' => ['kamyon', 'kamyonet']],
+        'lowbed' => ['label' => 'Lowbed', 'short' => 'Lowbed', 'classes' => ['tir']],
+        'liftli' => ['label' => 'Liftli (kuyruk lifti)', 'short' => 'Liftli', 'classes' => ['tir', 'kirkayak', 'kamyon', 'kamyonet'], 'feature' => true],
         'kisa_dorse' => ['label' => 'Kısa dorse', 'short' => 'Kısa dorse', 'classes' => ['tir'], 'length' => true],
         'uzun_dorse' => ['label' => 'Uzun dorse (13.60)', 'short' => '13.60', 'classes' => ['tir'], 'length' => true],
     ];
 
-    /** Kasa cinsleri (uzunluk değil). */
-    public const KINDS = ['tenteli', 'kapali', 'acik', 'frigo', 'damperli', 'silobas', 'liftli'];
+    /** Kasa cinsleri (uzunluk ve ek özellik değil). */
+    public const KINDS = ['tenteli', 'kapali', 'acik', 'frigo', 'damperli', 'silobas', 'lowbed'];
+
+    /** Ek özellikler: kasa cinsinin yanında istenir (liftli tenteli gibi). */
+    public const FEATURES = ['liftli'];
 
     /** "13.60" tek başına: damper hariç dorseler. */
     public const NOT_DAMPER = ['tenteli', 'kapali', 'acik', 'frigo'];
@@ -45,8 +56,9 @@ final class BodyTypes
     private const GOODS_BODIES = [
         'komur' => ['damperli'], 'maden_dokme' => ['damperli'], 'tuz' => ['damperli'], 'gubre' => ['damperli'], 'hurda' => ['damperli'],
         'insaat' => ['damperli', 'acik'], 'lastik' => ['damperli', 'acik'], 'kemik' => ['damperli'],
+        'is_makinesi' => ['lowbed', 'acik'],
         'donuk_gida' => ['frigo'], 'tavuk_yumurta' => ['frigo'], 'meyve_sebze' => ['kapali', 'tenteli', 'frigo'],
-        'kereste' => ['acik', 'tenteli'], 'demir_celik' => ['acik', 'tenteli'], 'mermer_tas' => ['acik'], 'is_makinesi' => ['acik'], 'arac_tasima' => ['acik'],
+        'kereste' => ['acik', 'tenteli'], 'demir_celik' => ['acik', 'tenteli'], 'mermer_tas' => ['acik'], 'arac_tasima' => ['acik'],
         'orman_kagit' => ['acik', 'damperli'], 'tarim' => ['damperli', 'tenteli'],
         'palet' => ['kapali', 'tenteli'], 'koli' => ['kapali', 'tenteli'], 'gida' => ['kapali', 'tenteli'], 'tekstil' => ['kapali', 'tenteli'],
         'kagit' => ['kapali', 'tenteli'], 'kagit_pecete' => ['kapali', 'tenteli'], 'plastik' => ['kapali', 'tenteli'],
@@ -62,7 +74,8 @@ final class BodyTypes
         'frigo' => '/\bfr[iı]?[iı]?go\w*|\bfirgo\w*|\bfirigo\w*|\btermo\s?k[iı]ng?\w*|\bthermo\s?king\w*|\btermokin\w*|\bsogutucu\w*|\bsogutmali\b|\bsoguk\s+hava\w*|\bfrigolu\b/',
         'damperli' => '/\bdamper\w*|\bdanper\w*/',
         'silobas' => '/\bsilobas\w*|\bsilo\s?bas\w*/',
-        'liftli' => '/\blift(?:li)?\b/',
+        'lowbed' => '/\blow\s?bed\w*|\blowbet\w*|\blobed\w*|\blovbed\w*|\blovbet\w*|\blowboy\w*/',
+        'liftli' => '/\blift(?:li|i)?\b|\bkuyruk\s+lift\w*|\bhidrolik\s+lift\w*/',
         'kisa_dorse' => '/\bkisa\s+(?:dorse|tir|arac|kasa)\b/',
         'uzun_dorse' => '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])|\buzun\s+(?:dorse|arac|tir)\b|\bmega\b/',
     ];
@@ -99,6 +112,17 @@ final class BodyTypes
         return (bool) (self::TYPES[$key]['length'] ?? false);
     }
 
+    public static function isFeature(string $key): bool
+    {
+        return (bool) (self::TYPES[$key]['feature'] ?? false);
+    }
+
+    /** Listedeki ek özellikler (liftli). */
+    public static function featuresOf(array $list): array
+    {
+        return array_values(array_filter($list, fn ($k) => self::isFeature($k)));
+    }
+
     /** Verilen araç sınıfında geçerli kasa anahtarları (form ve filtre kutuları). */
     public static function forClass(?string $class): array
     {
@@ -119,10 +143,10 @@ final class BodyTypes
         return $out;
     }
 
-    /** Yalnız kasa cinsleri (uzunluk girdileri atılır). */
+    /** Yalnız kasa cinsleri (uzunluk ve ek özellik girdileri atılır). */
     public static function kindsOf(array $list): array
     {
-        return array_values(array_filter($list, fn ($k) => ! self::isLength($k)));
+        return array_values(array_filter($list, fn ($k) => ! self::isLength($k) && ! self::isFeature($k)));
     }
 
     /**
@@ -153,6 +177,9 @@ final class BodyTypes
                 $parts[] = implode(' / ', array_map(fn ($k) => self::short($k), $kinds));
             }
         }
+        foreach (self::featuresOf($list) as $f) {
+            $parts[] = self::short($f);
+        }
 
         return implode(' · ', $parts);
     }
@@ -167,10 +194,25 @@ final class BodyTypes
      */
     public static function detect(string $norm, ?string $goodsKey = null): array
     {
+        $r = self::detectKinds($norm, $goodsKey);
+        // Ek özellik (liftli) kasa cinsinden bağımsızdır; bulunduysa listeye eklenir
+        foreach (self::FEATURES as $feature) {
+            if (preg_match(self::PATTERNS[$feature], $norm, $m)) {
+                $r['types'] = self::clean(array_merge($r['types'], [$feature]));
+                $r['evidence'][] = "özellik: {$m[0]}";
+                $r['source'] ??= 'keyword';
+            }
+        }
+
+        return $r;
+    }
+
+    private static function detectKinds(string $norm, ?string $goodsKey): array
+    {
         $found = [];
         $evidence = [];
         foreach (self::PATTERNS as $key => $pattern) {
-            if (preg_match($pattern, $norm, $m)) {
+            if (! self::isFeature($key) && preg_match($pattern, $norm, $m)) {
                 $found[] = $key;
                 $evidence[] = "kasa: {$m[0]}";
             }
@@ -233,7 +275,7 @@ final class BodyTypes
      * Şoförün aracı (kasa cinsi + dorse uzunluğu) ilanın kasa listesine uyar mı?
      * İlan kasa belirtmemişse ya da şoför aracının kasasını girmemişse gizlenmez.
      */
-    public static function vehicleFits(?string $driverBody, ?string $driverLength, ?array $loadBodies): bool
+    public static function vehicleFits(?string $driverBody, ?string $driverLength, ?array $loadBodies, ?bool $driverHasLift = null): bool
     {
         $loadBodies = self::clean($loadBodies ?? []);
         if ($loadBodies === []) {
@@ -241,6 +283,10 @@ final class BodyTypes
         }
         $kinds = self::kindsOf($loadBodies);
         if ($kinds !== [] && $driverBody !== null && ! in_array($driverBody, $kinds, true)) {
+            return false;
+        }
+        // İlan lift istiyor: şoför "liftim yok" dediyse uymaz; belirtmediyse gizlenmez
+        if ($driverHasLift === false && in_array('liftli', $loadBodies, true)) {
             return false;
         }
         if ($driverLength === 'kisa' && in_array('uzun_dorse', $loadBodies, true) && ! in_array('kisa_dorse', $loadBodies, true)) {

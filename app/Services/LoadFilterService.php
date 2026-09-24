@@ -239,6 +239,10 @@ class LoadFilterService
                 $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"kisa_dorse"%')->orWhere('body_types', 'like', '%"uzun_dorse"%'));
             }
         }
+        // Kuyruk lifti: şoför "liftim yok" dediyse lift isteyen ilanlar gizlenir (belirtmediyse gösterilir)
+        if ($vehicle && $vehicle->has_lift === false) {
+            $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"liftli"%'));
+        }
         if ($f['body_types'] !== []) {
             $q->where(function (Builder $w) use ($f): void {
                 $w->whereNull('body_types');

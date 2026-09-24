@@ -107,17 +107,32 @@ class BodyTypesTest extends TestCase
         $this->assertFalse(BodyTypes::vehicleFits('tenteli', 'kisa', ['uzun_dorse']));       // 13.60 isteyen, kısa dorse uymaz
         $this->assertTrue(BodyTypes::vehicleFits('tenteli', 'uzun', ['uzun_dorse']));
         $this->assertTrue(BodyTypes::vehicleFits('damperli', 'uzun', ['tenteli', 'kapali', 'acik', 'frigo', 'damperli']));
+        // Lift: ilan lift istiyor → "liftim yok" diyen araç uymaz, belirtmeyen gizlenmez, liftli uyar; lowbed ayrı kasa
+        $this->assertFalse(BodyTypes::vehicleFits('tenteli', 'uzun', ['tenteli', 'liftli'], false));
+        $this->assertTrue(BodyTypes::vehicleFits('tenteli', 'uzun', ['tenteli', 'liftli'], null));
+        $this->assertTrue(BodyTypes::vehicleFits('tenteli', 'uzun', ['tenteli', 'liftli'], true));
+        $this->assertTrue(BodyTypes::vehicleFits('lowbed', null, ['lowbed', 'acik']));
+        $this->assertFalse(BodyTypes::vehicleFits('tenteli', null, ['lowbed']));
     }
 
     public function test_body_types_are_bound_to_vehicle_classes(): void
     {
         $this->assertSame('tir', VehicleTypes::classOf('tir'));
         $this->assertSame('kamyon', VehicleTypes::classOf('10_teker_kamyon'));
-        $this->assertSame('panelvan', VehicleTypes::classOf('orta_panelvan'));
+        $this->assertSame('panelvan', VehicleTypes::classOf('panelvan'));
+        $this->assertSame('panelvan', VehicleTypes::canonical('orta_panelvan'));
+        $this->assertSame('panelvan', VehicleTypes::canonical('minivan'));
+        $this->assertNull(VehicleTypes::classOf('otomobil'));
         $this->assertNull(VehicleTypes::classOf('yok'));
         $this->assertContains('uzun_dorse', BodyTypes::forClass('tir'));
         $this->assertNotContains('uzun_dorse', BodyTypes::forClass('kamyon'));
         $this->assertNotContains('damperli', BodyTypes::forClass('panelvan'));
+        $this->assertSame(['kapali', 'frigo'], BodyTypes::kindsOf(BodyTypes::forClass('panelvan')));
+        $this->assertSame(['tenteli', 'kapali', 'acik', 'frigo', 'damperli'], BodyTypes::kindsOf(BodyTypes::forClass('kamyon')));
+        $this->assertSame(['tenteli', 'kapali', 'acik', 'frigo', 'damperli'], BodyTypes::kindsOf(BodyTypes::forClass('kirkayak')));
+        $this->assertSame(['tenteli', 'kapali', 'acik', 'frigo', 'damperli', 'silobas', 'lowbed'], BodyTypes::kindsOf(BodyTypes::forClass('tir')));
+        $this->assertContains('liftli', BodyTypes::forClass('kamyonet'));
+        $this->assertNotContains('liftli', BodyTypes::forClass('panelvan'));
         $this->assertSame(array_keys(BodyTypes::TYPES), BodyTypes::forClass(null));
         $this->assertSame(['tenteli', 'damperli'], BodyTypes::clean(['damperli', 'tenteli', 'damperli', 'yok', 3]));
     }

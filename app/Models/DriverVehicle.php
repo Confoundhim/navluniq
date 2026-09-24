@@ -20,6 +20,7 @@ class DriverVehicle extends Model
         'vehicle_type',
         'body_type',
         'trailer_length',
+        'has_lift',
         'ruhsat_path',
         'vehicle_photo_path',
         'is_active',
@@ -27,6 +28,7 @@ class DriverVehicle extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'has_lift' => 'boolean',
     ];
 
     /** Türk plakası: il kodu, 1-3 harf, 2-4 rakam (boşluksuz, büyük harf). */

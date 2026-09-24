@@ -54,10 +54,15 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 4. Alan bilgisi (sektör kuralları)
 
-- Araç sınıfı ile kasa tipi ayrı boyutlardır (`App\Support\VehicleTypes`, `App\Support\BodyTypes`).
-  Kasa tipleri: tenteli, kapalı, açık, frigo, damperli, silobas, liftli; dorse boyu kısa / uzun (13.60).
+- Araç sınıfı ile kasa tipi ayrı boyutlardır (`App\Support\VehicleTypes`, `App\Support\BodyTypes`). Araç tipleri
+  (2026-09 revizyonu, Sevda Abla matrisi): panelvan, kamyonet, 6/8/10 teker kamyon, kırkayak, TIR. Otomobil ve minivan yok;
+  eski orta/uzun panelvan, minivan, otomobil kayıtları `VehicleTypes::LEGACY` ile panelvana çevrilir.
+  Kasa matrisi: panelvan → kapalı, frigo · kamyonet → tenteli, kapalı, açık, frigo · kamyon ve kırkayak → tenteli, kapalı, açık,
+  frigo, damperli · TIR → tenteli, kapalı, açık, frigo, damperli, silobas, lowbed; dorse boyu kısa / uzun (13.60) ayrı boyut.
+  "Liftli" (kuyruk lifti) kasa cinsi değil ek özelliktir (`BodyTypes::FEATURES`); şoför aracında `has_lift` (var/yok/belirsiz),
+  ilan lift isterse "yok" diyen araca gösterilmez.
 - "13.60" = damper hariç her kasa; "dökme yük" = damper; "kapalı ≠ tenteli"; "kasalı" ürün → tenteli/kapalı/frigo;
-  "her türlü" = kısıt yok; lowbed ilanları alınmaz.
+  "her türlü" = kısıt yok; lowbed artık TIR kasa tipidir (iş makinesi → lowbed/açık).
 - "Samsun 2 yer" = 2 ayrı tır (vehicle_count), "Adana + Urfa" = çok teslim noktası (delivery_stops).
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,

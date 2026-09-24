@@ -15,12 +15,17 @@ class VehicleTypesAndLocationsTest extends TestCase
         $this->assertSame('kirkayak', $d('Kırkayak arayan var mı')['type']);
         $this->assertSame('10_teker_kamyon', $d('10 teker kamyon lazım')['type']);
         $this->assertSame('6_teker_kamyon', $d('kamyon lazım 5 ton', 5000)['type']);
-        $this->assertSame('minivan', $d('Doblo ile gidecek koli')['type']);
+        $this->assertSame('panelvan', $d('Doblo ile gidecek koli')['type']);
+        $this->assertSame('panelvan', $d('Otomobille gidecek evrak', 200)['type']); // otomobil yok: en küçük tip panelvan
         $this->assertSame(['kamyonet', 'weight'], [$d('3 ton yük var', 3000)['type'], $d('3 ton yük var', 3000)['source']]);
         $this->assertNull($d('sadece rota yazılmış')['type']);
         $this->assertTrue(VehicleTypes::canCarry('tir', 'kamyonet'));
-        $this->assertFalse(VehicleTypes::canCarry('minivan', 'tir'));
-        $this->assertSame(10, count(VehicleTypes::labels()));
+        $this->assertFalse(VehicleTypes::canCarry('panelvan', 'tir'));
+        $this->assertSame(7, count(VehicleTypes::labels()));
+        $this->assertArrayNotHasKey('otomobil', VehicleTypes::labels());
+        $this->assertArrayNotHasKey('minivan', VehicleTypes::labels());
+        $this->assertSame('panelvan', VehicleTypes::byWeight(500));
+        $this->assertSame('kamyonet', VehicleTypes::byWeight(3000));
     }
 
     public function test_locations_resolve_province_district_and_distance(): void

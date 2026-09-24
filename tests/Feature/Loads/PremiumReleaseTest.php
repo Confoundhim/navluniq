@@ -166,7 +166,7 @@ class PremiumReleaseTest extends TestCase
         $small = User::factory()->driver()->create();
         $small->syncRoles(['driver']);
         $profile = DriverProfile::create(['user_id' => $small->id, 'kyc_status' => 'approved', 'premium_until' => now()->addMonth()]);
-        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34KUC01', 'brand' => 'Fiat', 'model' => 'Doblo', 'vehicle_type' => 'minivan', 'is_active' => true]);
+        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34KUC01', 'brand' => 'Fiat', 'model' => 'Doblo', 'vehicle_type' => 'panelvan', 'is_active' => true]);
 
         $this->publish();
         $this->assertSame(0, UserNotification::where('user_id', $small->id)->count());

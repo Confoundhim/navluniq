@@ -6,7 +6,7 @@ namespace App\Support;
  * Serbest metinden (WhatsApp ilanı) araç tipini çıkaran puanlama tabanlı sınıflandırıcı.
  *
  * Katmanlar, güçlüden zayıfa:
- *  1. Araç adı: tır, çekici, dorse, kırkayak, 10/8/6 teker, kamyon, kamyonet, panelvan, minivan, otomobil, marka adları.
+ *  1. Araç adı: tır, çekici, dorse, kırkayak, 10/8/6 teker, kamyon, kamyonet, panelvan (hafif ticari marka adları dahil).
  *  2. Kasa/üstyapı ipucu: tenteli, kapalı kasa, açık kasa, frigo, damper, mega, lowbed, silobas, tanker, konteyner…
  *     Bunlar tek başına sınıfı kesinleştirmez; aile (tır / kamyon / hafif) belirler, tonaj alt tipi seçer.
  *  3. Kapasite: tonaj (aralık, "t", "tn", "tonluk", yazıyla sayı), palet adedi, hacim (m³).
@@ -43,16 +43,14 @@ final class VehicleClassifier
         // Hafif ticari
         '/\bkamyonet(?:ler|le|i|e|in|im|ten|te|lik|ler[ei])?\b/' => ['kamyonet', 10],
         '/\b(?:pikap|pick\s?up|pickup)\b/' => ['kamyonet', 9],
-        '/\buzun\s+(?:sasi|sase|panelvan|panel\s?van)\b/' => ['uzun_panelvan', 10],
-        '/\b(?:panelvan|panel\s?van)\s+uzun\b/' => ['uzun_panelvan', 10],
-        '/\b(?:maxi|l3h2|l4h2|l3|l4)\b/' => ['uzun_panelvan', 7],
-        '/\borta\s+(?:panelvan|panel\s?van)\b/' => ['orta_panelvan', 10],
-        '/\b(?:panelvan|panel\s?van)(?:la|i|a|in|lar|dan)?\b/' => ['orta_panelvan', 8],
-        '/\b(?:transit|sprinter|crafter|ducato|boxer|jumper|master|daily|iveco)\b/' => ['orta_panelvan', 8],
-        '/\bminivan(?:la|i|a|lar)?\b/' => ['minivan', 10],
-        '/\b(?:doblo|caddy|connect|kangoo|fiorino|combo|partner|berlingo|expert|vito|bipper|nemo|scudo|dokker|courier)\b/' => ['minivan', 9],
-        '/\bhafif\s+ticari\b/' => ['minivan', 7],
-        '/\b(?:otomobil|binek|sedan|hatchback)(?:la|yla|le|i|a|lar)?\b/' => ['otomobil', 9],
+        // Panelvan: hafif ticari sınıfın tek tipi (uzun/orta şasi, minivan ve hafif ticari marka adları aynı tipe iner)
+        '/\b(?:uzun|orta)\s+(?:sasi|sase|panelvan|panel\s?van)\b/' => ['panelvan', 10],
+        '/\b(?:panelvan|panel\s?van)(?:\s+uzun|la|i|a|in|lar|dan)?\b/' => ['panelvan', 10],
+        '/\b(?:maxi|l3h2|l4h2|l3|l4)\b/' => ['panelvan', 7],
+        '/\b(?:transit|sprinter|crafter|ducato|boxer|jumper|master|daily|iveco)\b/' => ['panelvan', 8],
+        '/\bminivan(?:la|i|a|lar)?\b/' => ['panelvan', 9],
+        '/\b(?:doblo|caddy|connect|kangoo|fiorino|combo|partner|berlingo|expert|vito|bipper|nemo|scudo|dokker|courier)\b/' => ['panelvan', 8],
+        '/\bhafif\s+ticari\b/' => ['panelvan', 7],
     ];
 
     /**
@@ -61,20 +59,20 @@ final class VehicleClassifier
      */
     private const HINTS = [
         '/\btent(?:e|eli|elidir|eliler|esiz|elik)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => 'tir', 'score' => 6],
-        '/\b(?:mega|lowbed|low\s?bed|lowbet|lobed|silobas|silo\s?bas|tanker|konteyn[ie]r|platform|jumbo\s+dorse|13[.,]60?)\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 6],
-        '/\bfrigo(?:rifik|lu|dur)?\b|\bsogutucu(?:lu)?\b|\bsogutmali\b/' => ['family' => ['tir', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'orta_panelvan'], 'default' => 'tir', 'score' => 3],
+        '/\b(?:mega|lowbed|low\s?bed|lowbet|lobed|lovbed|silobas|silo\s?bas|tanker|konteyn[ie]r|platform|jumbo\s+dorse|13[.,]60?)\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 6],
+        '/\bfrigo(?:rifik|lu|dur)?\b|\bsogutucu(?:lu)?\b|\bsogutmali\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'panelvan'], 'default' => 'tir', 'score' => 3],
         '/\bdamper(?:li|le|i|ler|lidir|liler)?\b|\bdanper(?:li)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => '10_teker_kamyon', 'score' => 3],
         // Dökme kömür/klinker/maden yükleri damperli tır ya da kırkayakla taşınır; "sınırsız damperli araç", "basar tonaj" → tır
         '/\b(?:dokme|basar\s+tonaj|sinirsiz\s+damper\w*|tonajini\s+alir|serbest\s+tonaj)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
         '/\byuksek\s+yan\b/' => ['family' => ['10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => '10_teker_kamyon', 'score' => 3],
         '/\bkapali\s+(?:tir|arac|araclar|dorse)\b|\bacik\s+(?:tir|arac|araclar|dorse)\b|\bkapali\s*\/\s*acik\b|\bacik\s*\/\s*kapali\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 5],
         '/\bats\s?li\b|\bustten\s+yukleme\b|\bmega\s+tente\w*\b|\btekstil\s+dorse\w*\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 4],
-        '/\bkapali\s+kasa\b/' => ['family' => ['tir', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'uzun_panelvan', 'orta_panelvan'], 'default' => 'kamyonet', 'score' => 3],
-        '/\bacik\s+kasa\b/' => ['family' => ['10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => 'kamyonet', 'score' => 3],
+        '/\bkapali\s+kasa\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'panelvan'], 'default' => 'kamyonet', 'score' => 3],
+        '/\bacik\s+kasa\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => 'kamyonet', 'score' => 3],
         '/\b(?:komple|tirlik|full\s+tir|full\s+arac|full\s+yuk|ftl)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
-        '/\b(?:jumbo)\b/' => ['family' => ['tir', 'uzun_panelvan'], 'default' => 'uzun_panelvan', 'score' => 2],
-        // "araba" nakliye dilinde her araç için kullanılır; yalnız tonaj/başka ipucu yoksa otomobil sayılır.
-        '/\baraba(?:yla|la|si|m|miz|lar)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'uzun_panelvan', 'orta_panelvan', 'minivan', 'otomobil'], 'default' => 'otomobil', 'score' => 1],
+        '/\b(?:jumbo)\b/' => ['family' => ['tir', 'panelvan'], 'default' => 'panelvan', 'score' => 2],
+        // "araba" nakliye dilinde her araç için kullanılır; yalnız tonaj/başka ipucu yoksa en küçük tip (panelvan) sayılır.
+        '/\baraba(?:yla|la|si|m|miz|lar)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'panelvan'], 'default' => 'panelvan', 'score' => 1],
     ];
 
     private const WORD_NUMBERS = [
@@ -126,10 +124,6 @@ final class VehicleClassifier
             // Genel "kamyon" sözcüğü kamyon alt tipini kesinleştirir: "kamyon" + "tenteli" tır sayılmaz.
             if ($genericTruck && ! str_contains($type, 'kamyon') && $top < 10) {
                 $type = self::truckSubtype($weight);
-            }
-            // Panelvan ailesi: "uzun/maxi" ipucu ya da tonaj alt tipi belirler.
-            if ($type === 'orta_panelvan' && ($weight !== null && $weight > 1500 || preg_match('/\b(?:uzun|maxi|jumbo|l3|l4)\b/', $norm))) {
-                $type = 'uzun_panelvan';
             }
 
             return self::result($type, 'keyword', $top >= 9 ? 'high' : 'medium', $weight, $evidence);
@@ -279,8 +273,7 @@ final class VehicleClassifier
             $n >= 10 => '8_teker_kamyon',
             $n >= 6 => '6_teker_kamyon',
             $n >= 3 => 'kamyonet',
-            $n >= 2 => 'uzun_panelvan',
-            default => 'orta_panelvan',
+            default => 'panelvan',
         };
     }
 
