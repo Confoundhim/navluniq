@@ -144,7 +144,7 @@ new class extends Component {
     <section class="apple-glass rounded-3xl p-6">
         <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son işlemler</h2>
         <div class="responsive-scroll mt-4">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead>
                     <tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/60">
                         <th class="py-2 pr-4">Zaman</th>
@@ -156,10 +156,10 @@ new class extends Component {
                 <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                     @forelse($activities as $log)
                         <tr>
-                            <td class="py-2 pr-4 whitespace-nowrap text-neutral-500">{{ $log->created_at?->format('d.m.Y H:i') }}</td>
-                            <td class="py-2 pr-4 whitespace-nowrap">{{ $log->user?->full_name ?? 'Sistem' }}</td>
-                            <td class="py-2 pr-4 whitespace-nowrap font-mono text-[11px]">{{ $log->action }}</td>
-                            <td class="py-2 text-neutral-600 dark:text-neutral-300">{{ $log->description }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $log->created_at?->format('d.m.Y H:i') }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap" data-label="Personel">{{ $log->user?->full_name ?? 'Sistem' }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap font-mono text-[11px]" data-label="İşlem">{{ $log->action }}</td>
+                            <td class="py-2 text-neutral-600 dark:text-neutral-300 tc-block" data-label="Açıklama">{{ $log->description }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="4" class="py-6 text-center text-neutral-500">Henüz kayıtlı işlem yok.</td></tr>

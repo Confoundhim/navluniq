@@ -931,17 +931,17 @@ new class extends Component {
         <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son bildirimler</h2>
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead><tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/60"><th class="py-2 pr-4">Zaman</th><th class="py-2 pr-4">Kime</th><th class="py-2 pr-4">Başlık</th><th class="py-2 pr-4">Tür</th><th class="py-2 pr-4">E-posta</th><th class="py-2">Okundu</th></tr></thead>
                     <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @forelse($mail['recent'] as $n)
                             <tr>
-                                <td class="py-2 pr-4 whitespace-nowrap text-neutral-500">{{ $n->created_at->format('d.m H:i') }}</td>
-                                <td class="py-2 pr-4 max-w-[10rem] truncate">{{ $n->user?->full_name ?? '—' }}</td>
-                                <td class="py-2 pr-4 max-w-xs truncate">{{ $n->title }}</td>
-                                <td class="py-2 pr-4 text-neutral-500">{{ $n->typeLabel() }}</td>
-                                <td class="py-2 pr-4"><span class="badge {{ $n->mail_status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' : ($n->mail_status === 'failed' ? 'bg-rose-500/10 text-rose-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500') }}" title="{{ $n->mail_error }}">{{ $n->mailStatusLabel() }}</span></td>
-                                <td class="py-2 text-neutral-500">{{ $n->read_at ? $n->read_at->format('d.m H:i') : '—' }}</td>
+                                <td class="py-2 pr-4 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $n->created_at->format('d.m H:i') }}</td>
+                                <td class="py-2 pr-4 max-w-[10rem] truncate" data-label="Kime">{{ $n->user?->full_name ?? '—' }}</td>
+                                <td class="py-2 pr-4 max-w-xs truncate" data-label="Başlık">{{ $n->title }}</td>
+                                <td class="py-2 pr-4 text-neutral-500" data-label="Tür">{{ $n->typeLabel() }}</td>
+                                <td class="py-2 pr-4" data-label="E-posta"><span class="badge {{ $n->mail_status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' : ($n->mail_status === 'failed' ? 'bg-rose-500/10 text-rose-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500') }}" title="{{ $n->mail_error }}">{{ $n->mailStatusLabel() }}</span></td>
+                                <td class="py-2 text-neutral-500" data-label="Okundu">{{ $n->read_at ? $n->read_at->format('d.m H:i') : '—' }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="py-6 text-center text-neutral-500">Henüz bildirim yok.</td></tr>
@@ -963,16 +963,16 @@ new class extends Component {
     <section class="apple-glass rounded-3xl p-6">
         <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son revizyonlar</h2>
         <div class="responsive-scroll mt-3">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead><tr class="text-[11px] text-neutral-400 border-b border-neutral-100 dark:border-neutral-800/60"><th class="py-2 pr-4">Zaman</th><th class="py-2 pr-4">Ayar</th><th class="py-2 pr-4">Eski</th><th class="py-2 pr-4">Yeni</th><th class="py-2">Personel</th></tr></thead>
                 <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                     @forelse($revisions as $rev)
                         <tr>
-                            <td class="py-2 pr-4 whitespace-nowrap text-neutral-500">{{ $rev->created_at?->format('d.m.Y H:i') }}</td>
-                            <td class="py-2 pr-4">{{ $rev->setting_label }}</td>
-                            <td class="py-2 pr-4 max-w-xs truncate">{{ $rev->old_value ?? '—' }}</td>
-                            <td class="py-2 pr-4 max-w-xs truncate">{{ $rev->new_value ?? '—' }}</td>
-                            <td class="py-2">{{ $rev->user?->full_name ?? '—' }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $rev->created_at?->format('d.m.Y H:i') }}</td>
+                            <td class="py-2 pr-4" data-label="Ayar">{{ $rev->setting_label }}</td>
+                            <td class="py-2 pr-4 max-w-xs truncate" data-label="Eski">{{ $rev->old_value ?? '—' }}</td>
+                            <td class="py-2 pr-4 max-w-xs truncate" data-label="Yeni">{{ $rev->new_value ?? '—' }}</td>
+                            <td class="py-2" data-label="Personel">{{ $rev->user?->full_name ?? '—' }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="py-6 text-center text-neutral-500">Henüz revizyon yok.</td></tr>

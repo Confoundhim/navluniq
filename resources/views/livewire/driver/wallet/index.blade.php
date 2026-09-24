@@ -104,7 +104,7 @@ class extends Component {
 
                 @if($payouts->count())
                     <div class="responsive-scroll overflow-x-auto">
-                        <table class="w-full text-xs text-left">
+                        <table class="table-cards w-full text-xs text-left">
                             <thead class="text-[11px] uppercase text-neutral-500 border-b border-neutral-200 dark:border-neutral-800">
                                 <tr>
                                     <th class="py-2 pr-3">Sevkiyat</th>
@@ -126,17 +126,17 @@ class extends Component {
                                                 İlan kaldırılmış
                                             @endif
                                         </td>
-                                        <td class="py-3 pr-3 tabular-nums text-neutral-700 dark:text-neutral-300">{{ number_format((float) ($payout->total_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3 tabular-nums text-neutral-500 dark:text-neutral-400">{{ number_format((float) ($payout->commission_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3 tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3">
+                                        <td class="py-3 pr-3 tabular-nums text-neutral-700 dark:text-neutral-300" data-label="Navlun">{{ number_format((float) ($payout->total_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3 tabular-nums text-neutral-500 dark:text-neutral-400" data-label="Komisyon">{{ number_format((float) ($payout->commission_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3 tabular-nums font-bold text-neutral-900 dark:text-white" data-label="Net">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
+                                        <td class="py-3 pr-3" data-label="Durum">
                                             <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
                                                 {{ $payout->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($payout->status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
                                                 {{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}
                                             </span>
                                         </td>
-                                        <td class="py-3 pr-3 font-mono text-neutral-500 dark:text-neutral-400">{{ $payout->reference_no ?: '—' }}</td>
-                                        <td class="py-3 text-neutral-500 dark:text-neutral-400">{{ $payout->paid_at?->format('d.m.Y H:i') ?? '—' }}</td>
+                                        <td class="py-3 pr-3 font-mono text-neutral-500 dark:text-neutral-400" data-label="Referans">{{ $payout->reference_no ?: '—' }}</td>
+                                        <td class="py-3 text-neutral-500 dark:text-neutral-400" data-label="Ödeme tarihi">{{ $payout->paid_at?->format('d.m.Y H:i') ?? '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

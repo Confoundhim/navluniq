@@ -116,7 +116,7 @@ class extends Component {
         </div>
 
         <div class="responsive-scroll">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead class="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 dark:text-neutral-400 uppercase tracking-wider text-[11px] border-b border-neutral-200 dark:border-neutral-800">
                     <tr>
                         <th class="py-3.5 px-5">Sipariş</th>
@@ -130,21 +130,21 @@ class extends Component {
                     @forelse($orders as $order)
                         <tr class="hover:bg-neutral-100 dark:hover:bg-neutral-800/40 transition-colors">
                             <td class="py-4 px-5 font-mono text-neutral-900 dark:text-white">{{ $order->merchant_oid }}</td>
-                            <td class="py-4 px-5">
+                            <td class="py-4 px-5" data-label="İlan">
                                 @if($order->cargoLoad)
                                     <a href="{{ route('cargo-owner.shipments.show', $order->cargoLoad->id) }}" wire:navigate class="text-neutral-800 dark:text-neutral-200 hover:text-brand-400">#{{ $order->cargoLoad->id }} · {{ $order->cargoLoad->pickup_location }} &rarr; {{ $order->cargoLoad->delivery_location }}</a>
                                 @else
                                     <span class="text-neutral-500">—</span>
                                 @endif
                             </td>
-                            <td class="py-4 px-5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
-                            <td class="py-4 px-5">
+                            <td class="py-4 px-5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap" data-label="Tarih">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
+                            <td class="py-4 px-5" data-label="Durum">
                                 <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
                                     {{ $order->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : (in_array($order->status, ['failed'], true) ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
                                     {{ $orderStatusLabels[$order->status] ?? $order->status }}
                                 </span>
                             </td>
-                            <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white text-right whitespace-nowrap">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺</td>
+                            <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white text-right whitespace-nowrap" data-label="Tutar">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺</td>
                         </tr>
                     @empty
                         <tr>
@@ -174,7 +174,7 @@ class extends Component {
         </div>
 
         <div class="responsive-scroll">
-            <table class="w-full text-left text-xs">
+            <table class="table-cards w-full text-left text-xs">
                 <thead class="bg-neutral-50 dark:bg-neutral-950 text-neutral-500 dark:text-neutral-400 uppercase tracking-wider text-[11px] border-b border-neutral-200 dark:border-neutral-800">
                     <tr>
                         <th class="py-3.5 px-5">Fatura no</th>
@@ -190,16 +190,16 @@ class extends Component {
                     @forelse($invoices as $invoice)
                         <tr class="hover:bg-neutral-100 dark:hover:bg-neutral-800/40 transition-colors">
                             <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $invoice->invoice_no ?: '—' }}</td>
-                            <td class="py-4 px-5">
+                            <td class="py-4 px-5" data-label="Tür">
                                 <span class="px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 text-[11px] font-bold">
                                     {{ ['commission' => 'Hizmet bedeli', 'subscription' => 'Abonelik', 'escrow' => 'Navlun'][$invoice->invoice_type] ?? $invoice->invoice_type }}
                                 </span>
                             </td>
-                            <td class="py-4 px-5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
-                            <td class="py-4 px-5">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</td>
-                            <td class="py-4 px-5 tabular-nums whitespace-nowrap">{{ number_format((float) $invoice->base_amount, 2, ',', '.') }} ₺</td>
-                            <td class="py-4 px-5 tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap">{{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</td>
-                            <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white text-right whitespace-nowrap">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺</td>
+                            <td class="py-4 px-5 text-neutral-500 dark:text-neutral-400 whitespace-nowrap" data-label="Tarih">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
+                            <td class="py-4 px-5" data-label="Durum">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</td>
+                            <td class="py-4 px-5 tabular-nums whitespace-nowrap" data-label="Matrah">{{ number_format((float) $invoice->base_amount, 2, ',', '.') }} ₺</td>
+                            <td class="py-4 px-5 tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap" data-label="KDV">{{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</td>
+                            <td class="py-4 px-5 tabular-nums font-bold text-neutral-900 dark:text-white text-right whitespace-nowrap" data-label="Toplam">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺</td>
                         </tr>
                     @empty
                         <tr>

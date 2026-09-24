@@ -174,7 +174,7 @@ new class extends Component {
         </div>
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Kayıt</th>
@@ -187,7 +187,7 @@ new class extends Component {
                         @forelse($trash as $record)
                             <tr>
                                 <td class="p-4 font-bold">#{{ $record->id }}</td>
-                                <td class="p-4">
+                                <td class="p-4" data-label="Ayrıntı">
                                     @if($trashType === 'users')
                                         {{ $record->full_name }} <span class="text-neutral-400">· {{ $record->email }}</span>
                                     @elseif($trashType === 'loads')
@@ -196,8 +196,8 @@ new class extends Component {
                                         {{ $record->plate }} <span class="text-neutral-400">· {{ \App\Support\VehicleTypes::label($record->vehicle_type) }} · {{ $record->driverProfile?->user?->full_name }}</span>
                                     @endif
                                 </td>
-                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ $record->deleted_at?->format('d.m.Y H:i') }}</td>
-                                <td class="p-4 whitespace-nowrap space-x-2">
+                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Silinme">{{ $record->deleted_at?->format('d.m.Y H:i') }}</td>
+                                <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                     <button type="button" wire:click="restore('{{ $trashType }}', {{ $record->id }})" class="text-brand-500 font-semibold">Geri yükle</button>
                                     <button type="button" wire:click="forceDelete('{{ $trashType }}', {{ $record->id }})" wire:confirm="Kayıt kalıcı olarak silinecek ve geri alınamayacak. Devam edilsin mi?" class="text-red-500 font-semibold">Kalıcı sil</button>
                                 </td>
@@ -215,7 +215,7 @@ new class extends Component {
     @if($activeTab === 'revisions')
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Zaman</th>
@@ -229,12 +229,12 @@ new class extends Component {
                     <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @forelse($revisions as $rev)
                             <tr>
-                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ $rev->created_at?->format('d.m.Y H:i') }}</td>
-                                <td class="p-4">{{ $rev->setting_label }}<div class="font-mono text-[11px] text-neutral-400">{{ $rev->key }}</div></td>
-                                <td class="p-4 max-w-xs truncate">{{ $rev->old_value ?? '—' }}</td>
-                                <td class="p-4 max-w-xs truncate">{{ $rev->new_value ?? '—' }}</td>
-                                <td class="p-4">{{ $rev->user?->full_name ?? '—' }}</td>
-                                <td class="p-4 whitespace-nowrap"><button type="button" wire:click="rollback({{ $rev->id }})" wire:confirm="Ayar bu revizyondaki eski değere döndürülecek. Devam edilsin mi?" class="text-brand-500 font-semibold">Eski değere dön</button></td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $rev->created_at?->format('d.m.Y H:i') }}</td>
+                                <td class="p-4" data-label="Ayar">{{ $rev->setting_label }}<div class="font-mono text-[11px] text-neutral-400">{{ $rev->key }}</div></td>
+                                <td class="p-4 max-w-xs truncate" data-label="Eski değer">{{ $rev->old_value ?? '—' }}</td>
+                                <td class="p-4 max-w-xs truncate" data-label="Yeni değer">{{ $rev->new_value ?? '—' }}</td>
+                                <td class="p-4" data-label="Personel">{{ $rev->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap tc-actions"><button type="button" wire:click="rollback({{ $rev->id }})" wire:confirm="Ayar bu revizyondaki eski değere döndürülecek. Devam edilsin mi?" class="text-brand-500 font-semibold">Eski değere dön</button></td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Henüz ayar revizyonu yok.</td></tr>

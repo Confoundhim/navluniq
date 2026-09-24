@@ -237,7 +237,7 @@ new class extends Component {
     <div class="grid grid-cols-1 {{ $selected ? 'xl:grid-cols-2' : '' }} gap-6 items-start">
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">İlan</th>
@@ -252,11 +252,11 @@ new class extends Component {
                         @forelse($loads as $load)
                             <tr wire:click="select({{ $load->id }})" class="cursor-pointer hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30 {{ $selectedId === $load->id ? 'bg-brand-500/5' : '' }}">
                                 <td class="p-4 font-bold">#{{ $load->id }}<div class="text-[11px] font-normal text-neutral-400">{{ $load->pickup_date?->format('d.m.Y') }}</div></td>
-                                <td class="p-4">{{ $load->pickup_location }} <span class="text-neutral-400">→</span> {{ $load->delivery_location }}</td>
-                                <td class="p-4 text-neutral-500">{{ $load->cargoOwnerProfile?->displayName() ?: '—' }}</td>
-                                <td class="p-4 text-neutral-500">{{ $load->driverProfile?->user?->full_name ?? '—' }}</td>
-                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $load->price, 2, ',', '.') }} ₺</td>
-                                <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $load->statusLabel() }}</span><div class="text-[10px] text-neutral-400 mt-1">{{ $load->escrowLabel() }}</div></td>
+                                <td class="p-4" data-label="Güzergah">{{ $load->pickup_location }} <span class="text-neutral-400">→</span> {{ $load->delivery_location }}</td>
+                                <td class="p-4 text-neutral-500" data-label="Yük sahibi">{{ $load->cargoOwnerProfile?->displayName() ?: '—' }}</td>
+                                <td class="p-4 text-neutral-500" data-label="Şoför">{{ $load->driverProfile?->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold" data-label="Navlun">{{ number_format((float) $load->price, 2, ',', '.') }} ₺</td>
+                                <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $load->statusLabel() }}</span><div class="text-[10px] text-neutral-400 mt-1">{{ $load->escrowLabel() }}</div></td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Bu filtreye uyan ilan yok.</td></tr>

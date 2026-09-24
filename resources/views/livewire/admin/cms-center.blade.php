@@ -419,7 +419,7 @@ new class extends Component {
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Sıra</th>
@@ -431,10 +431,10 @@ new class extends Component {
                         <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                             @forelse($faqs as $faq)
                                 <tr>
-                                    <td class="p-4">{{ $faq->order_num }}</td>
-                                    <td class="p-4"><div class="font-semibold">{{ $faq->question }}</div><div class="text-[11px] text-neutral-400">{{ \Illuminate\Support\Str::limit($faq->answer, 100) }}</div></td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $faq->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $faq->is_active ? 'Yayında' : 'Gizli' }}</span></td>
-                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                    <td class="p-4" data-label="Sıra">{{ $faq->order_num }}</td>
+                                    <td class="p-4"><div class="font-semibold">{{ $faq->question }}</div><x-clamp-text :text="$faq->answer" lines="2" class="text-[11px] text-neutral-400" /></td>
+                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $faq->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $faq->is_active ? 'Yayında' : 'Gizli' }}</span></td>
+                                    <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                         <button type="button" wire:click="editFaq({{ $faq->id }})" class="text-brand-500 font-semibold">Düzenle</button>
                                         <button type="button" wire:click="toggleFaq({{ $faq->id }})" class="text-neutral-500 font-semibold">{{ $faq->is_active ? 'Gizle' : 'Yayınla' }}</button>
                                         <button type="button" wire:click="deleteFaq({{ $faq->id }})" wire:confirm="Soru silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
@@ -491,7 +491,7 @@ new class extends Component {
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Başlık</th>
@@ -505,10 +505,10 @@ new class extends Component {
                             @forelse($pages as $page)
                                 <tr>
                                     <td class="p-4 font-semibold">{{ $page->title }}</td>
-                                    <td class="p-4 font-mono">{{ $page->slug }}</td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $page->status === 'published' && $page->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $page->status === 'published' ? 'Yayınlandı' : 'Taslak' }}{{ $page->is_active ? '' : ' · pasif' }}</span></td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $page->published_at ? \Illuminate\Support\Carbon::parse($page->published_at)->format('d.m.Y H:i') : '—' }}</td>
-                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                    <td class="p-4 font-mono" data-label="Kısa ad">{{ $page->slug }}</td>
+                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $page->status === 'published' && $page->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $page->status === 'published' ? 'Yayınlandı' : 'Taslak' }}{{ $page->is_active ? '' : ' · pasif' }}</span></td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Yayın tarihi">{{ $page->published_at ? \Illuminate\Support\Carbon::parse($page->published_at)->format('d.m.Y H:i') : '—' }}</td>
+                                    <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                         <button type="button" wire:click="editPage({{ $page->id }})" class="text-brand-500 font-semibold">Düzenle</button>
                                         <button type="button" wire:click="deletePage({{ $page->id }})" wire:confirm="Sayfa silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
                                     </td>

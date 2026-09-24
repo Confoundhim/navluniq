@@ -286,7 +286,7 @@ new class extends Component {
 
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Hakediş</th>
@@ -301,8 +301,8 @@ new class extends Component {
                         @forelse($payouts as $payout)
                             <tr class="align-top">
                                 <td class="p-4 font-bold">#{{ $payout->id }}<div class="text-[11px] font-normal text-neutral-400">İlan #{{ $payout->load_id }} · {{ $payout->created_at?->format('d.m.Y H:i') }}</div></td>
-                                <td class="p-4">{{ $payout->user?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $payout->user?->email }}</div></td>
-                                <td class="p-4 whitespace-nowrap">
+                                <td class="p-4" data-label="Şoför">{{ $payout->user?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $payout->user?->email }}</div></td>
+                                <td class="p-4 whitespace-nowrap tc-block" data-label="IBAN">
                                     @if($payout->bankAccount)
                                         <span class="font-mono">{{ $revealedAccountId === $payout->bank_account_id && $canManage ? app(\App\Services\BankAccountService::class)->decrypt($payout->bankAccount) : $payout->bankAccount->maskedIban() }}</span>
                                         <div class="text-[11px] text-neutral-400">{{ $payout->bankAccount->account_holder }}</div>
@@ -317,16 +317,16 @@ new class extends Component {
                                         <span class="text-amber-600">Banka hesabı tanımlı değil</span>
                                     @endif
                                 </td>
-                                <td class="p-4 whitespace-nowrap">
+                                <td class="p-4 whitespace-nowrap tc-block" data-label="Tutar">
                                     <div class="font-semibold">{{ number_format((float) $payout->net_amount, 2, ',', '.') }} ₺</div>
                                     <div class="text-[11px] text-neutral-400">Brüt {{ number_format((float) $payout->total_amount, 2, ',', '.') }} ₺ · Kom. {{ number_format((float) $payout->commission_amount, 2, ',', '.') }} ₺</div>
                                 </td>
-                                <td class="p-4">
+                                <td class="p-4" data-label="Durum">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $payout->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : ($payout->status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}</span>
                                     @if($payout->reference_no)<div class="text-[11px] text-neutral-400 mt-1">{{ $payout->reference_no }}</div>@endif
                                     @if($payout->paid_at)<div class="text-[11px] text-neutral-400">{{ $payout->paid_at->format('d.m.Y H:i') }}</div>@endif
                                 </td>
-                                <td class="p-4 min-w-[14rem]">
+                                <td class="p-4 min-w-[14rem] tc-actions tc-block" data-label="İşlem">
                                     @if($canManage && in_array($payout->status, ['pending', 'processing', 'failed'], true))
                                         <div class="space-y-2">
                                             <input type="text" wire:model="reference.{{ $payout->id }}" placeholder="Banka referans no" class="{{ $input }}">
@@ -366,7 +366,7 @@ new class extends Component {
         </div>
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Sipariş</th>
@@ -381,11 +381,11 @@ new class extends Component {
                         @forelse($orders as $order)
                             <tr>
                                 <td class="p-4 font-mono">{{ $order->merchant_oid }}<div class="text-[11px] text-neutral-400 font-sans">{{ $order->provider }} · {{ $order->purpose }}</div></td>
-                                <td class="p-4">#{{ $order->load_id }}<div class="text-[11px] text-neutral-400">{{ $order->cargoLoad?->pickup_location }} → {{ $order->cargoLoad?->delivery_location }}</div></td>
-                                <td class="p-4">{{ $order->user?->full_name ?? '—' }}</td>
-                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">Hizmet bedeli {{ number_format((float) $order->service_fee_amount, 2, ',', '.') }} ₺</div></td>
-                                <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->status }}</span></td>
-                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
+                                <td class="p-4" data-label="İlan">#{{ $order->load_id }}<div class="text-[11px] text-neutral-400">{{ $order->cargoLoad?->pickup_location }} → {{ $order->cargoLoad?->delivery_location }}</div></td>
+                                <td class="p-4" data-label="Ödeyen">{{ $order->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold" data-label="Tutar">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">Hizmet bedeli {{ number_format((float) $order->service_fee_amount, 2, ',', '.') }} ₺</div></td>
+                                <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->status }}</span></td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Ödeme emri yok.</td></tr>
@@ -413,7 +413,7 @@ new class extends Component {
     @if($activeTab === 'invoices')
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
-                <table class="w-full text-left text-xs">
+                <table class="table-cards w-full text-left text-xs">
                     <thead>
                         <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                             <th class="p-4">Fatura no</th>
@@ -428,11 +428,11 @@ new class extends Component {
                         @forelse($invoices as $invoice)
                             <tr>
                                 <td class="p-4 font-mono">{{ $invoice->invoice_no ?: '—' }}</td>
-                                <td class="p-4">{{ $invoice->invoice_type }}</td>
-                                <td class="p-4">{{ $invoice->user?->full_name ?? '—' }}</td>
-                                <td class="p-4 whitespace-nowrap font-semibold">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">KDV {{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</div></td>
-                                <td class="p-4">{{ $invoice->status }}</td>
-                                <td class="p-4 whitespace-nowrap text-neutral-500">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
+                                <td class="p-4" data-label="Tür">{{ $invoice->invoice_type }}</td>
+                                <td class="p-4" data-label="Kullanıcı">{{ $invoice->user?->full_name ?? '—' }}</td>
+                                <td class="p-4 whitespace-nowrap font-semibold" data-label="Tutar">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">KDV {{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</div></td>
+                                <td class="p-4" data-label="Durum">{{ $invoice->status }}</td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Henüz fatura kaydı yok; e-fatura entegrasyonu bu sürümde etkin değil.</td></tr>

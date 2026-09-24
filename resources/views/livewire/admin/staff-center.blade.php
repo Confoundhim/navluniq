@@ -219,7 +219,7 @@ new class extends Component {
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Personel</th>
@@ -233,10 +233,10 @@ new class extends Component {
                             @forelse($staff as $member)
                                 <tr>
                                     <td class="p-4"><div class="font-bold">{{ $member->full_name }}</div><div class="text-[11px] text-neutral-400">{{ $member->email }} · {{ \App\Support\Phone::format($member->phone) }}</div></td>
-                                    <td class="p-4">{{ $member->getRoleNames()->map(fn ($r) => $roleLabels[$r] ?? $r)->join(', ') ?: 'Rol atanmadı' }}</td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500">{{ $member->last_login_at?->format('d.m.Y H:i') ?? 'Henüz giriş yapmadı' }}</td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $member->is_active && ! $member->banned_at ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}">{{ $member->banned_at ? 'Yasaklı' : ($member->is_active ? 'Aktif' : 'Pasif') }}</span></td>
-                                    <td class="p-4 whitespace-nowrap">
+                                    <td class="p-4" data-label="Roller">{{ $member->getRoleNames()->map(fn ($r) => $roleLabels[$r] ?? $r)->join(', ') ?: 'Rol atanmadı' }}</td>
+                                    <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Son giriş">{{ $member->last_login_at?->format('d.m.Y H:i') ?? 'Henüz giriş yapmadı' }}</td>
+                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $member->is_active && ! $member->banned_at ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}">{{ $member->banned_at ? 'Yasaklı' : ($member->is_active ? 'Aktif' : 'Pasif') }}</span></td>
+                                    <td class="p-4 whitespace-nowrap tc-actions">
                                         @if($member->id !== auth()->id())
                                             <button type="button" wire:click="toggleActive({{ $member->id }})" wire:confirm="Hesap durumu değiştirilecek. Devam edilsin mi?" class="text-brand-500 font-semibold">{{ $member->is_active ? 'Pasife al' : 'Aktif et' }}</button>
                                         @else

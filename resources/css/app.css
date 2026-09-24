@@ -130,7 +130,7 @@
 @media (max-width: 767px) {
     main { width: 100%; max-width: 100vw; overflow-x: clip; }
     main > * { min-width: 0; }
-    main table {
+    main table:not(.table-cards) {
         display: block;
         width: 100%;
         max-width: 100%;
@@ -138,10 +138,35 @@
         overscroll-behavior-inline: contain;
         -webkit-overflow-scrolling: touch;
     }
-    main table thead, main table tbody { white-space: nowrap; }
+    main table:not(.table-cards) thead, main table:not(.table-cards) tbody { white-space: nowrap; }
     main .flex.items-center.justify-between { gap: .75rem; flex-wrap: wrap; }
     main button, main a { overflow-wrap: anywhere; }
     [role="dialog"], [aria-modal="true"] { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+}
+
+/* Kart kipli tablo: masaüstünde normal tablo; telefonda (yatay dahil) ve kenar çubuğunun daralttığı orta
+   ekranlarda her satır bir kart olur, hücreler alt alta dizilir ve sütun adı hücrenin başına gelir
+   (td data-label="..."). Kısa değerler etiketle aynı satırda kalır; blok içerikli hücreler alt satıra iner.
+   .tc-check: seçim kutusu (kartın sol üstünde), .tc-actions: eylem düğmeleri yan yana sarar. */
+@media (max-width: 1023px) {
+    .table-cards, .table-cards tbody, .table-cards tr, .table-cards td { display: block; width: 100%; box-sizing: border-box; min-width: 0; max-width: none; }
+    .table-cards thead { display: none; }
+    .table-cards tr { position: relative; padding: .9rem 1rem; }
+    .table-cards tr:has(> .tc-check) { padding-left: 2.75rem; }
+    .table-cards td { padding: .2rem 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+    .table-cards td[colspan] { text-align: center; }
+    .table-cards td.tc-check { position: absolute; left: 1rem; top: .95rem; width: auto; padding: 0; }
+    .table-cards td.tc-check input { margin: 0; }
+    .table-cards td[data-label]::before { content: attr(data-label) ": "; display: inline-block; margin-right: .35rem; font-size: .65rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(163 163 163); vertical-align: top; line-height: 1.5rem; }
+    .table-cards td.tc-title[data-label]::before, .table-cards td.tc-block[data-label]::before { display: block; line-height: 1.25rem; margin-bottom: .1rem; }
+    .table-cards td:empty, .table-cards td.tc-hide { display: none; }
+    .table-cards td.tc-actions { padding-top: .6rem; }
+    .table-cards td.tc-actions .flex-col { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 1.1rem; row-gap: .5rem; }
+    .table-cards td.tc-actions .flex-col > * { padding: .2rem 0; }
+    .table-cards td.tc-actions { text-align: left; }
+    .table-cards td.tc-actions > button, .table-cards td.tc-actions > a { display: inline-block; padding: .2rem 0; margin: 0 1.1rem 0 0; }
+    .table-cards td .max-w-xs, .table-cards td .max-w-sm, .table-cards td .max-w-md { max-width: none; }
+    .table-cards tr.tc-editor { padding-left: 1rem; }
 }
 
 @media (max-width: 380px) {

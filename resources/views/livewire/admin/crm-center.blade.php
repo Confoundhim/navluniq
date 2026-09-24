@@ -318,7 +318,7 @@ new class extends Component {
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">
-                    <table class="w-full text-left text-xs">
+                    <table class="table-cards w-full text-left text-xs">
                         <thead>
                             <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
                                 <th class="p-4">Kod</th>
@@ -333,11 +333,11 @@ new class extends Component {
                             @forelse($coupons as $coupon)
                                 <tr>
                                     <td class="p-4 font-mono font-bold">{{ $coupon->code }}</td>
-                                    <td class="p-4">{{ $coupon->type === 'percentage' ? '%'.number_format((float) $coupon->value, 2, ',', '.') : number_format((float) $coupon->value, 2, ',', '.').' ₺' }}</td>
-                                    <td class="p-4">{{ (int) $coupon->used_count }} / {{ $coupon->usage_limit === null ? 'Sınırsız' : $coupon->usage_limit }}</td>
-                                    <td class="p-4 whitespace-nowrap">{{ $coupon->expires_at?->format('d.m.Y') ?? 'Süresiz' }}</td>
-                                    <td class="p-4"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $coupon->isValid() ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $coupon->isValid() ? 'Geçerli' : ($coupon->is_active ? 'Süresi doldu / limit' : 'Pasif') }}</span></td>
-                                    <td class="p-4 whitespace-nowrap space-x-2">
+                                    <td class="p-4" data-label="İndirim">{{ $coupon->type === 'percentage' ? '%'.number_format((float) $coupon->value, 2, ',', '.') : number_format((float) $coupon->value, 2, ',', '.').' ₺' }}</td>
+                                    <td class="p-4" data-label="Kullanım">{{ (int) $coupon->used_count }} / {{ $coupon->usage_limit === null ? 'Sınırsız' : $coupon->usage_limit }}</td>
+                                    <td class="p-4 whitespace-nowrap" data-label="Son tarih">{{ $coupon->expires_at?->format('d.m.Y') ?? 'Süresiz' }}</td>
+                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $coupon->isValid() ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $coupon->isValid() ? 'Geçerli' : ($coupon->is_active ? 'Süresi doldu / limit' : 'Pasif') }}</span></td>
+                                    <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                         <button type="button" wire:click="editCoupon({{ $coupon->id }})" class="text-brand-500 font-semibold">Düzenle</button>
                                         <button type="button" wire:click="toggleCoupon({{ $coupon->id }})" class="text-neutral-500 font-semibold">{{ $coupon->is_active ? 'Pasife al' : 'Aktif et' }}</button>
                                         <button type="button" wire:click="deleteCoupon({{ $coupon->id }})" wire:confirm="Kupon silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
