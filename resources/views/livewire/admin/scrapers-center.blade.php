@@ -848,7 +848,7 @@ new class extends Component {
                                     @endif
                                 </td>
                                 <td class="p-3 whitespace-nowrap" data-label="Fiyat">@if($load->priceLabel())<span class="font-semibold">{{ $load->priceLabel() }}</span>@else<span class="text-neutral-400">belirtilmemiş</span>@endif</td>
-                                <td class="p-3 max-w-xs text-neutral-500 tc-block" data-label="Ham mesaj"><x-clamp-text :text="$load->raw_message" lines="3" /></td>
+                                <td class="p-3 max-w-xs text-neutral-500 tc-block" data-label="Ham mesaj"><x-clamp-text :text="$load->raw_message" lines="2" /></td>
                                 <td class="p-3" data-label="Durum">
                                     <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $load->visibility === 'public' ? 'bg-emerald-500/10 text-emerald-600' : ($load->status === 'rejected' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ $load->visibility === 'public' ? 'Yayında' : ($load->status === 'rejected' ? 'Reddedildi' : 'Onay bekliyor') }}</span>
                                     @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
@@ -940,7 +940,7 @@ new class extends Component {
                                 <td class="p-3 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $e->created_at->format('d.m H:i:s') }}</td>
                                 <td class="p-3" data-label="Kaynak">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
                                 <td class="p-3" data-label="Sonuç"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'foreign_script' => 'yabancı alfabe (Rusça/Arapça)', 'not_load_pattern' => 'ilan değil: boş araç / şoför ilanı / reklam / satılık', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
-                                <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300 tc-block" data-label="Mesaj"><x-clamp-text :text="$e->excerpt" lines="3" /></td>
+                                <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300 tc-block" data-label="Mesaj"><x-clamp-text :text="$e->excerpt" lines="2" /></td>
                                 <td class="p-3 whitespace-nowrap" data-label="Aday">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
                             </tr>
                         @empty
