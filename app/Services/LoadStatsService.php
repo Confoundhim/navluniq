@@ -24,7 +24,7 @@ class LoadStatsService
      */
     public function summary(): array
     {
-        return Cache::remember(self::CACHE_KEY, now()->addMinutes(5), fn () => $this->compute());
+        return Cache::remember(self::CACHE_KEY, now()->addMinute(), fn () => $this->compute());
     }
 
     public function forget(): void

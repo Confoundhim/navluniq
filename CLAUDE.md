@@ -91,7 +91,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Bildirimler: `NotificationService` (uygulama içi + e-posta), `App\Livewire\NotificationsPage`
   (okundu / sil / okunanları sil), zil `notifications/bell.blade.php` (`notifications-changed` olayı).
   Dönüş yükü bildirimi aynı sefer için okunmamışsa üstüne yazılır, yığılmaz.
-- Sayaçlar: `LoadStatsService` ("bugüne kadar" hiç düşmez; arşivlenen ilanlar sayılır). Dış kaynak ilanı
+- Sayaçlar: `LoadStatsService` ("bugüne kadar" hiç düşmez; arşivlenen ilanlar sayılır; önbellek 1 dk, yayın/teslimat onayında
+  düşürülür). Ana sayfa sayaçları `livewire/frontend/live-stats` (15 sn'de bir, sekme görünürken); tarayıcıda `countUp`
+  (app.js) eski değerden yeniye akarak sayar ve `count-pop` vurgusu yapar. Dış kaynak ilanı
   `scraper_list_days` (varsayılan 14) gün sonra listeden kalkar, silinmez (soft delete = arşiv).
 - E-posta: `RuntimeMailConfig` (panelden SMTP), şablon `emails/layouts/base.blade.php`
   (gizli ön izleme metni yok: Natro bunu düşürüyordu), altbilgide yalnız şirket adı; ETBİS yalnız site altbilgisinde.

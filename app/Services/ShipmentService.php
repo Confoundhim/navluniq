@@ -132,6 +132,7 @@ class ShipmentService
             $this->payouts->createForLoad($load->fresh());
         });
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
+        app(LoadStatsService::class)->forget();
 
         if ($driverUser = $shipment->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',

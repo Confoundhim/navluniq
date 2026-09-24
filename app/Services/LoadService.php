@@ -69,6 +69,8 @@ class LoadService
         });
         app(LoadReleaseService::class)->onPublished($load);
 
+        app(LoadStatsService::class)->forget();
+
         return $load;
     }
 
