@@ -169,6 +169,7 @@ class ScrapedLoadService
             'price' => $load->price !== null ? (float) $load->price : null,
             'vehicle_type' => $load->vehicle_type,
             'vehicle_type_source' => $load->vehicle_type_source,
+            'vehicle_any' => (bool) $load->vehicle_any,
             'parsed_by_llm' => $load->parsed_by_llm,
         ];
         $ai = $parser->enrich((string) $load->raw_message, $current, true);
@@ -185,7 +186,7 @@ class ScrapedLoadService
         $load->forceFill(array_merge(array_intersect_key($std, array_flip([
             'pickup_location', 'pickup_province_code', 'pickup_district', 'pickup_lat', 'pickup_lng',
             'delivery_location', 'delivery_province_code', 'delivery_district', 'delivery_lat', 'delivery_lng',
-            'goods_type', 'vehicle_type', 'vehicle_type_source', 'weight', 'price',
+            'goods_type', 'vehicle_type', 'vehicle_type_source', 'vehicle_any', 'weight', 'price',
         ])), [
             'status' => $load->status === 'rejected' ? 'rejected' : (($std['pickup_province_code'] && $std['delivery_province_code']) ? 'parsed_success' : 'parsed_partial'),
             'parsed_by_llm' => $merged['parsed_by_llm'] ?? $load->parsed_by_llm,
@@ -322,7 +323,7 @@ class ScrapedLoadService
         if (! $pickupOk || ! $deliveryOk) {
             return 'il çözülemedi';
         }
-        if (Settings::bool('scraper_auto_approve_require_vehicle') && ! $load->vehicle_type) {
+        if (Settings::bool('scraper_auto_approve_require_vehicle') && ! $load->vehicle_type && ! $load->vehicle_any) {
             return 'araç tipi yok';
         }
         if (! $load->encrypted_sender_phone && ! $load->sender_phone) {

@@ -121,7 +121,7 @@ new class extends Component {
             $q->where('scraper_id', (int) $this->sourceId);
         }
         if ($this->vehicle !== '') {
-            $this->vehicle === 'none' ? $q->whereNull('vehicle_type') : $q->where('vehicle_type', $this->vehicle);
+            $this->vehicle === 'none' ? $q->whereNull('vehicle_type')->where('vehicle_any', false) : ($this->vehicle === 'any' ? $q->where('vehicle_any', true) : $q->where('vehicle_type', $this->vehicle));
         }
         if ($this->period !== 'all') {
             $q->where('created_at', '>=', now()->subDays((int) $this->period));
@@ -365,7 +365,7 @@ new class extends Component {
             'pickup_district' => $load->pickup_district ?? '',
             'delivery_province_code' => $load->delivery_province_code,
             'delivery_district' => $load->delivery_district ?? '',
-            'vehicle_type' => $load->vehicle_type ?? '',
+            'vehicle_type' => $load->vehicle_any ? 'any' : ($load->vehicle_type ?? ''),
             'body_types' => BodyTypes::clean($load->body_types ?? []),
             'load_kind' => $load->load_kind ?? '',
             'goods_type' => $load->goods_type ?? '',
@@ -393,7 +393,7 @@ new class extends Component {
             'edit.delivery_province_code' => ['required', 'integer', Rule::in($codes)],
             'edit.pickup_district' => ['nullable', 'string', 'max:60'],
             'edit.delivery_district' => ['nullable', 'string', 'max:60'],
-            'edit.vehicle_type' => ['nullable', Rule::in(array_keys(VehicleTypes::TYPES))],
+            'edit.vehicle_type' => ['nullable', Rule::in(array_merge(['any'], array_keys(VehicleTypes::TYPES)))],
             'edit.body_types' => ['array'],
             'edit.body_types.*' => [Rule::in(array_keys(BodyTypes::TYPES))],
             'edit.load_kind' => ['nullable', Rule::in(array_keys(BodyTypes::LOAD_KINDS))],
@@ -426,8 +426,9 @@ new class extends Component {
             'pickup_lat' => $pickup['lat'], 'pickup_lng' => $pickup['lng'],
             'delivery_location' => $delivery['label'], 'delivery_province_code' => (int) $this->edit['delivery_province_code'], 'delivery_district' => $delivery['district'],
             'delivery_lat' => $delivery['lat'], 'delivery_lng' => $delivery['lng'],
-            'vehicle_type' => $this->edit['vehicle_type'] !== '' ? $this->edit['vehicle_type'] : null,
+            'vehicle_type' => ! in_array($this->edit['vehicle_type'], ['', 'any'], true) ? $this->edit['vehicle_type'] : null,
             'vehicle_type_source' => $this->edit['vehicle_type'] !== '' ? 'admin' : null,
+            'vehicle_any' => $this->edit['vehicle_type'] === 'any',
             'body_types' => ($bodies = BodyTypes::clean($this->edit['body_types'] ?? [])) !== [] ? $bodies : null,
             'body_type_source' => $bodies !== [] ? 'admin' : null,
             'load_kind' => ($this->edit['load_kind'] ?? '') !== '' ? $this->edit['load_kind'] : null,
@@ -761,7 +762,7 @@ new class extends Component {
         <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 lg:grid-cols-6 gap-2 text-xs">
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
             <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
-            <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+            <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option><option value="any">Araç fark etmez</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
             <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
             <div class="flex gap-2">
                 <select wire:model.live="period" class="{{ $input }}"><option value="1">Bugün</option><option value="7">7 gün</option><option value="30">30 gün</option><option value="all">Tümü</option></select>
@@ -824,6 +825,8 @@ new class extends Component {
                                     <div class="mt-1 flex flex-wrap items-center gap-1">
                                         @if($load->vehicle_type)
                                             <span class="badge {{ in_array($load->vehicle_type_source, ['keyword', 'ai', 'admin'], true) ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200' }}" title="Kaynak: {{ ['keyword' => 'araç adı', 'hint' => 'kasa ipucu', 'weight' => 'tonaj', 'pallet' => 'palet adedi', 'volume' => 'hacim', 'goods' => 'yük türünden çıkarım', 'ai' => 'yapay zeka', 'admin' => 'yönetici', 'template' => 'doğrulanmış kalıp'][$load->vehicle_type_source] ?? $load->vehicle_type_source }}">{{ $load->vehicleLabel() }}</span>
+                                        @elseif($load->vehicle_any)
+                                            <span class="badge bg-neutral-900 dark:bg-white text-white dark:text-neutral-900">Araç fark etmez</span>
                                         @else
                                             <span class="badge bg-amber-500/10 text-amber-600">Araç tipi yok</span>
                                         @endif
@@ -889,7 +892,7 @@ new class extends Component {
                                             <div><label class="form-label">Varış ilçesi</label><input type="text" wire:model="edit.delivery_district" class="{{ $input }}" placeholder="İsteğe bağlı"></div>
                                             <div>
                                                 <label class="form-label">Araç tipi (en küçük uygun)</label>
-                                                <select wire:model="edit.vehicle_type" class="{{ $input }}"><option value="">Belirsiz</option>@foreach(VehicleTypes::labels() as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
+                                                <select wire:model="edit.vehicle_type" class="{{ $input }}"><option value="">Belirsiz</option><option value="any">Fark etmez (her araç)</option>@foreach(VehicleTypes::labels() as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select>
                                             </div>
                                             <div class="col-span-2 md:col-span-4">
                                                 <label class="form-label">Kasa / dorse (birden çok seçilebilir; boş = fark etmez)</label>
@@ -902,12 +905,12 @@ new class extends Component {
                                             <div><label class="form-label">Yük biçimi</label><select wire:model="edit.load_kind" class="{{ $input }}"><option value="">Belirsiz</option>@foreach(BodyTypes::LOAD_KINDS as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
                                             <div><label class="form-label">Yük türü</label><input type="text" wire:model="edit.goods_type" class="{{ $input }}" list="goods-catalog"></div>
                                             <div><label class="form-label">Tonaj (kg)</label><input type="number" wire:model="edit.weight" class="{{ $input }}" min="1" max="60000">@error('edit.weight')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
-                                            <div><label class="form-label">Fiyat (₺)</label><div class="flex gap-2"><input type="number" step="0.01" wire:model="edit.price" class="{{ $input }}" min="0"><select wire:model="edit.price_unit" class="{{ $input }} w-32 shrink-0"><option value="total">Toplam</option><option value="per_ton">Ton başına</option></select></div>@error('edit.price')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
+                                            <div class="col-span-2 md:col-span-1"><label class="form-label">Fiyat (₺)</label><div class="flex gap-2"><input type="number" step="0.01" wire:model="edit.price" class="{{ $input }} min-w-0" min="0"><select wire:model="edit.price_unit" class="{{ $input }} !w-32 shrink-0"><option value="total">Toplam</option><option value="per_ton">Ton başına</option></select></div>@error('edit.price')<div class="text-red-500 mt-1">{{ $message }}</div>@enderror</div>
                                             <datalist id="goods-catalog">@foreach(\App\Support\GoodsCatalog::labels() as $label)<option value="{{ $label }}"></option>@endforeach</datalist>
-                                            <div class="col-span-2 md:col-span-4 flex items-center gap-3">
-                                                <button type="submit" class="btn-primary text-xs px-4 py-2">Kaydet</button>
-                                                <button type="button" wire:click="cancelEdit" class="btn-secondary text-xs px-4 py-2">Vazgeç</button>
-                                                <span class="text-neutral-400">Elle düzenlenen aday otomatik standartlaştırmadan ve yapay zeka birleştirmesinden etkilenmez.</span>
+                                            <div class="col-span-2 md:col-span-4 flex flex-wrap items-center gap-3">
+                                                <button type="submit" class="btn-primary text-xs px-4 py-2 whitespace-nowrap shrink-0">Kaydet</button>
+                                                <button type="button" wire:click="cancelEdit" class="btn-secondary text-xs px-4 py-2 whitespace-nowrap shrink-0">Vazgeç</button>
+                                                <span class="text-neutral-400 basis-full md:basis-auto md:flex-1">Elle düzenlenen aday otomatik standartlaştırmadan ve yapay zeka birleştirmesinden etkilenmez.</span>
                                             </div>
                                         </form>
                                     </td>

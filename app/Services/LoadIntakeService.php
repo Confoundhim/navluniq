@@ -354,6 +354,7 @@ class LoadIntakeService
             'goods_type' => $std['goods_type'],
             'vehicle_type' => $std['vehicle_type'],
             'vehicle_type_source' => $std['vehicle_type_source'],
+            'vehicle_any' => $std['vehicle_any'],
             'body_types' => $std['body_types'],
             'body_type_source' => $std['body_type_source'],
             'load_kind' => $std['load_kind'],
