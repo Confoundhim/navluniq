@@ -88,17 +88,67 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 6. Yerel geliştirme ve doğrulama
 
-- Testler MariaDB/SQLite ile çalışır: `php artisan test --compact` (300+ test, ~30 sn). Yeni özellik = yeni test.
-- Yerel MariaDB durmuşsa: `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)` ve `mysqladmin ping` ile bekle.
-- Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda). Ön yüz: `npm run build`
-  (`public/build` depoda değil; CSS/JS değişince derle).
-- Ekran görüntüsü: Playwright + `/opt/pw-browsers/chromium-*/chrome-linux/chrome`; 390×844 mobil görünüm,
-  gerekirse büyük yazı kipi (`localStorage.textSize = 'large'`). Her ekran değişikliği görüntüyle doğrulanır.
-- Yerel test hesapları: `sofor@test.local`, `yuk@test.local`, `admin@test.local`; şifre `Sifre12345!`;
-  tek kullanımlık kod `123456`. (Yalnız yerel/test; canlıda yok.)
-- Yönetici sekme bağlantıları: `/adminsystem/scrapers?sekme=published`, `/adminsystem/operations`, `/adminsystem/health`.
+- Yeni kapta ilk kurulum (README "Yerel kurulum"): `composer install`, `.env` yoksa `cp .env.example .env` +
+  `php artisan key:generate`, `.env`'de `DB_*` yerel MariaDB'ye göre, `MAIL_MAILER=log`; `php artisan migrate`,
+  `php artisan db:seed` (roller, SSS, sözleşmeler), `npm install`, `npm run build`.
+- **Deneme hesapları depoda:** `php artisan db:seed --class=LocalDemoSeeder` (yalnız yerel; tekrar çalıştırmak güvenli).
+  `admin@test.local` (süper yönetici), `sofor@test.local` (premium, belgeleri onaylı, TIR tenteli 13.60),
+  `yuk@test.local` (yük sahibi); şifre `Sifre12345!`, tek kullanımlık kod `123456` (panel ayarı
+  `review_login_emails/review_login_code` ile sabitlenir; canlıda yok). Örnek bir sistem ve bir dış kaynak ilanı da açılır.
+- Testler SQLite (bellek içi) ile çalışır, MariaDB gerekmez: `php artisan test --compact` (300+ test, ~30 sn).
+  Yeni özellik = yeni test. Kod biçimi: `vendor/bin/pint --dirty`.
+- Yerel MariaDB durmuşsa (kap yeniden başlayınca durur): `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)`
+  ve `mysqladmin ping` ile bekle. Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda).
+  Ön yüz: `npm run build` (`public/build` depoda değil; CSS/JS/Tailwind sınıfı değişince derle).
+- **Ekran görüntüsü:** `scripts/shot.cjs` (giriş yapar, 390×844 telefon boyutunda parça parça çeker):
+  `PW_MODULE=<playwright yolu> CHROME=/opt/pw-browsers/chromium-*/chrome-linux/chrome node scripts/shot.cjs driver /panel/sofor/dashboard normal cikti`
+  (`driver|cargo|admin|public`, kip `normal|large`). Playwright depoda bağımlılık değil: çalışma klasöründe
+  `npm i --no-save playwright` (indirme yapmaz; tarayıcı `/opt/pw-browsers` altında hazır). Etkileşim gerektiren
+  denetimler için aynı betiği temel alıp geçici bir betik yazılır. Toplu taşma denetimi: `scripts/mobile-audit.cjs`.
+- Yönetici sekme bağlantıları: `/adminsystem/scrapers?sekme=published`, `/adminsystem/operations`,
+  `/adminsystem/settings`, `/adminsystem/health`. Şoför: `/panel/sofor/...` (ilan-havuzu, seferlerim, bildirimler).
 
-## 7. Bekleyen fikirler (Osman onaylarsa)
+## 7. Tasarım ve kullanıcı deneyimi tercihleri (Osman'ın beğenileri)
+
+- Her şey telefonda (390 px) ve büyük yazı kipinde çalışmalı; taşma, üst üste binme olmaz.
+- Sade ve hafif: kaba, kalın, "Menü" yazılı düğmeler istenmez; mobil menü düğmesi ince çizgili, hafif gri kutu.
+  Bir düğme "çirkin / uyumsuz" diye geri gelirse tasarımı sadeleştir, açıklama ekleme.
+- Kullanıcıya iş yaptıran açıklamalar ("Boşluğa dokununca kapanır" gibi) konmaz; davranış kendiliğinden doğru olmalı.
+- Süreli hiçbir şey kullanıcıyı bölmez: açık liste kapanmaz, seçim sıfırlanmaz, liste parmağın altından kaymaz.
+  Yeni veri "N yeni ilan · Göster" gibi bir düğmeyle gelir; "Göster" listenin başına kaydırır.
+- Zaman etiketlerinde saniye gösterilmez ("az önce", "3 dk önce"); etiketler kendiliğinden ilerler.
+- Aynı türdeki kart her ekranda birebir aynıdır (tek bileşen). Aktif sefer kartı turuncu, dönüş yükü kartı yeşil.
+- Yönetici listelerinde her zaman kaç kayıt olduğu görünür (filtreye uyan sayı dahil).
+- Sayaçlar "bugüne kadar" mantığıyla artar, hiç düşmez; yanında "bugün" ve "günlük ortalama".
+- Claude / yapay zeka ürünleri hakkında ders anlatılmaz, model kimliği depoya yazılmaz; sorulursa yalnız cevaplanır.
+
+## 8. Zamanlanmış görevler (routes/console.php)
+
+`offers:expire` (saatlik), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
+(10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
+`scraped-loads:auto-approve` (dakikada), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
+`accounts:purge-drafts` (günlük), `system:backup` (03:30), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar). Bakım modunda zamanlayıcı çalışmaz.
+Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur (tekrar çalıştırmak güvenli).
+
+## 9. Test ve kod tuzakları (öğrenilmiş)
+
+- Livewire testinde `->call('$refresh')` tarayıcıdaki poll'u taklit etmez (commit'e dönüşür); poll davranışı için
+  `->update(calls: [['method' => '$refresh', 'params' => [], 'path' => '']])` ya da kancayı doğrudan test et.
+  `Livewire::withHeaders()` sonraki isteklere taşınmaz.
+- Premium/KYC gibi kullanıcı durumu değişince `actingAs($user->fresh())`; Volt bileşenleri modeli önbellekler.
+- Aynı saniyede oluşturulan kayıtlar `created_at > now()` ile kaçar; `>=` + "zaten bildirilmişler hariç" kullan.
+- `Carbon::createFromTimestamp()` UTC döner; veritabanıyla karşılaştırırken `config('app.timezone')` ver.
+  `diffInDays` işaretli döner; `abs`/doğru sıra kullan.
+- `mb_convert_case` İ'yi bozar → `TurkishText`; sıralama `TurkishText::compare`; ilçe takma adları tekilleştirilir.
+- Blade'de dinamik üretilen Tailwind sınıfları (`trip-status-{{ $x }}`) safelist'e girmezse derlemeden düşer.
+- Volt bileşen dosyasında aynı metod iki kez tanımlanırsa PHP fatal verir; trait'e taşınan metodları dosyadan sil.
+- MariaDB'de DDL işlemsel değildir; yarım kalan migration ikinci çalıştırmada "already exists" der → `hasTable` koruması.
+- `STDERR` sabiti `php artisan serve` altında yoktur; hata ayıklama için `Log` kullan.
+- Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
+  Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
+
+## 10. Bekleyen fikirler (Osman onaylarsa)
 
 - "Merkezim" (şoförün ev/park adresi) ve yol üstü parça yük önerisi.
 - Konuma göre anlık bildirim (Paket C) ve PWA / Play Store — mobil uygulama ile birlikte, şimdilik ertelendi.
