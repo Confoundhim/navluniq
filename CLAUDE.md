@@ -88,15 +88,25 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 6. Yerel geliştirme ve doğrulama
 
-- Testler MariaDB/SQLite ile çalışır: `php artisan test --compact` (300+ test, ~30 sn). Yeni özellik = yeni test.
-- Yerel MariaDB durmuşsa: `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)` ve `mysqladmin ping` ile bekle.
-- Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda). Ön yüz: `npm run build`
-  (`public/build` depoda değil; CSS/JS değişince derle).
-- Ekran görüntüsü: Playwright + `/opt/pw-browsers/chromium-*/chrome-linux/chrome`; 390×844 mobil görünüm,
-  gerekirse büyük yazı kipi (`localStorage.textSize = 'large'`). Her ekran değişikliği görüntüyle doğrulanır.
-- Yerel test hesapları: `sofor@test.local`, `yuk@test.local`, `admin@test.local`; şifre `Sifre12345!`;
-  tek kullanımlık kod `123456`. (Yalnız yerel/test; canlıda yok.)
-- Yönetici sekme bağlantıları: `/adminsystem/scrapers?sekme=published`, `/adminsystem/operations`, `/adminsystem/health`.
+- Yeni kapta ilk kurulum (README "Yerel kurulum"): `composer install`, `.env` yoksa `cp .env.example .env` +
+  `php artisan key:generate`, `.env`'de `DB_*` yerel MariaDB'ye göre, `MAIL_MAILER=log`; `php artisan migrate`,
+  `php artisan db:seed` (roller, SSS, sözleşmeler), `npm install`, `npm run build`.
+- **Deneme hesapları depoda:** `php artisan db:seed --class=LocalDemoSeeder` (yalnız yerel; tekrar çalıştırmak güvenli).
+  `admin@test.local` (süper yönetici), `sofor@test.local` (premium, belgeleri onaylı, TIR tenteli 13.60),
+  `yuk@test.local` (yük sahibi); şifre `Sifre12345!`, tek kullanımlık kod `123456` (panel ayarı
+  `review_login_emails/review_login_code` ile sabitlenir; canlıda yok). Örnek bir sistem ve bir dış kaynak ilanı da açılır.
+- Testler SQLite (bellek içi) ile çalışır, MariaDB gerekmez: `php artisan test --compact` (300+ test, ~30 sn).
+  Yeni özellik = yeni test. Kod biçimi: `vendor/bin/pint --dirty`.
+- Yerel MariaDB durmuşsa (kap yeniden başlayınca durur): `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)`
+  ve `mysqladmin ping` ile bekle. Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda).
+  Ön yüz: `npm run build` (`public/build` depoda değil; CSS/JS/Tailwind sınıfı değişince derle).
+- **Ekran görüntüsü:** `scripts/shot.cjs` (giriş yapar, 390×844 telefon boyutunda parça parça çeker):
+  `PW_MODULE=<playwright yolu> CHROME=/opt/pw-browsers/chromium-*/chrome-linux/chrome node scripts/shot.cjs driver /panel/sofor/dashboard normal cikti`
+  (`driver|cargo|admin|public`, kip `normal|large`). Playwright depoda bağımlılık değil: çalışma klasöründe
+  `npm i --no-save playwright` (indirme yapmaz; tarayıcı `/opt/pw-browsers` altında hazır). Etkileşim gerektiren
+  denetimler için aynı betiği temel alıp geçici bir betik yazılır. Toplu taşma denetimi: `scripts/mobile-audit.cjs`.
+- Yönetici sekme bağlantıları: `/adminsystem/scrapers?sekme=published`, `/adminsystem/operations`,
+  `/adminsystem/settings`, `/adminsystem/health`. Şoför: `/panel/sofor/...` (ilan-havuzu, seferlerim, bildirimler).
 
 ## 7. Tasarım ve kullanıcı deneyimi tercihleri (Osman'ın beğenileri)
 

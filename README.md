@@ -17,6 +17,7 @@ cp .env.example .env        # ardından DB_*, MAIL_* ve ADMIN_INIT_* değerlerin
 php artisan key:generate
 php artisan migrate
 php artisan db:seed         # roller, ilk yönetici, SSS ve sözleşme metinleri
+php artisan db:seed --class=LocalDemoSeeder   # yalnız yerel: deneme hesapları ve örnek ilanlar (bkz. CLAUDE.md §6)
 php artisan storage:link
 npm install
 npm run build               # geliştirme sırasında: npm run dev
