@@ -50,6 +50,7 @@ class ScrapedLoad extends Model
         'body_type_source',
         'load_kind',
         'vehicle_count',
+        'vehicle_any',
         'delivery_stops',
         'weight',
         'price',
@@ -67,6 +68,7 @@ class ScrapedLoad extends Model
     ];
 
     protected $casts = [
+        'vehicle_any' => 'boolean',
         'price' => 'decimal:2',
         'seen_sources' => 'array',
         'parse_metadata' => 'array',
@@ -220,7 +222,7 @@ class ScrapedLoad extends Model
     public function vehicleLabel(): ?string
     {
         if (! VehicleTypes::isValid($this->vehicle_type)) {
-            return null;
+            return $this->vehicle_any ? 'Araç fark etmez' : null;
         }
         $exact = in_array($this->vehicle_type_source, ['keyword', 'ai', 'admin', 'template'], true) || $this->vehicle_type === 'tir';
 

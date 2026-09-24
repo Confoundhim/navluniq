@@ -75,13 +75,21 @@ class LoadStandardizer
             $vehicleType = $aiType;
             $vehicleSource = 'ai';
         }
-        if ($vehicleType === null && $goods !== null) {
+        // "Araç fark etmez": açıkça araç adı yazılmadıysa tip boş kalır, ilan her araca açık sayılır.
+        $vehicleAny = ! empty($parsed['vehicle_any']) && ($parsed['vehicle_type_source'] ?? null) === 'admin';
+        if (VehicleClassifier::anyVehicle($norm) && $vehicle['confidence'] !== 'high') {
+            $vehicleAny = true;
+        }
+        if ($vehicleAny) {
+            $vehicleType = null;
+            $vehicleSource = 'keyword';
+        } elseif ($vehicleType === null && $goods !== null) {
             $vehicleType = $goods['min_vehicle'];
             $vehicleSource = 'goods';
         }
-        if ($vehicleType === null) {
+        if ($vehicleType === null && ! $vehicleAny) {
             $warnings[] = 'vehicle_unresolved';
-        } elseif (! in_array($vehicleSource, ['keyword', 'ai'], true)) {
+        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai'], true)) {
             $warnings[] = 'vehicle_inferred';
         }
 
@@ -123,7 +131,8 @@ class LoadStandardizer
             'delivery_lng' => $delivery['lng'],
             'goods_type' => $goodsLabel,
             'vehicle_type' => $vehicleType,
-            'vehicle_type_source' => $vehicleSource,
+            'vehicle_type_source' => $vehicleType !== null || $vehicleAny ? $vehicleSource : null,
+            'vehicle_any' => $vehicleAny,
             'body_types' => $bodyTypes !== [] ? $bodyTypes : null,
             'body_type_source' => $bodyTypes !== [] ? $bodySource : null,
             'load_kind' => $loadKind,

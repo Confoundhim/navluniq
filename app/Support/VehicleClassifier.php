@@ -180,6 +180,15 @@ final class VehicleClassifier
     }
 
     /** Türkçe küçük harf + ASCII; noktalama boşluğa çevrilir, sayı ayırıcıları korunur. */
+    /**
+     * "Araç fark etmez", "her türlü araç olur", "araç tipi önemli değil": ilan her araca açık.
+     * Kasa için söylenen "tente frigo fark etmez" bu kalıba girmez (araç sözcüğü şarttır).
+     */
+    public static function anyVehicle(string $norm): bool
+    {
+        return (bool) preg_match('/\b(?:arac(?:lar|i|lari)?\s*(?:tipi|cinsi)?\s*(?:fark ?etmez|farketmez|onemli degil|onemsiz|serbest)|her\s*(?:turlu|tur|cins)\s*arac|fark ?etmez\s*arac|hangi arac olursa|arac(?:lar)?\s*hepsi olur|tum arac(?:lar|lara)?(?:\s*uygun|\s*acik)?)\b/u', $norm);
+    }
+
     public static function normalize(string $text): string
     {
         $t = TurkishCities::ascii($text);

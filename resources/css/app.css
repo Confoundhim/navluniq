@@ -140,7 +140,8 @@
     }
     main table:not(.table-cards) thead, main table:not(.table-cards) tbody { white-space: nowrap; }
     main .flex.items-center.justify-between { gap: .75rem; flex-wrap: wrap; }
-    main button, main a { overflow-wrap: anywhere; }
+    main a { overflow-wrap: anywhere; }
+    main button { max-width: 100%; }
     [role="dialog"], [aria-modal="true"] { max-height: calc(100dvh - 2rem); overflow-y: auto; }
 }
 
@@ -153,8 +154,8 @@
     .table-cards thead { display: none; }
     .table-cards tr { position: relative; padding: .9rem 1rem; }
     .table-cards tr:has(> .tc-check) { padding-left: 2.75rem; }
-    .table-cards td { padding: .2rem 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
-    .table-cards td[colspan] { text-align: center; }
+    .table-cards td:not(.text-center) { text-align: left; }
+    .table-cards td { padding: .2rem 0; white-space: normal; overflow-wrap: anywhere; }
     .table-cards td.tc-check { position: absolute; left: 1rem; top: .95rem; width: auto; padding: 0; }
     .table-cards td.tc-check input { margin: 0; }
     .table-cards td[data-label]::before { content: attr(data-label) ": "; display: inline-block; margin-right: .35rem; font-size: .65rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(163 163 163); vertical-align: top; line-height: 1.5rem; }

@@ -4,15 +4,19 @@ namespace Tests\Feature\Services;
 
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Models\User;
 use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\ScrapedLoadService;
+use App\Support\Settings;
 use App\Support\TurkishLocations;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class LoadStandardizerTest extends TestCase
@@ -64,6 +68,42 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame(45000.0, $s->priceFromText(' fiyat: 45.000 '));
         $this->assertSame(1250.5, $s->priceFromText(' 1.250,50 tl '));
         $this->assertNull($s->priceFromText(' 24 ton 0532 123 45 67 '));
+    }
+
+    public function test_any_vehicle_phrase_leaves_type_empty_and_is_not_a_blocker(): void
+    {
+        $s = app(LoadStandardizer::class);
+        $std = $s->standardize('Bergama yükleme Kınık boşaltma 12 ton palet araç fark etmez 0532 123 45 67', ['pickup_location' => 'Bergama', 'delivery_location' => 'Kınık']);
+        $this->assertTrue($std['vehicle_any']);
+        $this->assertNull($std['vehicle_type'], 'Her araca açık ilanda tip boş kalır; yükten çıkarım yapılmaz');
+        $this->assertNotContains('vehicle_unresolved', $std['warnings']);
+
+        // Açık araç adı varsa "fark etmez" onu ezmez; kasa için söylenen "tente frigo fark etmez" araç kalıbı değildir
+        $std = $s->standardize('Tenteli tır Bursa İzmir 24 ton her türlü araç olur', ['pickup_location' => 'Bursa', 'delivery_location' => 'İzmir']);
+        $this->assertSame('tir', $std['vehicle_type']);
+        $this->assertFalse($std['vehicle_any']);
+        $std = $s->standardize('Bursa İzmir 3 palet tente frigo fark etmez', ['pickup_location' => 'Bursa', 'delivery_location' => 'İzmir']);
+        $this->assertFalse($std['vehicle_any']);
+
+        // Yönetici "Fark etmez (her araç)" seçince: araç tipi boş, otomatik onay "araç tipi yok" demez, kartta etiket var
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        $load = ScrapedLoad::create(['scraper_id' => 1, 'content_hash' => 'any1', 'raw_message' => 'Bergama Kınık 12 ton 0532 123 45 67', 'sender_phone' => '05321234567', 'pickup_location' => 'İzmir / Bergama', 'pickup_province_code' => 35, 'delivery_location' => 'İzmir / Kınık', 'delivery_province_code' => 35, 'status' => 'parsed_success', 'visibility' => 'private', 'weight' => 12000, 'retention_expires_at' => now()->addDays(30)]);
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_vehicle', '1');
+        $this->assertSame('araç tipi yok', app(ScrapedLoadService::class)->autoApprovalBlocker($load));
+        $this->actingAs($admin->fresh());
+        Volt::test('admin.scrapers-center')->call('startEdit', $load->id)->assertSet('edit.vehicle_type', '')
+            ->set('edit.vehicle_type', 'any')->call('saveEdit')->assertHasNoErrors()->assertSee('Araç fark etmez');
+        $load->refresh();
+        $this->assertTrue($load->vehicle_any);
+        $this->assertNull($load->vehicle_type);
+        $this->assertSame('admin', $load->vehicle_type_source);
+        $this->assertSame('Araç fark etmez', $load->vehicleLabel());
+        $this->assertNotSame('araç tipi yok', app(ScrapedLoadService::class)->autoApprovalBlocker($load));
+        Volt::test('admin.scrapers-center')->call('startEdit', $load->id)->assertSet('edit.vehicle_type', 'any');
     }
 
     public function test_intake_stores_standardized_fields_and_goods_based_vehicle(): void
