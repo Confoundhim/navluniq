@@ -397,8 +397,6 @@ new class extends Component {
                 'kamyon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 7h10v9H3zM13 11h4l3 3v2h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="16.5" cy="18" r="1.6"/>',
                 'kamyonet' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 9h9v7H3zM12 12h4l2 2v2h-6z"/><circle cx="6.5" cy="18" r="1.5"/><circle cx="15.5" cy="18" r="1.5"/>',
                 'panelvan' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 9a1 1 0 011-1h11l4 4v4H3z"/><path stroke-linecap="round" d="M15 8v4h4"/><circle cx="7" cy="17" r="1.5"/><circle cx="16" cy="17" r="1.5"/>',
-                'minivan' => '<path stroke-linecap="round" stroke-linejoin="round" d="M4 10l2-3h9l4 3v5H4z"/><path stroke-linecap="round" d="M9 7v3M14 7v3"/><circle cx="8" cy="16" r="1.5"/><circle cx="16" cy="16" r="1.5"/>',
-                'otomobil' => '<path stroke-linecap="round" stroke-linejoin="round" d="M5 11l1.5-4h11L19 11M4 11h16v4H4z"/><circle cx="7.5" cy="16" r="1.5"/><circle cx="16.5" cy="16" r="1.5"/>',
             ];
             $aracListesi = [
                 ['name' => 'Tır (Çekici + Dorse)', 'cat' => 'Ağır Vasıta', 'cap' => '28 ton', 'vol' => '90 m³', 'tag' => 'Mega / Standart', 'icon' => 'tir', 'color' => 'brand'],
@@ -407,10 +405,7 @@ new class extends Component {
                 ['name' => '8 Teker Kamyon', 'cat' => 'Ağır Ticari', 'cap' => '12 ton', 'vol' => '40 m³', 'tag' => 'Şehirler Arası', 'icon' => 'kamyon', 'color' => 'amber'],
                 ['name' => '6 Teker Kamyon', 'cat' => 'Orta Ticari', 'cap' => '8 ton', 'vol' => '30 m³', 'tag' => 'Bölgesel Dağıtım', 'icon' => 'kamyon', 'color' => 'amber'],
                 ['name' => 'Kamyonet', 'cat' => 'Hafif Ticari', 'cap' => '3,5 ton', 'vol' => '20 m³', 'tag' => 'Açık / Kapalı Kasa', 'icon' => 'kamyonet', 'color' => 'emerald'],
-                ['name' => 'Uzun Panelvan (Maxi)', 'cat' => 'Hafif Ticari', 'cap' => '2,5 ton', 'vol' => '14 m³', 'tag' => 'Hacimli Koli', 'icon' => 'panelvan', 'color' => 'emerald'],
-                ['name' => 'Orta Panelvan', 'cat' => 'Hafif Ticari', 'cap' => '1,5 ton', 'vol' => '8 m³', 'tag' => 'Şehir İçi Dağıtım', 'icon' => 'panelvan', 'color' => 'emerald'],
-                ['name' => 'Minivan', 'cat' => 'Hızlı Teslimat', 'cap' => '800 kg', 'vol' => '3,5 m³', 'tag' => 'Acil Parsiyel', 'icon' => 'minivan', 'color' => 'sky'],
-                ['name' => 'Otomobil / Ticari', 'cat' => 'Hızlı Teslimat', 'cap' => '400 kg', 'vol' => '1,5 m³', 'tag' => 'Hafif Paket', 'icon' => 'otomobil', 'color' => 'sky'],
+                ['name' => 'Panelvan', 'cat' => 'Hafif Ticari', 'cap' => '2 ton', 'vol' => '14 m³', 'tag' => 'Kapalı / Frigo', 'icon' => 'panelvan', 'color' => 'emerald'],
             ];
             $aracRenkleri = [
                 'brand' => ['badge' => 'bg-brand-500/10 text-brand-600 dark:text-brand-400', 'icon' => 'bg-brand-500/10 text-brand-500 group-hover:bg-brand-500 group-hover:text-white'],
@@ -422,7 +417,7 @@ new class extends Component {
         @endphp
 
         <div class="flex flex-wrap items-center justify-center gap-2">
-            @foreach(['brand' => 'Ağır Vasıta', 'amber' => 'Ağır & Orta Ticari', 'emerald' => 'Hafif Ticari', 'sky' => 'Hızlı Teslimat'] as $renk => $etiket)
+            @foreach(['brand' => 'Ağır Vasıta', 'amber' => 'Ağır & Orta Ticari', 'emerald' => 'Hafif Ticari'] as $renk => $etiket)
                 <span class="badge {{ $aracRenkleri[$renk]['badge'] }}">{{ $etiket }}</span>
             @endforeach
         </div>

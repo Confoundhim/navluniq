@@ -43,7 +43,7 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame(34, $std['delivery_province_code']);
         $this->assertSame('Kartal', $std['delivery_district']);
         $this->assertSame('Beyaz eşya', $std['goods_type']);
-        $this->assertSame('orta_panelvan', $std['vehicle_type']); // yükten çıkarım: panelvan ve üzeri
+        $this->assertSame('panelvan', $std['vehicle_type']); // yükten çıkarım: panelvan ve üzeri
         $this->assertSame('goods', $std['vehicle_type_source']);
         $this->assertSame(45000.0, $std['price']);
         $this->assertTrue($std['metadata']['urgent']);
@@ -123,9 +123,9 @@ class LoadStandardizerTest extends TestCase
         $this->assertSame('Ankara', $load->delivery_location);
         $this->assertSame(21, $load->pickup_province_code);
         $this->assertSame('Beyaz eşya', $load->goods_type);
-        $this->assertSame('orta_panelvan', $load->vehicle_type);
+        $this->assertSame('panelvan', $load->vehicle_type);
         $this->assertSame('goods', $load->vehicle_type_source);
-        $this->assertSame('Orta Panelvan ve üzeri', $load->vehicleLabel());
+        $this->assertSame('Panelvan ve üzeri', $load->vehicleLabel());
         $this->assertSame('Yarın', $load->meta('pickup_note'));
         $this->assertSame('parsed_success', $load->status);
     }

@@ -33,6 +33,9 @@ class extends Component {
     /** Dorse uzunluğu (yalnız tır): kisa | uzun. */
     public string $trailer_length = '';
 
+    /** Kuyruk lifti: '' belirtilmedi · '1' var · '0' yok (lift isteyen ilanlar "yok" diyene gösterilmez). */
+    public string $has_lift = '';
+
     public $ruhsat = null;
 
     private function profileId(): int
@@ -47,7 +50,7 @@ class extends Component {
 
     public function openCreate(): void
     {
-        $this->reset(['editingId', 'plate', 'ruhsat', 'body_type', 'trailer_length']);
+        $this->reset(['editingId', 'plate', 'ruhsat', 'body_type', 'trailer_length', 'has_lift']);
         $this->vehicle_type = array_key_first(DriverVehicle::getVehicleTypes());
         $this->resetErrorBag();
         $this->formOpen = true;
@@ -67,6 +70,7 @@ class extends Component {
         $this->vehicle_type = $vehicle->vehicle_type;
         $this->body_type = (string) ($vehicle->body_type ?? '');
         $this->trailer_length = (string) ($vehicle->trailer_length ?? '');
+        $this->has_lift = $vehicle->has_lift === null ? '' : ($vehicle->has_lift ? '1' : '0');
         $this->ruhsat = null;
         $this->resetErrorBag();
         $this->formOpen = true;
@@ -75,7 +79,7 @@ class extends Component {
     public function closeForm(): void
     {
         $this->formOpen = false;
-        $this->reset(['editingId', 'plate', 'vehicle_type', 'ruhsat', 'body_type', 'trailer_length']);
+        $this->reset(['editingId', 'plate', 'vehicle_type', 'ruhsat', 'body_type', 'trailer_length', 'has_lift']);
         $this->resetErrorBag();
     }
 
@@ -88,6 +92,15 @@ class extends Component {
         if (VehicleTypes::classOf($this->vehicle_type) !== 'tir') {
             $this->trailer_length = '';
         }
+        if (! $this->liftApplies()) {
+            $this->has_lift = '';
+        }
+    }
+
+    /** Kuyruk lifti panelvan dışındaki sınıflarda sorulur. */
+    public function liftApplies(): bool
+    {
+        return in_array(VehicleTypes::classOf($this->vehicle_type), BodyTypes::TYPES['liftli']['classes'], true);
     }
 
     /** Seçili araç sınıfında geçerli kasa cinsleri (uzunluk hariç). */
@@ -105,6 +118,7 @@ class extends Component {
             'vehicle_type' => ['required', Rule::in(array_keys(DriverVehicle::getVehicleTypes()))],
             'body_type' => ['nullable', Rule::in($this->bodyOptions())],
             'trailer_length' => ['nullable', Rule::in(array_keys(BodyTypes::TRAILER_LENGTHS))],
+            'has_lift' => ['nullable', Rule::in(['0', '1'])],
             'ruhsat' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:10240'],
         ], [
             'plate.required' => 'Plaka zorunludur.',
@@ -127,6 +141,7 @@ class extends Component {
             'vehicle_type' => $this->vehicle_type,
             'body_type' => $this->body_type !== '' ? $this->body_type : null,
             'trailer_length' => VehicleTypes::classOf($this->vehicle_type) === 'tir' && $this->trailer_length !== '' ? $this->trailer_length : null,
+            'has_lift' => $this->liftApplies() && $this->has_lift !== '' ? $this->has_lift === '1' : null,
         ];
 
         if ($this->ruhsat) {
@@ -207,6 +222,7 @@ class extends Component {
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
             'bodyOptions' => $this->bodyOptions(),
             'isTir' => VehicleTypes::classOf($this->vehicle_type) === 'tir',
+            'liftApplies' => $this->liftApplies(),
         ];
     }
 }; ?>
@@ -242,8 +258,8 @@ class extends Component {
                 <div class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
                     <svg class="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($vehicle->vehicle_type) !!}</svg>
                     <span class="font-semibold">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</span>
-                    @if($vehicle->body_type || $vehicle->trailer_length)
-                        <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null])) }}</span>
+                    @if($vehicle->body_type || $vehicle->trailer_length || $vehicle->has_lift)
+                        <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null, $vehicle->has_lift ? 'Liftli' : null])) }}</span>
                     @else
                         <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="text-[11px] text-amber-600 hover:underline">Kasa tipini ekleyin</button>
                     @endif
@@ -297,6 +313,18 @@ class extends Component {
                             @foreach(\App\Support\BodyTypes::TRAILER_LENGTHS as $lk => $ll)<option value="{{ $lk }}">{{ $ll }}</option>@endforeach
                         </select>
                         @error('trailer_length') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
+                @endif
+                @if($liftApplies)
+                    <div>
+                        <label class="form-label">Kuyruk lifti</label>
+                        <select wire:model="has_lift" class="form-input">
+                            <option value="">Belirtilmedi</option>
+                            <option value="1">Var (liftli)</option>
+                            <option value="0">Yok</option>
+                        </select>
+                        <p class="text-[11px] text-neutral-500 mt-1">Lift isteyen ilanlar "Yok" diyen araca gösterilmez.</p>
+                        @error('has_lift') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 @endif
 

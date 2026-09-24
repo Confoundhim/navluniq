@@ -70,7 +70,7 @@ class LoadStandardizer
         $vehicle = VehicleClassifier::analyze($raw, $weight);
         $vehicleType = $vehicle['type'];
         $vehicleSource = $vehicle['source'];
-        $aiType = VehicleTypes::isValid($parsed['vehicle_type'] ?? null) ? $parsed['vehicle_type'] : null;
+        $aiType = VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null)) ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
         if ($aiType !== null && ($vehicleType === null || $vehicle['confidence'] !== 'high')) {
             $vehicleType = $aiType;
             $vehicleSource = 'ai';

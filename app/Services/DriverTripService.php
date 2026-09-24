@@ -351,6 +351,6 @@ class DriverTripService
         }
 
         return VehicleTypes::canCarry((string) $vehicle->vehicle_type, (string) $load->vehicle_type)
-            && BodyTypes::vehicleFits($vehicle->body_type, $vehicle->trailer_length, $load->body_types);
+            && BodyTypes::vehicleFits($vehicle->body_type, $vehicle->trailer_length, $load->body_types, $vehicle->has_lift);
     }
 }

@@ -46,12 +46,12 @@ class LoadFilterServiceTest extends TestCase
     public function test_vehicle_mode_mine_hides_loads_my_vehicle_cannot_carry(): void
     {
         $this->load(['vehicle_type' => 'kamyonet']);
-        $this->load(['vehicle_type' => 'minivan']);
+        $this->load(['vehicle_type' => 'panelvan']);
         $this->load(['vehicle_type' => 'tir']);
 
         $svc = app(LoadFilterService::class);
         $mine = $svc->applyToLoads(Load::query(), LoadFilterService::normalize([]), $this->driver)->pluck('vehicle_type')->all();
-        $this->assertEqualsCanonicalizing(['kamyonet', 'minivan'], $mine);
+        $this->assertEqualsCanonicalizing(['kamyonet', 'panelvan'], $mine);
 
         $any = $svc->applyToLoads(Load::query(), LoadFilterService::normalize(['vehicle_mode' => 'any']), $this->driver)->count();
         $this->assertSame(3, $any);

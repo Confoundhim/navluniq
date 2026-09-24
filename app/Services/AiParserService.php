@@ -791,7 +791,7 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 2. pickup ve delivery: Türkiye il adı (resmi yazım, ör. "Diyarbakır", "İstanbul") ve varsa ilçe/semt. "X'den Y'ye", "X - Y", "X → Y", "Xdan Yya" kalıplarında X kalkış, Y varıştır. İlçe verildiyse ilini sen bul (Kartal → İstanbul, Gebze → Kocaeli, Nazilli → Aydın).
 3. vehicle_type: yalnız şu anahtarlardan biri; mesajda araç adı yoksa tonaja/yüke göre EN KÜÇÜK uygun aracı seç ve vehicle_flexible=true yap:
 {$vehicles}
-"tenteli", "dorse", "çekici", "mega", "lowbed" → tir. "Kapalı kasa kamyon" → tonaja göre kamyon. "Panelvan" → orta_panelvan (uzun yazıyorsa uzun_panelvan).
+"tenteli", "dorse", "çekici", "mega", "lowbed", "silobas" → tir. "Kapalı kasa kamyon" → tonaja göre kamyon. Panelvan, minivan, Doblo/Transit gibi hafif ticari → panelvan. Otomobil yoktur; evrak gibi küçük yük → panelvan.
 4. weight_kg: kilogram tam sayı ("24 tn" → 24000, "12,5 ton" → 12500, "800 kg" → 800). "Basar tonaj" = aracın taşıyabildiği azami tonaj, yük tonajı sayılır. Palet adedi tonaj değildir.
 5. price_try: Türk lirası ("45 bin" → 45000, "38.000 tl" → 38000, "45k" → 45000). KDV notu fiyatı değiştirmez. Yoksa null. price_per_ton: fiyat ton başına ise true ("ton başı 1200", "tonu 950", "+basar", dökme yükte "1000+kdv"), toplam navlun ise false.
 6. goods_category: yalnız şu anahtarlardan biri ya da null: {$goods}. goods: mesajdaki yük tanımı kısa metin.

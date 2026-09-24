@@ -113,6 +113,9 @@ final class Lexicon
     public static function matchVehicle(string $text): ?array
     {
         $hit = self::firstHit('vehicle', self::normalize($text));
+        if ($hit !== null) {
+            $hit['canonical'] = VehicleTypes::canonical($hit['canonical']);
+        }
 
         return $hit !== null && VehicleTypes::isValid($hit['canonical']) ? $hit : null;
     }
