@@ -3,9 +3,6 @@
 use Livewire\Volt\Component;
 use App\Models\CmsContent;
 use App\Models\Faq;
-use App\Models\DriverVehicle;
-use App\Models\Load;
-use App\Models\ScrapedLoad;
 
 new class extends Component {
     public string $activeSlider = 'owner';
@@ -16,15 +13,6 @@ new class extends Component {
     public string $driverTitle = '';
     public string $driverDesc = '';
     public string $hakkimizda = '';
-
-    // Canlı İstatistik Sayaçları
-    public int $vehicleCount = 0;
-    public int $systemLoadsCount = 0;
-    public int $webLoadsCount = 0;
-
-    /** @var array<string, mixed> */
-    public array $stats = [];
-    public int $completedCount = 0;
 
     public function mount(): void
     {
@@ -38,14 +26,6 @@ new class extends Component {
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
         $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. Gruplarda ve webde paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
         $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
-
-        // Veritabanı Sayaçları
-        $this->vehicleCount = DriverVehicle::whereHas('driverProfile', fn ($q) => $q->where('kyc_status', 'approved'))->count();
-        // "Bugüne kadar" sayaçları hiç düşmez (arşivlenen ilanlar da sayılır); yanında bugün gelen ve şu an açık olan
-        $this->stats = app(\App\Services\LoadStatsService::class)->summary();
-        $this->systemLoadsCount = $this->stats['system_total'];
-        $this->webLoadsCount = $this->stats['external_total'];
-        $this->completedCount = $this->stats['completed'];
     }
 
     public function getAllFaqs()
@@ -165,33 +145,8 @@ new class extends Component {
         </div>
     </section>
 
-    <!-- ========================================================= -->
-    <!-- 2. BÖLÜM: ANLIK CANLI VERİ AKIŞI (STAT METRICS) -->
-    <!-- ========================================================= -->
-    <section class="max-w-7xl mx-auto px-6 md:px-12">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
-                <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Aktif Kayıtlı Araç</span>
-                <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white">{{ number_format($vehicleCount) }}</div>
-                <span class="text-[10px] text-emerald-500 font-bold">Doğrulanmış Filo</span>
-            </div>
-            <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
-                <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Sistem İlanları</span>
-                <div class="text-3xl sm:text-4xl font-black text-brand-500 tabular-nums">{{ number_format($systemLoadsCount, 0, ',', '.') }}</div>
-                <span class="text-[10px] text-neutral-400 font-medium">Bugüne kadar açılan · şu an açık {{ number_format($stats['system_open'] ?? 0, 0, ',', '.') }}</span>
-            </div>
-            <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
-                <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Dış Kaynak İlanları</span>
-                <div class="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white tabular-nums">{{ number_format($webLoadsCount, 0, ',', '.') }}</div>
-                <span class="text-[10px] text-brand-500 font-bold">Bugün {{ number_format($stats['external_today'] ?? 0, 0, ',', '.') }} yeni · günde ortalama {{ number_format($stats['external_daily_avg'] ?? 0, 0, ',', '.') }}</span>
-            </div>
-            <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
-                <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Başarılı Sevkiyat</span>
-                <div class="text-3xl sm:text-4xl font-black text-emerald-500">{{ number_format($completedCount) }}</div>
-                <span class="text-[10px] text-emerald-600 font-bold">Onaylı teslimat</span>
-            </div>
-        </div>
-    </section>
+    <!-- 2. BÖLÜM: CANLI SAYAÇLAR (kendi kendine yenilenir; livewire/frontend/live-stats) -->
+    <livewire:frontend.live-stats />
 
     <!-- ========================================================= -->
     <!-- 3. BÖLÜM: NAVLUN NEDİR? VE HAKKIMIZDA ÖZET -->

@@ -58,6 +58,17 @@ class LoadStatsServiceTest extends TestCase
         Volt::test('frontend.home')->assertSee('Bugün 1 yeni')->assertSee('Bugüne kadar açılan');
     }
 
+    public function test_home_live_counters_refresh_on_tick_after_a_publish(): void
+    {
+        Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        $c = Volt::test('frontend.live-stats')->assertSeeHtml('data-value="0"')->assertSee('Dış Kaynak İlanları');
+        app(ScrapedLoadService::class)->approve($this->scraped(), null);
+        // Sayfa yenilenmeden, süreli tick ile yeni değer gelir; tarayıcıdaki sayaç data-value değişince akarak sayar
+        $c->call('tick')->assertSeeHtml('data-value="1"');
+        $this->assertStringContainsString('x-data="countUp"', $c->html());
+        $this->get('/')->assertOk()->assertSee('wire:poll.15s.visible', false);
+    }
+
     public function test_publishing_sets_published_at_and_list_window_from_setting(): void
     {
         Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);

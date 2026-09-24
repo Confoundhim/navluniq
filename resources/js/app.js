@@ -37,6 +37,43 @@ function applyTextSize(size) {
 }
 
 document.addEventListener('alpine:init', () => {
+    // Canlı sayaç: sunucu data-value'yu güncelleyince (wire:poll) eski değerden yeniye akarak sayar ve kısa bir
+    // vurgu yapar. İlk çizimde sunucunun yazdığı sayı olduğu gibi kalır; sayaç hiç geri saymaz.
+    Alpine.data('countUp', () => ({
+        shown: 0,
+        target: 0,
+        raf: null,
+        init() {
+            this.target = this.read();
+            this.shown = this.target;
+            new MutationObserver(() => this.animateTo(this.read())).observe(this.$el, { attributes: true, attributeFilter: ['data-value'] });
+        },
+        read() {
+            return parseInt(this.$el.dataset.value || '0', 10) || 0;
+        },
+        get text() {
+            return Math.round(this.shown).toLocaleString('tr-TR');
+        },
+        animateTo(value) {
+            if (value === this.target) return;
+            const from = this.shown, to = value, duration = 1200, start = performance.now();
+            this.target = to;
+            if (this.raf) cancelAnimationFrame(this.raf);
+            const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduce) { this.shown = to; return; }
+            this.$el.classList.remove('count-pop');
+            void this.$el.offsetWidth;
+            this.$el.classList.add('count-pop');
+            const step = (now) => {
+                const t = Math.min(1, (now - start) / duration);
+                const eased = 1 - Math.pow(1 - t, 3);
+                this.shown = from + (to - from) * eased;
+                if (t < 1) this.raf = requestAnimationFrame(step); else { this.shown = to; this.raf = null; }
+            };
+            this.raf = requestAnimationFrame(step);
+        },
+    }));
+
     // Büyük yazı tercihi: kök yazı boyutu büyütülür, rem tabanlı tüm ölçüler orantılı büyür.
     Alpine.store('textSize', {
         large: preferredTextSize() === 'large',
