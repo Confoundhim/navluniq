@@ -81,4 +81,9 @@ Kuyruk kullanılmaz; e-postalar eşzamanlı gönderilir. Uygulama bir yük denge
 
 ## Git akışı
 
-Geliştirme yerelde yapılır, `main` dalına push edilir; sunucuda `git pull` ile alınır.
+Geliştirme yerelde yapılır, `main` dalına push edilir; sunucuda `git pull` ile alınır (ya da panelden "Siteyi güncelle").
+
+## Proje notu (yapay zeka oturumları için)
+
+Kökteki `CLAUDE.md` dosyası çalışma düzenini, sektör kurallarını, kod haritasını ve bekleyen işleri taşır.
+Yeni bir geliştirme oturumu bu dosyayı okuyarak kaldığı yerden devam eder; kurallar değişince dosya da güncellenir.
