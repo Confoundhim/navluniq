@@ -905,7 +905,7 @@ class extends Component {
                         @if($offer->status === 'pending')
                             <button type="button" wire:click="withdrawOffer({{ $offer->id }})" wire:confirm="Teklifinizi geri çekmek istediğinize emin misiniz?" class="text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 font-bold">Geri çek</button>
                         @elseif($offer->status === 'accepted' && $offerLoad)
-                            <a href="{{ route('driver.shipments.show', $offerLoad->id) }}" wire:navigate class="text-brand-400 font-bold hover:underline">Sevkiyata git</a>
+                            <a href="{{ route('driver.jobs.show', $offerLoad->id) }}" wire:navigate class="text-brand-400 font-bold hover:underline">İşe git</a>
                         @endif
                     </div>
                 </div>

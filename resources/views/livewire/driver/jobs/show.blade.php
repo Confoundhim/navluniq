@@ -15,7 +15,7 @@ use Livewire\WithFileUploads;
 
 new
 #[Layout('components.layouts.driver')]
-#[Title('Sevkiyat Detayı')]
+#[Title('İş ayrıntısı')]
 class extends Component {
     use WithFileUploads;
 
@@ -35,8 +35,8 @@ class extends Component {
         $this->loadId = $loadId;
 
         if (! $this->ownedLoadQuery()->exists()) {
-            session()->flash('error_message', 'Sevkiyat bulunamadı veya size ait değil.');
-            $this->redirect(route('driver.shipments.index'), navigate: true);
+            session()->flash('error_message', 'İş bulunamadı veya size ait değil.');
+            $this->redirect(route('driver.jobs.index'), navigate: true);
         }
     }
 
@@ -60,7 +60,7 @@ class extends Component {
         $shipment = $this->ownedShipment();
 
         if (! $profile || ! $shipment) {
-            session()->flash('error_message', 'Sevkiyat bulunamadı.');
+            session()->flash('error_message', 'İş bulunamadı.');
 
             return;
         }
@@ -73,7 +73,7 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Sevkiyat yola çıktı olarak kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
+        session()->flash('success_message', 'Yola çıktığınız kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
     }
 
     public function markDelivered(ShipmentService $shipments): void
@@ -91,7 +91,7 @@ class extends Component {
         $shipment = $this->ownedShipment();
 
         if (! $profile || ! $shipment) {
-            $this->addError('pod_file', 'Sevkiyat bulunamadı.');
+            $this->addError('pod_file', 'İş bulunamadı.');
 
             return;
         }
@@ -117,7 +117,7 @@ class extends Component {
 
         $load = $this->ownedLoadQuery()->first();
         if (! $load) {
-            $this->addError('rating', 'Sevkiyat bulunamadı.');
+            $this->addError('rating', 'İş bulunamadı.');
 
             return;
         }
@@ -171,12 +171,13 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <a href="{{ route('driver.shipments.index') }}" wire:navigate class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-semibold">&larr; Sevkiyatlarım</a>
-        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight mt-1">Sevkiyat Detayı</h2>
+        <a href="{{ route('driver.jobs.index') }}" wire:navigate class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-semibold">&larr; İşlerim</a>
+        <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight mt-1">İş ayrıntısı</h2>
+        <p class="page-subtitle">NavlunIQ ilanı: ödeme, yola çıkış, teslimat kanıtı ve yük sahibi onayı bu sayfada ilerler.</p>
     </div>
 
     @if(! $load)
-        <div class="p-6 bg-white dark:bg-neutral-900 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-center text-xs text-neutral-500 dark:text-neutral-400">Sevkiyat bulunamadı veya size ait değil.</div>
+        <div class="p-6 bg-white dark:bg-neutral-900 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-center text-xs text-neutral-500 dark:text-neutral-400">İş bulunamadı veya size ait değil.</div>
     @else
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -226,8 +227,8 @@ class extends Component {
                 </div>
 
                 @if($shipment)
-                    <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                        <h3 class="section-title">Sevkiyat aşaması</h3>
+                    <div id="teslimat" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+                        <h3 class="section-title">Teslimat adımları</h3>
 
                         @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
                             @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
@@ -270,7 +271,7 @@ class extends Component {
                             </div>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_COMPLETED)
                             <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs space-y-2">
-                                <div class="font-bold">Sevkiyat tamamlandı.</div>
+                                <div class="font-bold">İş tamamlandı.</div>
                                 @if($load->payout)
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                         <div>Navlun: <span class="tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->total_amount ?? 0), 2, ',', '.') }} ₺</span></div>
@@ -289,7 +290,7 @@ class extends Component {
                                 <a href="{{ route('driver.disputes.index') }}" wire:navigate class="font-bold underline">Uyuşmazlıklar</a>
                             </div>
                         @else
-                            <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 text-xs">Sevkiyat iptal edildi.</div>
+                            <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 text-xs">İş iptal edildi.</div>
                         @endif
                     </div>
 

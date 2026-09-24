@@ -228,6 +228,10 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .trip-status-on_the_way { @apply border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300; }
     .trip-status-delivered { @apply border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300; }
     .trip-status-closed { @apply border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 text-neutral-500; }
+    .trip-status-disputed { @apply border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300; }
+    /* İş kartı (İşlerim ve Genel bakış aynı kart): açık iş turuncu çerçeveli, kapanmış iş sade */
+    .job-card { @apply rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-3 text-xs; }
+    .job-card-open { @apply border-2 border-brand-500/70 bg-brand-500/5 dark:bg-brand-500/10; }
     /* Dönüş radarına giren ilan: yeşil ton ve sol şerit */
     .load-card-return { @apply border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 border-l-4 border-l-emerald-500 hover:border-emerald-500; }
     .badge-return { @apply inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white; }

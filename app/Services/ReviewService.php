@@ -45,7 +45,7 @@ class ReviewService
             app(NotificationService::class)->notify($reviewee, 'Yeni değerlendirme aldınız',
                 ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için ".str_repeat('★', $review->rating).str_repeat('☆', 5 - $review->rating).' ('.$review->rating.'/5) puan aldınız.'.($review->comment ? ' Yorum: '.$review->comment : ''),
                     'Değerlendirmeler profilinizde görünür ve gelecekteki tekliflerinizde güven puanınızı etkiler.'],
-                route($isDriver ? 'driver.shipments.show' : 'cargo-owner.shipments.show', $load->id), 'Sevkiyatı görüntüle', 'review');
+                route($isDriver ? 'driver.jobs.show' : 'cargo-owner.shipments.show', $load->id), 'Sevkiyatı görüntüle', 'review');
         }
 
         return $review;

@@ -93,6 +93,71 @@ class DriverTrip extends Model
         return self::STATUS_LABELS[$this->status] ?? $this->status;
     }
 
+    /**
+     * Ekranda gösterilen durum anahtarı. NavlunIQ işinde ilanın durumu esastır: ödeme, teslimat onayı ve
+     * uyuşmazlık orada yaşanır; iş kartı da aynı şeyi söyler. Gruptan alınan işte seferin kendi durumu.
+     * Değerler: planned | on_the_way | delivered | disputed | closed
+     */
+    public function displayStatusKey(): string
+    {
+        $load = $this->isSystem() ? $this->cargoLoad : null;
+        if (! $load) {
+            return $this->status;
+        }
+
+        return match ($load->status) {
+            Load::STATUS_ASSIGNED => self::STATUS_PLANNED,
+            Load::STATUS_ON_THE_WAY => self::STATUS_ON_THE_WAY,
+            Load::STATUS_DELIVERED => self::STATUS_DELIVERED,
+            Load::STATUS_DISPUTED => 'disputed',
+            default => self::STATUS_CLOSED,
+        };
+    }
+
+    public function displayStatusLabel(): string
+    {
+        $load = $this->isSystem() ? $this->cargoLoad : null;
+        if (! $load) {
+            return $this->statusLabel();
+        }
+
+        return match ($load->status) {
+            Load::STATUS_ASSIGNED => $load->isPaid() ? 'Yüklemeye hazır' : 'Ödeme bekleniyor',
+            Load::STATUS_ON_THE_WAY => 'Yolda',
+            Load::STATUS_DELIVERED => 'Teslim edildi, onay bekleniyor',
+            Load::STATUS_DISPUTED => 'Uyuşmazlık',
+            Load::STATUS_COMPLETED => 'Tamamlandı',
+            Load::STATUS_CANCELLED => 'İptal edildi',
+            default => $load->statusLabel(),
+        };
+    }
+
+    /** Gruptan alınan iş elle kapatılır; NavlunIQ işi teslimat onayı ya da iptal ile kendiliğinden kapanır. */
+    public function canCloseManually(): bool
+    {
+        return ! $this->isSystem() && $this->isOpen();
+    }
+
+    /** NavlunIQ işinde "Yola çıktım" ancak ödeme alındıktan sonra; gruptan alınan işte planlandı durumunda. */
+    public function canStart(): bool
+    {
+        if (! $this->isOpen()) {
+            return false;
+        }
+        if ($this->isSystem()) {
+            $load = $this->cargoLoad;
+
+            return $load !== null && $load->status === Load::STATUS_ASSIGNED && $load->isPaid();
+        }
+
+        return $this->status === self::STATUS_PLANNED;
+    }
+
+    public function sourceLabel(): string
+    {
+        return $this->isSystem() ? 'NavlunIQ ilanı' : 'Gruptan alındı';
+    }
+
     public function routeLabel(): string
     {
         return ($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş');

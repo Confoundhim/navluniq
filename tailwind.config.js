@@ -3,7 +3,7 @@ import defaultTheme from 'tailwindcss/defaultTheme';
 /** @type {import('tailwindcss').Config} */
 export default {
     // Blade'de dinamik üretilen sınıflar (trip-status-{{ $status }}) derlemede silinmesin
-    safelist: ['line-clamp-2', 'line-clamp-3', 'line-clamp-4', 'trip-status-planned', 'trip-status-on_the_way', 'trip-status-delivered', 'trip-status-closed'],
+    safelist: ['line-clamp-2', 'line-clamp-3', 'line-clamp-4', 'trip-status-planned', 'trip-status-on_the_way', 'trip-status-delivered', 'trip-status-closed', 'trip-status-disputed'],
     content: [
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',

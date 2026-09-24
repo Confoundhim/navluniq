@@ -78,6 +78,12 @@ class Shipment extends Model
         return $this->hasMany(DriverLocation::class);
     }
 
+    /** Sevkiyata bağlı şoför işi (sefer). */
+    public function trip(): HasOne
+    {
+        return $this->hasOne(DriverTrip::class);
+    }
+
     public function latestLocation(): HasOne
     {
         return $this->hasOne(DriverLocation::class)->latestOfMany('id');

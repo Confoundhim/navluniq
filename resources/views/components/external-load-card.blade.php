@@ -25,7 +25,7 @@
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg>
             </button>
             @if($isTaken)
-                <a href="{{ route('driver.trips.index') }}" wire:navigate class="load-card-action-ghost text-emerald-700 dark:text-emerald-400 border-emerald-500/40" title="Bu ilan için açık seferiniz var">✓ Seferimde</a>
+                <a href="{{ route('driver.jobs.index') }}" wire:navigate class="load-card-action-ghost text-emerald-700 dark:text-emerald-400 border-emerald-500/40" title="Bu ilan için açık işiniz var">✓ İşlerimde</a>
             @else
                 <button type="button" wire:click="openTake({{ $item->id }})" class="load-card-action-ghost" title="İşi aldıysanız seferinizi kaydedin; varış yerinize göre dönüş yükü bildirilir">Bu işi aldım</button>
             @endif

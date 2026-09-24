@@ -105,8 +105,71 @@ class DriverTripService
     {
         $trip = DriverTrip::query()->where('shipment_id', $shipment->id)->first();
         if ($trip) {
-            $this->setStatus($trip, $status);
+            $this->setStatus($trip, $status, fromShipment: true);
         }
+    }
+
+    /** Sevkiyat durumunun sefer karşılığı. */
+    public static function statusForShipment(Shipment $shipment): string
+    {
+        return match ($shipment->status) {
+            Shipment::STATUS_AWAITING_PICKUP => DriverTrip::STATUS_PLANNED,
+            Shipment::STATUS_IN_TRANSIT => DriverTrip::STATUS_ON_THE_WAY,
+            Shipment::STATUS_DELIVERED => DriverTrip::STATUS_DELIVERED,
+            Shipment::STATUS_DISPUTED => $shipment->delivered_at ? DriverTrip::STATUS_DELIVERED : DriverTrip::STATUS_ON_THE_WAY,
+            default => DriverTrip::STATUS_CLOSED,
+        };
+    }
+
+    /**
+     * Şoförün işlerini sevkiyat kayıtlarıyla tutarlı hâle getirir (İşlerim ve Genel bakış açılırken):
+     * - Sefer kaydı olmayan sevkiyatlara (özellik eklenmeden önce kabul edilmiş teklifler) sefer açılır.
+     * - Sevkiyatı bitmiş (tamamlandı / iptal) ama açık kalmış seferler kapanır; durumu geride kalanlar eşitlenir.
+     * Tekrar çalıştırmak güvenlidir. Dönen sayı: düzeltilen kayıt.
+     */
+    public function reconcile(DriverProfile $driver): int
+    {
+        $fixed = 0;
+        $missing = Shipment::query()->with('cargoLoad')->where('driver_profile_id', $driver->id)
+            ->whereDoesntHave('trip')->orderBy('id')->get();
+        foreach ($missing as $shipment) {
+            if ($trip = $this->fromShipment($shipment)) {
+                $status = self::statusForShipment($shipment);
+                if ($status !== $trip->status) {
+                    $this->setStatus($trip, $status, fromShipment: true);
+                }
+                $fixed++;
+            }
+        }
+        $open = DriverTrip::query()->with('shipment')->where('driver_profile_id', $driver->id)->where('source', 'system')->open()->get();
+        foreach ($open as $trip) {
+            if (! $trip->shipment) {
+                continue;
+            }
+            $status = self::statusForShipment($trip->shipment);
+            if ($status !== $trip->status) {
+                $this->setStatus($trip, $status, fromShipment: true);
+                $fixed++;
+            }
+        }
+
+        return $fixed;
+    }
+
+    /** "Yola çıktım": NavlunIQ işinde sevkiyat akışı (ödeme şartı) uygulanır, gruptan alınan iş doğrudan yola çıkar. */
+    public function start(DriverTrip $trip, DriverProfile $driver): DriverTrip
+    {
+        if ($trip->isSystem()) {
+            $shipment = $trip->shipment;
+            if (! $shipment) {
+                throw new RuntimeException('Bu işin sevkiyat kaydı bulunamadı.');
+            }
+            app(ShipmentService::class)->startTransit($shipment, $driver);
+
+            return $trip->fresh();
+        }
+
+        return $this->setStatus($trip, DriverTrip::STATUS_ON_THE_WAY);
     }
 
     /** İlan iptal edildi: bağlı açık seferler kapanır. */
@@ -115,10 +178,16 @@ class DriverTripService
         return DriverTrip::query()->where('load_id', $loadId)->open()->update(['status' => DriverTrip::STATUS_CLOSED, 'closed_at' => now()]);
     }
 
-    public function setStatus(DriverTrip $trip, string $status): DriverTrip
+    public function setStatus(DriverTrip $trip, string $status, bool $fromShipment = false): DriverTrip
     {
         if (! array_key_exists($status, DriverTrip::STATUS_LABELS)) {
-            throw new RuntimeException('Geçersiz sefer durumu.');
+            throw new RuntimeException('Geçersiz iş durumu.');
+        }
+        if ($trip->isSystem() && ! $fromShipment) {
+            // NavlunIQ işi: ödeme, teslimat kanıtı ve yük sahibi onayı sevkiyat adımlarında yaşanır; elle atlanamaz.
+            throw new RuntimeException($status === DriverTrip::STATUS_CLOSED
+                ? 'NavlunIQ işi teslimat onaylanınca ya da ilan iptal edilince kendiliğinden kapanır.'
+                : 'NavlunIQ işinin durumu teslimat adımlarıyla ilerler; "Ayrıntı ve teslimat" sayfasını kullanın.');
         }
         $data = ['status' => $status];
         if ($status === DriverTrip::STATUS_CLOSED) {
@@ -131,14 +200,17 @@ class DriverTripService
         return $trip;
     }
 
-    /** Teslimden N gün sonra ve çok gecikmiş planlı seferler kendiliğinden kapanır. */
+    /**
+     * Gruptan alınan işler: teslimden N gün sonra ve çok gecikmiş planlı seferler kendiliğinden kapanır.
+     * NavlunIQ işleri sevkiyat akışıyla (onay, uyuşmazlık kararı, iptal) kapanır; burada dokunulmaz.
+     */
     public function autoClose(): int
     {
         $days = max(1, Settings::int('trip_auto_close_days'));
-        $n = DriverTrip::query()->where('status', DriverTrip::STATUS_DELIVERED)
+        $n = DriverTrip::query()->where('source', 'external')->where('status', DriverTrip::STATUS_DELIVERED)
             ->where(fn (Builder $q) => $q->where('delivery_date', '<', now()->subDays($days)->toDateString())->orWhere('updated_at', '<', now()->subDays($days + 2)))
             ->update(['status' => DriverTrip::STATUS_CLOSED, 'closed_at' => now()]);
-        $n += DriverTrip::query()->whereIn('status', [DriverTrip::STATUS_PLANNED, DriverTrip::STATUS_ON_THE_WAY])
+        $n += DriverTrip::query()->where('source', 'external')->whereIn('status', [DriverTrip::STATUS_PLANNED, DriverTrip::STATUS_ON_THE_WAY])
             ->whereNotNull('delivery_date')->where('delivery_date', '<', now()->subDays(14)->toDateString())
             ->update(['status' => DriverTrip::STATUS_CLOSED, 'closed_at' => now()]);
 
@@ -221,7 +293,7 @@ class DriverTripService
                 }
                 $mailHours = max(0, Settings::int('return_load_mail_hours'));
                 $sendMail = $trip->last_mailed_at === null || $trip->last_mailed_at->lte(now()->subHours($mailHours));
-                $actionUrl = route('driver.trips.index', ['sefer' => $trip->id]);
+                $actionUrl = route('driver.jobs.index', ['is' => $trip->id]);
                 // Aynı sefer için okunmamış bir dönüş yükü bildirimi varsa üstüne yazılır; bildirimler yığılmaz.
                 $existing = UserNotification::query()->where('user_id', $user->id)->where('type', 'return_load')
                     ->where('action_url', $actionUrl)->whereNull('read_at')->latest('id')->first();
@@ -233,7 +305,7 @@ class DriverTripService
                 if ($count > 5) {
                     $lines[] = '… ve '.($count - 5).' ilan daha.';
                 }
-                $lines[] = 'Seferiniz: '.$trip->routeLabel().($trip->delivery_date ? ' · teslim '.$trip->delivery_date->format('d.m.Y') : '').'. Bildirimleri Seferlerim sayfasından kapatabilirsiniz.';
+                $lines[] = 'Seferiniz: '.$trip->routeLabel().($trip->delivery_date ? ' · teslim '.$trip->delivery_date->format('d.m.Y') : '').'. Bildirimleri İşlerim sayfasından kapatabilirsiniz.';
                 $title = 'Dönüş yükü: '.($trip->delivery_location ?: 'varış yeri').' çevresinde '.$count.' yeni ilan';
                 if ($existing) {
                     $existing->forceFill(['title' => mb_substr($title, 0, 160), 'lines' => $lines, 'created_at' => now()])->save();

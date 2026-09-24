@@ -121,7 +121,7 @@ class extends Component {
                                     <tr>
                                         <td class="py-3 pr-3 text-neutral-900 dark:text-white">
                                             @if($payout->cargoLoad)
-                                                <a href="{{ route('driver.shipments.show', $payout->cargoLoad->id) }}" wire:navigate class="hover:text-brand-400">{{ $payout->cargoLoad->pickup_location }} &rarr; {{ $payout->cargoLoad->delivery_location }}</a>
+                                                <a href="{{ route('driver.jobs.show', $payout->cargoLoad->id) }}" wire:navigate class="hover:text-brand-400">{{ $payout->cargoLoad->pickup_location }} &rarr; {{ $payout->cargoLoad->delivery_location }}</a>
                                             @else
                                                 İlan kaldırılmış
                                             @endif

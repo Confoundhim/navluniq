@@ -1,6 +1,7 @@
 <?php
 
 use App\Livewire\Concerns\HandlesExternalLoadActions;
+use App\Livewire\Concerns\HandlesJobActions;
 use App\Models\DriverFilterPreset;
 use App\Models\DriverSavedLoad;
 use App\Models\DriverTrip;
@@ -22,6 +23,16 @@ new
 #[Title('Genel Bakış')]
 class extends Component {
     use HandlesExternalLoadActions;
+    use HandlesJobActions;
+
+    public function mount(DriverTripService $trips): void
+    {
+        if ($profile = Auth::user()->driverProfile) {
+            $trips->reconcile($profile);
+            // İlk açık işin dönüş yükleri açık gelir
+            $this->expandedJob = $this->openJobsQuery()->value('id');
+        }
+    }
 
     public function with(): array
     {
@@ -29,17 +40,10 @@ class extends Component {
         $profile = $user->driverProfile;
         $profileId = $profile?->id ?? 0;
 
-        // Aktif sefer ("Bu işi aldım" ya da kabul edilen teklif) ve varış çevresindeki dönüş yükleri
-        $activeTrip = $profileId ? DriverTrip::query()->where('driver_profile_id', $profileId)->open()->latest('id')->first() : null;
-        $returnLoads = $activeTrip ? app(DriverTripService::class)->returnLoadsFor($activeTrip, onlyNew: false, limit: 4) : null;
+        // Açık işler (kabul edilen teklifler + "Bu işi aldım") ve seçili işin varış çevresindeki dönüş yükleri
+        $openJobs = $profileId ? $this->openJobsQuery()->get() : collect();
+        $returnLoads = $this->returnLoadsForExpanded($openJobs, app(DriverTripService::class), limit: 4);
         $saved = $profileId ? DriverSavedLoad::query()->where('driver_profile_id', $profileId)->get() : collect();
-
-        $activeLoad = Load::query()
-            ->with(['cargoOwnerProfile.user', 'shipment'])
-            ->where('driver_profile_id', $profileId)
-            ->whereIn('status', [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED])
-            ->latest('id')
-            ->first();
 
         // "Size uygun ilanlar": varsayılan filtre seti (yoksa "Aracıma uygun") ile süzülmüş sistem + (premium ise) dış kaynak ilanları
         $preset = $profileId ? DriverFilterPreset::query()->where('driver_profile_id', $profileId)->where('is_default', true)->first() : null;
@@ -77,15 +81,15 @@ class extends Component {
         return [
             'profile' => $profile,
             'pendingOffers' => Offer::query()->where('driver_profile_id', $profileId)->where('status', 'pending')->count(),
-            'activeLoad' => $activeLoad,
             'wallet' => app(PayoutService::class)->walletSummary($user),
             'matchedLoads' => $matchedLoads,
             'matchSummary' => $matchSummary,
             'matchPreset' => $preset,
             'vehicle' => $vehicle,
             'canSeePool' => $canSeePool,
-            'activeTrip' => $activeTrip,
+            'openJobs' => $openJobs,
             'returnLoads' => $returnLoads,
+            'isPremium' => $profile?->isPremium() ?? false,
             'savedSystemIds' => $saved->pluck('load_id')->filter()->map(fn ($v) => (int) $v)->all(),
             'savedExternalIds' => $saved->pluck('scraped_load_id')->filter()->map(fn ($v) => (int) $v)->all(),
             'takenExternalIds' => $profileId ? DriverTrip::query()->where('driver_profile_id', $profileId)->open()->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all() : [],
@@ -100,7 +104,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Hoş geldiniz, {{ auth()->user()->first_name }}</h2>
-        <p class="page-subtitle">Tekliflerinizin, aktif sevkiyatınızın ve ödemelerinizin özeti.</p>
+        <p class="page-subtitle">Tekliflerinizin, açık işlerinizin ve ödemelerinizin özeti.</p>
     </div>
 
     @if($kycStatus !== 'approved')
@@ -146,74 +150,18 @@ class extends Component {
 
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="section-title">Aktif sevkiyat</h3>
-
-                @if($activeLoad)
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">
-                                {{ $activeLoad->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $activeLoad->delivery_location }}
-                            </div>
-                            <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[11px]">{{ $activeLoad->statusLabel() }}</span>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-neutral-500 dark:text-neutral-400">
-                            <div>Yük sahibi: <span class="text-neutral-900 dark:text-white font-semibold">{{ $activeLoad->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</span></div>
-                            <div>Yükleme: <span class="text-neutral-900 dark:text-white">{{ $activeLoad->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}</span></div>
-                            <div>Navlun: <span class="text-neutral-900 dark:text-white tabular-nums font-bold">{{ number_format((float) ($activeLoad->price ?? 0), 2, ',', '.') }} ₺</span></div>
-                            <div>Ödeme: <span class="text-neutral-900 dark:text-white">{{ $activeLoad->escrowLabel() }}</span></div>
-                        </div>
-                        <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-2">
-                            <a href="{{ route('driver.shipments.show', $activeLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-center">Sevkiyatı yönet</a>
-                        </div>
-                    </div>
-                @else
-                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">
-                        Şu anda aktif bir sevkiyatınız yok. İlan havuzundan teklif vererek yeni bir yük alabilirsiniz.
-                    </div>
-                @endif
-            </div>
-
-            @if($activeTrip)
-                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <h3 class="section-title">Aktif seferim</h3>
-                        <a href="{{ route('driver.trips.index', ['sefer' => $activeTrip->id]) }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline">Seferlerim</a>
-                    </div>
-                    <div class="trip-card">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $activeTrip->pickup_location ?: 'Belirtilmemiş' }} <span class="text-brand-500">&rarr;</span> {{ $activeTrip->delivery_location ?: 'Belirtilmemiş' }}</div>
-                            <span class="trip-status trip-status-{{ $activeTrip->status }}"><span class="inline-flex h-1.5 w-1.5 rounded-full bg-current"></span>{{ $activeTrip->statusLabel() }}</span>
-                        </div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Yükleme: {{ $activeTrip->pickup_date?->format('d.m.Y') ?? '—' }} · Teslim: {{ $activeTrip->delivery_date?->format('d.m.Y') ?? '—' }} · {{ $activeTrip->isSystem() ? 'NavlunIQ ilanı' : 'Gruptan derlendi' }}{{ $activeTrip->notify_return ? '' : ' · dönüş yükü bildirimi kapalı' }}</div>
-                    </div>
-                    <div>
-                        <div class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Dönüş yükleri · {{ $activeTrip->delivery_location ?: 'varış' }} çevresi</div>
-                        @php $rlSystem = $returnLoads['system'] ?? collect(); $rlExternal = $returnLoads['external'] ?? collect(); @endphp
-                        @if($rlSystem->isEmpty() && $rlExternal->isEmpty())
-                            <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Şu anda varış yerinizin çevresinden çıkan, aracınıza uyan ilan yok. Yeni ilan gelince {{ $activeTrip->notify_return ? 'bildirilir' : 'burada görünür' }}.</div>
-                        @else
-                            <div class="space-y-2">
-                                @foreach($rlSystem as $load)
-                                    <div class="load-card load-card-return" wire:key="rl-s-{{ $load->id }}">
-                                        <div class="load-card-main">
-                                            <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel()])) }} · Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }}</div>
-                                            <div class="load-card-badges"><span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
-                                        </div>
-                                        <div class="load-card-side sm:min-h-0">
-                                            <div class="load-card-price">{{ number_format((float) ($load->price ?? 0), 0, ',', '.') }} ₺</div>
-                                            <a href="{{ route('driver.loads.index', ['ilan' => $load->id]) }}" wire:navigate class="load-card-action">Teklif ver</a>
-                                        </div>
-                                    </div>
-                                @endforeach
-                                @foreach($rlExternal as $item)
-                                    <x-external-load-card :item="$item" variant="return" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $item->id }}" />
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h3 class="section-title">Açık işlerim{{ $openJobs->count() > 1 ? ' · '.$openJobs->count() : '' }}</h3>
+                    <a href="{{ route('driver.jobs.index') }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline">İşlerim</a>
                 </div>
-            @endif
+                @forelse($openJobs as $trip)
+                    <x-job-card :trip="$trip" :expanded="$expandedJob === $trip->id" :return-loads="$expandedJob === $trip->id ? $returnLoads : null" :saved-external-ids="$savedExternalIds" :taken-external-ids="$takenExternalIds" :is-premium="$isPremium" wire:key="job-{{ $trip->id }}" />
+                @empty
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">
+                        Şu anda açık işiniz yok. İlan havuzundan teklif verin ya da gruptan derlenen bir ilanda "Bu işi aldım" deyin.
+                    </div>
+                @endforelse
+            </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
