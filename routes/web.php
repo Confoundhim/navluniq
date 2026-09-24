@@ -224,9 +224,12 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     Volt::route('/dashboard', 'driver.dashboard')->name('dashboard');
     Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
-    Volt::route('/sevkiyatlarim', 'driver.shipments.index')->name('shipments.index');
-    Volt::route('/seferlerim', 'driver.trips.index')->name('trips.index');
-    Volt::route('/sevkiyat/{loadId}', 'driver.shipments.show')->name('shipments.show')->whereNumber('loadId');
+    // İşlerim: NavlunIQ işleri ve gruptan alınan işler tek listede. Eski adresler (Sevkiyatlarım, Seferlerim) buraya yönlenir.
+    Volt::route('/islerim', 'driver.jobs.index')->name('jobs.index');
+    Volt::route('/is/{loadId}', 'driver.jobs.show')->name('jobs.show')->whereNumber('loadId');
+    Route::get('/sevkiyatlarim', fn () => redirect()->route('driver.jobs.index', array_filter(['sekme' => request()->query('tab') === 'past' ? 'past' : null]), 301));
+    Route::get('/seferlerim', fn () => redirect()->route('driver.jobs.index', array_filter(['is' => request()->query('sefer'), 'sekme' => request()->query('sekme')]), 301));
+    Route::get('/sevkiyat/{loadId}', fn (int $loadId) => redirect()->route('driver.jobs.show', $loadId, 301))->whereNumber('loadId');
     Volt::route('/premium', 'driver.premium.index')->name('premium.index');
     Volt::route('/premium/odeme', 'driver.premium.checkout')->name('premium.checkout');
     Volt::route('/odemelerim', 'driver.wallet.index')->name('wallet.index');

@@ -104,6 +104,6 @@ trait HandlesExternalLoadActions
             return;
         }
         $this->closeTake();
-        session()->flash('success_message', 'Sefer kaydedildi. '.($this->takeNotify ? 'Varış yerinizin çevresinden çıkan yeni ilanlar size bildirilecek.' : 'Seferlerim sayfasından takip edebilirsiniz.'));
+        session()->flash('success_message', 'İş kaydedildi. '.($this->takeNotify ? 'Varış yerinizin çevresinden çıkan yeni ilanlar size bildirilecek.' : 'İşlerim sayfasından takip edebilirsiniz.'));
     }
 }

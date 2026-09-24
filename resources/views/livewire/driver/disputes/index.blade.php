@@ -215,7 +215,7 @@ class extends Component {
                                     {{ $dispute->driver_defense ? 'Savunmayı güncelle' : 'Savunma yap' }}
                                 </button>
                                 @if($dLoad)
-                                    <a href="{{ route('driver.shipments.show', $dLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold text-center">Sevkiyatı aç</a>
+                                    <a href="{{ route('driver.jobs.show', $dLoad->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-900 dark:text-white font-bold text-center">Sevkiyatı aç</a>
                                 @endif
                             </div>
                         @endif

@@ -145,7 +145,7 @@ class ShipmentFlowTest extends TestCase
         $shipment = $this->acceptedShipment();
         $this->actingAs($this->driver);
 
-        Volt::test('driver.shipments.show', ['loadId' => $this->load->id])
+        Volt::test('driver.jobs.show', ['loadId' => $this->load->id])
             ->assertSee('Yük sahibi ödemeyi yapmadan yola çıkamazsınız')
             ->call('startTransit')
             ->assertSee('ödemesini yapmadan yola çıkamazsınız');
@@ -163,7 +163,7 @@ class ShipmentFlowTest extends TestCase
         $this->load->update(['escrow_status' => Load::ESCROW_PAID]);
         $this->actingAs($this->driver);
 
-        $component = Volt::test('driver.shipments.show', ['loadId' => $this->load->id])
+        $component = Volt::test('driver.jobs.show', ['loadId' => $this->load->id])
             ->assertSee('Yükü aldım, yola çıktım')
             ->call('startTransit');
 
@@ -224,8 +224,8 @@ class ShipmentFlowTest extends TestCase
 
         $this->actingAs($other->fresh());
 
-        Volt::test('driver.shipments.show', ['loadId' => $this->load->id])
-            ->assertRedirect(route('driver.shipments.index'));
+        Volt::test('driver.jobs.show', ['loadId' => $this->load->id])
+            ->assertRedirect(route('driver.jobs.index'));
     }
 
     /** Teklif verilip yük sahibince kabul edilmiş, ödemesi bekleyen sevkiyat üretir. */

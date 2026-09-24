@@ -68,10 +68,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Ayrıştırma hattı: `LoadIntakeService` (mesajı parçalara böler; büyük harfli başlıklar Türkçe küçültülerek
   eşlenir), `LoadStandardizer`, `AiParserService` (sağlayıcı zinciri), `LocalClassifier`, `Lexicon`,
   `GoodsCatalog`, `TurkishLocations` (il/ilçe, koordinat, takma adlar; ilçe listesi tekil ve Türk alfabesi sırasında).
-- Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,trips/index,vehicles/index}.blade.php`,
-  `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (sefer, dönüş yükü
-  taraması 10 dk'da bir), `App\Livewire\Concerns\HandlesExternalLoadActions` (yıldız, "Bu işi aldım"),
-  ortak kart bileşenleri `components/external-load-card`, `components/take-trip-modal`, `components/time-ago`.
+- Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,jobs/index,jobs/show,vehicles/index}.blade.php`,
+  `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (iş/sefer, dönüş yükü
+  taraması 10 dk'da bir, `reconcile` ile sevkiyat-sefer tutarlılığı), `App\Livewire\Concerns\HandlesExternalLoadActions`
+  (yıldız, "Bu işi aldım"), `HandlesJobActions` (iş kartı eylemleri), ortak kart bileşenleri `components/job-card`,
+  `components/external-load-card`, `components/take-trip-modal`, `components/time-ago`.
+- **İşlerim** (`/panel/sofor/islerim`, `driver.jobs.index`): şoförün tek iş listesi. Kayıt `DriverTrip`; NavlunIQ işi
+  (`source=system`, teklif kabulünde `fromShipment` ile açılır) ve gruptan alınan iş (`source=external`). NavlunIQ işinde
+  durum ilandan türetilir (`displayStatusLabel`), elle kapatılamaz, "Yola çıktım" ödeme alınınca kart üzerinden; teslimat
+  kanıtı ve konum `jobs/show` (`/panel/sofor/is/{loadId}`). Eski adresler (`/sevkiyatlarim`, `/seferlerim`, `/sevkiyat/{id}`)
+  301 ile buraya yönlenir. Uyuşmazlık kararı ve ilan iptali seferi kapatır; `autoClose` yalnız gruptan alınan işlere dokunur.
 - Tablolar: her veri tablosu `table-cards` sınıfı taşır (`resources/css/app.css`): 1024 px altında (telefon dikey/yatay,
   kenar çubuklu orta ekran) her satır kart olur, hücre başına `data-label` sütun adı yazar; `tc-check` seçim kutusu,
   `tc-actions` düğme satırı, `tc-block` uzun içerik. Uzun serbest metin `<x-clamp-text :text lines="3" />` ile kısaltılır,

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\Dispute;
 use App\Models\DriverProfile;
+use App\Models\DriverTrip;
 use App\Models\Load;
 use App\Models\Shipment;
 use App\Models\User;
@@ -136,6 +137,9 @@ class DisputeService
         });
 
         $load = $dispute->cargoLoad?->fresh();
+        if ($shipment = $load?->shipment) {
+            app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
+        }
         foreach (array_filter([$load?->cargoOwnerProfile?->user, $load?->driverProfile?->user]) as $user) {
             $this->notifications->notify($user, 'Uyuşmazlık karara bağlandı',
                 [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)], 'dispute');

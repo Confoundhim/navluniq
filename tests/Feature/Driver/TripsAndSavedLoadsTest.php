@@ -10,11 +10,14 @@ use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Models\Shipment;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Services\DisputeService;
 use App\Services\DriverTripService;
 use App\Services\LoadService;
 use App\Services\OfferService;
+use App\Services\ShipmentService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -105,7 +108,7 @@ class TripsAndSavedLoadsTest extends TestCase
             ->call('openTake', $ext->id)->assertSet('takeModalOpen', true)
             ->set('takePickupDate', now()->toDateString())->set('takeDeliveryDate', now()->addDays(2)->toDateString())
             ->call('submitTake')->assertHasNoErrors()->assertSet('takeModalOpen', false)
-            ->assertSee('Seferimde');
+            ->assertSee('İşlerimde');
 
         $trip = DriverTrip::query()->first();
         $this->assertNotNull($trip);
@@ -210,15 +213,99 @@ class TripsAndSavedLoadsTest extends TestCase
 
         $this->load($owner, ['pickup_location' => 'İzmir Menemen', 'pickup_date' => now()->addDays(5)]);
         $this->actingAs($driver);
-        Volt::test('driver.dashboard')->assertSee('Aktif seferim')->assertSee('Bursa')->assertSee('Dönüş yükleri')->assertSee('İzmir Menemen');
+        Volt::test('driver.dashboard')->assertSee('Açık işlerim')->assertSee('Bursa')->assertSee('Dönüş yüklerini gizle')->assertSee('İzmir Menemen')->assertDontSee('Aktif sevkiyat');
 
-        Volt::test('driver.trips.index')->assertSee('NavlunIQ ilanı')->assertSee('Sevkiyatı yönet')
-            ->call('setStatus', $trip->id, 'on_the_way')->assertSee('sevkiyat sayfasından');
+        // Ödeme alınmadan yola çıkılamaz; NavlunIQ işi elle kapatılamaz, "Kapat" düğmesi de yoktur
+        Volt::test('driver.jobs.index')->assertSee('NavlunIQ ilanı')->assertSee('Ödeme bekleniyor')->assertSee('Ayrıntı ve teslimat')->assertDontSee('Yola çıktım')->assertDontSee('Kapat')
+            ->call('setStatus', $trip->id, 'on_the_way')->assertSee('ödemesini yapmadan')
+            ->call('setStatus', $trip->id, 'closed')->assertSee('kendiliğinden kapanır');
         $this->assertSame('planned', $trip->fresh()->status);
 
-        // İlan iptal edilince sefer kapanır
+        // Ödeme alınınca kart üzerinden "Yola çıktım" sevkiyatı da yola çıkarır
+        $load->fresh()->update(['escrow_status' => Load::ESCROW_PAID]);
+        Volt::test('driver.jobs.index')->assertSee('Yüklemeye hazır')->assertSee('Yola çıktım')->call('setStatus', $trip->id, 'on_the_way')->assertSee('Yolda')->assertSee('Teslim ettim');
+        $this->assertSame('on_the_way', $trip->fresh()->status);
+        $this->assertSame(Load::STATUS_ON_THE_WAY, $load->fresh()->status);
+
+    }
+
+    public function test_cancelled_load_closes_its_job(): void
+    {
+        $driver = $this->driver();
+        $owner = $this->owner();
+        $load = $this->load($owner);
+        $offers = app(OfferService::class);
+        $offers->accept($load->fresh(), $offers->submit($driver->driverProfile, $load, 40000), $owner->user_id);
+        $trip = DriverTrip::query()->where('load_id', $load->id)->firstOrFail();
+
         app(LoadService::class)->cancel($load->fresh(), $owner, 'vazgeçildi');
         $this->assertSame('closed', $trip->fresh()->status);
+        $this->actingAs($driver);
+        Volt::test('driver.jobs.index')->assertSee('Açık işiniz yok')->call('setTab', 'past')->assertSee('İptal edildi')->assertSee('Ayrıntı');
+    }
+
+    public function test_reconcile_creates_missing_jobs_and_closes_finished_ones(): void
+    {
+        $driver = $this->driver();
+        $owner = $this->owner();
+        $load = $this->load($owner);
+        $offers = app(OfferService::class);
+        $shipment = $offers->accept($load->fresh(), $offers->submit($driver->driverProfile, $load, 40000), $owner->user_id);
+        // Özellik eklenmeden önce kabul edilmiş teklif: sefer kaydı yok, sevkiyat yolda
+        DriverTrip::query()->where('shipment_id', $shipment->id)->delete();
+        $shipment->update(['status' => Shipment::STATUS_IN_TRANSIT]);
+        $load->fresh()->update(['status' => Load::STATUS_ON_THE_WAY, 'escrow_status' => Load::ESCROW_PAID]);
+
+        $this->assertSame(1, app(DriverTripService::class)->reconcile($driver->driverProfile));
+        $trip = DriverTrip::query()->where('shipment_id', $shipment->id)->firstOrFail();
+        $this->assertSame('on_the_way', $trip->status);
+        $this->assertSame(0, app(DriverTripService::class)->reconcile($driver->driverProfile), 'Tekrar çalıştırmak bir şey değiştirmez');
+
+        // Sevkiyat tamamlandı ama sefer açık kaldı: sayfa açılınca kapanır
+        $shipment->update(['status' => Shipment::STATUS_COMPLETED]);
+        $load->fresh()->update(['status' => Load::STATUS_COMPLETED]);
+        $this->actingAs($driver);
+        Volt::test('driver.jobs.index')->assertSee('Açık işiniz yok');
+        $this->assertSame('closed', $trip->fresh()->status);
+        $this->assertNotNull($trip->fresh()->closed_at);
+    }
+
+    public function test_dispute_resolution_closes_the_job_and_auto_close_skips_system_jobs(): void
+    {
+        $driver = $this->driver();
+        $owner = $this->owner();
+        $load = $this->load($owner);
+        $offers = app(OfferService::class);
+        $shipment = $offers->accept($load->fresh(), $offers->submit($driver->driverProfile, $load, 40000), $owner->user_id);
+        $trip = DriverTrip::query()->where('shipment_id', $shipment->id)->firstOrFail();
+        $load = $load->fresh();
+        $load->update(['escrow_status' => Load::ESCROW_PAID]);
+        app(ShipmentService::class)->startTransit($shipment->fresh(), $driver->driverProfile);
+        $dispute = app(DisputeService::class)->open($load->fresh(), $owner->user, 'Yük hasarlı geldi');
+
+        $this->actingAs($driver);
+        Volt::test('driver.jobs.index')->assertSee('Uyuşmazlık')->assertSee('Ayrıntı ve teslimat');
+        $this->assertSame('on_the_way', $trip->fresh()->status);
+
+        // Uyuşmazlık sürerken 14 gün geçse de NavlunIQ işi kendiliğinden kapanmaz
+        $trip->forceFill(['delivery_date' => now()->subDays(20)->toDateString()])->save();
+        $this->assertSame(0, app(DriverTripService::class)->autoClose());
+        $this->assertSame('on_the_way', $trip->fresh()->status);
+
+        $admin = User::factory()->create();
+        app(DisputeService::class)->resolve($dispute, $admin, 'driver_paid', 'Kanıt yeterli');
+        $this->assertSame('closed', $trip->fresh()->status);
+        Volt::test('driver.jobs.index')->call('setTab', 'past')->assertSee('Tamamlandı');
+    }
+
+    public function test_old_addresses_redirect_to_jobs(): void
+    {
+        $driver = $this->driver();
+        $this->actingAs($driver);
+        $this->get('/panel/sofor/sevkiyatlarim')->assertRedirect(route('driver.jobs.index'));
+        $this->get('/panel/sofor/seferlerim?sefer=5&sekme=past')->assertRedirect(route('driver.jobs.index', ['is' => 5, 'sekme' => 'past']));
+        $this->get('/panel/sofor/sevkiyat/7')->assertRedirect(route('driver.jobs.show', 7));
+        $this->get(route('driver.jobs.index'))->assertOk()->assertSee('İşlerim')->assertDontSee('Sevkiyatlarım')->assertDontSee('Seferlerim');
     }
 
     public function test_trip_status_buttons_notify_toggle_and_auto_close(): void
@@ -227,7 +314,7 @@ class TripsAndSavedLoadsTest extends TestCase
         $trip = app(DriverTripService::class)->takeExternal($driver->driverProfile, $this->scraped(), now(), now()->addDays(3));
         $this->actingAs($driver);
 
-        Volt::test('driver.trips.index')->assertSee('Yola çıktım')->assertSee('Dönüş yükü çıkınca bildir')
+        Volt::test('driver.jobs.index')->assertSee('Yola çıktım')->assertSee('Dönüş yükü çıkınca bildir')
             ->call('setStatus', $trip->id, 'on_the_way')->assertSee('Yolda')
             ->call('toggleNotify', $trip->id)
             ->call('setStatus', $trip->id, 'delivered')->assertSee('Teslim edildi');
@@ -240,6 +327,6 @@ class TripsAndSavedLoadsTest extends TestCase
         $trip->forceFill(['delivery_date' => now()->subDays(4)->toDateString()])->save();
         $this->assertSame(1, app(DriverTripService::class)->autoClose());
         $this->assertSame('closed', $trip->fresh()->status);
-        Volt::test('driver.trips.index')->assertSee('Açık seferiniz yok')->call('setTab', 'past')->assertSee('Kapandı');
+        Volt::test('driver.jobs.index')->assertSee('Açık işiniz yok')->call('setTab', 'past')->assertSee('Kapandı');
     }
 }
