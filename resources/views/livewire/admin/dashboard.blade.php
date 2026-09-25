@@ -11,8 +11,37 @@ use Livewire\Volt\Component;
 use Spatie\Permission\Models\Role;
 
 new class extends Component {
+    /** Sayfadaki verinin ucuz imzası; aynıysa süreli yenileme çizmez. */
+    public ?string $pollSignature = null;
+
+    private function currentSignature(): string
+    {
+        $parts = [
+            ActivityLog::query()->max('id'),
+            Load::query()->max('updated_at'),
+            DriverProfile::query()->where('kyc_status', 'pending')->count() + CargoOwnerProfile::query()->where('kyc_status', 'pending')->count(),
+            Dispute::query()->where('status', 'open')->count(),
+            PaymentOrder::query()->max('id'),
+            Payout::query()->max('updated_at'),
+        ];
+
+        return md5(implode('|', array_map(fn ($v) => (string) $v, $parts)));
+    }
+
+    public function tick(): void
+    {
+        $signature = $this->currentSignature();
+        if ($this->pollSignature === $signature) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->pollSignature = $signature;
+    }
+
     public function with(): array
     {
+        $this->pollSignature = $this->currentSignature();
         $user = auth()->user();
         $canFinance = $user->can('view financials');
 
@@ -63,7 +92,7 @@ new class extends Component {
     }
 }; ?>
 
-<div wire:poll.8s class="max-w-7xl mx-auto space-y-8">
+<div wire:poll.15s="tick" class="max-w-7xl mx-auto space-y-8">
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Genel Özet</h1>
         <p class="page-subtitle">Veriler sayfa her yüklendiğinde veritabanından okunur.</p>

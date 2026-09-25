@@ -548,6 +548,12 @@ class ScrapedLoadService
     /** Bir çalıştırmada en çok bu kadar aday yayınlanır; kalan bir sonraki dakikada devam eder. */
     public const AUTO_APPROVE_BATCH = 500;
 
+    /** Değişmeyen aday en çok bu kadar dakikada bir yeniden değerlendirilir (yapay zeka sonucu gelince hemen). */
+    public const AUTO_RECHECK_MINUTES = 10;
+
+    /** Bir çalıştırma en çok bu kadar saniye sürer; kalan bir sonraki dakikaya kalır (sunucu boğulmaz). */
+    public const AUTO_APPROVE_BUDGET_SECONDS = 20;
+
     /**
      * Her dakika çalışır. Bekleyen TÜM adaylar (eskiden yeniye) taranır; önceden yalnız en eski 200 aday bakılıyordu ve
      * onlar engelliyse (yapay zeka bekliyor vb.) daha yeni, uygun adaylar hiç sıraya gelmiyordu. Onay sırasında hata
@@ -561,14 +567,24 @@ class ScrapedLoadService
 
         $approved = 0;
         $started = microtime(true);
+        // Ayar yeni değiştiyse herkes yeniden değerlendirilir; yoksa değişmeyen aday 10 dakikada bir
+        $changedAt = Settings::scraperSettingsChangedAt();
+        $recheckBefore = now()->subMinutes(self::AUTO_RECHECK_MINUTES);
+        if ($changedAt && $changedAt->gt($recheckBefore)) {
+            $recheckBefore = $changedAt->copy()->addSecond(); // ayar anında ya da öncesinde bakılanlar yeniden
+        }
         ScrapedLoad::query()->with('scraper')
             ->where('visibility', 'private')->where('status', '!=', 'rejected')
             ->where('created_at', '>=', now()->subDays(self::AUTO_APPROVE_MAX_AGE_DAYS))
+            // Yeni, değişmiş (yapay zeka sonucu, yönetici düzenlemesi) ya da son bakıştan bu yana süre geçmiş adaylar
+            ->where(fn ($q) => $q->whereNull('auto_checked_at')->orWhere('auto_checked_at', '<', $recheckBefore)->orWhereColumn('updated_at', '>', 'auto_checked_at'))
             ->chunkById(200, function ($loads) use (&$approved, $started): bool {
                 foreach ($loads as $load) {
-                    if ($approved >= self::AUTO_APPROVE_BATCH || microtime(true) - $started > 50) {
+                    if ($approved >= self::AUTO_APPROVE_BATCH || microtime(true) - $started > self::AUTO_APPROVE_BUDGET_SECONDS) {
                         return false;
                     }
+                    // Değerlendirme zamanı updated_at'e dokunmadan yazılır; aday değişirse (updated_at > auto_checked_at) hemen sıraya girer
+                    ScrapedLoad::query()->whereKey($load->id)->update(['auto_checked_at' => now()]);
                     $blocker = $this->autoApprovalBlocker($load);
                     if ($blocker !== null && $this->incompleteEligible($load, $blocker)) {
                         // Rotası ve telefonu belli, puanı ret ile onay arasında: kuyrukta bekletmeden eksik bilgili yayın

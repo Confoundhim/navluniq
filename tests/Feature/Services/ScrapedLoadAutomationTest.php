@@ -45,6 +45,46 @@ class ScrapedLoadAutomationTest extends TestCase
         ], $overrides));
     }
 
+    public function test_auto_approval_scan_rechecks_a_candidate_only_when_changed_stale_or_settings_changed(): void
+    {
+        $source = $this->source();
+        $service = app(ScrapedLoadService::class);
+        Settings::set('scraper_auto_approve', '1');
+        Settings::set('scraper_auto_approve_require_price', '1');
+        $load = $this->candidate($source);
+        $this->travel(1)->minutes(); // zamanlayıcı ayar değişiminden sonra çalışır
+
+        $this->assertSame(0, $service->autoApproveDue(), 'Fiyat zorunlu: engelli');
+        $this->assertNotNull($load->fresh()->auto_checked_at, 'Değerlendirme zamanı yazılır');
+        $checkedAt = $load->fresh()->auto_checked_at;
+
+        // Hiçbir şey değişmedi: bir dakika sonra yeniden hesaplanmaz (zaman damgası aynı kalır)
+        $this->travel(1)->minutes();
+        $this->assertSame(0, $service->autoApproveDue());
+        $this->assertTrue($load->fresh()->auto_checked_at->equalTo($checkedAt));
+
+        // Aday değişti (yapay zeka sonucu, düzenleme): hemen yeniden bakılır
+        ScrapedLoad::whereKey($load->id)->update(['updated_at' => now()->addSecond()]);
+        $this->assertSame(0, $service->autoApproveDue());
+        $this->assertTrue($load->fresh()->auto_checked_at->gt($checkedAt));
+
+        // Ayar değişti: bekleyen aday ilk taramada yeniden değerlendirilir ve yayınlanır
+        $this->travel(1)->minutes();
+        Settings::set('scraper_auto_approve_require_price', '0');
+        $this->assertSame(1, $service->autoApproveDue());
+        $this->assertSame('public', $load->fresh()->visibility);
+
+        // Değişmeyen engelli aday 10 dakika sonra kendiliğinden yeniden bakılır
+        Settings::set('scraper_auto_approve_require_price', '1');
+        $stale = $this->candidate($source, ['raw_message' => 'Bursa İzmir 10 ton 0532 123 45 67']);
+        $this->travel(1)->minutes();
+        $this->assertSame(0, $service->autoApproveDue());
+        $t = $stale->fresh()->auto_checked_at;
+        $this->travel(11)->minutes();
+        $this->assertSame(0, $service->autoApproveDue());
+        $this->assertTrue($stale->fresh()->auto_checked_at->gt($t));
+    }
+
     public function test_auto_approval_respects_setting_and_criteria(): void
     {
         $source = $this->source();

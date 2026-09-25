@@ -152,8 +152,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Zaman etiketlerinde saniye gösterilmez ("az önce", "3 dk önce"); etiketler kendiliğinden ilerler.
 - Aynı türdeki kart her ekranda birebir aynıdır (tek bileşen). Aktif sefer kartı turuncu, dönüş yükü kartı yeşil.
 - Yönetici listelerinde her zaman kaç kayıt olduğu görünür (filtreye uyan sayı dahil).
-- Yönetici sayfalarında süreli yenileme ucuz bir değişiklik imzasıyla yapılır (`tick` + `skipRender`; dış kaynak sayfası
-  15 sn); veri değişmediyse hiçbir şey çizilmez. Karar puanı istek içinde bir kez hesaplanır (`decision` memo).
+- Süreli yenileme ucuz bir değişiklik imzasıyla yapılır (`tick` + `skipRender`, 15 sn): dış kaynak sayfası, yönetici özeti,
+  şoför genel bakışı; veri değişmediyse hiçbir şey çizilmez. Karar puanı istek içinde bir kez hesaplanır (`decision` memo).
 - Sayaçlar "bugüne kadar" mantığıyla artar, hiç düşmez; yanında "bugün" ve "günlük ortalama".
 - Claude / yapay zeka ürünleri hakkında ders anlatılmaz, model kimliği depoya yazılmaz; sorulursa yalnız cevaplanır.
 
@@ -161,7 +161,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 `offers:expire` (saatlik), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
-`scraped-loads:auto-approve` (dakikada), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
+`scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
+`auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
 `accounts:purge-drafts` (günlük), `system:backup` (03:30), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar). Bakım modunda zamanlayıcı çalışmaz.
 Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur (tekrar çalıştırmak güvenli).

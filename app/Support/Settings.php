@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\CmsContent;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 
 /**
@@ -145,5 +147,17 @@ final class Settings
             $value = Crypt::encryptString((string) $value);
         }
         CmsContent::setVal($key, $value === null ? null : (string) $value, $updatedBy);
+        if (str_starts_with($key, 'scraper_') || str_starts_with($key, 'ai_')) {
+            // Otomatik onay taraması: eşik / kural değişince bekleyen adaylar ilk taramada yeniden değerlendirilir
+            Cache::put('scraper.settings_changed_at', now()->timestamp, now()->addDays(30));
+        }
+    }
+
+    /** Dış kaynak / yapay zeka ayarlarının son değiştiği an (otomatik onay taramasının "yeniden bak" eşiği). */
+    public static function scraperSettingsChangedAt(): ?Carbon
+    {
+        $ts = Cache::get('scraper.settings_changed_at');
+
+        return is_numeric($ts) ? Carbon::createFromTimestamp((int) $ts, config('app.timezone')) : null;
     }
 }
