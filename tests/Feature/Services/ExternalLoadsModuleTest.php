@@ -134,6 +134,36 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertSame(1, ScrapedLoad::count());
     }
 
+    public function test_admin_page_poll_skips_render_when_nothing_changed_and_events_are_purged(): void
+    {
+        $this->actingAs($this->admin());
+        $source = $this->source();
+        $this->candidate($source);
+        $c = Volt::test('admin.scrapers-center');
+        $sig = $c->get('pollSignature');
+        $this->assertNotNull($sig);
+        $c->call('tick');
+        $this->assertSame($sig, $c->get('pollSignature'), 'Veri değişmedi: imza aynı, çizim atlanır');
+        $this->candidate($source, ['raw_message' => 'Bursa İzmir 12 ton 0532 123 45 67']);
+        $c->call('tick');
+        $this->assertNotSame($sig, $c->get('pollSignature'), 'Yeni aday: imza değişir, sayfa çizilir');
+
+        // Canlı akış: 30 günden eski kayıtlar silinir, yeniler kalır
+        IntakeEvent::record('created', ['excerpt' => 'yeni']);
+        $old = IntakeEvent::record('created', ['excerpt' => 'eski']);
+        IntakeEvent::whereKey($old->id)->update(['created_at' => now()->subDays(40)]);
+        $this->assertSame(1, app(ScrapedLoadService::class)->purgeIntakeEvents());
+        $this->assertSame(1, IntakeEvent::count());
+
+        // Listede kalma süresi kısaltılınca yayın tarihi süreyi aşan ilanlar hemen arşivlenir
+        Settings::set('scraper_list_days', '7');
+        $stale = $this->candidate($source, ['visibility' => 'public', 'published_at' => now()->subDays(9), 'retention_expires_at' => now()->addDays(5)]);
+        $fresh = $this->candidate($source, ['visibility' => 'public', 'published_at' => now()->subDays(2), 'retention_expires_at' => now()->addDays(12)]);
+        $this->assertSame(1, app(ScrapedLoadService::class)->purgeExpired());
+        $this->assertTrue($stale->fresh() === null || $stale->fresh()->trashed());
+        $this->assertSame('public', $fresh->fresh()->visibility);
+    }
+
     public function test_claude_structured_output_enriches_a_candidate(): void
     {
         Settings::set('ai_parse_mode', 'fill_gaps');

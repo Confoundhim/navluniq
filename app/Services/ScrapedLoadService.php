@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ActivityLog;
 use App\Models\DriverProfile;
+use App\Models\IntakeEvent;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\Settings;
@@ -105,6 +106,18 @@ class ScrapedLoadService
         $source->forceDelete();
 
         return $count;
+    }
+
+    /** Canlı akış (telefondan gelen her istek) kayıtları: belirtilen günden eskiler silinir; tablo şişmez. */
+    public function purgeIntakeEvents(int $olderThanDays = 30): int
+    {
+        $total = 0;
+        do {
+            $n = IntakeEvent::query()->where('created_at', '<', now()->subDays($olderThanDays))->orderBy('id')->limit(5000)->delete();
+            $total += $n;
+        } while ($n === 5000);
+
+        return $total;
     }
 
     public function purgeRejected(?int $olderThanDays = null, ?int $userId = null): int
@@ -423,7 +436,28 @@ class ScrapedLoadService
         ActivityLog::record('scraped_load.completed_by_driver', "Dış kaynak ilanı #{$load->id} şoför tarafından tamamlandı (araç: {$vehicleType})", $driver->user_id, $load);
     }
 
+    /** @var array<string, array> istek içi önbellek: aynı aday için karar bir kez hesaplanır (liste satırı, engel, eksik yayın) */
+    private static array $decisionMemo = [];
+
     public function decision(ScrapedLoad $load): array
+    {
+        // Aynı model nesnesi ve aynı alanlar: yeniden hesaplanmaz (liste satırında engel + karar + eksik yayın üç kez çağırır)
+        $memoKey = spl_object_id($load).'|'.$load->id.'|'.($load->updated_at?->timestamp ?? 0).'|'.($load->created_at?->timestamp ?? 0).'|'.$load->ai_status.'|'.$load->status.'|'.$load->visibility.'|'.json_encode($load->meta('local_confidence')).'|'.$load->parse_confidence;
+        if ($load->id && isset(self::$decisionMemo[$memoKey])) {
+            return self::$decisionMemo[$memoKey];
+        }
+        $result = $this->computeDecision($load);
+        if ($load->id) {
+            if (count(self::$decisionMemo) > 500) {
+                self::$decisionMemo = [];
+            }
+            self::$decisionMemo[$memoKey] = $result;
+        }
+
+        return $result;
+    }
+
+    private function computeDecision(ScrapedLoad $load): array
     {
         $intl = (array) $load->meta('international', []);
         $pickupOk = $load->pickup_province_code || ! empty($intl['pickup']) || TurkishLocations::resolve($load->pickup_location) !== null;
@@ -490,7 +524,10 @@ class ScrapedLoadService
     public function purgeExpired(): int
     {
         $count = 0;
-        ScrapedLoad::query()->whereNotNull('retention_expires_at')->where('retention_expires_at', '<', now())
+        // Süre dolan ilan arşivlenir; panelden süre kısaltıldıysa yayın tarihi yeni süreyi aşan ilanlar da beklemeden arşivlenir.
+        $listDays = max(1, Settings::int('scraper_list_days'));
+        ScrapedLoad::query()->where('visibility', 'public')
+            ->where(fn ($q) => $q->where('retention_expires_at', '<', now())->orWhere('published_at', '<', now()->subDays($listDays)))
             ->orderBy('id')->limit(2000)->get()
             ->each(function (ScrapedLoad $load) use (&$count): void {
                 $load->update(['visibility' => 'private']);

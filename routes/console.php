@@ -57,6 +57,7 @@ Artisan::command('ai:learn {--rebuild : Sayaçları sıfırlayıp geçmiş karar
 Artisan::command('scraped-loads:purge-expired', function (ScrapedLoadService $loads) {
     $this->info('Saklama süresi dolan dış kaynak ilanı sayısı: '.$loads->purgeExpired());
     $this->info('Saklama süresi dolan reddedilmiş aday sayısı: '.$loads->purgeRejected());
+    $this->info('Silinen eski canlı akış kaydı: '.$loads->purgeIntakeEvents());
 })->purpose('Saklama süresi dolan dış kaynak ilanlarını havuzdan kaldırır; eski reddedilmiş adayları kalıcı siler');
 
 Artisan::command('trips:scan-return-loads', function (DriverTripService $trips) {
