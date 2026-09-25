@@ -572,7 +572,7 @@ new class extends Component {
         }
         $this->validate([
             'sourceName' => 'required|string|min:3|max:120',
-            'sourceType' => 'required|in:whatsapp,notification,telegram,web',
+            'sourceType' => 'required|in:whatsapp,notification,facebook,telegram,web',
             'sourceIdentifier' => ['required', 'string', 'max:255', Rule::unique('scrapers', 'source_identifier')->where('type', $this->sourceType)->whereNull('deleted_at')],
         ], ['sourceIdentifier.unique' => 'Bu kaynak tanımlayıcısı aynı türde zaten kayıtlı.']);
 
@@ -996,6 +996,17 @@ new class extends Component {
                     <span class="text-[11px] text-neutral-400">İçerik türü: application/json · Zaman aşımı: 20 sn · "Yanıtı değişkene kaydet" gerekmez.</span>
                 </div>
             </details>
+
+            <details class="text-xs">
+                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Facebook grupları (aynı makro, bot yok)</summary>
+                <ol class="list-decimal pl-5 mt-2 space-y-1.5 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li>Telefonda Facebook uygulamasında gruba girin → <strong>⋯</strong> → <strong>Bildirim ayarları</strong> → <strong>Tüm gönderiler</strong>. Her grup için ayrı yapılır; "Öne çıkanlar" seçiliyse ilanların çoğu gelmez.</li>
+                    <li>MacroDroid'de WhatsApp makrosunu açın → <strong>Tetikleyici</strong> → "Bildirim alındı" → uygulama listesine <strong>Facebook</strong>'u (varsa Facebook Lite) ekleyin. Gövde ve adres aynıdır; başka ayar gerekmez. Uygulama adı <span class="font-mono">{{ $phoneParams['app'] }}</span> alanıyla gelir, sunucu buna göre Facebook ayrıştırmasını kullanır.</li>
+                    <li>İlk gönderi düşünce kaynak aşağıda <strong>Facebook grubu (bildirim iletici)</strong> türüyle, <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır; <strong>Aktif et</strong> deyince ilanlar işlenir.</li>
+                </ol>
+                <p class="text-[11px] text-neutral-400 mt-2">Yorum, beğeni ve arkadaşlık bildirimleri kendiliğinden atlanır (Canlı akışta "facebook_not_post"). Aynı ilan WhatsApp grubunda da paylaşılmışsa ikinci kayıt açılmaz; ilan "birden fazla kaynakta" sayacına yazılır.</p>
+                <button type="button" @click="copy('Facebook', 'fbapp')" class="btn-secondary py-1.5 px-3 text-xs mt-2" x-text="copied === 'fbapp' ? 'Kopyalandı' : 'Uygulama adını kopyala (Facebook)'"></button>
+            </details>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
@@ -1004,7 +1015,7 @@ new class extends Component {
                 <p class="text-[11px] text-neutral-400">Telefondan ilk mesaj geldiğinde grup kendiliğinden pasif kaynak olarak eklenir; burada elle de tanımlayabilirsiniz.</p>
                 <div><label class="form-label">Ad</label><input type="text" wire:model="sourceName" class="{{ $input }}">@error('sourceName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 <div><label class="form-label">Tür</label>
-                    <select wire:model="sourceType" class="{{ $input }}"><option value="notification">WhatsApp grubu (bildirim iletici)</option><option value="whatsapp">WhatsApp grubu (servis)</option><option value="telegram">Telegram kanalı</option><option value="web">Web sayfası</option></select>
+                    <select wire:model="sourceType" class="{{ $input }}"><option value="notification">WhatsApp grubu (bildirim iletici)</option><option value="facebook">Facebook grubu (bildirim iletici)</option><option value="whatsapp">WhatsApp grubu (servis)</option><option value="telegram">Telegram kanalı</option><option value="web">Web sayfası</option></select>
                 </div>
                 <div><label class="form-label">Tanımlayıcı</label><input type="text" wire:model="sourceIdentifier" class="{{ $input }} font-mono" placeholder="notif:grup-adi">@error('sourceIdentifier') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaynağı ekle</button>
@@ -1071,7 +1082,7 @@ new class extends Component {
                                 @forelse($sources as $source)
                                     <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : (! $source->is_active ? 'bg-amber-500/5' : '') }}">
                                         <td class="p-4 tc-check"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
-                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
+                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'WhatsApp grubu (bildirim iletici)', 'facebook' => 'Facebook grubu (bildirim iletici)', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
                                         <td class="p-4" data-label="Aday">{{ $source->scraped_loads_count }}</td>
                                         <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Son mesaj"><x-time-ago :at="$source->last_message_at ?? $source->last_success_at" empty="Henüz yok" /></td>
                                         <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>

@@ -11,6 +11,11 @@ use App\Support\TurkishCities;
  * sürümlerinde WhatsApp göndereni ayrı alanda taşır ve metin yalnız mesajın kendisidir; bu durumda
  * metnin tamamı tek mesaj sayılır (gönderen varsa "Gönderen @ Grup: mesaj" biçimli ticker'dan alınır).
  * Özet bildirimleri ("12 mesaj 3 sohbet") atlanır; sohbet/ilan ayrımını ön filtre yapar.
+ *
+ * Facebook grup bildirimleri de aynı iletici ile gelir (uygulama adı "Facebook"): "Ad Soyad, Grup Adı grubunda
+ * paylaştı: metin" ya da başlık grup adı, metin gönderi. Yorum / beğeni / arkadaşlık bildirimleri atlanır; gönderi
+ * metni olmayan bildirim ("... grubunda paylaştı" kadar) atlanır. Facebook uzun gönderiyi "…" ile kısaltır; kalan
+ * tekrar denetimi (aynı numara + rota) WhatsApp'ta da gelen aynı ilanı tek kayıtta birleştirir.
  */
 final class NotificationIntakeParser
 {
@@ -23,13 +28,19 @@ final class NotificationIntakeParser
         '/yedekleme|backup|arama|call|görüşme|kaçırılan/iu',
     ];
 
+    /** Facebook'ta ilan olmayan bildirimler (yorum, beğeni, arkadaşlık, etkinlik…). */
+    private const FACEBOOK_SKIP = '/yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|doğum\s+gün|hatırlat|canlı\s+yayın|etkinlik|anı(?:nız|ları)|commented|reacted|liked|friend\s+request|tagged|mentioned|birthday|memories|is\s+live/iu';
+
     /**
      * @param  array{title?:?string, text?:?string, text_big?:?string, ticker?:?string, app?:?string}  $payload
-     * @return array{skipped:?string, group:?string, messages:list<array{sender:?string, phone:?string, text:string}>}
+     * @return array{skipped:?string, group:?string, platform:string, messages:list<array{sender:?string, phone:?string, text:string}>}
      */
     public static function parse(array $payload): array
     {
         $app = trim((string) ($payload['app'] ?? ''));
+        if (preg_match('/facebook/iu', $app)) {
+            return self::parseFacebook($payload);
+        }
         if ($app !== '' && ! preg_match('/whatsapp/iu', $app)) {
             return self::skip('not_whatsapp');
         }
@@ -79,15 +90,70 @@ final class NotificationIntakeParser
             $messages[] = ['sender' => $sender, 'phone' => $sender !== null ? self::phoneFrom($sender) : null, 'text' => $text];
         }
 
-        return ['skipped' => null, 'group' => $group, 'messages' => $messages];
+        return ['skipped' => null, 'group' => $group, 'platform' => 'whatsapp', 'messages' => $messages];
     }
 
-    /** Grup ilan kaynağı için sabit tanımlayıcı: aynı grup adı her zaman aynı kaynağa düşer. */
-    public static function sourceIdentifier(string $group): string
+    /**
+     * Facebook grup gönderisi bildirimi. Biçimler:
+     *  - başlık "Facebook", metin "Ad Soyad, Grup Adı grubunda paylaştı: gönderi"
+     *  - başlık "Grup Adı", metin "Ad Soyad: gönderi" ya da "Ad Soyad gönderi paylaştı: gönderi"
+     *  - metin "Ad Soyad posted in Grup Adı: gönderi" (İngilizce arayüz)
+     * Gönderinin tamamı text_big'te ise o kullanılır.
+     */
+    private static function parseFacebook(array $payload): array
+    {
+        $title = trim((string) ($payload['title'] ?? ''));
+        $text = trim((string) ($payload['text'] ?? ''));
+        $big = trim((string) ($payload['text_big'] ?? ''));
+        if (mb_strlen($big) > mb_strlen($text)) {
+            $text = $big;
+        }
+        if ($text === '') {
+            return self::skip('empty');
+        }
+        if (preg_match(self::FACEBOOK_SKIP, $title.' '.mb_substr($text, 0, 160))) {
+            return self::skip('facebook_not_post');
+        }
+        $titleIsApp = $title === '' || preg_match('/^facebook(?:\s+lite)?$/iu', $title) === 1;
+        $group = null;
+        $sender = null;
+        $body = null;
+
+        if (preg_match('/^(?<s>.{1,80}?),\s+(?<g>.{1,120}?)\s+grubunda\s+(?:yeni\s+bir\s+)?(?:gönderi\s+|bir\s+şey\s+)?paylaştı\s*[:\-–]?\s*(?<t>.*)$/su', $text, $m)
+            || preg_match('/^(?<s>.{1,80}?)\s+posted\s+in\s+(?<g>.{1,120}?)\s*[:\-–]\s*(?<t>.*)$/su', $text, $m)) {
+            $sender = trim($m['s']);
+            $group = trim($m['g']);
+            $body = trim($m['t']);
+        } elseif (preg_match('/^(?<h>.{1,200}?)\s+grubunda\s+(?:yeni\s+bir\s+)?(?:gönderi\s+|bir\s+şey\s+)?paylaştı\s*[:\-–]?\s*(?<t>.*)$/su', $text, $m)) {
+            // "Ad Soyad Grup Adı grubunda paylaştı": gönderen ile grup ayrılamaz; grup adı başlıktan, yoksa başlık cümlesinden
+            $group = $titleIsApp ? trim($m['h']) : $title;
+            $body = trim($m['t']);
+        } elseif (! $titleIsApp) {
+            $group = $title;
+            $body = $text;
+            if (preg_match('/^(?<s>[^:\n]{1,60}?)\s*(?:gönderi\s+paylaştı|paylaştı)?\s*:\s+(?<t>.+)$/su', $text, $m) && ! preg_match('/^(?:yük|yuk|fiyat|tonaj|rota|tel|telefon|not|yükleme|teslim|araç|arac)$/iu', trim($m['s']))) {
+                $sender = trim($m['s']);
+                $body = trim($m['t']);
+            }
+        } else {
+            return self::skip('facebook_no_group');
+        }
+
+        $body = trim(preg_replace('/^[«"“]+|[»"”]+$/u', '', trim((string) $body)) ?? '');
+        $body = trim(preg_replace('/\s*(?:…|\.\.\.)\s*$/u', '', $body) ?? $body); // kısaltma işareti
+        if ($group === null || $group === '' || mb_strlen($body) < 12) {
+            return self::skip('facebook_no_body');
+        }
+
+        return ['skipped' => null, 'group' => $group, 'platform' => 'facebook', 'messages' => [['sender' => $sender, 'phone' => null, 'text' => $body]]];
+    }
+
+    /** Grup ilan kaynağı için sabit tanımlayıcı: aynı grup adı her zaman aynı kaynağa düşer (Facebook: fb:, WhatsApp: notif:). */
+    public static function sourceIdentifier(string $group, string $platform = 'whatsapp'): string
     {
         $slug = preg_replace('/[^a-z0-9]+/', '-', TurkishCities::ascii($group)) ?? '';
 
-        return 'notif:'.trim($slug, '-');
+        return ($platform === 'facebook' ? 'fb:' : 'notif:').trim($slug, '-');
     }
 
     /**
@@ -141,6 +207,6 @@ final class NotificationIntakeParser
 
     private static function skip(string $reason): array
     {
-        return ['skipped' => $reason, 'group' => null, 'messages' => []];
+        return ['skipped' => $reason, 'group' => null, 'platform' => 'whatsapp', 'messages' => []];
     }
 }

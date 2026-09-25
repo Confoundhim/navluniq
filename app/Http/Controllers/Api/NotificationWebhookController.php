@@ -90,8 +90,8 @@ class NotificationWebhookController extends Controller
         foreach ($parsed['messages'] as $message) {
             $results[] = $result = $intake->intake([
                 'group_name' => $parsed['group'],
-                'source_jid' => NotificationIntakeParser::sourceIdentifier($parsed['group']),
-                'source_type' => 'notification',
+                'source_jid' => NotificationIntakeParser::sourceIdentifier($parsed['group'], $parsed['platform']),
+                'source_type' => $parsed['platform'] === 'facebook' ? 'facebook' : 'notification',
                 'raw_message' => $message['text'],
                 'sender_phone' => $message['phone'],
                 // Aynı bildirimin tekrar teslimi için sabit kimlik; içerik aynıysa değişmez.

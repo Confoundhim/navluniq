@@ -108,7 +108,7 @@ class extends Component {
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Dış kaynak ilanları yalnız size</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Numaralar yalnız o ilan için ilan sahibiyle görüşmeniz içindir; üçüncü kişilerle paylaşılamaz (Kullanıcı Sözleşmesi md. 3.4). İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
                     </div>
                 </div>
                 <p class="text-[11px] text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
