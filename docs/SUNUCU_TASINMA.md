@@ -22,6 +22,27 @@ Disk hızı testi (yeni sunucuda, root ile). Sonuç MB/s düzeyinde olmalı; kB/
 dd if=/dev/zero of=/root/disktest bs=4k count=500 oflag=dsync 2>&1 | tail -1; rm -f /root/disktest
 ```
 
+## 0.5 Deneme kopyası: siteyi yeni sunucuda IP ile çalıştırıp denemek (kesinti yok)
+
+Karar vermeden önce aynı sistemi yeni sunucuda kurup IP adresiyle açmak için. Gerçek verinin kopyasıyla
+çalışır ama dışarıya hiçbir şey göndermez: e-posta kapalı, Telegram kapalı, ödeme sağlayıcısı boş. Yöneticiler
+kendi e-posta ve şifreleriyle, doğrulama kodu olarak `123456` ile girer. Canlı site ve kullanıcılar etkilenmez.
+
+1. Eski sunucuda yedek: `bash /var/www/navluniq/deploy/backup.sh`
+2. Yeni sunucuda yedeği çekin: `scp root@ESKI_IP:/var/backups/navluniq/navluniq-*.tar.gz /root/`
+3. Betiği indirip deneme kipinde kurun (10-15 dk):
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/tasima.sh -o /root/tasima.sh
+   bash /root/tasima.sh --deneme /root/navluniq-*.tar.gz
+   ```
+
+4. Tarayıcıda `http://YENI_IP/` açın (https yok; IP ile normaldir). Yönetici paneli, ilan listesi, şoför ekranları,
+   Sistem sağlığı ("Kuyruk işçisi: çalışıyor").
+5. Beğenirseniz gerçek geçiş için aşağıdaki bölümler; aynı sunucu kullanılır, geçiş günü `FORCE_IMPORT=1` ve
+   `LETSENCRYPT_EMAIL` ile alan adı kipinde yeniden çalıştırılır (deneme kipi ayarları o zaman kalkar).
+   Vazgeçerseniz sunucuyu kapatmanız yeter.
+
 ## 1. Hazırlık (kesinti yok, geçiş gününden 1-2 gün önce)
 
 1. **DNS bekleme süresini düşürün.** Alan adı panelinde `navluniq.com` ve `www` A kayıtlarının TTL değerini

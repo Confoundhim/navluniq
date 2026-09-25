@@ -61,7 +61,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - **Sunucu taşıma:** `docs/SUNUCU_TASINMA.md` (hazırlık, geçiş günü, geri dönüş). Eski sunucuda `deploy/backup.sh`
   (veritabanı + .env + storage/app + /etc/letsencrypt), yeni sunucuda `deploy/tasima.sh [--kontrol] yedek.tar.gz`
   (MySQL/Redis/supervisor kurar, veritabanını ve belgeleri yükler, `install.sh`'ı çağırır, güncelleme düğmesini kurar;
-  `FORCE_IMPORT=1` dolu veritabanını yeniden yükler). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,
+  `FORCE_IMPORT=1` dolu veritabanını yeniden yükler; `--deneme` IP ile açılan yalıtılmış kopya: `MAIL_MAILER=log` +
+  `php artisan deneme:izole` (e-posta/Telegram kapalı, ödeme sağlayıcısı boş, süper yöneticiler kod 123456 ile girer)). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,
   MySQL `99-navluniq.cnf` yazar, supervisor işçisini `.env` bağlantısıyla kurar; var olan `.env`'in önbellek/oturum seçimini bozmaz.
 - Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
   Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.

@@ -9,10 +9,15 @@
 # Kullanım (yeni sunucuda):
 #   bash tasima.sh --kontrol /root/navluniq-YYYYmmdd-HHMMSS.tar.gz     # yalnız yedeği inceler, hiçbir şey kurmaz
 #   LETSENCRYPT_EMAIL=siz@ornek.com bash tasima.sh /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
+#   DOMAIN=2.28.215.168 bash tasima.sh --deneme /root/navluniq-YYYYmmdd-HHMMSS.tar.gz   # IP ile açılan deneme kopyası
+#
+# --deneme (deneme kopyası): site IP ile http üzerinden açılır, gerçek verinin kopyasıyla çalışır ama dışarıya
+#   hiçbir şey göndermez: e-posta kapalı (MAIL_MAILER=log), Telegram kapalı, ödeme sağlayıcısı boş; yöneticiler
+#   sabit kodla (123456) girer (php artisan deneme:izole). Canlı siteyi ve kullanıcıları etkilemez.
 #
 # İsteğe bağlı ortam değişkenleri:
-#   DOMAIN            alan adı (varsayılan: yedekteki APP_URL)
-#   LETSENCRYPT_EMAIL SSL yenilemeleri için e-posta (zorunlu; https için)
+#   DOMAIN            alan adı ya da IP (varsayılan: yedekteki APP_URL; --deneme ile sunucunun IP'si)
+#   LETSENCRYPT_EMAIL SSL yenilemeleri için e-posta (alan adı verildiyse zorunlu; IP ile gerekmez)
 #   APP_BRANCH        çekilecek dal (varsayılan: main)
 #   FORCE_IMPORT=1    veritabanında tablo olsa bile dökümü yeniden yükle (mevcut tablolar silinir!)
 #
@@ -31,10 +36,12 @@ warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 fail() { printf '\033[1;31m✘ %s\033[0m\n' "$*" >&2; exit 1; }
 
 KONTROL=0
+DENEME=0
 ARCHIVE=""
 for arg in "$@"; do
     case "$arg" in
         --kontrol) KONTROL=1 ;;
+        --deneme) DENEME=1 ;;
         *) ARCHIVE="$arg" ;;
     esac
 done
@@ -57,9 +64,14 @@ DB_DATABASE="$(env_get DB_DATABASE)"; DB_USERNAME="$(env_get DB_USERNAME)"; DB_P
 APP_KEY="$(env_get APP_KEY)"
 [[ -n "$DB_DATABASE" && -n "$DB_USERNAME" && -n "$DB_PASSWORD" ]] || fail "Yedekteki .env içinde DB_DATABASE / DB_USERNAME / DB_PASSWORD eksik."
 [[ "$APP_KEY" == base64:* ]] || fail "Yedekteki .env içinde APP_KEY yok; şifreli veriler (telefonlar) bu anahtarsız okunamaz."
+if [[ $DENEME -eq 1 && -z "${DOMAIN:-}" ]]; then
+    DOMAIN="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
 DOMAIN="${DOMAIN:-$(env_get APP_URL | sed -E 's|^https?://||; s|/.*$||')}"
 DOMAIN="${DOMAIN#www.}"
 [[ -n "$DOMAIN" ]] || fail "Alan adı bulunamadı; DOMAIN=navluniq.com gibi verin."
+IS_IP=0; [[ "$DOMAIN" =~ ^[0-9.]+$ ]] && IS_IP=1
+[[ $DENEME -eq 1 ]] && echo "  Kip        : DENEME KOPYASI (http://${DOMAIN}, dışarıya gönderim kapalı)"
 
 echo "  Veritabanı : $DB_DATABASE (kullanıcı $DB_USERNAME)"
 echo "  Alan adı   : $DOMAIN"
@@ -72,7 +84,7 @@ if [[ $KONTROL -eq 1 ]]; then
     ok "Kontrol tamam; hiçbir şey kurulmadı. Kurmak için --kontrol olmadan çalıştırın."
     exit 0
 fi
-[[ -n "${LETSENCRYPT_EMAIL:-}" ]] || fail "LETSENCRYPT_EMAIL verilmedi (https için gerekli). Örnek: LETSENCRYPT_EMAIL=siz@ornek.com bash tasima.sh $ARCHIVE"
+[[ $IS_IP -eq 1 || -n "${LETSENCRYPT_EMAIL:-}" ]] || fail "LETSENCRYPT_EMAIL verilmedi (https için gerekli). Örnek: LETSENCRYPT_EMAIL=siz@ornek.com bash tasima.sh $ARCHIVE"
 
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
 
@@ -137,6 +149,17 @@ else
     chmod 640 "$APP_DIR/.env"
     ok ".env yedekten geldi (APP_KEY korundu)"
 fi
+if [[ $DENEME -eq 1 ]]; then
+    # Deneme kopyası e-posta göndermez: iletiler storage/logs/laravel.log'a yazılır.
+    if grep -qE '^MAIL_MAILER=' "$APP_DIR/.env"; then
+        sed -i -E 's|^MAIL_MAILER=.*|MAIL_MAILER=log|' "$APP_DIR/.env"
+    else
+        printf 'MAIL_MAILER=log\n' >> "$APP_DIR/.env"
+    fi
+    # Çerez alan adı canlı siteye bağlıysa IP ile giriş tutmaz; deneme kopyasında boş bırakılır.
+    sed -i -E 's|^SESSION_DOMAIN=.*|SESSION_DOMAIN=|' "$APP_DIR/.env"
+    ok "deneme kipi: e-posta gönderimi kapalı (MAIL_MAILER=log)"
+fi
 mkdir -p "$APP_DIR/storage/app"
 if [[ -f "$Y/storage-app.tar.gz" ]]; then
     tar -C "$APP_DIR/storage" -xzf "$Y/storage-app.tar.gz"
@@ -145,7 +168,7 @@ fi
 
 # SSL sertifikası eski sunucudan geliyorsa alan adı henüz buraya dönmeden https çalışır;
 # install.sh içindeki certbot mevcut sertifikayı görür ve yenisini istemeden nginx'e bağlar.
-if [[ -f "$Y/letsencrypt.tar.gz" ]]; then
+if [[ $DENEME -eq 0 && -f "$Y/letsencrypt.tar.gz" ]]; then
     apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
     tar -C /etc -xzf "$Y/letsencrypt.tar.gz"
     ok "SSL sertifikası /etc/letsencrypt altına kondu"
@@ -153,9 +176,15 @@ fi
 
 # -----------------------------------------------------------------------------
 log "Kurulum betiği (PHP, nginx, SSL, cron, kuyruk işçisi)"
-DOMAIN="$DOMAIN" LETSENCRYPT_EMAIL="$LETSENCRYPT_EMAIL" APP_BRANCH="$APP_BRANCH" \
+DOMAIN="$DOMAIN" LETSENCRYPT_EMAIL="${LETSENCRYPT_EMAIL:-}" APP_BRANCH="$APP_BRANCH" \
 DB_DATABASE="$DB_DATABASE" DB_USERNAME="$DB_USERNAME" DB_PASSWORD="$DB_PASSWORD" \
     bash "$APP_DIR/deploy/install.sh"
+
+if [[ $DENEME -eq 1 ]]; then
+    log "Deneme kopyası yalıtımı"
+    (cd "$APP_DIR" && runuser -u www-data -- php artisan deneme:izole --no-interaction) \
+        || warn "Yalıtım komutu çalışmadı; kurulum sonrası elle: php artisan deneme:izole"
+fi
 
 # -----------------------------------------------------------------------------
 log "Panelden güncelleme düğmesi"
@@ -169,7 +198,13 @@ cd "$APP_DIR"
 runuser -u www-data -- php artisan migrate:status --no-interaction 2>/dev/null | tail -n 3 || true
 USERS="$(MYSQL_PWD="$DB_PASSWORD" mysql --host=127.0.0.1 --user="$DB_USERNAME" -N -e "SELECT COUNT(*) FROM users" "$DB_DATABASE" 2>/dev/null || echo '?')"
 LOADS="$(MYSQL_PWD="$DB_PASSWORD" mysql --host=127.0.0.1 --user="$DB_USERNAME" -N -e "SELECT COUNT(*) FROM scraped_loads" "$DB_DATABASE" 2>/dev/null || echo '?')"
-HTTP_CODE="$(curl -s -k -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" || true)"
+if [[ $IS_IP -eq 1 ]]; then
+    SITE_URL="http://${DOMAIN}/"
+    HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1/" -H "Host: ${DOMAIN}" || true)"
+else
+    SITE_URL="https://${DOMAIN}/"
+    HTTP_CODE="$(curl -s -k -o /dev/null -w '%{http_code}' --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/" || true)"
+fi
 
 cat <<SUMMARY
 
@@ -177,10 +212,18 @@ cat <<SUMMARY
  Taşıma tamamlandı (bu sunucu: $(hostname -I | awk '{print $1}'))
    Kullanıcı sayısı    : ${USERS}
    Dış kaynak ilanı    : ${LOADS}
-   https://${DOMAIN}/  : ${HTTP_CODE} (bu sunucudan; alan adı henüz buraya dönmemiş olabilir)
+   ${SITE_URL}  : ${HTTP_CODE} (bu sunucudan)
+$(if [[ $DENEME -eq 1 ]]; then cat <<DENEME
+ DENEME KOPYASI: tarayıcıda ${SITE_URL} açın; yönetici e-postanız ve şifrenizle girin, kod 123456.
+   E-posta ve Telegram gönderimi kapalı, ödeme sağlayıcısı boş; gerçek kullanıcılar etkilenmez.
+   Beğenirseniz gerçek geçiş: docs/SUNUCU_TASINMA.md → "Geçiş günü". Vazgeçerseniz sunucuyu kapatmanız yeter.
+DENEME
+else cat <<GERCEK
  Sıradaki adımlar: docs/SUNUCU_TASINMA.md → "Geçiş günü"
    1. Bilgisayarınızın hosts dosyasıyla bu IP'yi deneyin (giriş, ilan listesi, yönetici paneli).
    2. Eski sunucuda bakım modu + son yedek, burada FORCE_IMPORT=1 ile yeniden yükleme.
    3. Alan adını bu IP'ye çevirin; panelde Sistem sağlığı kontrolü.
+GERCEK
+fi)
 =============================================================
 SUMMARY
