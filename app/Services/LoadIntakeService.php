@@ -12,6 +12,7 @@ use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\VehicleClassifier;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
@@ -116,7 +117,13 @@ class LoadIntakeService
                 return $this->result(202, false, 'source_deleted', 'Kaynak silinmiş; mesaj yok sayıldı.');
             }
             if (! $scraper->exists) {
-                $scraper->save();
+                // Aynı yeni gruptan iki mesaj aynı anda gelince ikisi de kaynağı açmaya çalışır; ikincisi
+                // tekil anahtara takılır. Hata yerine ilkinin açtığı kayıt okunur, mesaj normal işlenir.
+                try {
+                    $scraper->save();
+                } catch (UniqueConstraintViolationException) {
+                    $scraper = Scraper::withTrashed()->where('source_identifier', $sourceId)->firstOrFail();
+                }
             }
             $scraper->forceFill(['last_message_at' => now()])->saveQuietly();
             if (! $scraper->is_active) {

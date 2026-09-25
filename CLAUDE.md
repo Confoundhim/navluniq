@@ -51,6 +51,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Migration takılırsa: betik 60 sn'den eski açık işlemleri kapatır; hâlâ kalırsa
   `information_schema.innodb_trx` ile kilit tutan bağlantı bulunup `KILL <id>` yapılır. Migration'lar
   MariaDB'de yeniden çalıştırılabilir yazılır (`Schema::hasTable/hasColumn` koruması).
+- **2026-09-25 yavaşlık teşhisi** (2 CPU, %50 iowait, `pm.max_children=5` doluydu, php8.3-fpm artığı çalışıyordu, MariaDB
+  "waiting for handler commit"): önerilen sunucu ayarları `pm.max_children=20` (start 4 / min 2 / max 6), `php8.3-fpm` kapatılır,
+  MariaDB `innodb_flush_log_at_trx_commit=2`, yeniden başlatma. Kod tarafı: telefon mesajları kuyruğa (bkz. §8).
 - Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
   Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
 
@@ -164,7 +167,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
 `accounts:purge-drafts` (günlük), `system:backup` (03:30), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
-`scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar). Bakım modunda zamanlayıcı çalışmaz.
+`scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
+işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz.
+**Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
+`ProcessNotificationMessage` işine bırakır ve telefona `queued` döner (yapay zeka çağrısı ve 25 sn'lik tekrar kilidi PHP-FPM
+işçisini tutmaz); nabız yoksa/eskiyse eski gibi istek içinde işler. Sağlık ekranı ve dış kaynak sayfası "Kuyruk" rozetinde görünür.
+Sunucuda işçiler `queue:work` ile çalışır; `.env` `QUEUE_CONNECTION` ile işçinin dinlediği bağlantı aynı olmalı (2026-09-25
+teşhisinde işçiler `redis` dinliyordu). Güncelleme betiği `queue:restart` ile işçilere yeni kodu yükletir.
 Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur (tekrar çalıştırmak güvenli).
 
 ## 9. Test ve kod tuzakları (öğrenilmiş)

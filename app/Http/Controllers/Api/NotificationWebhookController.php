@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessNotificationMessage;
+use App\Jobs\QueueHeartbeat;
 use App\Models\IntakeEvent;
 use App\Services\LoadIntakeService;
 use App\Services\NotificationIntakeParser;
@@ -86,23 +88,19 @@ class NotificationWebhookController extends Controller
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
 
+        // Kuyruk işçisi canlıysa mesajlar kuyruğa bırakılır ve telefon hemen cevap alır: yapay zeka çağrısı ve
+        // tekrar kilidi web sunucusunun PHP işçilerini tutmaz, site yavaşlamaz. İşçi yoksa eski gibi burada işlenir.
+        $useQueue = QueueHeartbeat::alive();
         $results = [];
         foreach ($parsed['messages'] as $message) {
-            $results[] = $result = $intake->intake([
-                'group_name' => $parsed['group'],
-                'source_jid' => NotificationIntakeParser::sourceIdentifier($parsed['group'], $parsed['platform']),
-                'source_type' => $parsed['platform'] === 'facebook' ? 'facebook' : 'notification',
-                'raw_message' => $message['text'],
-                'sender_phone' => $message['phone'],
-                // Aynı bildirimin tekrar teslimi için sabit kimlik; içerik aynıysa değişmez.
-                'message_id' => substr(hash('sha256', $parsed['group'].'|'.($message['sender'] ?? '').'|'.$message['text']), 0, 40),
-            ]);
-            // Mesaj birden çok ilan barındırıyorsa her ilan canlı akışta ayrı satır olur (kendi sonucu ve adayıyla).
-            $parts = count($result['segments'] ?? []) > 1 ? $result['segments'] : [$result + ['excerpt' => $message['text']]];
-            foreach ($parts as $part) {
-                IntakeEvent::record($part['status'], ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null, 'excerpt' => $part['excerpt'] ?? $message['text'],
-                    'reason' => $part['reason'] ?? null, 'scraped_load_id' => $part['scraped_load_id'] ?? null]);
+            $job = new ProcessNotificationMessage($parsed['group'], $parsed['platform'], $message, $validated['title'] ?? null, $request->ip());
+            if ($useQueue) {
+                dispatch($job);
+                $results[] = ['status' => 'queued', 'message' => 'Kuyruğa alındı; sonucu canlı akışta görünür.', 'success' => true, 'code' => 202];
+
+                continue;
             }
+            $results[] = $job->handle($intake);
         }
 
         $summary = array_count_values(array_column($results, 'status'));

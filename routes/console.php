@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\QueueHeartbeat;
 use App\Services\AccountService;
 use App\Services\DriverTripService;
 use App\Services\LoadReleaseService;
@@ -79,6 +80,8 @@ Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
 Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
+// Kuyruk nabzı: işçi bu işi çalıştırınca zaman damgası yazar; tazeyse telefon mesajları kuyruğa verilir (bkz. NotificationWebhookController).
+Schedule::job(new QueueHeartbeat)->everyMinute()->name('queue-heartbeat');
 Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
 Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping();
 Schedule::command('shipments:auto-approve')->hourly();
