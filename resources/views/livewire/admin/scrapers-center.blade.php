@@ -630,6 +630,40 @@ new class extends Component {
         }
     }
 
+    /** Sayfada görünen verinin ucuz imzası; değişmediyse süreli yenileme hiçbir şey çizmez. */
+    public ?string $pollSignature = null;
+
+    private function currentSignature(): string
+    {
+        $parts = match (true) {
+            $this->activeTab === 'events' => [IntakeEvent::query()->max('id')],
+            $this->activeTab === 'sources' => [Scraper::withTrashed()->max('id'), Scraper::query()->where('is_active', false)->count(), Scraper::withTrashed()->max('last_message_at')],
+            $this->activeTab === 'lexicon' => [AiLexicon::query()->max('id'), AiLexicon::query()->where('status', 'suggested')->count()],
+            default => [
+                ScrapedLoad::withTrashed()->max('id'),
+                ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')->count(),
+                ScrapedLoad::query()->where('visibility', 'public')->count(),
+                ScrapedLoad::query()->where('status', 'rejected')->count(),
+                ScrapedLoad::query()->where('ai_status', 'pending')->count(),
+                ScrapedLoad::query()->max('published_at'),
+            ],
+        };
+
+        return md5(implode('|', array_map(fn ($v) => (string) $v, $parts)));
+    }
+
+    /** wire:poll: veri değişmediyse ekran çizilmez (ağır sayaç ve karar hesapları atlanır). */
+    public function tick(): void
+    {
+        $signature = $this->currentSignature();
+        if ($this->pollSignature === $signature) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->pollSignature = $signature;
+    }
+
     public function regenerateToken(): void
     {
         if (! $this->can()) {
@@ -641,6 +675,7 @@ new class extends Component {
 
     public function with(): array
     {
+        $this->pollSignature = $this->currentSignature();
         $service = app(ScrapedLoadService::class);
         $parser = app(AiParserService::class);
         $todayEvents = IntakeEvent::query()->where('created_at', '>=', now()->startOfDay());
@@ -707,7 +742,7 @@ new class extends Component {
     }
 }; ?>
 
-<div @if(! $editingId && $selected === [] && $selectedSources === []) wire:poll.5s @endif class="max-w-7xl mx-auto space-y-5">
+<div @if(! $editingId && $selected === [] && $selectedSources === []) wire:poll.15s="tick" @endif class="max-w-7xl mx-auto space-y-5">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];

@@ -24,7 +24,7 @@ final class Settings
 
         // Dış kaynak ilanları
         'scraper_free_delay_minutes' => 20,     // Onaylanan ilanın ücretsiz üyelere açılma gecikmesi (dk)
-        'scraper_list_days' => 14,              // Yayınlanan dış kaynak ilanı bu kadar gün listede kalır; sonra arşivlenir (silinmez, sayaçta kalır)
+        'scraper_list_days' => 7,               // Yayınlanan dış kaynak ilanı bu kadar gün listede kalır; sonra arşivlenir (silinmez, sayaçta kalır)
         'scraper_auto_approve' => 0,            // 1: kriterleri sağlayan adaylar her dakika otomatik onaylanır
         'scraper_auto_approve_require_price' => 0,
         'scraper_auto_approve_require_weight' => 0,
