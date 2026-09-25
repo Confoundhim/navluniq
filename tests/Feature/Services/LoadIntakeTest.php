@@ -387,4 +387,22 @@ class LoadIntakeTest extends TestCase
         $this->assertSame(['done', 'Ankara Yenimahalle', 'İzmir Aliağa'], [ScrapedLoad::first()->ai_status, ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]); // kural ilçe/semti de çözer
         Http::assertSentCount(1);
     }
+
+    public function test_source_created_by_a_concurrent_request_is_reused_instead_of_failing(): void
+    {
+        // İlk istek kaynağı açarken (firstOrNew → save arası) ikinci istek aynı kaynağı zaten açmış olsun.
+        $raced = false;
+        Scraper::creating(function () use (&$raced): void {
+            if (! $raced) {
+                $raced = true;
+                Scraper::create(['name' => 'Yarış Grubu', 'type' => 'whatsapp', 'source_identifier' => 'yaris@g.us', 'is_active' => true]);
+            }
+        });
+
+        $result = app(LoadIntakeService::class)->intake(['group_name' => 'Yarış Grubu', 'raw_message' => self::AD, 'message_id' => 'r1', 'source_jid' => 'yaris@g.us']);
+
+        $this->assertSame('created', $result['status']);
+        $this->assertSame(1, Scraper::withTrashed()->where('source_identifier', 'yaris@g.us')->count());
+        $this->assertSame(1, ScrapedLoad::count());
+    }
 }

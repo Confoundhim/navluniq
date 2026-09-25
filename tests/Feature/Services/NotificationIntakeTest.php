@@ -3,12 +3,17 @@
 namespace Tests\Feature\Services;
 
 use App\Http\Middleware\FirewallMiddleware;
+use App\Jobs\ProcessNotificationMessage;
+use App\Jobs\QueueHeartbeat;
+use App\Models\IntakeEvent;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Services\LoadIntakeService;
 use App\Services\NotificationIntakeParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class NotificationIntakeTest extends TestCase
@@ -145,5 +150,52 @@ class NotificationIntakeTest extends TestCase
             ->assertOk()->assertJsonPath('status', 'duplicate');
         $this->assertSame(1, ScrapedLoad::count());
         Http::assertNothingSent();
+    }
+
+    public function test_messages_go_to_the_queue_only_while_the_worker_heartbeat_is_fresh(): void
+    {
+        Scraper::create(['name' => 'Ankara Nakliye Grubu', 'type' => 'notification', 'source_identifier' => 'notif:ankara-nakliye-grubu', 'is_active' => true]);
+        $payload = ['title' => 'Ankara Nakliye Grubu', 'text' => "Ahmet Usta: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67", 'token' => 'phone-secret'];
+
+        // Nabız yok: mesaj istek içinde işlenir, telefon sonucu hemen görür.
+        Queue::fake();
+        $this->assertFalse(QueueHeartbeat::alive());
+        $this->postJson('/api/v1/webhook/notification', $payload)->assertOk()->assertJsonPath('status', 'created');
+        Queue::assertNothingPushed();
+        $this->assertSame(1, ScrapedLoad::count());
+        $this->assertSame('created', IntakeEvent::latest('id')->first()->status);
+
+        // İşçi nabız veriyor: mesaj kuyruğa bırakılır, istek "queued" ile döner; kayıt işçi çalışınca oluşur.
+        (new QueueHeartbeat)->handle();
+        $this->assertTrue(QueueHeartbeat::alive());
+        $second = ['title' => 'Ankara Nakliye Grubu', 'text' => "Veli Usta: Bursa'dan Adana'ya 12 ton kiremit 0533 987 65 43", 'token' => 'phone-secret'];
+        $this->postJson('/api/v1/webhook/notification', $second)->assertOk()->assertJsonPath('status', 'queued')->assertJsonPath('processed', 1);
+        $this->assertSame(1, ScrapedLoad::count());
+        Queue::assertPushed(ProcessNotificationMessage::class, function (ProcessNotificationMessage $job): bool {
+            $job->handle(app(LoadIntakeService::class));
+
+            return $job->group === 'Ankara Nakliye Grubu' && $job->platform === 'whatsapp';
+        });
+        $this->assertSame(2, ScrapedLoad::count());
+        $this->assertSame('Adana', ScrapedLoad::latest('id')->first()->delivery_location);
+        $event = IntakeEvent::latest('id')->first();
+        $this->assertSame(['created', 'Ankara Nakliye Grubu'], [$event->status, $event->source_name]);
+
+        // Nabız eskiyince (işçi durdu) yeniden istek içinde işlenir.
+        $this->travel(4)->minutes();
+        $this->assertFalse(QueueHeartbeat::alive());
+        $third = ['title' => 'Ankara Nakliye Grubu', 'text' => "Can Usta: Konya'dan Samsun'a 20 ton un 0534 111 22 33", 'token' => 'phone-secret'];
+        $this->postJson('/api/v1/webhook/notification', $third)->assertOk()->assertJsonPath('status', 'created');
+        $this->assertSame(3, ScrapedLoad::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_failed_queued_message_is_written_to_the_live_feed(): void
+    {
+        $job = new ProcessNotificationMessage('Grup X', 'whatsapp', ['text' => 'Ankara İzmir 0532 123 45 67', 'phone' => null], 'Grup X', '10.0.0.1');
+        $job->failed(new \RuntimeException('bağlantı koptu'));
+        $event = IntakeEvent::latest('id')->first();
+        $this->assertSame(['failed', 'Grup X', '10.0.0.1'], [$event->status, $event->source_name, $event->ip]);
+        $this->assertStringContainsString('bağlantı koptu', $event->reason);
     }
 }

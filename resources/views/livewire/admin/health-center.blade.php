@@ -58,6 +58,18 @@ new class extends Component {
             return DB::table('jobs')->count().' iş · sürücü: '.config('queue.default');
         });
 
+        $this->checks[] = $this->probe('Kuyruk işçisi', function (): string {
+            $age = \App\Jobs\QueueHeartbeat::ageSeconds();
+            if ($age === null) {
+                throw new RuntimeException('Hiç nabız yok: işçi çalışmıyor ya da yanlış bağlantıyı dinliyor ('.config('queue.default').' bekleniyor). Telefon mesajları istek içinde işleniyor; site yavaşlar.');
+            }
+            if ($age >= \App\Jobs\QueueHeartbeat::MAX_AGE_SECONDS) {
+                throw new RuntimeException('Son nabız '.floor($age / 60).' dk önce; işçi durmuş görünüyor. Telefon mesajları istek içinde işleniyor.');
+            }
+
+            return 'çalışıyor · son nabız '.$age.' sn önce · telefon mesajları kuyrukta işleniyor';
+        });
+
         $this->checks[] = $this->probe('Başarısız işler', function (): string {
             if (! Schema::hasTable('failed_jobs')) {
                 throw new RuntimeException('failed_jobs tablosu yok.');

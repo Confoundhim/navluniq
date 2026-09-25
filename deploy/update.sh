@@ -28,8 +28,10 @@ log "Bakım modu"
 php artisan down --retry=15 --quiet || true
 # Takılı kalmış PHP-FPM istekleri açık işlem/tablo kilidi bırakabilir; migrate bu kilidi beklerken
 # "ilerlemiyor" görünür. Bakım modunda FPM yeniden başlatılır, kilitler serbest kalır.
-PHP_FPM="$(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}' | head -n1)"
-[[ -n "$PHP_FPM" ]] && systemctl restart "$PHP_FPM"
+# Birden fazla PHP sürümü kuruluysa (8.3 + 8.4) yalnız ilki değil, çalışan her php-fpm yeniden başlatılır.
+for PHP_FPM in $(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}'); do
+    systemctl restart "$PHP_FPM" || true
+done
 
 log "Kod (${APP_BRANCH})"
 git fetch --quiet origin "$APP_BRANCH"
@@ -128,8 +130,12 @@ chmod -R ug+rwx storage bootstrap/cache
 chmod 640 .env
 runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
+# Kuyruk işçileri yeni kodu yüklesin (işçi yoksa zararsız; systemd/supervisor işçiyi yeniden açar).
+runuser -u www-data -- php artisan queue:restart --quiet || true
 
-PHP_FPM="$(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}' | head -n1)"
-[[ -n "$PHP_FPM" ]] && systemctl restart "$PHP_FPM"
+# Birden fazla PHP sürümü kuruluysa (8.3 + 8.4) yalnız ilki değil, çalışan her php-fpm yeniden başlatılır.
+for PHP_FPM in $(systemctl list-units --type=service --state=running 'php*-fpm*' --no-legend | awk '{print $1}'); do
+    systemctl restart "$PHP_FPM" || true
+done
 
 ok "Güncelleme tamamlandı (${AFTER})"

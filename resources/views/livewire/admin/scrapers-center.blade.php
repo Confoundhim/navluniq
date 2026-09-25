@@ -680,12 +680,15 @@ new class extends Component {
         $parser = app(AiParserService::class);
         $todayEvents = IntakeEvent::query()->where('created_at', '>=', now()->startOfDay());
         $schedulerAge = ScrapedLoadService::schedulerAgeSeconds();
+        $queueAge = \App\Jobs\QueueHeartbeat::ageSeconds();
 
         $data = [
             'freeDelay' => $service->freeDelayMinutes(),
             'autoApprove' => Settings::bool('scraper_auto_approve'),
             'schedulerAge' => $schedulerAge,
             'schedulerOk' => $schedulerAge !== null && $schedulerAge < 180,
+            'queueAge' => $queueAge,
+            'queueOk' => \App\Jobs\QueueHeartbeat::alive(),
             'ai' => ['enabled' => $parser->isEnabled(), 'configured' => $parser->isConfigured(), 'mode' => AiParserService::MODES[$parser->mode()] ?? $parser->mode(), 'provider' => $parser->provider(), 'model' => $parser->model()],
             'stats' => [
                 'received' => (clone $todayEvents)->count(),
@@ -764,6 +767,7 @@ new class extends Component {
         </div>
         <div class="flex flex-wrap items-center gap-2 text-[11px]">
             <span class="badge {{ $schedulerOk ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}" title="{{ $schedulerAge === null ? 'Zamanlayıcıdan hiç nabız gelmedi' : 'Son nabız '.$schedulerAge.' sn önce' }}">Zamanlayıcı: {{ $schedulerOk ? 'çalışıyor' : ($schedulerAge === null ? 'nabız yok' : 'durmuş ('.floor($schedulerAge / 60).' dk)') }}</span>
+            <span class="badge {{ $queueOk ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}" title="{{ $queueOk ? 'Telefon mesajları kuyrukta işleniyor; son nabız '.$queueAge.' sn önce' : 'Kuyruk işçisi nabız vermiyor; telefon mesajları istek içinde işleniyor (site yavaşlayabilir)' }}">Kuyruk: {{ $queueOk ? 'çalışıyor' : ($queueAge === null ? 'nabız yok' : 'durmuş ('.floor($queueAge / 60).' dk)') }}</span>
             <span class="badge {{ $autoApprove ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}">Otomatik onay: {{ $autoApprove ? 'açık' : 'kapalı' }}</span>
             <span class="badge {{ $ai['enabled'] && $ai['configured'] ? 'bg-violet-500/10 text-violet-600' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500' }}" title="{{ $ai['provider'] }} · {{ $ai['model'] }}">Yapay zeka: {{ ! $ai['enabled'] ? 'kapalı' : ($ai['configured'] ? $ai['mode'] : 'anahtar yok') }}</span>
 
