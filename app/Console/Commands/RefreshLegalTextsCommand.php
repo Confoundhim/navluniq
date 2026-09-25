@@ -50,6 +50,13 @@ class RefreshLegalTextsCommand extends Command
             if (in_array($key, ['contract_kvkk', 'contract_terms'], true) && (! str_contains($html, 'data-clause="dis-kaynak"') || ! str_contains($html, 'data-clause="bildirim-tercihi"'))) {
                 return true;
             }
+            // Dış kaynak ilan bilgilerinin gizliliği (premium sürücü paylaşamaz; WhatsApp/Facebook grupları) eklenmemişse yenile.
+            if ($key === 'contract_terms' && ! str_contains($html, 'data-clause="dis-kaynak-gizlilik"')) {
+                return true;
+            }
+            if ($key === 'contract_kvkk' && ! str_contains($html, 'Facebook grupları dahil')) {
+                return true;
+            }
             $withToken += str_contains($html, '{{COMPANY_NAME}}') ? 1 : 0;
         }
 

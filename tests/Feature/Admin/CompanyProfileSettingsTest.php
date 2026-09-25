@@ -60,8 +60,18 @@ class CompanyProfileSettingsTest extends TestCase
 
         $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
         $this->assertFalse(RefreshLegalTextsCommand::isStale());
+        // Yeni gizlilik maddesi olmayan eski sözleşme metni güncelleme sırasında yenilenir
+        CmsContent::setVal('contract_terms', (string) str_replace('data-clause="dis-kaynak-gizlilik"', '', (string) CmsContent::getVal('contract_terms')));
+        $this->assertTrue(RefreshLegalTextsCommand::isStale());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertFalse(RefreshLegalTextsCommand::isStale());
         $this->assertStringContainsString('{{COMPANY_NAME}}', (string) CmsContent::getVal('contract_kvkk'));
         $this->assertStringContainsString('Dış Kaynak İlanları', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('3.4 Dış Kaynak İlan Bilgilerinin Gizliliği', (string) CmsContent::getVal('contract_terms'));
+        $this->assertStringContainsString('üçüncü kişilerle hiçbir biçimde paylaşamaz', (string) CmsContent::getVal('contract_terms'));
+        $this->assertStringContainsString('WhatsApp ve Facebook grupları dahil', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('ilanının derhal kaldırılmasını isteyebilir', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('md. 3.4 ile taahhüt eder', (string) CmsContent::getVal('contract_privacy'));
         $this->assertStringContainsString('3.3 Dış Kaynak İlanları', (string) CmsContent::getVal('contract_terms'));
         $this->assertStringContainsString('4.4 Bildirimler ve E-posta Tercihi', (string) CmsContent::getVal('contract_terms'));
         $this->assertStringContainsString('şoför panelinden her zaman kapatılıp açılabilir', (string) CmsContent::getVal('contract_kvkk'));

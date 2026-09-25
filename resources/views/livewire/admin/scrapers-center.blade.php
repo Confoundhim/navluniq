@@ -996,6 +996,17 @@ new class extends Component {
                     <span class="text-[11px] text-neutral-400">İçerik türü: application/json · Zaman aşımı: 20 sn · "Yanıtı değişkene kaydet" gerekmez.</span>
                 </div>
             </details>
+
+            <details class="text-xs">
+                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Facebook grupları (aynı makro, bot yok)</summary>
+                <ol class="list-decimal pl-5 mt-2 space-y-1.5 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li>Telefonda Facebook uygulamasında gruba girin → <strong>⋯</strong> → <strong>Bildirim ayarları</strong> → <strong>Tüm gönderiler</strong>. Her grup için ayrı yapılır; "Öne çıkanlar" seçiliyse ilanların çoğu gelmez.</li>
+                    <li>MacroDroid'de WhatsApp makrosunu açın → <strong>Tetikleyici</strong> → "Bildirim alındı" → uygulama listesine <strong>Facebook</strong>'u (varsa Facebook Lite) ekleyin. Gövde ve adres aynıdır; başka ayar gerekmez. Uygulama adı <span class="font-mono">{{ $phoneParams['app'] }}</span> alanıyla gelir, sunucu buna göre Facebook ayrıştırmasını kullanır.</li>
+                    <li>İlk gönderi düşünce kaynak aşağıda <strong>Facebook grubu (bildirim iletici)</strong> türüyle, <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır; <strong>Aktif et</strong> deyince ilanlar işlenir.</li>
+                </ol>
+                <p class="text-[11px] text-neutral-400 mt-2">Yorum, beğeni ve arkadaşlık bildirimleri kendiliğinden atlanır (Canlı akışta "facebook_not_post"). Aynı ilan WhatsApp grubunda da paylaşılmışsa ikinci kayıt açılmaz; ilan "birden fazla kaynakta" sayacına yazılır.</p>
+                <button type="button" @click="copy('Facebook', 'fbapp')" class="btn-secondary py-1.5 px-3 text-xs mt-2" x-text="copied === 'fbapp' ? 'Kopyalandı' : 'Uygulama adını kopyala (Facebook)'"></button>
+            </details>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
