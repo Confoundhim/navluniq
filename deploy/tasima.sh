@@ -9,11 +9,14 @@
 # Kullanım (yeni sunucuda):
 #   bash tasima.sh --kontrol /root/navluniq-YYYYmmdd-HHMMSS.tar.gz     # yalnız yedeği inceler, hiçbir şey kurmaz
 #   LETSENCRYPT_EMAIL=siz@ornek.com bash tasima.sh /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
-#   DOMAIN=2.28.215.168 bash tasima.sh --deneme /root/navluniq-YYYYmmdd-HHMMSS.tar.gz   # IP ile açılan deneme kopyası
+#   DOMAIN=2.28.215.168 bash tasima.sh /root/navluniq-YYYYmmdd-HHMMSS.tar.gz            # birebir kopya, IP ile açılır
+#   DOMAIN=2.28.215.168 bash tasima.sh --deneme /root/navluniq-YYYYmmdd-HHMMSS.tar.gz   # yalıtılmış deneme kopyası
 #
-# --deneme (deneme kopyası): site IP ile http üzerinden açılır, gerçek verinin kopyasıyla çalışır ama dışarıya
-#   hiçbir şey göndermez: e-posta kapalı (MAIL_MAILER=log), Telegram kapalı, ödeme sağlayıcısı boş; yöneticiler
-#   sabit kodla (123456) girer (php artisan deneme:izole). Canlı siteyi ve kullanıcıları etkilemez.
+# DOMAIN bir IP ise site http üzerinden IP ile açılır (SSL yok, çerez alan adı boşaltılır); diğer her şey
+#   (e-posta, Telegram, ödeme, zamanlanmış görevler) canlıdaki ayarlarla aynen çalışır.
+# --deneme (yalıtılmış deneme kopyası): ek olarak dışarıya hiçbir şey gönderilmez: e-posta kapalı
+#   (MAIL_MAILER=log), Telegram kapalı, ödeme sağlayıcısı boş; yöneticiler sabit kodla (123456) girer
+#   (php artisan deneme:izole). Gerçek kullanıcı varken tercih edilir.
 #
 # İsteğe bağlı ortam değişkenleri:
 #   DOMAIN            alan adı ya da IP (varsayılan: yedekteki APP_URL; --deneme ile sunucunun IP'si)
@@ -149,6 +152,10 @@ else
     chmod 640 "$APP_DIR/.env"
     ok ".env yedekten geldi (APP_KEY korundu)"
 fi
+if [[ $IS_IP -eq 1 ]]; then
+    # Çerez alan adı canlı siteye bağlıysa IP ile giriş tutmaz; IP ile açılan kopyada boş bırakılır.
+    sed -i -E 's|^SESSION_DOMAIN=.*|SESSION_DOMAIN=|' "$APP_DIR/.env"
+fi
 if [[ $DENEME -eq 1 ]]; then
     # Deneme kopyası e-posta göndermez: iletiler storage/logs/laravel.log'a yazılır.
     if grep -qE '^MAIL_MAILER=' "$APP_DIR/.env"; then
@@ -156,8 +163,6 @@ if [[ $DENEME -eq 1 ]]; then
     else
         printf 'MAIL_MAILER=log\n' >> "$APP_DIR/.env"
     fi
-    # Çerez alan adı canlı siteye bağlıysa IP ile giriş tutmaz; deneme kopyasında boş bırakılır.
-    sed -i -E 's|^SESSION_DOMAIN=.*|SESSION_DOMAIN=|' "$APP_DIR/.env"
     ok "deneme kipi: e-posta gönderimi kapalı (MAIL_MAILER=log)"
 fi
 mkdir -p "$APP_DIR/storage/app"

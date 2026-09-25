@@ -24,9 +24,15 @@ dd if=/dev/zero of=/root/disktest bs=4k count=500 oflag=dsync 2>&1 | tail -1; rm
 
 ## 0.5 Deneme kopyası: siteyi yeni sunucuda IP ile çalıştırıp denemek (kesinti yok)
 
-Karar vermeden önce aynı sistemi yeni sunucuda kurup IP adresiyle açmak için. Gerçek verinin kopyasıyla
-çalışır ama dışarıya hiçbir şey göndermez: e-posta kapalı, Telegram kapalı, ödeme sağlayıcısı boş. Yöneticiler
-kendi e-posta ve şifreleriyle, doğrulama kodu olarak `123456` ile girer. Canlı site ve kullanıcılar etkilenmez.
+Karar vermeden önce aynı sistemi yeni sunucuda kurup IP adresiyle açmak için. İki seçenek:
+
+- **Birebir kopya** (`DOMAIN=YENI_IP`): e-posta, Telegram, ödeme ve zamanlanmış görevler canlıdaki ayarlarla aynen
+  çalışır. Gerçek kullanıcı yokken uygundur; iki sunucu da aynı olaylar için e-posta/Telegram gönderebilir.
+- **Yalıtılmış kopya** (`--deneme`): dışarıya hiçbir şey gönderilmez (e-posta kapalı, Telegram kapalı, ödeme
+  sağlayıcısı boş); yöneticiler kendi e-posta ve şifreleriyle, doğrulama kodu `123456` ile girer. Gerçek kullanıcı
+  varken tercih edilir.
+
+Her iki seçenekte de canlı siteye dokunulmaz.
 
 1. Eski sunucuda yedek: `bash /var/www/navluniq/deploy/backup.sh`
 2. Yeni sunucuda yedeği çekin: `scp root@ESKI_IP:/var/backups/navluniq/navluniq-*.tar.gz /root/`
@@ -34,8 +40,12 @@ kendi e-posta ve şifreleriyle, doğrulama kodu olarak `123456` ile girer. Canl�
 
    ```bash
    curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/tasima.sh -o /root/tasima.sh
-   bash /root/tasima.sh --deneme /root/navluniq-*.tar.gz
+   DOMAIN=YENI_IP bash /root/tasima.sh /root/navluniq-*.tar.gz            # birebir kopya
+   DOMAIN=YENI_IP bash /root/tasima.sh --deneme /root/navluniq-*.tar.gz   # ya da yalıtılmış kopya
    ```
+
+   Telefondaki bildirim iletici canlı adrese gönderir; grup mesajlarını kopyada da görmek için MacroDroid'deki adresi
+   geçici olarak `http://YENI_IP/api/v1/webhook/notification` yapın (aynı anahtar), deneme bitince geri alın.
 
 4. Tarayıcıda `http://YENI_IP/` açın (https yok; IP ile normaldir). Yönetici paneli, ilan listesi, şoför ekranları,
    Sistem sağlığı ("Kuyruk işçisi: çalışıyor").
