@@ -69,7 +69,11 @@ class CompanyProfileSettingsTest extends TestCase
         $this->assertStringContainsString('Dış Kaynak İlanları', (string) CmsContent::getVal('contract_kvkk'));
         $this->assertStringContainsString('3.4 Dış Kaynak İlan Bilgilerinin Gizliliği', (string) CmsContent::getVal('contract_terms'));
         $this->assertStringContainsString('üçüncü kişilerle hiçbir biçimde paylaşamaz', (string) CmsContent::getVal('contract_terms'));
-        $this->assertStringContainsString('WhatsApp ve Facebook grupları dahil', (string) CmsContent::getVal('contract_kvkk'));
+        $this->assertStringContainsString('gönderen adı saklanmaz', (string) CmsContent::getVal('contract_kvkk'));
+        // Kaynak adları (WhatsApp, Facebook) herkese açık metinlerde geçmez; yalnız yönetici panelinde görünür
+        foreach (['contract_kvkk', 'contract_terms', 'contract_privacy'] as $key) {
+            $this->assertStringNotContainsString('Facebook', (string) CmsContent::getVal($key));
+        }
         $this->assertStringContainsString('ilanının derhal kaldırılmasını isteyebilir', (string) CmsContent::getVal('contract_kvkk'));
         $this->assertStringContainsString('md. 3.4 ile taahhüt eder', (string) CmsContent::getVal('contract_privacy'));
         $this->assertStringContainsString('3.3 Dış Kaynak İlanları', (string) CmsContent::getVal('contract_terms'));
