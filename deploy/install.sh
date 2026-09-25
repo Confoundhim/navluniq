@@ -46,10 +46,11 @@ DOMAIN="${DOMAIN:-$SERVER_IP}"
 DOMAIN="${DOMAIN#www.}"
 IS_DOMAIN=0
 [[ "$DOMAIN" =~ ^[0-9.]+$ ]] || IS_DOMAIN=1
-# www alt alanı bu sunucuya yönlendirilmişse nginx ve SSL'e dahil edilir.
+# nginx alan adıyla birlikte www'yi de tanır (zararsız); sertifikaya www yalnız bu sunucuya yönlendirilmişse eklenir.
 SERVER_NAMES="$DOMAIN"; CERT_DOMAINS=(-d "$DOMAIN")
-if [[ $IS_DOMAIN -eq 1 ]] && getent hosts "www.${DOMAIN}" 2>/dev/null | grep -q "$SERVER_IP"; then
-    SERVER_NAMES="$DOMAIN www.${DOMAIN}"; CERT_DOMAINS+=(-d "www.${DOMAIN}")
+if [[ $IS_DOMAIN -eq 1 ]]; then
+    SERVER_NAMES="$DOMAIN www.${DOMAIN}"
+    getent hosts "www.${DOMAIN}" 2>/dev/null | grep -q "$SERVER_IP" && CERT_DOMAINS+=(-d "www.${DOMAIN}")
 fi
 
 export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1
@@ -71,11 +72,12 @@ if ! command -v php >/dev/null || ! php -r "exit(version_compare(PHP_VERSION, '$
     apt-get update -qq
 fi
 
-apt-get install -y -qq nginx \
+apt-get install -y -qq nginx redis-server supervisor \
     php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql php${PHP_VERSION}-mbstring \
     php${PHP_VERSION}-xml php${PHP_VERSION}-curl php${PHP_VERSION}-zip php${PHP_VERSION}-bcmath \
     php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-redis >/dev/null
-ok "nginx ve PHP ${PHP_VERSION} hazır"
+systemctl enable --now redis-server supervisor >/dev/null 2>&1 || true
+ok "nginx, redis, supervisor ve PHP ${PHP_VERSION} hazır"
 
 update-alternatives --set php "/usr/bin/php${PHP_VERSION}" >/dev/null 2>&1 || true
 
@@ -92,8 +94,28 @@ max_execution_time = 120
 max_input_time = 120
 INI
 done
+# PHP-FPM işçi sayısı: paketin varsayılanı 5'tir; birkaç eşzamanlı istek (telefon iletici, sayfa yenilemeleri)
+# hepsini doldurur ve site bekler. Belleğe göre 8-30 arası işçi (her işçi ~50-80 MB).
+POOL="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+if [[ -f "$POOL" ]]; then
+    RAM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
+    MAXC=$(( RAM_MB / 200 )); (( MAXC < 8 )) && MAXC=8; (( MAXC > 30 )) && MAXC=30
+    sed -i -E "s/^;?pm.max_children = .*/pm.max_children = ${MAXC}/; s/^;?pm.start_servers = .*/pm.start_servers = 4/; s/^;?pm.min_spare_servers = .*/pm.min_spare_servers = 2/; s/^;?pm.max_spare_servers = .*/pm.max_spare_servers = 6/" "$POOL"
+    ok "PHP-FPM işçi sayısı: ${MAXC} (bellek ${RAM_MB} MB)"
+fi
 systemctl restart "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
 ok "PHP yükleme sınırı 12 MB"
+
+# MySQL bu sunucudaysa: her kayıtta diske onay beklenmez (tek sunucu, kopya yok). Yavaş diskte fark çok büyük.
+if [[ -d /etc/mysql/mysql.conf.d ]] && systemctl is-active --quiet mysql 2>/dev/null; then
+    MYCNF="/etc/mysql/mysql.conf.d/99-navluniq.cnf"
+    WANT=$'[mysqld]\ninnodb_flush_log_at_trx_commit = 2\nskip-log-bin\n'
+    if [[ ! -f "$MYCNF" ]] || [[ "$(cat "$MYCNF")" != "$(printf '%s' "$WANT")" ]]; then
+        printf '%s' "$WANT" > "$MYCNF"
+        systemctl restart mysql
+        ok "MySQL ayarı yazıldı (99-navluniq.cnf)"
+    fi
+fi
 
 if ! command -v composer >/dev/null; then
     log "Composer kuruluyor"
@@ -156,17 +178,21 @@ set_env DB_DATABASE "$DB_DATABASE"
 set_env DB_USERNAME "$DB_USERNAME"
 set_env DB_PASSWORD "$DB_PASSWORD"
 set_env SESSION_SECURE_COOKIE "$([[ $SCHEME == https ]] && echo true || echo false)"
-if php -m | grep -qi '^redis$' && (command -v redis-cli >/dev/null && redis-cli -h 127.0.0.1 ping 2>/dev/null | grep -q PONG); then
-    set_env CACHE_STORE redis
-    set_env SESSION_DRIVER redis
-    set_env REDIS_HOST 127.0.0.1
-    set_env REDIS_PORT 6379
-    ok "önbellek ve oturum: redis"
-else
-    set_env CACHE_STORE database
-    set_env SESSION_DRIVER database
-    ok "önbellek ve oturum: veritabanı"
+# Önbellek/oturum sürücüsü yalnız ilk kurulumda seçilir; var olan .env (ör. taşınan sunucu) olduğu gibi kalır.
+if [[ $FIRST_INSTALL -eq 1 ]] || ! grep -qE '^CACHE_STORE=' .env; then
+    if php -m | grep -qi '^redis$' && (command -v redis-cli >/dev/null && redis-cli -h 127.0.0.1 ping 2>/dev/null | grep -q PONG); then
+        set_env CACHE_STORE redis
+        set_env SESSION_DRIVER database
+        set_env REDIS_HOST 127.0.0.1
+        set_env REDIS_PORT 6379
+        ok "önbellek: redis · oturum: veritabanı"
+    else
+        set_env CACHE_STORE database
+        set_env SESSION_DRIVER database
+        ok "önbellek ve oturum: veritabanı"
+    fi
 fi
+grep -qE '^QUEUE_CONNECTION=' .env || set_env QUEUE_CONNECTION database
 # İsteğe bağlı anahtarlar: ortam değişkeni olarak verilmişse .env'e yazılır.
 for key in ADMIN_INIT_EMAIL ADMIN_INIT_PASSWORD ADMIN_INIT_PHONE \
            MAIL_MAILER MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_ENCRYPTION MAIL_FROM_ADDRESS \
@@ -222,9 +248,17 @@ ok "site yayında: http://${DOMAIN}"
 if [[ $IS_DOMAIN -eq 1 && -n "${LETSENCRYPT_EMAIL:-}" ]]; then
     log "SSL sertifikası (Let's Encrypt)"
     apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
-    certbot --nginx "${CERT_DOMAINS[@]}" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
-        && ok "https://${DOMAIN} aktif" \
-        || echo "Sertifika alınamadı; alan adının bu sunucuya yönlendiğinden emin olup betiği tekrar çalıştırın."
+    if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
+        # Sertifika zaten var (ör. taşınan sunucu): doğrulama istemeden nginx'e bağlanır; alan adı henüz buraya
+        # dönmemiş olsa bile https çalışır. Yenilemeyi certbot alan adı döndükten sonra kendisi yapar.
+        certbot install --nginx --cert-name "$DOMAIN" --non-interactive --redirect \
+            && ok "https://${DOMAIN} aktif (mevcut sertifika)" \
+            || echo "Mevcut sertifika bağlanamadı; alan adı bu sunucuya döndükten sonra betiği tekrar çalıştırın."
+    else
+        certbot --nginx "${CERT_DOMAINS[@]}" --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
+            && ok "https://${DOMAIN} aktif" \
+            || echo "Sertifika alınamadı; alan adının bu sunucuya yönlendiğinden emin olup betiği tekrar çalıştırın."
+    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -232,6 +266,28 @@ log "Zamanlanmış görevler"
 CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
 { crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$CRON_LINE"; } | crontab -u www-data -
 ok "her dakika schedule:run (www-data)"
+
+# Kuyruk işçileri: telefon iletici mesajları ve nabız işi burada işlenir. İşçi .env ile aynı bağlantıyı dinler.
+if command -v supervisorctl >/dev/null; then
+    QUEUE_CONN="$(sed -nE 's/^QUEUE_CONNECTION="?([^"]*)"?$/\1/p' .env | head -n1)"; QUEUE_CONN="${QUEUE_CONN:-database}"
+    cat > /etc/supervisor/conf.d/navluniq-worker.conf <<SUPERVISOR
+[program:navluniq-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=php ${APP_DIR}/artisan queue:work ${QUEUE_CONN} --sleep=3 --tries=3 --max-time=3600
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=2
+redirect_stderr=true
+stdout_logfile=${APP_DIR}/storage/logs/worker.log
+stopwaitsecs=180
+SUPERVISOR
+    supervisorctl reread >/dev/null && supervisorctl update >/dev/null
+    supervisorctl restart 'navluniq-worker:*' >/dev/null 2>&1 || true
+    ok "kuyruk işçisi: 2 süreç, bağlantı ${QUEUE_CONN} (supervisor)"
+fi
 
 # -----------------------------------------------------------------------------
 log "Sağlık kontrolü"
