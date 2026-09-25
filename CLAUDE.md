@@ -42,6 +42,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 ## 3. Sunucu ve güncelleme
 
 - Sunucu: Ubuntu, nginx, PHP 8.4, MariaDB, Redis; uygulama `/var/www/navluniq`. SSH ile root girer.
+  Önbellek Redis'te (`CACHE_STORE=redis`, 2026-09-25'ten beri); oturum ve kuyruk veritabanında kalır (Redis dursa oturum
+  düşmez). Sunucuda tinker için `runuser -u www-data -- env HOME=/tmp php artisan tinker ...` (psysh ev dizini uyarısı).
 - Güncelleme: yönetici panelinde **Sistem sağlığı → "Siteyi güncelle"** ya da `bash /root/update.sh`.
   Akış: `App\Services\DeployService` → `/usr/local/bin/navluniq-update` (transient systemd servisi) →
   `deploy/update.sh` (bakım modu, PHP-FPM yeniden başlatma, git reset, composer, npm build, migrate,
