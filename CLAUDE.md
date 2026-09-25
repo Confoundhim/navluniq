@@ -57,6 +57,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - **2026-09-25 yavaşlık teşhisi** (2 CPU, %50 iowait, `pm.max_children=5` doluydu, php8.3-fpm artığı çalışıyordu, MySQL
   "waiting for handler commit"): önerilen sunucu ayarları `pm.max_children=20` (start 4 / min 2 / max 6), `php8.3-fpm` kapatılır,
   MySQL `innodb_flush_log_at_trx_commit=2` (`99-navluniq.cnf`, uygulandı), yeniden başlatma. Kod tarafı: telefon mesajları kuyruğa (bkz. §8).
+  Disk testi (`dd ... oflag=dsync`) 24 kB/s verdi: hosting diski hasta; kalıcı çözüm yeni sunucu.
+- **Sunucu taşıma:** `docs/SUNUCU_TASINMA.md` (hazırlık, geçiş günü, geri dönüş). Eski sunucuda `deploy/backup.sh`
+  (veritabanı + .env + storage/app + /etc/letsencrypt), yeni sunucuda `deploy/tasima.sh [--kontrol] yedek.tar.gz`
+  (MySQL/Redis/supervisor kurar, veritabanını ve belgeleri yükler, `install.sh`'ı çağırır, güncelleme düğmesini kurar;
+  `FORCE_IMPORT=1` dolu veritabanını yeniden yükler). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,
+  MySQL `99-navluniq.cnf` yazar, supervisor işçisini `.env` bağlantısıyla kurar; var olan `.env`'in önbellek/oturum seçimini bozmaz.
 - Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
   Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
 
