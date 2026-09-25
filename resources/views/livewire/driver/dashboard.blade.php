@@ -34,11 +34,42 @@ class extends Component {
         }
     }
 
+    /** Sayfadaki verinin ucuz imzası: yeni ilan, iş / teklif / bildirim değişimi; aynıysa süreli yenileme çizmez. */
+    public ?string $pollSignature = null;
+
+    private function currentSignature(): string
+    {
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+        $parts = [
+            ScrapedLoad::query()->where('visibility', 'public')->max('id'),
+            Load::query()->where('status', Load::STATUS_ACTIVE)->where('visibility', 'public')->max('id'),
+            Load::query()->where('driver_profile_id', $profileId)->max('updated_at'),
+            DriverTrip::query()->where('driver_profile_id', $profileId)->max('updated_at'),
+            DriverTrip::query()->where('driver_profile_id', $profileId)->open()->count(),
+            Offer::query()->where('driver_profile_id', $profileId)->where('status', 'pending')->count(),
+            Auth::user()->unreadNotificationCount(),
+        ];
+
+        return md5(implode('|', array_map(fn ($v) => (string) $v, $parts)));
+    }
+
+    public function tick(): void
+    {
+        $signature = $this->currentSignature();
+        if ($this->pollSignature === $signature) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->pollSignature = $signature;
+    }
+
     public function with(): array
     {
         $user = Auth::user();
         $profile = $user->driverProfile;
         $profileId = $profile?->id ?? 0;
+        $this->pollSignature = $this->currentSignature();
 
         // Açık işler (kabul edilen teklifler + "Bu işi aldım") ve seçili işin varış çevresindeki dönüş yükleri
         $openJobs = $profileId ? $this->openJobsQuery()->get() : collect();
@@ -98,7 +129,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.8s class="space-y-6">
+<div wire:poll.15s="tick" class="space-y-6">
 
     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
 

@@ -73,6 +73,7 @@ class ScrapedLoad extends Model
     protected $casts = [
         'vehicle_any' => 'boolean',
         'is_incomplete' => 'boolean',
+        'auto_checked_at' => 'datetime',
         'price' => 'decimal:2',
         'seen_sources' => 'array',
         'parse_metadata' => 'array',
