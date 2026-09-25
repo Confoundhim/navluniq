@@ -41,7 +41,10 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 3. Sunucu ve güncelleme
 
-- Sunucu: Ubuntu, nginx, PHP 8.4, MariaDB, Redis; uygulama `/var/www/navluniq`. SSH ile root girer.
+- Sunucu: Ubuntu 24.04, nginx, PHP 8.4 (php8.3-fpm 2026-09-25'te kapatıldı), **MySQL 8.0** (MariaDB değil; ayar dosyaları
+  `/etc/mysql/mysql.conf.d/`, servis `mysql`), Redis; uygulama `/var/www/navluniq`. SSH ile root girer.
+  Kuyruk işçileri supervisor ile çalışır (`/etc/supervisor/conf.d/navluniq-worker.conf`, 2 işçi, `queue:work database`;
+  `.env` `QUEUE_CONNECTION=database` ile aynı olmalı, 2026-09-25'te `redis` dinliyordu ve düzeltildi).
   Önbellek Redis'te (`CACHE_STORE=redis`, 2026-09-25'ten beri); oturum ve kuyruk veritabanında kalır (Redis dursa oturum
   düşmez). Sunucuda tinker için `runuser -u www-data -- env HOME=/tmp php artisan tinker ...` (psysh ev dizini uyarısı).
 - Güncelleme: yönetici panelinde **Sistem sağlığı → "Siteyi güncelle"** ya da `bash /root/update.sh`.
@@ -50,10 +53,10 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   seed, önbellek). Günlük: `storage/logs/update.log`; durum JSON'u bakım modundan muaf.
 - Migration takılırsa: betik 60 sn'den eski açık işlemleri kapatır; hâlâ kalırsa
   `information_schema.innodb_trx` ile kilit tutan bağlantı bulunup `KILL <id>` yapılır. Migration'lar
-  MariaDB'de yeniden çalıştırılabilir yazılır (`Schema::hasTable/hasColumn` koruması).
-- **2026-09-25 yavaşlık teşhisi** (2 CPU, %50 iowait, `pm.max_children=5` doluydu, php8.3-fpm artığı çalışıyordu, MariaDB
+  MySQL'de yeniden çalıştırılabilir yazılır (`Schema::hasTable/hasColumn` koruması).
+- **2026-09-25 yavaşlık teşhisi** (2 CPU, %50 iowait, `pm.max_children=5` doluydu, php8.3-fpm artığı çalışıyordu, MySQL
   "waiting for handler commit"): önerilen sunucu ayarları `pm.max_children=20` (start 4 / min 2 / max 6), `php8.3-fpm` kapatılır,
-  MariaDB `innodb_flush_log_at_trx_commit=2`, yeniden başlatma. Kod tarafı: telefon mesajları kuyruğa (bkz. §8).
+  MySQL `innodb_flush_log_at_trx_commit=2` (`99-navluniq.cnf`, uygulandı), yeniden başlatma. Kod tarafı: telefon mesajları kuyruğa (bkz. §8).
 - Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
   Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
 
@@ -173,7 +176,7 @@ işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modund
 `ProcessNotificationMessage` işine bırakır ve telefona `queued` döner (yapay zeka çağrısı ve 25 sn'lik tekrar kilidi PHP-FPM
 işçisini tutmaz); nabız yoksa/eskiyse eski gibi istek içinde işler. Sağlık ekranı ve dış kaynak sayfası "Kuyruk" rozetinde görünür.
 Sunucuda işçiler `queue:work` ile çalışır; `.env` `QUEUE_CONNECTION` ile işçinin dinlediği bağlantı aynı olmalı (2026-09-25
-teşhisinde işçiler `redis` dinliyordu). Güncelleme betiği `queue:restart` ile işçilere yeni kodu yükletir.
+teşhisinde işçiler `redis` dinliyordu, `database` yapıldı). Güncelleme betiği `queue:restart` ile işçilere yeni kodu yükletir.
 Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur (tekrar çalıştırmak güvenli).
 
 ## 9. Test ve kod tuzakları (öğrenilmiş)
@@ -188,7 +191,7 @@ Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını
 - `mb_convert_case` İ'yi bozar → `TurkishText`; sıralama `TurkishText::compare`; ilçe takma adları tekilleştirilir.
 - Blade'de dinamik üretilen Tailwind sınıfları (`trip-status-{{ $x }}`) safelist'e girmezse derlemeden düşer.
 - Volt bileşen dosyasında aynı metod iki kez tanımlanırsa PHP fatal verir; trait'e taşınan metodları dosyadan sil.
-- MariaDB'de DDL işlemsel değildir; yarım kalan migration ikinci çalıştırmada "already exists" der → `hasTable` koruması.
+- MySQL/MariaDB'de DDL işlemsel değildir; yarım kalan migration ikinci çalıştırmada "already exists" der → `hasTable` koruması.
 - `STDERR` sabiti `php artisan serve` altında yoktur; hata ayıklama için `Log` kullan.
 - Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
   Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
