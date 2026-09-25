@@ -572,7 +572,7 @@ new class extends Component {
         }
         $this->validate([
             'sourceName' => 'required|string|min:3|max:120',
-            'sourceType' => 'required|in:whatsapp,notification,telegram,web',
+            'sourceType' => 'required|in:whatsapp,notification,facebook,telegram,web',
             'sourceIdentifier' => ['required', 'string', 'max:255', Rule::unique('scrapers', 'source_identifier')->where('type', $this->sourceType)->whereNull('deleted_at')],
         ], ['sourceIdentifier.unique' => 'Bu kaynak tanımlayıcısı aynı türde zaten kayıtlı.']);
 
@@ -1004,7 +1004,7 @@ new class extends Component {
                 <p class="text-[11px] text-neutral-400">Telefondan ilk mesaj geldiğinde grup kendiliğinden pasif kaynak olarak eklenir; burada elle de tanımlayabilirsiniz.</p>
                 <div><label class="form-label">Ad</label><input type="text" wire:model="sourceName" class="{{ $input }}">@error('sourceName') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 <div><label class="form-label">Tür</label>
-                    <select wire:model="sourceType" class="{{ $input }}"><option value="notification">WhatsApp grubu (bildirim iletici)</option><option value="whatsapp">WhatsApp grubu (servis)</option><option value="telegram">Telegram kanalı</option><option value="web">Web sayfası</option></select>
+                    <select wire:model="sourceType" class="{{ $input }}"><option value="notification">WhatsApp grubu (bildirim iletici)</option><option value="facebook">Facebook grubu (bildirim iletici)</option><option value="whatsapp">WhatsApp grubu (servis)</option><option value="telegram">Telegram kanalı</option><option value="web">Web sayfası</option></select>
                 </div>
                 <div><label class="form-label">Tanımlayıcı</label><input type="text" wire:model="sourceIdentifier" class="{{ $input }} font-mono" placeholder="notif:grup-adi">@error('sourceIdentifier') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror</div>
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaynağı ekle</button>
@@ -1071,7 +1071,7 @@ new class extends Component {
                                 @forelse($sources as $source)
                                     <tr wire:key="src-{{ $source->id }}" class="align-top {{ in_array((string) $source->id, $selectedSources, true) ? 'bg-brand-500/5' : (! $source->is_active ? 'bg-amber-500/5' : '') }}">
                                         <td class="p-4 tc-check"><input type="checkbox" wire:model.live="selectedSources" value="{{ $source->id }}" class="rounded"></td>
-                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'Bildirim iletici', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
+                                        <td class="p-4"><div class="font-bold">{{ $source->name }}</div><div class="text-[11px] text-neutral-400">{{ ['whatsapp' => 'WhatsApp servis', 'notification' => 'WhatsApp grubu (bildirim iletici)', 'facebook' => 'Facebook grubu (bildirim iletici)', 'telegram' => 'Telegram', 'web' => 'Web'][$source->type] ?? $source->type }} · <span class="font-mono">{{ $source->source_identifier }}</span></div></td>
                                         <td class="p-4" data-label="Aday">{{ $source->scraped_loads_count }}</td>
                                         <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Son mesaj"><x-time-ago :at="$source->last_message_at ?? $source->last_success_at" empty="Henüz yok" /></td>
                                         <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $source->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $source->is_active ? 'Aktif' : 'Onay bekliyor' }}</span></td>

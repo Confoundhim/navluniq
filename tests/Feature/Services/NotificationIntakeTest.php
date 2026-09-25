@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Services;
 
+use App\Http\Middleware\FirewallMiddleware;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\NotificationIntakeParser;
@@ -20,7 +21,7 @@ class NotificationIntakeTest extends TestCase
         Cache::flush();
         Http::fake();
         config()->set('services.scraper.token', 'phone-secret');
-        $this->withoutMiddleware(\App\Http\Middleware\FirewallMiddleware::class);
+        $this->withoutMiddleware(FirewallMiddleware::class);
     }
 
     public function test_parser_splits_group_notification_lines_and_skips_summaries(): void
@@ -40,13 +41,13 @@ class NotificationIntakeTest extends TestCase
         // Yeni Android: gönderen ve mesaj sayısı başlıkta ("Grup (3 mesaj): Gönderen"), metin yalnız mesaj.
         $titled = NotificationIntakeParser::parse([
             'title' => 'Test (3 mesaj): Osman Yılmaz',
-            'text' => "Ankara: İzmir 24 ton palet 0532 123 45 67",
+            'text' => 'Ankara: İzmir 24 ton palet 0532 123 45 67',
         ]);
         $this->assertNull($titled['skipped']);
         $this->assertSame('Test', $titled['group']);
         $this->assertCount(1, $titled['messages']);
         $this->assertSame('Osman Yılmaz', $titled['messages'][0]['sender']);
-        $this->assertSame("Ankara: İzmir 24 ton palet 0532 123 45 67", $titled['messages'][0]['text']);
+        $this->assertSame('Ankara: İzmir 24 ton palet 0532 123 45 67', $titled['messages'][0]['text']);
         $this->assertSame(['Test', 'Osman Yılmaz'], NotificationIntakeParser::splitTitle('Test: Osman Yılmaz'));
         $this->assertSame(['Test', 'Osman Yılmaz'], NotificationIntakeParser::splitTitle('Osman Yılmaz @ Test'));
         $this->assertSame(['Ankara Nakliye', null], NotificationIntakeParser::splitTitle('Ankara Nakliye (5 mesaj)'));
@@ -71,6 +72,54 @@ class NotificationIntakeTest extends TestCase
         $this->assertSame('selam nasılsın', $noTicker['messages'][0]['text']);
         $this->assertSame('not_whatsapp', NotificationIntakeParser::parse(['title' => 'X', 'text' => 'Y: Z', 'app' => 'Instagram'])['skipped']);
         $this->assertSame('notif:ankara-nakliye-grubu', NotificationIntakeParser::sourceIdentifier('Ankara Nakliye Grubu'));
+    }
+
+    public function test_facebook_group_notifications_are_parsed_and_deduplicated_with_whatsapp(): void
+    {
+        // Başlık "Facebook", metin "Ad, Grup grubunda paylaştı: gönderi"
+        $fb = NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => "Ahmet Yılmaz, Nakliye Yük İlanları grubunda paylaştı: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67"]);
+        $this->assertNull($fb['skipped']);
+        $this->assertSame(['facebook', 'Nakliye Yük İlanları', 'Ahmet Yılmaz'], [$fb['platform'], $fb['group'], $fb['messages'][0]['sender']]);
+        $this->assertSame("Ankara'dan İzmir'e 24 ton palet 0532 123 45 67", $fb['messages'][0]['text']);
+        $this->assertSame('fb:nakliye-yuk-ilanlari', NotificationIntakeParser::sourceIdentifier($fb['group'], 'facebook'));
+
+        // Başlık grup adı, metin "Ad: gönderi"; text_big daha uzunsa o alınır; kısaltma işareti atılır
+        $titled = NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Tır Yük İlanları', 'text' => 'Mehmet Kaya: Bursa Antalya 20 ton…', 'text_big' => 'Mehmet Kaya: Bursa Antalya 20 ton tenteli 0533 111 22 33 …']);
+        $this->assertSame(['Tır Yük İlanları', 'Mehmet Kaya', 'Bursa Antalya 20 ton tenteli 0533 111 22 33'], [$titled['group'], $titled['messages'][0]['sender'], $titled['messages'][0]['text']]);
+
+        // "Ad Grup grubunda paylaştı" (virgülsüz): grup adı başlıktan
+        $noComma = NotificationIntakeParser::parse(['app' => 'Facebook Lite', 'title' => 'Nakliyeciler', 'text' => 'Ali Veli Nakliyeciler grubunda yeni bir gönderi paylaştı: «Konya İstanbul 12 ton 0544 000 11 22»']);
+        $this->assertSame(['Nakliyeciler', 'Konya İstanbul 12 ton 0544 000 11 22'], [$noComma['group'], $noComma['messages'][0]['text']]);
+        $this->assertSame('Ali Veli Nakliyeciler', NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Ali Veli Nakliyeciler grubunda paylaştı: Konya İstanbul 12 ton 0544 000 11 22'])['group']);
+
+        // İlan olmayan bildirimler ve gövdesiz bildirim atlanır
+        $this->assertSame('facebook_not_post', NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Ayşe gönderinize yorum yaptı: harika'])['skipped']);
+        $this->assertSame('facebook_not_post', NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Mehmet size arkadaşlık isteği gönderdi'])['skipped']);
+        $this->assertSame('facebook_no_body', NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Ahmet Yılmaz, Nakliye grubunda paylaştı'])['skipped']);
+        $this->assertSame('facebook_no_group', NotificationIntakeParser::parse(['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Bugün 3 yeni bildiriminiz var'])['skipped']);
+
+        // Uçtan uca: aynı ilan önce WhatsApp'tan, sonra Facebook'tan gelir → tek kayıt, iki kaynak
+        $wa = ['title' => 'Ankara Nakliye Grubu', 'text' => "Ahmet Usta: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67", 'token' => 'phone-secret'];
+        $this->postJson('/api/v1/webhook/notification', $wa)->assertOk();
+        Scraper::where('source_identifier', 'notif:ankara-nakliye-grubu')->update(['is_active' => true]);
+        $this->postJson('/api/v1/webhook/notification', $wa)->assertOk()->assertJsonPath('status', 'created');
+
+        $fbPayload = ['app' => 'Facebook', 'title' => 'Facebook', 'text' => "Ahmet Yılmaz, Nakliye Yük İlanları grubunda paylaştı: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67", 'token' => 'phone-secret'];
+        $this->postJson('/api/v1/webhook/notification', $fbPayload)->assertOk()->assertJsonPath('status', 'duplicate');
+        $this->assertSame(1, ScrapedLoad::count());
+        $load = ScrapedLoad::first();
+        $this->assertSame(2, (int) $load->duplicate_count);
+        $this->assertSame(['Ankara Nakliye Grubu', 'Nakliye Yük İlanları'], $load->seen_sources);
+
+        // Yeni bir Facebook ilanı: kaynak "facebook" türüyle pasif açılır; aktif edilince işlenir
+        $new = ['app' => 'Facebook', 'title' => 'Facebook', 'text' => 'Ahmet Yılmaz, Nakliye Yük İlanları grubunda paylaştı: Bursa Antalya 20 ton tenteli 0533 111 22 33', 'token' => 'phone-secret'];
+        $this->postJson('/api/v1/webhook/notification', $new)->assertOk()->assertJsonPath('status', 'source_pending');
+        $source = Scraper::where('source_identifier', 'fb:nakliye-yuk-ilanlari')->first();
+        $this->assertSame(['facebook', 'Nakliye Yük İlanları', false], [$source->type, $source->name, $source->is_active]);
+        $source->update(['is_active' => true]);
+        $this->postJson('/api/v1/webhook/notification', $new)->assertOk()->assertJsonPath('status', 'created');
+        $this->assertSame(2, ScrapedLoad::count());
+        $this->assertSame('Antalya', ScrapedLoad::latest('id')->first()->delivery_location);
     }
 
     public function test_endpoint_requires_token_and_creates_pending_source_then_loads(): void
