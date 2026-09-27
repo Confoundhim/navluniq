@@ -22,6 +22,7 @@ use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use Livewire\Livewire;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -296,6 +297,19 @@ class TripsAndSavedLoadsTest extends TestCase
         app(DisputeService::class)->resolve($dispute, $admin, 'driver_paid', 'Kanıt yeterli');
         $this->assertSame('closed', $trip->fresh()->status);
         Volt::test('driver.jobs.index')->call('setTab', 'past')->assertSee('Tamamlandı');
+    }
+
+    public function test_tab_section_and_search_survive_a_page_refresh_through_the_address(): void
+    {
+        $driver = $this->driver();
+        $this->scraped(['is_incomplete' => true, 'vehicle_type' => null, 'vehicle_type_source' => null, 'pickup_location' => 'Konya Karatay', 'pickup_province_code' => 42]);
+        $this->actingAs($driver);
+
+        // Sekme, bölüm ve arama adreste taşınır (#[Url]); yenilenen sayfa aynı yerden açılır.
+        Livewire::withQueryParams(['tab' => 'external', 'eksik' => '1', 'ara' => 'Konya'])
+            ->test('driver.loads.index')->assertSet('tab', 'external')->assertSet('incomplete', true)->assertSet('search', 'Konya')->assertSee('Konya Karatay');
+        // Geçersiz sekme ve dış kaynak dışındaki "eksik" bayrağı yok sayılır.
+        Livewire::withQueryParams(['tab' => 'yok', 'eksik' => '1'])->test('driver.loads.index')->assertSet('tab', 'pool')->assertSet('incomplete', false);
     }
 
     public function test_incomplete_loads_have_their_own_section_and_a_driver_can_complete_them(): void

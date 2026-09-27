@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -28,11 +29,15 @@ new
 class extends Component {
     use HandlesExternalLoadActions, WithPagination;
 
+    /** Sekme adreste taşınır: sayfa yenilenince ya da geri gelince şoför aynı sekmede kalır. */
+    #[Url(as: 'tab', except: 'pool')]
     public string $tab = 'pool';
 
     /** Dış kaynak sekmesi: true = "Eksik bilgili ilanlar" bölümü (araç filtresi uygulanmaz; şoför arayıp sorar) */
+    #[Url(as: 'eksik', except: false)]
     public bool $incomplete = false;
 
+    #[Url(as: 'ara', except: '')]
     public string $search = '';
 
     /** @var array<string, mixed> LoadFilterService::defaults() yapısı */
@@ -64,8 +69,8 @@ class extends Component {
     public function mount(): void
     {
         $this->pinList();
-        $this->tab = in_array(request()->query('tab'), ['pool', 'offers', 'external', 'saved'], true) ? request()->query('tab') : 'pool';
-        $this->incomplete = $this->tab === 'external' && request()->query('eksik') === '1';
+        $this->tab = in_array($this->tab, ['pool', 'offers', 'external', 'saved'], true) ? $this->tab : 'pool';
+        $this->incomplete = $this->tab === 'external' && $this->incomplete;
         $this->filters = LoadFilterService::defaults();
 
         $requested = (int) request()->query('preset', 0);
