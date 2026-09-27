@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AdminMiddleware;
 use App\Http\Middleware\FirewallMiddleware;
+use App\Http\Middleware\LogSlowRequests;
 use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->append(FirewallMiddleware::class);
+        // Yavaş istekler (varsayılan 3 sn ve üstü) laravel.log'a yol, süre ve sorgu bilgisiyle yazılır.
+        $middleware->prepend(LogSlowRequests::class);
 
         // Panelden güncelleme sırasında site bakım modundadır; durum adresi muaf tutulur ki Sistem Sağlığı
         // sayfası çıktıyı izleyip bitince kendini yenileyebilsin.

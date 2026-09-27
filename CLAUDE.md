@@ -60,7 +60,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   Disk testi (`dd ... oflag=dsync`) 24 kB/s verdi: hosting diski hasta. Osman şimdilik taşımayı istemiyor (PR #96 kapatıldı,
   betikler dalda duruyor); mevcut sunucu iyileştirilir. 2026-09-27: yönetici dış kaynak sayfası 3 dk açılıyordu; sayım sorguları
   (visibility/status, ai_status, intake_events created_at+status) bileşik indeks aldı (`0001_01_28`), MySQL bellek havuzu
-  RAM/4 (`innodb_buffer_pool_size`, install.sh yazar). Ölçüm: MySQL yavaş sorgu günlüğü + nginx `request_time`.
+  RAM/4 (`innodb_buffer_pool_size`, install.sh yazar). Ölçüm: `LogSlowRequests` ara katmanı 3 sn'yi aşan istekleri
+  laravel.log'a yol/süre/sorgu sayısıyla yazar (`app.slow_request_seconds`); MySQL yavaş sorgu günlüğü (`long_query_time=2`) sunucuda açık.
 - **Sunucu taşıma:** `docs/SUNUCU_TASINMA.md` (hazırlık, geçiş günü, geri dönüş). Eski sunucuda `deploy/backup.sh`
   (veritabanı + .env + storage/app + /etc/letsencrypt), yeni sunucuda `deploy/tasima.sh [--kontrol] yedek.tar.gz`
   (MySQL/Redis/supervisor kurar, veritabanını ve belgeleri yükler, `install.sh`'ı çağırır, güncelleme düğmesini kurar;
