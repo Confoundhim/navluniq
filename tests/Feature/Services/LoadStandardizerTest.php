@@ -264,4 +264,35 @@ class LoadStandardizerTest extends TestCase
         $std = app(LoadStandardizer::class)->standardize('x', $parsed);
         $this->assertSame([20, 3, []], [$std['pickup_province_code'], $std['delivery_province_code'], (array) ($std['metadata']['warnings'] ?? [])]);
     }
+
+    public function test_classify_command_relocates_old_records_from_the_raw_message_with_new_rules(): void
+    {
+        $scraper = Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
+        $mk = fn (array $attrs) => ScrapedLoad::create($attrs + [
+            'scraper_id' => $scraper->id, 'status' => 'parsed_success', 'visibility' => 'private',
+            'encrypted_sender_phone' => Crypt::encryptString('5321234567'), 'ai_status' => 'skipped',
+        ]);
+        // Eski kural "Kahraman Maraş"ı Karaman okumuştu; ham mesajdan yeniden çözülünce Kahramanmaraş olur.
+        $wrong = $mk(['raw_message' => 'KAHRAMAN MARAŞ - ANKARA 24 ton tenteli 0532 123 45 67', 'message_id' => 'r1',
+            'pickup_location' => 'Karaman', 'pickup_province_code' => 70, 'delivery_location' => 'Ankara', 'delivery_province_code' => 6]);
+        // Kısaltma çözülemediği için ili boş kalmış kayıt dolar.
+        $empty = $mk(['raw_message' => 'Ç.KALE ÇAN - BURDUR kömür damperli 0532 123 45 67', 'message_id' => 'r2',
+            'pickup_location' => 'Ç.kale Çan', 'pickup_province_code' => null, 'delivery_location' => 'Burdur', 'delivery_province_code' => 15, 'status' => 'parsed_partial']);
+        // Yönetici düzeltmişse dokunulmaz; yapay zeka çözdüyse dokunulmaz; doğru kayıt değişmez.
+        $admin = $mk(['raw_message' => 'KAHRAMAN MARAŞ - ANKARA 0532 123 45 67', 'message_id' => 'r3', 'pickup_location' => 'Karaman', 'pickup_province_code' => 70,
+            'delivery_location' => 'Ankara', 'delivery_province_code' => 6, 'parse_metadata' => ['admin_edited' => true]]);
+        $ai = $mk(['raw_message' => 'KAHRAMAN MARAŞ - ANKARA 0532 123 45 67', 'message_id' => 'r4', 'pickup_location' => 'Karaman', 'pickup_province_code' => 70,
+            'delivery_location' => 'Ankara', 'delivery_province_code' => 6, 'ai_status' => 'done']);
+        $fine = $mk(['raw_message' => 'İzmir Aliağa - Ankara 0532 123 45 67', 'message_id' => 'r5', 'pickup_location' => 'İzmir Aliağa', 'pickup_province_code' => 35,
+            'pickup_district' => 'Aliağa', 'delivery_location' => 'Ankara', 'delivery_province_code' => 6]);
+
+        $this->artisan('scraped-loads:classify')->assertSuccessful();
+
+        $this->assertSame(['Kahramanmaraş', 46, null], [$wrong->fresh()->pickup_location, (int) $wrong->fresh()->pickup_province_code, $wrong->fresh()->pickup_district]);
+        $this->assertSame(['Çanakkale Çan', 17, 'Çan', 'parsed_success'], [$empty->fresh()->pickup_location, (int) $empty->fresh()->pickup_province_code, $empty->fresh()->pickup_district, $empty->fresh()->status]);
+        $this->assertSame(70, (int) $admin->fresh()->pickup_province_code);
+        $this->assertSame(70, (int) $ai->fresh()->pickup_province_code);
+        $this->assertSame(['İzmir Aliağa', 'Aliağa'], [$fine->fresh()->pickup_location, $fine->fresh()->pickup_district]);
+        $this->assertStringStartsWith('5321234567|kahramanmaras|', (string) $wrong->fresh()->route_key);
+    }
 }

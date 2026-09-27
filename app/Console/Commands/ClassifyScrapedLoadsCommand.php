@@ -39,6 +39,27 @@ class ClassifyScrapedLoadsCommand extends Command
 
         $this->info("İncelenen: {$total}, güncellenen: {$updated}");
 
+        // Konum kuralları geliştikçe (kısaltmalar, ayrık yazımlar, ilçe tablosu) son 30 günün kural ile çözülmüş ilanları ham
+        // mesajdan yeniden konumlanır; yanlış ile gitmiş ya da boş kalmış kalkış/varış düzelir. En çok 90 sn.
+        $started = microtime(true);
+        $relocated = 0;
+        $checked = 0;
+        ScrapedLoad::query()->where('status', '!=', 'rejected')->where('created_at', '>=', now()->subDays(30))->where('ai_status', '!=', 'done')
+            ->orderBy('id')->chunkById(200, function ($loads) use (&$relocated, &$checked, $standardizer, $started): bool {
+                foreach ($loads as $load) {
+                    if (microtime(true) - $started > 90) {
+                        return false;
+                    }
+                    $checked++;
+                    if ($standardizer->relocateFromRaw($load)) {
+                        $relocated++;
+                    }
+                }
+
+                return true;
+            });
+        $this->info("Konum yeniden çözülen: {$relocated} / {$checked}");
+
         return self::SUCCESS;
     }
 }
