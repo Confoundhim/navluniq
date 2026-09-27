@@ -6,6 +6,7 @@ use App\Services\LoadService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -15,11 +16,18 @@ new
 class extends Component {
     use WithPagination;
 
+    /** Sekme adreste taşınır (?sekme=past): yenilemede ve geri gelince aynı sekme açılır. */
+    #[Url(as: 'sekme', except: 'active')]
     public string $activeTab = 'active';
 
     private const ACTIVE_STATUSES = [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED, Load::STATUS_DISPUTED];
 
     private const PAST_STATUSES = [Load::STATUS_COMPLETED, Load::STATUS_CANCELLED];
+
+    public function mount(): void
+    {
+        $this->activeTab = in_array($this->activeTab, ['active', 'past'], true) ? $this->activeTab : 'active';
+    }
 
     public function setTab(string $tab): void
     {

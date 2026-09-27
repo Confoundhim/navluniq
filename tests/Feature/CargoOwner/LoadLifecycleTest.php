@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Support\Phone;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
 
@@ -247,6 +248,9 @@ class LoadLifecycleTest extends TestCase
         $this->get(route('cargo-owner.shipments.index'))->assertOk()->assertSee('Yolda');
         $this->get(route('cargo-owner.dashboard'))->assertOk()->assertSee('34ABC123');
         $this->get(route('cargo-owner.loads.index'))->assertOk()->assertSee('Sevkiyatı görüntüle');
+        // Sekme adreste taşınır: yenilemede aynı sekme açılır; geçersiz değer ilk sekmeye düşer.
+        Livewire::withQueryParams(['sekme' => 'past'])->test('cargo-owner.loads.index')->assertSet('activeTab', 'past');
+        Livewire::withQueryParams(['sekme' => 'yok'])->test('cargo-owner.loads.index')->assertSet('activeTab', 'active');
         $this->get(route('cargo-owner.finance.index'))->assertOk()->assertSee('NQTEST1')->assertSee('14.000,00');
         $this->get(route('cargo-owner.finance.payment', $load->id))->assertOk()->assertSee('Bu ilan ödeme adımında değil');
         $this->get(route('cargo-owner.disputes.index'))->assertOk()->assertSee('Henüz uyuşmazlık kaydınız yok');

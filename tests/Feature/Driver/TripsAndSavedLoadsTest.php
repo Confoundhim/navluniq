@@ -310,6 +310,9 @@ class TripsAndSavedLoadsTest extends TestCase
             ->test('driver.loads.index')->assertSet('tab', 'external')->assertSet('incomplete', true)->assertSet('search', 'Konya')->assertSee('Konya Karatay');
         // Geçersiz sekme ve dış kaynak dışındaki "eksik" bayrağı yok sayılır.
         Livewire::withQueryParams(['tab' => 'yok', 'eksik' => '1'])->test('driver.loads.index')->assertSet('tab', 'pool')->assertSet('incomplete', false);
+        // İşlerim sayfasında da sekme adreste taşınır.
+        Livewire::withQueryParams(['sekme' => 'past'])->test('driver.jobs.index')->assertSet('tab', 'past');
+        Livewire::withQueryParams(['sekme' => 'yok'])->test('driver.jobs.index')->assertSet('tab', 'open');
     }
 
     public function test_incomplete_loads_have_their_own_section_and_a_driver_can_complete_them(): void
