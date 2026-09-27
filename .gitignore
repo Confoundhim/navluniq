@@ -31,6 +31,3 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /storage/app/backups
-
-# Yerel docker ortamı: canlı yedek dosyaları buraya konur
-/yedek

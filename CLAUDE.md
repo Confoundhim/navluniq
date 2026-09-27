@@ -134,12 +134,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `?v=` eki) ile yazılır; güncellemede tarayıcı eskisini göstermez. Vite dosyaları zaten adında özet taşır. Yeni sabit dosya eklerken aynı kalıp.
 - E-posta: `RuntimeMailConfig` (panelden SMTP), şablon `emails/layouts/base.blade.php`
   (gizli ön izleme metni yok: Natro bunu düşürüyordu), altbilgide yalnız şirket adı; ETBİS yalnız site altbilgisinde.
-- Belgeler: `docs/*.md` (bildirim iletici kurulumu, e-posta, ödeme altyapısı, Telegram, mobil hazırlık, sunucu taşıma,
-  yerel yedek çalıştırma).
-- **Yerel docker ortamı (Osman'ın PC'si):** `docker-compose.yml` (app php8.4-fpm + web nginx :8080 + mysql:8 :3307 + redis +
-  scheduler + worker), `deploy/docker/Dockerfile`, `deploy/docker/yerel-geri-yukle.sh` (canlı yedeği açar, yerel `.env` yazar,
-  veritabanını sıfırlayıp yükler, composer/npm/migrate, `deneme:izole`). Yedek dosyaları `yedek/` klasörüne (gitignore).
-  Rehber: `docs/YEREL_YEDEK_CALISTIRMA.md`. Bu kapta docker daemon yok; betikler yalnız sözdizimi ile doğrulandı.
+- Belgeler: `docs/*.md` (bildirim iletici kurulumu, e-posta, ödeme altyapısı, Telegram, mobil hazırlık).
 
 ## 6. Yerel geliştirme ve doğrulama
 
