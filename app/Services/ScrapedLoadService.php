@@ -216,6 +216,8 @@ class ScrapedLoadService
                 'phone_count' => count($extra) > 0 ? count($extra) + 1 : null,
             ])),
         ]))->save();
+        // Öğrenme çemberi: kuyrukta yapay zekanın çözdüğü, kuralın çözemediği yazımlar öneri olur.
+        app(RuleFeedbackService::class)->fromAi($current, $ai['data'], (string) $load->raw_message, $load->id, 'kuyruk');
 
         return true;
     }

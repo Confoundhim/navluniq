@@ -50,6 +50,8 @@ final class Settings
         'scraper_rejected_retention_days' => 7, // Reddedilen adaylar bu kadar gün sonra silinir
 
         // Yapay zeka ile ilan çözümleme
+        'ai_suggest_auto_approve_hits' => 0,    // öğrenme çemberi: aynı öneri bu kadar ayrı ilanda görülürse kendiliğinden sözlüğe girer (0: yalnız elle onay)
+        'ai_audit_daily_count' => 5,            // öğrenme çemberi: günde bu kadar kuralla çözülmüş ilan yapay zekaya denetletilir (0: kapalı)
         'ai_parse_mode' => 'always',            // off | fill_gaps (kural eksik bırakınca) | always (her ilanda; yapay zeka öncelikli)
         'ai_provider' => '',                    // tercih edilen sağlayıcı; boş: ücretsizden başlayan varsayılan sıra
         'ai_gemini_model' => '', // boş: sağlayıcının güncel listesinden otomatik seçilir

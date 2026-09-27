@@ -125,6 +125,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "Kahraman Maraş", "Kırık Kale" birleştirilir; fuzzy stop listesi: kahraman, sultan…). `TurkishLocations::matchDistrict` il içinde
   ilçe kısaltması (Ş.KARAAĞAÇ, K.ÇEKMECE, G.O.PAŞA, K.KARABEKİR) ve 3 sözcük birleştirme (Mustafa Kemal Paşa). Yeni yazım →
   ALIASES / EXTRA_PLACES + test satırı; sık olanı panel Sözlük → konum ile de öğretilebilir.
+- **Öğrenme çemberi** (`App\Services\RuleFeedbackService`, `docs/OGRENME_CEMBERI.md`): yapay zekanın çözdüğü ama kuralın çözemediği
+  (ya da farklı çözdüğü) il/ilçe yazımı ve yük sözcüğü `ai_lexicon` tablosuna `status=suggested, source=ai` öneri olur (`hits` = kaç
+  ayrı ilanda görüldü, `note`, `last_load_id`); alım (`processSegment`) ve kuyruk (`reparseWithAi`) sonrası `fromAi` çağrılır. Panel
+  Dış kaynak → Sözlük ve öğrenme → "Öneriler": tek dokunuş **Onayla** (sözlüğe girer, `Lexicon::flush`) / **Yok say** (`status=ignored`,
+  bir daha önerilmez). `ai_suggest_auto_approve_hits` (0 kapalı) kadar ayrı ilanda aynı öneri gelirse kendiliğinden onaylanır; yapay zeka
+  aynı yazıma başka karşılık verirse sayaç sıfırlanır. Günlük denetim `scraped-loads:ai-audit` (05:20, `ai_audit_daily_count`, varsayılan 5):
+  kuralla çözülmüş (ai_status yok/skipped/failed, son 3 gün, yönetici düzenlememiş) ilanlardan rastgele örneklem yapay zekaya sorulur,
+  ilan değişmez, `parse_metadata.audit` yazılır, uyuşmazlık öneri olur; sayaçlar önbellekte haftalık (`ai:audit:{yıl-hafta}:*`).
+  Sağlık ekranı "Öğrenme çemberi" satırı: kuralla çözülen / yapay zeka gereken / denetlenen / bekleyen öneri / kendiliğinden onaylanan.
+  Yapay zeka komutu (`AiParserService::systemPrompt`) sektör kurallarını zaten taşır; yeni kural öğrenildiğinde oraya da bir satır eklenir.
 - Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,jobs/index,jobs/show,vehicles/index}.blade.php`,
   `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (iş/sefer, dönüş yükü
   taraması 10 dk'da bir, `reconcile` ile sevkiyat-sefer tutarlılığı), `App\Livewire\Concerns\HandlesExternalLoadActions`
@@ -205,7 +215,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (günlük), `system:backup` (03:30), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (günlük), `system:backup` (03:30), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz.
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı

@@ -288,6 +288,7 @@ class LoadIntakeService
         if (($parsed['sender_phone'] ?? null) === null && $phones !== []) {
             $parsed['sender_phone'] = $phones[0];
         }
+        $cheap = $parsed; // kuralın tek başına okuduğu (öğrenme çemberi yapay zekayla karşılaştırır)
         $ai = ['status' => 'skipped', 'data' => null];
 
         if (isset($segment['template'])) {
@@ -408,6 +409,11 @@ class LoadIntakeService
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30), // yayınlanmayan aday 30 gün sonra arşivlenir; yayınlananda yayın anından itibaren ayarlanır
         ]);
+
+        // Öğrenme çemberi: yapay zekanın çözdüğü, kuralın çözemediği yazımlar sözlük ekranına öneri olur (onayla → kural öğrenir).
+        if ($ai['status'] === 'done' && $ai['data'] !== null) {
+            app(RuleFeedbackService::class)->fromAi($cheap, $ai['data'], $text, $scrapedLoad->id);
+        }
 
         // Yapay zeka yüksek güvenle çözdüyse bu gönderenin kalıbı öğrenilir; sonraki aynı kalıp yapay zekasız okunur.
         if (($ai['data']['provider'] ?? null) !== 'template' && $ai['status'] === 'done' && (float) ($ai['data']['confidence'] ?? 0) >= 0.8
