@@ -110,6 +110,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Ayrıştırma hattı: `LoadIntakeService` (mesajı parçalara böler; büyük harfli başlıklar Türkçe küçültülerek
   eşlenir), `LoadStandardizer`, `AiParserService` (sağlayıcı zinciri), `LocalClassifier`, `Lexicon`,
   `GoodsCatalog`, `TurkishLocations` (il/ilçe, koordinat, takma adlar; ilçe listesi tekil ve Türk alfabesi sırasında).
+  İlçe tablosu (`resources/data/tr-locations.json`, 81 il / 973 ilçe) 2026-09-27'de resmî listeyle karşılaştırılıp düzeltildi
+  (26 ilçe yanlış ile bağlıydı ya da yanlış/İngilizce adlıydı; `0001_01_30` kayıtları düzeltir).
+  `tests/Feature/Support/TurkishLocationsDataTest` il başına ilçe sayısını sabitler; tabloya dokununca o test güncellenir.
 - Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,jobs/index,jobs/show,vehicles/index}.blade.php`,
   `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (iş/sefer, dönüş yükü
   taraması 10 dk'da bir, `reconcile` ile sevkiyat-sefer tutarlılığı), `App\Livewire\Concerns\HandlesExternalLoadActions`
