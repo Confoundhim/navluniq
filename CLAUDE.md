@@ -85,6 +85,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - "13.60" = damper hariç her kasa; "dökme yük" = damper; "kapalı ≠ tenteli"; "kasalı" ürün → tenteli/kapalı/frigo;
   "her türlü" = kısıt yok; lowbed artık TIR kasa tipidir (iş makinesi → lowbed/açık).
 - "Samsun 2 yer" = 2 ayrı tır (vehicle_count), "Adana + Urfa" = çok teslim noktası (delivery_stops).
+- **Seri ilan (tek yükleme, çok boşaltma; her nokta ayrı araç):** "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER" başlığı + alt alta
+  "BURDUR AĞLASUN BOŞALTIR" satırları, blok sonunda "DAMPERLİ ARAÇLAR", sonda numaralar. `App\Support\SeriesAd::segments`
+  (splitSegments'in başında) her boşaltma satırını ayrı aday yapar (başlık + satır + blok notları + numaralar), en çok 60;
+  "X İLÇELERİ BOŞALTIR" özet satırı ilçeler tek tek varsa atlanır; yapay zeka çağrılmaz (`skip_ai`); rota tekrarı ilçe
+  düzeyinde (`routeKey(..., districtLevel: true)`); `parse_metadata.series` → kartta "Seri ilan · N nokta" rozeti.
+  Engin Abi'nin 2026-09-27 örneği (40 araçlık kömür ilanı) buna göre eklendi. "Ç.KALE" takma adı Çanakkale.
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
   kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak

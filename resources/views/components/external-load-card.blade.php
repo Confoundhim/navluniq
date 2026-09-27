@@ -12,6 +12,7 @@
             <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
             @if($item->is_incomplete)<span class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">Bilgi eksik · arayıp sorun</span>@elseif($item->completed_by === 'driver')<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">Şoför doğruladı</span>@endif
             @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
+            @if(($series = $item->meta('series')) && (int) ($series['count'] ?? 0) > 1)<span class="badge bg-sky-500/10 text-sky-700 dark:text-sky-300" title="Aynı kalkıştan {{ $series['count'] }} ayrı boşaltma noktası; her nokta ayrı araç">Seri ilan · {{ $series['count'] }} nokta</span>@endif
             @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
         </div>
         @if($item->is_incomplete)

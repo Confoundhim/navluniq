@@ -28,6 +28,7 @@ final class TurkishCities
         'kmaraş' => 'Kahramanmaraş', 'k.maraş' => 'Kahramanmaraş', 'k.maras' => 'Kahramanmaraş', 'kahramanmaras' => 'Kahramanmaraş', 'gaziantep' => 'Gaziantep',
         'ş.urfa' => 'Şanlıurfa', 's.urfa' => 'Şanlıurfa', 'surfa' => 'Şanlıurfa', 'sanli' => 'Şanlıurfa', 'd.bakır' => 'Diyarbakır', 'd.bakir' => 'Diyarbakır', 'dbakir' => 'Diyarbakır',
         'eskişehr' => 'Eskişehir', 'esk' => 'Eskişehir', 'ktahya' => 'Kütahya', 'a.karahisar' => 'Afyonkarahisar', 'akarahisar' => 'Afyonkarahisar',
+        'ç.kale' => 'Çanakkale', 'c.kale' => 'Çanakkale', 'ckale' => 'Çanakkale', 'çkale' => 'Çanakkale',
         'anadolu' => 'İstanbul', 'avrupa' => 'İstanbul', 'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
     ];
 

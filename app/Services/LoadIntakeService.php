@@ -7,6 +7,7 @@ use App\Models\Scraper;
 use App\Support\GoodsCatalog;
 use App\Support\Lexicon;
 use App\Support\Phone;
+use App\Support\SeriesAd;
 use App\Support\Settings;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
@@ -169,12 +170,26 @@ class LoadIntakeService
                 if (($parsed['sender_phone'] ?? null) === null && $segment['phones'] !== []) {
                     $parsed['sender_phone'] = $segment['phones'][0];
                 }
+                // Seri ilan (tek yükleme, çok boşaltma): rota başlıktan ve satırdan kesin bilinir; yapay zeka çağrılmaz,
+                // rota tekrarı ilçe düzeyinde bakılır (aynı ilin her ilçesi ayrı iş).
+                $isSeries = isset($segment['series']);
+                if ($isSeries) {
+                    $parsed['pickup_location'] = $segment['series']['pickup'];
+                    $parsed['delivery_location'] = $segment['series']['delivery'];
+                    $parsed['success'] = true;
+                    unset($parsed['reason']);
+                }
                 // Kural parçası hâlâ birden çok ilan barındırıyor olabilir (birden çok numara / ikiden çok il):
                 // yapay zeka öncelikli kipte böyle bir parça tekrar sayılmaz, yapay zekanın ayırmasına bırakılır.
-                $mayHoldSeveral = $aiFirst && (count($segment['phones']) > 1 || count(AiParserService::provincesIn($segment['text'], 3)) > 2);
-                if (! $mayHoldSeveral && ($sameRoute = $this->recentSameRoute($parsed))) {
+                $mayHoldSeveral = ! $isSeries && $aiFirst && (count($segment['phones']) > 1 || count(AiParserService::provincesIn($segment['text'], 3)) > 2);
+                if (! $mayHoldSeveral && ($sameRoute = $this->recentSameRoute($parsed, null, $isSeries))) {
                     $this->noteSighting($sameRoute, $groupName);
                     $results[$i] = $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $segment['text']];
+
+                    continue;
+                }
+                if ($isSeries) {
+                    $results[$i] = $this->processSegment($segment + ['parsed' => $parsed, 'skip_ai' => true], $ctx);
 
                     continue;
                 }
@@ -279,6 +294,8 @@ class LoadIntakeService
             // Şablon hafızası: aynı gönderenin doğrulanmış kalıbı; yapay zeka doğrulaması sayılır.
             $ai = ['status' => 'done', 'data' => ['provider' => 'template', 'model' => null, 'is_load' => true, 'confidence' => (float) $segment['template']->confidence,
                 'notes' => 'Aynı gönderenin daha önce doğrulanmış ilan kalıbı', 'template_id' => $segment['template']->id]];
+        } elseif (! empty($segment['skip_ai'])) {
+            // Seri ilan: kalkış, varış ve numara kuraldan kesin; yapay zeka kotası harcanmaz.
         } elseif (isset($segment['ai'])) {
             // Yapay zeka öncelikli kip: bu ilanın alanları mesajın tamamına yapılan çağrıdan geldi.
             $ai = ['status' => 'done', 'data' => $segment['ai']];
@@ -324,8 +341,9 @@ class LoadIntakeService
         }
 
         // 6) Aynı numara aynı rotayı kısa aralıkla farklı sözcüklerle paylaşmışsa tek ilan kalır.
-        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null);
-        if ($sameRoute = $this->recentSameRoute($parsed, $phone)) {
+        $isSeries = isset($segment['series']);
+        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $isSeries);
+        if ($sameRoute = $this->recentSameRoute($parsed, $phone, $isSeries)) {
             $this->noteSighting($sameRoute, $groupName);
 
             return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $text];
@@ -384,6 +402,8 @@ class LoadIntakeService
                 'phone_count' => count($phones) > 1 ? count($phones) : null,
                 'local_confidence' => $local,
                 'message_part' => $isWhole ? null : ['index' => $segment['index'] ?? null, 'count' => $segment['count'] ?? null, 'hash' => substr(hash('sha256', $raw), 0, 16)],
+                // Seri ilan: aynı kalkıştan çok noktaya, her nokta ayrı araç (kartta rozet).
+                'series' => $isSeries ? ['count' => (int) $segment['series']['count'], 'pickup' => $segment['series']['pickup']] : null,
             ])),
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30), // yayınlanmayan aday 30 gün sonra arşivlenir; yayınlananda yayın anından itibaren ayarlanır
@@ -499,6 +519,10 @@ class LoadIntakeService
             return [];
         }
         $prepared = TextPrep::prepare($raw); // biçim işaretleri, emoji oklar ve süs satırları (blok ayırıcı) temizlenir
+        // "Tek yükleme, çok boşaltma noktası" serisi: her "X boşaltır" satırı ayrı araçlık ilan (bkz. SeriesAd).
+        if (($series = SeriesAd::segments($prepared, $fallbackPhone)) !== null) {
+            return $series;
+        }
         $units = [];
         $carryHeader = null; // varışı olmayan başlık ("Çorlu yükler") boş satırdan sonraki bloklara taşınır
         $carryPlace = null;
@@ -917,10 +941,10 @@ class LoadIntakeService
     }
 
     /** Aynı numara + aynı il çifti son saatlerde kaydedildiyse o ilanı döndürür. */
-    private function recentSameRoute(array $parsed, ?string $phone = null): ?ScrapedLoad
+    private function recentSameRoute(array $parsed, ?string $phone = null, bool $districtLevel = false): ?ScrapedLoad
     {
         $phone ??= $parsed['sender_phone'] ?? null;
-        $routeKey = is_string($phone) && $phone !== '' ? self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null) : null;
+        $routeKey = is_string($phone) && $phone !== '' ? self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $districtLevel) : null;
         if (! $routeKey) {
             return null;
         }
@@ -929,16 +953,18 @@ class LoadIntakeService
             ->where('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->first();
     }
 
-    public static function routeKey(?string $phone, ?string $pickup, ?string $delivery): ?string
+    public static function routeKey(?string $phone, ?string $pickup, ?string $delivery, bool $districtLevel = false): ?string
     {
         if (! $phone || ! $pickup || ! $delivery) {
             return null;
         }
         // İlçe/semt yazımı kaynağa göre değiştiği için il düzeyinde karşılaştırılır:
         // aynı numara, aynı il çifti, 48 saat içinde → aynı ilan. İl bulunamazsa ilk sözcük kullanılır.
+        // Seri ilanda (aynı ilin ilçelerine ayrı araçlar) varış ilçe düzeyinde tutulur.
         $city = fn (string $v) => TurkishCities::ascii(TurkishCities::fromText($v) ?? (string) strtok(self::normalizeText($v), ' '));
+        $dest = $districtLevel ? TurkishCities::ascii(self::normalizeText($delivery)) : $city($delivery);
 
-        return mb_substr($phone.'|'.$city($pickup).'|'.$city($delivery), 0, 191);
+        return mb_substr($phone.'|'.$city($pickup).'|'.$dest, 0, 191);
     }
 
     private function result(int $code, bool $success, string $status, string $message, ?int $id = null, ?string $reason = null): array
