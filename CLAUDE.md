@@ -206,7 +206,9 @@ işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modund
 işçisini tutmaz); nabız yoksa/eskiyse eski gibi istek içinde işler. Sağlık ekranı ve dış kaynak sayfası "Kuyruk" rozetinde görünür.
 Sunucuda işçiler `queue:work` ile çalışır; `.env` `QUEUE_CONNECTION` ile işçinin dinlediği bağlantı aynı olmalı (2026-09-25
 teşhisinde işçiler `redis` dinliyordu, `database` yapıldı). Güncelleme betiği `queue:restart` ile işçilere yeni kodu yükletir.
-Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur (tekrar çalıştırmak güvenli).
+Güncelleme sonrası `scraped-loads:classify` boş kalan araç/kasa alanlarını doldurur ve son 30 günün kuralla çözülmüş ilanlarını ham
+mesajdan yeniden konumlar (`LoadStandardizer::relocateFromRaw`: il boşsa ya da ham metinden çıkan il farklıysa; yönetici düzenlemesi ve
+yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 
 ## 9. Test ve kod tuzakları (öğrenilmiş)
 

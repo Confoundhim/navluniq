@@ -194,10 +194,56 @@ class LoadStandardizer
                 $changes[$col] = $std[$col];
             }
         }
+        if ($load->status === 'parsed_partial' && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
+            $changes['status'] = 'parsed_success'; // iki uç da çözüldü: aday artık eksik değil
+        }
         $changes['parse_metadata'] = array_merge($meta, $std['metadata']);
         $load->forceFill($changes)->save();
 
         return count($changes) > 1;
+    }
+
+    /**
+     * Konumu ham mesajdan yeniden çözer (il/ilçe kuralları geliştikçe eski kayıtlar da düzelsin): kalkış ya da varış ili
+     * boşsa ya da ham metinden çıkan il kayıtlıdan farklıysa (örn. "Kahraman Maraş" eskiden Karaman okunmuştu) günceller.
+     * Yönetici düzenlemesi ve yapay zekanın çözdüğü kayıtlara dokunmaz. Değişiklik olduysa true.
+     */
+    public function relocateFromRaw(ScrapedLoad $load): bool
+    {
+        $meta = (array) ($load->parse_metadata ?? []);
+        if (! empty($meta['admin_edited']) || $load->ai_status === 'done' || trim((string) $load->raw_message) === '') {
+            return false;
+        }
+        $parsed = app(AiParserService::class)->parseCheap((string) $load->raw_message);
+        $changes = [];
+        foreach (['pickup', 'delivery'] as $side) {
+            $fresh = $this->location($parsed["{$side}_location"] ?? null);
+            if ($fresh['province_code'] === null) {
+                continue;
+            }
+            $current = (int) $load->{"{$side}_province_code"};
+            $districtMissing = $current === $fresh['province_code'] && $load->{"{$side}_district"} === null && $fresh['district'] !== null;
+            if ($current === $fresh['province_code'] && ! $districtMissing) {
+                continue;
+            }
+            $changes["{$side}_location"] = $fresh['label'];
+            $changes["{$side}_province_code"] = $fresh['province_code'];
+            $changes["{$side}_district"] = $fresh['district'];
+            $changes["{$side}_lat"] = $fresh['lat'];
+            $changes["{$side}_lng"] = $fresh['lng'];
+        }
+        if ($changes === []) {
+            return false;
+        }
+        $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        $pickupCode = $changes['pickup_province_code'] ?? $load->pickup_province_code;
+        $deliveryCode = $changes['delivery_province_code'] ?? $load->delivery_province_code;
+        if ($load->status === 'parsed_partial' && $pickupCode !== null && $deliveryCode !== null) {
+            $changes['status'] = 'parsed_success';
+        }
+        $load->forceFill(array_filter($changes, fn ($v) => $v !== null) + ['pickup_district' => $changes['pickup_district'] ?? $load->pickup_district, 'delivery_district' => $changes['delivery_district'] ?? $load->delivery_district])->save();
+
+        return true;
     }
 
     /** Yönetici düzenlemiş ilanda yalnız boş olan kasa / yük biçimi / araç adedi / teslim noktalarını doldurur. */
