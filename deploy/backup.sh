@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# NavlunIQ tam yedek: veritabanı dökümü + .env + storage/app (belgeler, yüklemeler) + kod sürümü.
+# NavlunIQ tam yedek: veritabanı dökümü + .env + storage/app (belgeler, yüklemeler) + SSL sertifikası + kod sürümü.
+# Aynı arşiv deploy/tasima.sh ile yeni bir sunucuya taşınabilir.
 # Çıktı: /var/backups/navluniq/navluniq-YYYYmmdd-HHMMSS.tar.gz  (son 14 yedek tutulur)
 #   bash /var/www/navluniq/deploy/backup.sh
 set -euo pipefail
@@ -26,6 +27,11 @@ MYSQL_PWD="$DB_PASS" mysqldump --host="${DB_HOST:-127.0.0.1}" --port="${DB_PORT:
 echo "==> Ortam dosyası ve depolama"
 cp "$APP_DIR/.env" "$WORK/yedek/env"
 tar -C "$APP_DIR/storage" -czf "$WORK/yedek/storage-app.tar.gz" app 2>/dev/null || true
+# SSL sertifikası: sunucu taşınırken alan adı yeni sunucuya dönmeden https çalışsın (deploy/tasima.sh).
+if [[ -d /etc/letsencrypt/live ]]; then
+    echo "==> SSL sertifikası"
+    tar -C /etc -czf "$WORK/yedek/letsencrypt.tar.gz" letsencrypt 2>/dev/null || true
+fi
 
 echo "==> Sürüm bilgisi"
 {

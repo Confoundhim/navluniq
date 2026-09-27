@@ -57,6 +57,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - **2026-09-25 yavaşlık teşhisi** (2 CPU, %50 iowait, `pm.max_children=5` doluydu, php8.3-fpm artığı çalışıyordu, MySQL
   "waiting for handler commit"): önerilen sunucu ayarları `pm.max_children=20` (start 4 / min 2 / max 6), `php8.3-fpm` kapatılır,
   MySQL `innodb_flush_log_at_trx_commit=2` (`99-navluniq.cnf`, uygulandı), yeniden başlatma. Kod tarafı: telefon mesajları kuyruğa (bkz. §8).
+  Disk testi (`dd ... oflag=dsync`) 24 kB/s verdi: hosting diski hasta. Osman şimdilik taşımayı istemiyor (PR #96 kapatıldı,
+  betikler dalda duruyor); mevcut sunucu iyileştirilir. 2026-09-27: yönetici dış kaynak sayfası 3 dk açılıyordu; sayım sorguları
+  (visibility/status, ai_status, intake_events created_at+status) bileşik indeks aldı (`0001_01_28`), MySQL bellek havuzu
+  RAM/4 (`innodb_buffer_pool_size`, install.sh yazar). Ölçüm: MySQL yavaş sorgu günlüğü + nginx `request_time`.
+- **Sunucu taşıma:** `docs/SUNUCU_TASINMA.md` (hazırlık, geçiş günü, geri dönüş). Eski sunucuda `deploy/backup.sh`
+  (veritabanı + .env + storage/app + /etc/letsencrypt), yeni sunucuda `deploy/tasima.sh [--kontrol] yedek.tar.gz`
+  (MySQL/Redis/supervisor kurar, veritabanını ve belgeleri yükler, `install.sh`'ı çağırır, güncelleme düğmesini kurar;
+  `FORCE_IMPORT=1` dolu veritabanını yeniden yükler; `--deneme` IP ile açılan yalıtılmış kopya: `MAIL_MAILER=log` +
+  `php artisan deneme:izole` (e-posta/Telegram kapalı, ödeme sağlayıcısı boş, süper yöneticiler kod 123456 ile girer)). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,
+  MySQL `99-navluniq.cnf` yazar, supervisor işçisini `.env` bağlantısıyla kurar; var olan `.env`'in önbellek/oturum seçimini bozmaz.
 - Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
   Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
 
@@ -119,6 +129,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   (app.js) eski değerden yeniye akarak sayar ve `count-pop` vurgusu yapar. Dış kaynak ilanı
   `scraper_list_days` (varsayılan 7) gün sonra listeden kalkar, silinmez (soft delete = arşiv); ayar kısaltılınca yayın tarihi
   süreyi aşanlar bir sonraki günlük temizlikte arşivlenir. Canlı akış kayıtları 30 gün sonra silinir (`purgeIntakeEvents`).
+- Sabit dosyalar (simge, logo, apple-touch-icon): `asset_v('/images/x.png')` (`App\Support\AssetVersion`, dosya değişim zamanından
+  `?v=` eki) ile yazılır; güncellemede tarayıcı eskisini göstermez. Vite dosyaları zaten adında özet taşır. Yeni sabit dosya eklerken aynı kalıp.
 - E-posta: `RuntimeMailConfig` (panelden SMTP), şablon `emails/layouts/base.blade.php`
   (gizli ön izleme metni yok: Natro bunu düşürüyordu), altbilgide yalnız şirket adı; ETBİS yalnız site altbilgisinde.
 - Belgeler: `docs/*.md` (bildirim iletici kurulumu, e-posta, ödeme altyapısı, Telegram, mobil hazırlık).

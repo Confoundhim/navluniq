@@ -20,8 +20,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#f97316">
     <title>{{ $title }} | {{ $appName }}</title>
-    <link rel="icon" type="image/png" href="/images/fav-ico.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="{{ asset_v('/images/fav-ico.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset_v('/apple-touch-icon.png') }}">
     <script>
         (function () {
             try {

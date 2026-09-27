@@ -27,9 +27,9 @@
     </script>
 
     <!-- Tarayıcı Sekme İkonu (Favicon) -->
-    <link rel="icon" type="image/png" href="/images/fav-ico.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="shortcut icon" href="/images/fav-ico.png">
+    <link rel="icon" type="image/png" href="{{ asset_v('/images/fav-ico.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset_v('/apple-touch-icon.png') }}">
+    <link rel="shortcut icon" href="{{ asset_v('/images/fav-ico.png') }}">
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
 
@@ -51,13 +51,13 @@
         <!-- Sol: Logo ve Logo Genişliğine Tam Simetrik İnce Alt Slogan -->
         <a href="{{ route('home') }}" class="flex flex-col items-center justify-center group select-none">
             <!-- Açık Tema Logosu (Koyu Yazılı: logo-dark.png) -->
-            <img src="/images/logo-dark.png"
+            <img src="{{ asset_v('/images/logo-dark.png') }}"
                  alt="NavlunIQ Logo"
                  x-show="!$store.darkMode.on"
                  class="h-7 sm:h-8 w-auto transition-transform duration-300 group-hover:scale-105">
 
             <!-- Koyu Tema Logosu (Beyaz Yazılı: logo-white.png) -->
-            <img src="/images/logo-white.png"
+            <img src="{{ asset_v('/images/logo-white.png') }}"
                  alt="NavlunIQ Logo"
                  x-show="$store.darkMode.on"
                  x-cloak
@@ -145,8 +145,8 @@
             <div class="space-y-6">
                 <div class="flex justify-between items-center pb-4 border-b border-neutral-100 dark:border-neutral-800">
                     <div class="flex flex-col items-start">
-                        <img src="/images/logo-dark.png" alt="NavlunIQ" x-show="!$store.darkMode.on" class="h-6 w-auto">
-                        <img src="/images/logo-white.png" alt="NavlunIQ" x-show="$store.darkMode.on" x-cloak style="display: none;" class="h-6 w-auto">
+                        <img src="{{ asset_v('/images/logo-dark.png') }}" alt="NavlunIQ" x-show="!$store.darkMode.on" class="h-6 w-auto">
+                        <img src="{{ asset_v('/images/logo-white.png') }}" alt="NavlunIQ" x-show="$store.darkMode.on" x-cloak style="display: none;" class="h-6 w-auto">
                         <span class="text-[7.5px] font-light tracking-[0.24em] uppercase text-neutral-500 dark:text-neutral-400 mt-0.5">
                             Akıllı Lojistik Ağı
                         </span>
@@ -226,13 +226,13 @@
             <!-- 1. Sütun: YALNIZCA NİQ SEMBOL LOGOSU VE ETBİS ALANI -->
             <div class="lg:col-span-2 space-y-4">
                 <div class="flex items-center">
-                    <img src="/images/dark-symbol-logo.png"
+                    <img src="{{ asset_v('/images/dark-symbol-logo.png') }}"
                          onerror="this.src='/images/logo-symbol.png'"
                          alt="NavlunIQ NIQ Logo"
                          x-show="!$store.darkMode.on"
                          class="h-11 sm:h-12 w-auto">
 
-                    <img src="/images/white-symbol-logo.png"
+                    <img src="{{ asset_v('/images/white-symbol-logo.png') }}"
                          onerror="this.src='/images/logo-symbol.png'"
                          alt="NavlunIQ NIQ Logo"
                          x-show="$store.darkMode.on"
@@ -306,8 +306,8 @@
                 <span>Ödemeler 256-bit SSL ile lisanslı ödeme kuruluşu üzerinden alınır; kart bilgileri NavlunIQ'da saklanmaz.</span>
             </div>
             <a href="https://www.iyzico.com" target="_blank" rel="noopener" title="iyzico ile Öde · Mastercard, Visa, American Express, Troy" class="shrink-0">
-                <img src="/images/payment/iyzico-band-colored.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto dark:hidden">
-                <img src="/images/payment/iyzico-band-white.svg" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto hidden dark:block">
+                <img src="{{ asset_v('/images/payment/iyzico-band-colored.svg') }}" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto dark:hidden">
+                <img src="{{ asset_v('/images/payment/iyzico-band-white.svg') }}" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto hidden dark:block">
             </a>
         </div>
 
