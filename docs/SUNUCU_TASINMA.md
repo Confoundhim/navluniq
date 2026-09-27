@@ -1,4 +1,27 @@
-# NavlunIQ: Yeni Sunucuya Taşınma Rehberi
+# NavlunIQ: Yedekten Ayağa Kaldırma ve Yeni Sunucuya Taşınma Rehberi
+
+## En kısa yol: panel yedeğiyle (GitHub gerekmez)
+
+Yönetim → **Yedekler** → "Şimdi tam yedek al" → indir. Bu zip kodu, veritabanını, `.env`'i (anahtarlar) ve belgeleri
+içerir; tek başına siteyi boş bir sunucuda ayağa kaldırır. Zip'i yeni sunucuya kopyalayıp (`scp`, ya da Drive'dan
+indirme bağlantısıyla `curl -L -o yedek.zip "..."`) root ile:
+
+```bash
+apt-get update && apt-get install -y unzip
+unzip -o /root/navluniq-2026-09-27_1503.zip -d /root/yedek
+bash /root/yedek/kod/deploy/geri-yukle.sh --kontrol /root/navluniq-2026-09-27_1503.zip
+LETSENCRYPT_EMAIL=siz@ornek.com bash /root/yedek/kod/deploy/geri-yukle.sh /root/navluniq-2026-09-27_1503.zip
+```
+
+Alan adı henüz bu sunucuya dönmediyse `DOMAIN=SUNUCU_IP` ile IP üzerinden açılır; `--deneme` yalıtılmış kopya kurar
+(aşağıda). Sonradan GitHub'a bağlayıp "Siteyi güncelle" düğmesini kullanmak için:
+
+```bash
+cd /var/www/navluniq && git init -q && git remote add origin https://github.com/Confoundhim/navluniq.git \
+  && git fetch -q origin main && git reset -q --hard origin/main && bash deploy/update.sh
+```
+
+Aşağıdaki bölümler aynı işi sunucu betiği yedeğiyle (`deploy/backup.sh` → `tar.gz`) ve planlı geçişle anlatır.
 
 Bu rehber siteyi mevcut sunucudan yeni bir sunucuya, veri kaybı olmadan ve 15-30 dakikalık kesintiyle taşımak
 içindir. Eski sunucuya hiçbir adımda zarar verilmez; bir sorun olursa alan adı eski IP'ye geri çevrilir ve site
@@ -39,9 +62,9 @@ Her iki seçenekte de canlı siteye dokunulmaz.
 3. Betiği indirip deneme kipinde kurun (10-15 dk):
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/tasima.sh -o /root/tasima.sh
-   DOMAIN=YENI_IP bash /root/tasima.sh /root/navluniq-*.tar.gz            # birebir kopya
-   DOMAIN=YENI_IP bash /root/tasima.sh --deneme /root/navluniq-*.tar.gz   # ya da yalıtılmış kopya
+   curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/geri-yukle.sh -o /root/geri-yukle.sh
+   DOMAIN=YENI_IP bash /root/geri-yukle.sh /root/navluniq-*.tar.gz            # birebir kopya
+   DOMAIN=YENI_IP bash /root/geri-yukle.sh --deneme /root/navluniq-*.tar.gz   # ya da yalıtılmış kopya
    ```
 
    Telefondaki bildirim iletici canlı adrese gönderir; grup mesajlarını kopyada da görmek için MacroDroid'deki adresi
@@ -73,15 +96,15 @@ Her iki seçenekte de canlı siteye dokunulmaz.
 4. **Taşıma betiğini alın ve yedeği kontrol edin** (hiçbir şey kurmaz):
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/tasima.sh -o /root/tasima.sh
-   bash /root/tasima.sh --kontrol /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
+   curl -fsSL https://raw.githubusercontent.com/Confoundhim/navluniq/main/deploy/geri-yukle.sh -o /root/geri-yukle.sh
+   bash /root/geri-yukle.sh --kontrol /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
    ```
 
    Veritabanı adı, alan adı, belge ve SSL satırlarını görmelisiniz.
 5. **Deneme kurulumu** (yeni sunucuda; eski site çalışmaya devam eder, 10-15 dk sürer):
 
    ```bash
-   LETSENCRYPT_EMAIL=siz@ornek.com bash /root/tasima.sh /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
+   LETSENCRYPT_EMAIL=siz@ornek.com bash /root/geri-yukle.sh /root/navluniq-YYYYmmdd-HHMMSS.tar.gz
    ```
 
    Betik MySQL, Redis, PHP 8.4, nginx, kuyruk işçisi ve "Siteyi güncelle" düğmesini kurar; veritabanını ve
@@ -118,7 +141,7 @@ Her iki seçenekte de canlı siteye dokunulmaz.
 
    ```bash
    scp root@ESKI_IP:/var/backups/navluniq/navluniq-*.tar.gz /root/
-   FORCE_IMPORT=1 LETSENCRYPT_EMAIL=siz@ornek.com bash /root/tasima.sh /root/navluniq-EN-YENI.tar.gz
+   FORCE_IMPORT=1 LETSENCRYPT_EMAIL=siz@ornek.com bash /root/geri-yukle.sh /root/navluniq-EN-YENI.tar.gz
    ```
 
    (`EN-YENI` yerine en son dosya adı. Betik "döküm yüklendi: N tablo" ve sayıları yazar.)

@@ -65,6 +65,10 @@ class BackupService
                 foreach (self::fileTargets() as $source => $name) {
                     $this->addDirectory($zip, $source, $name);
                 }
+                // Uygulama kodu: tek zip GitHub olmadan siteyi ayağa kaldırmaya yetsin (deploy/geri-yukle.sh).
+                foreach (self::codeFiles() as $rel) {
+                    $zip->addFile(base_path($rel), 'kod/'.$rel);
+                }
             }
             $zip->close();
 
@@ -119,6 +123,51 @@ class BackupService
         }
 
         return self::directory().'/'.$name;
+    }
+
+    /**
+     * Zip'e giren kod dosyaları (proje köküne göre): depodaki dosyalar + derlenmiş ön yüz (public/build).
+     * vendor ve node_modules girmez; geri yüklemede composer/npm ile yeniden kurulur. .env ayrıca env.txt olarak eklenir.
+     *
+     * @return list<string>
+     */
+    public static function codeFiles(): array
+    {
+        $files = [];
+        $git = new Process(['git', 'ls-files', '-z'], base_path());
+        $git->run();
+        if ($git->isSuccessful() && trim($git->getOutput()) !== '') {
+            $files = array_values(array_filter(explode("\0", $git->getOutput()), fn ($f) => $f !== '' && is_file(base_path($f))));
+        } else {
+            // git yoksa: bilinen klasörler ve kök dosyalar, üretilen/gizli olanlar hariç.
+            $skip = ['vendor', 'node_modules', 'storage', '.git', 'public/build', 'public/storage', 'public/uploads'];
+            $it = new \RecursiveIteratorIterator(new \RecursiveCallbackFilterIterator(
+                new \RecursiveDirectoryIterator(base_path(), \FilesystemIterator::SKIP_DOTS),
+                function (\SplFileInfo $f) use ($skip): bool {
+                    $rel = ltrim(str_replace('\\', '/', substr((string) $f, strlen(base_path()))), '/');
+
+                    return ! in_array($rel, $skip, true) && ! str_starts_with($rel, '.env');
+                }
+            ));
+            foreach ($it as $f) {
+                if ($f->isFile()) {
+                    $files[] = ltrim(str_replace('\\', '/', substr((string) $f, strlen(base_path()))), '/');
+                }
+            }
+        }
+        $build = public_path('build');
+        if (is_dir($build)) {
+            $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($build, \FilesystemIterator::SKIP_DOTS));
+            foreach ($it as $f) {
+                if ($f->isFile()) {
+                    $files[] = 'public/build/'.ltrim(str_replace('\\', '/', substr((string) $f, strlen($build))), '/');
+                }
+            }
+        }
+        $files = array_values(array_unique(array_filter($files, fn ($f) => ! str_starts_with($f, '.env') && ! str_starts_with($f, 'vendor/') && ! str_starts_with($f, 'node_modules/'))));
+        sort($files);
+
+        return $files;
     }
 
     /** MySQL/MariaDB için mysqldump; diğer sürücülerde (testler: sqlite) tabloları JSON satırları olarak yazar. */
@@ -207,14 +256,23 @@ class BackupService
 
     private function readme(): string
     {
-        return 'NavlunIQ tam yedek ('.now()->format('d.m.Y H:i').")\n\n".
-            "database.sql      : MariaDB/MySQL dökümü (tüm tablolar, ayarlar, kaynaklar, ilanlar, kullanıcılar)\n".
-            "env.txt           : .env dosyası (anahtarlar; gizli tutun)\n".
+        $git = new Process(['git', 'rev-parse', '--short', 'HEAD'], base_path());
+        $git->run();
+        $version = $git->isSuccessful() ? trim($git->getOutput()) : 'bilinmiyor';
+
+        return 'NavlunIQ tam yedek ('.now()->format('d.m.Y H:i').", kod sürümü {$version})\n\n".
+            "Bu tek dosya siteyi yeni bir sunucuda ayağa kaldırmaya yeter; GitHub gerekmez.\n\n".
+            "kod/              : uygulama kodu ve derlenmiş ön yüz (vendor/node_modules composer ve npm ile kurulur)\n".
+            "database.sql      : MySQL dökümü (tüm tablolar, ayarlar, kaynaklar, ilanlar, kullanıcılar)\n".
+            "env.txt           : .env dosyası (anahtarlar; gizli tutun — APP_KEY olmadan şifreli veriler okunamaz)\n".
             "storage/kyc       : sürücü belgeleri\nstorage/private   : faturalar ve özel dosyalar\nstorage/public    : herkese açık dosyalar\n\n".
-            "Geri yükleme (yeni sunucuda):\n".
-            "1. Uygulamayı kurun, env.txt'yi .env olarak kopyalayın.\n".
-            "2. mysql -u KULLANICI -p VERITABANI < database.sql\n".
-            "3. storage/* klasörlerini storage/app/ altına aynı adlarla kopyalayın; chown -R www-data:www-data storage\n".
-            "4. php artisan migrate --force && php artisan storage:link && php artisan optimize:clear\n";
+            "Geri yükleme (boş Ubuntu 24.04 sunucusunda, root ile; 10-15 dk):\n".
+            "  apt-get update && apt-get install -y unzip\n".
+            "  unzip -o BU-DOSYA.zip -d /root/yedek\n".
+            "  bash /root/yedek/kod/deploy/geri-yukle.sh --kontrol /root/BU-DOSYA.zip          (yalnız inceler)\n".
+            "  LETSENCRYPT_EMAIL=siz@ornek.com bash /root/yedek/kod/deploy/geri-yukle.sh /root/BU-DOSYA.zip\n".
+            "  (alan adı yerine IP ile açmak için: DOMAIN=SUNUCU_IP bash ... ; deneme kopyası için --deneme)\n".
+            "Betik MySQL, Redis, PHP, nginx, SSL, zamanlayıcı ve kuyruk işçisini kurar; veritabanını, belgeleri ve\n".
+            "anahtarları yerine koyar. Ayrıntı: kod/docs/SUNUCU_TASINMA.md\n";
     }
 }

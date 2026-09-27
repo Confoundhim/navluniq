@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# NavlunIQ tam yedek: veritabanı dökümü + .env + storage/app (belgeler, yüklemeler) + SSL sertifikası + kod sürümü.
-# Aynı arşiv deploy/tasima.sh ile yeni bir sunucuya taşınabilir.
+# NavlunIQ tam yedek: uygulama kodu + veritabanı dökümü + .env + storage/app (belgeler, yüklemeler) + SSL sertifikası.
+# Tek dosya siteyi yeni bir sunucuda ayağa kaldırmaya yeter: deploy/geri-yukle.sh (GitHub gerekmez).
 # Çıktı: /var/backups/navluniq/navluniq-YYYYmmdd-HHMMSS.tar.gz  (son 14 yedek tutulur)
 #   bash /var/www/navluniq/deploy/backup.sh
 set -euo pipefail
@@ -31,6 +31,16 @@ tar -C "$APP_DIR/storage" -czf "$WORK/yedek/storage-app.tar.gz" app 2>/dev/null 
 if [[ -d /etc/letsencrypt/live ]]; then
     echo "==> SSL sertifikası"
     tar -C /etc -czf "$WORK/yedek/letsencrypt.tar.gz" letsencrypt 2>/dev/null || true
+fi
+
+echo "==> Uygulama kodu"
+# Depodaki dosyalar + derlenmiş ön yüz (public/build); vendor ve node_modules composer/npm ile yeniden kurulur.
+if git -C "$APP_DIR" rev-parse HEAD >/dev/null 2>&1; then
+    git -C "$APP_DIR" archive --format=tar HEAD > "$WORK/kod.tar"
+    [[ -d "$APP_DIR/public/build" ]] && tar -C "$APP_DIR" -rf "$WORK/kod.tar" public/build
+    gzip -9 "$WORK/kod.tar" && mv "$WORK/kod.tar.gz" "$WORK/yedek/kod.tar.gz"
+else
+    tar -C "$APP_DIR" --exclude=vendor --exclude=node_modules --exclude=storage --exclude=.git --exclude=.env -czf "$WORK/yedek/kod.tar.gz" .
 fi
 
 echo "==> Sürüm bilgisi"

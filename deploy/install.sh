@@ -139,6 +139,9 @@ if [[ -d "$APP_DIR/.git" ]]; then
     git -C "$APP_DIR" fetch --quiet origin "$APP_BRANCH"
     git -C "$APP_DIR" checkout --quiet "$APP_BRANCH"
     git -C "$APP_DIR" reset --quiet --hard "origin/$APP_BRANCH"
+elif [[ -f "$APP_DIR/artisan" ]]; then
+    # Yedekten geri yüklenen kod (git deposu yok): olduğu gibi kullanılır; GitHub'a sonradan bağlanabilir.
+    echo "Kod yedekten geliyor (git deposu yok); GitHub'dan çekilmedi."
 else
     if [[ -d "$APP_DIR" && -n "$(ls -A "$APP_DIR" 2>/dev/null)" ]]; then
         mv "$APP_DIR" "${APP_DIR}.eski-$(date +%Y%m%d%H%M%S)"
@@ -146,7 +149,7 @@ else
     git clone --quiet --branch "$APP_BRANCH" "$REPO_URL" "$APP_DIR"
 fi
 cd "$APP_DIR"
-ok "kod $(git rev-parse --short HEAD)"
+ok "kod $(git rev-parse --short HEAD 2>/dev/null || echo 'yedekten')"
 
 # -----------------------------------------------------------------------------
 log ".env dosyası"

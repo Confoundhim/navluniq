@@ -51,6 +51,13 @@ class BackupTest extends TestCase
             $this->assertNotFalse($zip->locateName('BENIOKU.txt'));
             $this->assertNotFalse($zip->locateName('storage/kyc/users/test-backup/belge.txt'));
             $this->assertStringContainsString('-- TABLE users', (string) $zip->getFromName('database.sql'));
+            // Kod da zip'te: tek dosya GitHub olmadan siteyi ayağa kaldırır; vendor ve .env (env.txt dışında) girmez.
+            foreach (['kod/artisan', 'kod/composer.json', 'kod/deploy/geri-yukle.sh', 'kod/deploy/install.sh', 'kod/app/Services/BackupService.php'] as $name) {
+                $this->assertNotFalse($zip->locateName($name), $name.' zip içinde olmalı');
+            }
+            $this->assertFalse($zip->locateName('kod/.env'));
+            $this->assertFalse($zip->locateName('kod/vendor/autoload.php'));
+            $this->assertStringContainsString('geri-yukle.sh', (string) $zip->getFromName('BENIOKU.txt'));
             $zip->close();
 
             $db = $service->create('database');
