@@ -498,20 +498,29 @@ new class extends Component {
         Lexicon::flush();
     }
 
-    /** Öneriyi yöneticinin yazdığı sözcükle etkinleştirir. */
+    /** Öneriyi onaylar: yapay zekadan gelen öneride sözcük hazırdır (tek dokunuş); düzeltmeden gelen öneride yönetici sözcüğü yazar. */
     public function acceptSuggestion(int $id): void
     {
         abort_unless(auth()->user()?->can('manage scrapers'), 403);
         $row = AiLexicon::query()->where('status', 'suggested')->find($id);
-        $term = Lexicon::normalize((string) ($this->suggestTerm[$id] ?? ''));
-        if (! $row || mb_strlen($term) < 2) {
+        $typed = trim((string) ($this->suggestTerm[$id] ?? ''));
+        if (! $row || ! app(\App\Services\RuleFeedbackService::class)->approve($row, $typed !== '' ? $typed : null, auth()->id())) {
             $this->addError('suggestTerm.'.$id, 'Öğretilecek sözcüğü yazın (mesajda geçtiği gibi).');
 
             return;
         }
-        AiLexicon::query()->where('kind', $row->kind)->where('term', $term)->where('id', '!=', $row->id)->delete();
-        $row->update(['term' => $term, 'status' => 'active', 'created_by' => auth()->id()]);
-        Lexicon::flush();
+        unset($this->suggestTerm[$id]);
+        session()->flash('success_message', 'Sözlüğe eklendi; bu yazım bundan sonra yapay zekaya sorulmadan kuralla çözülür.');
+    }
+
+    /** "Yok say": öneri kalkar ve aynı yazım bir daha önerilmez. */
+    public function ignoreSuggestion(int $id): void
+    {
+        abort_unless(auth()->user()?->can('manage scrapers'), 403);
+        $row = AiLexicon::query()->where('status', 'suggested')->find($id);
+        if ($row) {
+            app(\App\Services\RuleFeedbackService::class)->ignore($row);
+        }
         unset($this->suggestTerm[$id]);
     }
 
@@ -708,7 +717,7 @@ new class extends Component {
 
         if ($this->activeTab === 'lexicon') {
             $data['lexicon'] = AiLexicon::query()->where('status', 'active')->orderBy('kind')->orderByDesc('hits')->orderBy('term')->get();
-            $data['suggestions'] = AiLexicon::query()->where('status', 'suggested')->latest('id')->limit(50)->get();
+            $data['suggestions'] = AiLexicon::query()->where('status', 'suggested')->orderByDesc('hits')->latest('id')->limit(50)->get();
             $data['classifier'] = app(LocalClassifier::class)->stats() + ['templates' => \App\Models\AiTemplate::query()->count(), 'template_uses' => (int) \App\Models\AiTemplate::query()->sum('uses')];
         }
 
@@ -1184,17 +1193,19 @@ new class extends Component {
                 </div>
 
                 @if($suggestions->isNotEmpty())
-                    <h3 class="text-xs font-bold text-neutral-900 dark:text-white pt-2">Düzeltmelerinizden öneriler ({{ $suggestions->count() }})</h3>
-                    <p class="text-[11px] text-neutral-400">Bir adayın araç tipini ya da yükünü düzelttiniz; mesajdaki hangi sözcüğün bu karşılığı taşıdığını yazarsanız sistem bir daha sormaz.</p>
+                    <h3 class="text-xs font-bold text-neutral-900 dark:text-white pt-2">Öneriler ({{ $suggestions->count() }})</h3>
+                    <p class="text-[11px] text-neutral-400">Yapay zekanın çözdüğü ama kuralın bilmediği yazımlar ve sizin düzeltmelerinizden çıkan öneriler. Onaylanan öneri sözlüğe girer; aynı yazım bir daha yapay zekaya sorulmaz. "Yok say" denen bir daha önerilmez.</p>
                     <div class="space-y-2">
                         @foreach($suggestions as $sg)
+                            @php $target = $sg->kind === 'vehicle' ? \App\Support\VehicleTypes::label($sg->canonical) : ($sg->kind === 'goods' ? (\App\Support\GoodsCatalog::label($sg->canonical) ?? $sg->canonical) : $sg->canonical); @endphp
                             <div wire:key="sg-{{ $sg->id }}" class="p-3 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/10 space-y-2">
-                                <div class="text-[11px]"><span class="badge bg-amber-500/10 text-amber-700">{{ $kinds[$sg->kind] ?? $sg->kind }}</span> → <strong>{{ $sg->kind === 'vehicle' ? \App\Support\VehicleTypes::label($sg->canonical) : ($sg->kind === 'goods' ? (\App\Support\GoodsCatalog::label($sg->canonical) ?? $sg->canonical) : $sg->canonical) }}</strong></div>
+                                <div class="text-[11px] flex flex-wrap gap-x-2 gap-y-1 items-center"><span class="badge bg-amber-500/10 text-amber-700">{{ $kinds[$sg->kind] ?? $sg->kind }}</span>@if($sg->term)<strong class="text-neutral-900 dark:text-white">{{ $sg->term }}</strong> →@endif <strong>{{ $target }}</strong>@if($sg->source === 'ai')<span class="text-neutral-400">· {{ $sg->hits }} ilanda görüldü</span>@endif</div>
+                                @if($sg->note)<div class="text-[11px] text-neutral-400">{{ $sg->note }}</div>@endif
                                 <div class="text-[11px] text-neutral-500 dark:text-neutral-400">{{ \Illuminate\Support\Str::limit($sg->sample, 200) }}</div>
                                 <div class="flex flex-wrap gap-2 items-center">
-                                    <input type="text" wire:model="suggestTerm.{{ $sg->id }}" class="{{ $input }} sm:max-w-xs" placeholder="mesajdaki sözcük">
-                                    <button type="button" wire:click="acceptSuggestion({{ $sg->id }})" class="btn-primary py-1.5 px-3 text-xs">Öğret</button>
-                                    <button type="button" wire:click="deleteLexicon({{ $sg->id }})" class="text-neutral-500 text-[11px] hover:underline">Yok say</button>
+                                    @if(! $sg->term)<input type="text" wire:model="suggestTerm.{{ $sg->id }}" class="{{ $input }} sm:max-w-xs" placeholder="mesajdaki sözcük">@endif
+                                    <button type="button" wire:click="acceptSuggestion({{ $sg->id }})" class="btn-primary py-1.5 px-3 text-xs">{{ $sg->term ? 'Onayla' : 'Öğret' }}</button>
+                                    <button type="button" wire:click="ignoreSuggestion({{ $sg->id }})" class="text-neutral-500 text-[11px] hover:underline">Yok say</button>
                                 </div>
                                 @error('suggestTerm.'.$sg->id)<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror
                             </div>
@@ -1242,7 +1253,7 @@ new class extends Component {
                                 <td class="p-2 text-neutral-500" data-label="Tür">{{ $kinds[$row->kind] ?? $row->kind }}</td>
                                 <td class="p-2 font-semibold text-neutral-900 dark:text-white" data-label="Sözcük">{{ $row->term }}</td>
                                 <td class="p-2" data-label="Karşılığı">{{ $row->kind === 'vehicle' ? \App\Support\VehicleTypes::label($row->canonical) : ($row->kind === 'goods' ? (\App\Support\GoodsCatalog::label($row->canonical) ?? $row->canonical) : ($row->canonical ?: '—')) }}</td>
-                                <td class="p-2 text-neutral-500" data-label="Kaynak">{{ $row->source === 'learned' ? 'öğrenildi' : 'yönetici' }}</td>
+                                <td class="p-2 text-neutral-500" data-label="Kaynak">{{ $row->sourceLabel() }}</td>
                                 <td class="p-2 text-neutral-500" data-label="Kullanım">{{ $row->hits }}</td>
                                 <td class="p-2 text-right tc-actions"><button type="button" wire:click="deleteLexicon({{ $row->id }})" wire:confirm="Sözlükten silinsin mi?" class="text-red-600 text-[11px] font-semibold hover:underline">Sil</button></td>
                             </tr>

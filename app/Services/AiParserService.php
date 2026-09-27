@@ -687,6 +687,7 @@ class AiParserService
             'price_unit' => ! empty($data['price_per_ton']) ? 'per_ton' : 'total',
             'goods_type' => $goodsKey ? GoodsCatalog::label($goodsKey) : self::cleanText($data['goods'] ?? null, 120),
             'goods_category' => $goodsKey,
+            'goods_text' => self::cleanText($data['goods'] ?? null, 120), // mesajdaki yazım (öğrenme çemberi: sözlük önerisi)
             'urgent' => (bool) ($data['urgent'] ?? false),
             'pickup_date_text' => self::cleanText($data['pickup_date_text'] ?? null, 60),
             'body_types' => BodyTypes::clean($data['body_types'] ?? []),
@@ -788,7 +789,7 @@ Verilen mesaj çoğunlukla kısa, yazım hatalı, kısaltmalı ve Türkçe karak
 
 Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 1. post_type: "load" = taşınacak bir yük ve araç aranıyor; "vehicle_available" = boş araç/şoför yük arıyor (yük ilanı DEĞİL); "other" = sohbet, araç satışı, iş ilanı, reklam. Üstteki post_type mesajın geneli, her ilanın içindeki kendi türüdür (karışık mesajda yalnız yük olanlar ads listesine girer).
-2. pickup ve delivery: Türkiye il adı (resmi yazım, ör. "Diyarbakır", "İstanbul") ve varsa ilçe/semt. "X'den Y'ye", "X - Y", "X → Y", "Xdan Yya" kalıplarında X kalkış, Y varıştır. İlçe verildiyse ilini sen bul (Kartal → İstanbul, Gebze → Kocaeli, Nazilli → Aydın).
+2. pickup ve delivery: Türkiye il adı (resmi yazım, ör. "Diyarbakır", "İstanbul") ve varsa ilçe/semt. "X'den Y'ye", "X - Y", "X → Y", "Xdan Yya" kalıplarında X kalkış, Y varıştır. İlçe verildiyse ilini sen bul (Kartal → İstanbul, Gebze → Kocaeli, Nazilli → Aydın). Gün adları ("Pazar günü", "Çarşamba sabahı") yer değildir; "X yüklemeleri" başlığı altındaki il/ilçe satırları ayrı varış noktalarıdır.
 3. vehicle_type: yalnız şu anahtarlardan biri; mesajda araç adı yoksa tonaja/yüke göre EN KÜÇÜK uygun aracı seç ve vehicle_flexible=true yap:
 {$vehicles}
 "tenteli", "dorse", "çekici", "mega", "lowbed", "silobas" → tir. "Kapalı kasa kamyon" → tonaja göre kamyon. Panelvan, minivan, Doblo/Transit gibi hafif ticari → panelvan. Otomobil yoktur; evrak gibi küçük yük → panelvan.
@@ -1285,7 +1286,7 @@ TXT;
      */
     public static function placesIn(string $text, int $limit = PHP_INT_MAX): array
     {
-        $text = TextPrep::prepare($text);
+        $text = TurkishLocations::stripDayPhrases(TextPrep::prepare($text)); // "PAZAR GÜNÜ" Rize Pazar değildir
         $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
         $words = array_values(array_filter(preg_split('/[\s,\/;:()+>|]+/u', $text) ?: [], fn ($w) => $w !== ''));
         $found = [];
@@ -1453,7 +1454,7 @@ TXT;
         return [$pickup, $delivery]; // aynı yer ("ankara lojistik üssü yükler / … iner"): şehir içi taşıma
     }
 
-    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
+    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
 
     public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|boşaltır|bosaltir|boşaltma|bosaltma|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
 

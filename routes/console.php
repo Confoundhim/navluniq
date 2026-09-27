@@ -6,9 +6,11 @@ use App\Services\DriverTripService;
 use App\Services\LoadReleaseService;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
+use App\Services\RuleFeedbackService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
+use App\Support\Settings;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
@@ -46,6 +48,12 @@ Artisan::command('scraped-loads:ai-enrich', function (ScrapedLoadService $loads)
     $this->info('Yapay zeka ile zenginleştirilen aday: '.$loads->aiEnrichPending());
 })->purpose('Yapay zeka sırası bekleyen dış kaynak adaylarını çözümler (kota/ağ hatası sonrası yeniden deneme)');
 
+Artisan::command('scraped-loads:ai-audit {--limit= : Denetlenecek ilan sayısı (boş: panel ayarı)}', function (RuleFeedbackService $feedback) {
+    $limit = $this->option('limit') !== null ? (int) $this->option('limit') : Settings::int('ai_audit_daily_count');
+    $r = $feedback->audit($limit);
+    $this->info($r['skipped'] ? 'Denetim kapalı ya da yapay zeka ayarlı değil.' : "Denetlenen: {$r['checked']}, uyuşmazlık: {$r['mismatched']} (öneri olarak sözlük ekranına düştü).");
+})->purpose('Kuralla çözülen ilanlardan günlük örneklemi yapay zekaya denetletir; uyuşmazlıklar sözlük ekranına öneri olur');
+
 Artisan::command('ai:learn {--rebuild : Sayaçları sıfırlayıp geçmiş kararlardan yeniden öğren}', function (LocalClassifier $classifier) {
     if ($this->option('rebuild')) {
         $r = $classifier->rebuild();
@@ -78,6 +86,7 @@ Schedule::command('subscriptions:remind')->dailyAt('09:00');
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
 Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
 // Kuyruk nabzı: işçi bu işi çalıştırınca zaman damgası yazar; tazeyse telefon mesajları kuyruğa verilir (bkz. NotificationWebhookController).

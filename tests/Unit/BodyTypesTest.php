@@ -90,6 +90,7 @@ class BodyTypesTest extends TestCase
         $this->assertSame(2, BodyTypes::detectVehicleCount($n('SAMSUN 2 YER – TIR – 26 TON'))); // 2 ayrı tır
         $this->assertSame(4, BodyTypes::detectVehicleCount($n('ADANA 4YER+URFA')));
         $this->assertSame(3, BodyTypes::detectVehicleCount($n('3 tır lazım')));
+        $this->assertSame(3, BodyTypes::detectVehicleCount($n('SAKARYA PAMUKOVA 3 ARABA ÇEKİRDEK DAMPERLİ'))); // "araba" = araç
         $this->assertSame(15, BodyTypes::detectVehicleCount($n('Çorlu damperli 15 araç')));
         $this->assertSame(2, BodyTypes::detectVehicleCount($n('iki tır lazım')));
         $this->assertNull(BodyTypes::detectVehicleCount($n('1 araç lazım')));

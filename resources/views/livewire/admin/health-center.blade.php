@@ -82,6 +82,11 @@ new class extends Component {
             return '0 başarısız iş';
         });
 
+        $this->checks[] = $this->probe('Öğrenme çemberi', function (): string {
+            $s = app(\App\Services\RuleFeedbackService::class)->weeklyStats();
+
+            return "bu hafta kuralla çözülen {$s['rule']} · yapay zeka gereken {$s['ai']} · denetlenen {$s['audited']} (uyuşmazlık {$s['mismatched']}) · bekleyen öneri {$s['pending']} · kendiliğinden onaylanan {$s['auto_approved']}";
+        });
         foreach ((array) config('filesystems.disks') as $name => $disk) {
             if (($disk['driver'] ?? null) !== 'local') {
                 continue;

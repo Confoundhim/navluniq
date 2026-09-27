@@ -334,9 +334,9 @@ final class BodyTypes
         $n = null;
         if (preg_match('/(?<![\d.,])(\d{1,2})\s*(?:yer|yere|yerde|nokta|noktaya)\b/', $norm, $m)) {
             $n = (int) $m[1];
-        } elseif (preg_match('/(?<![\d.,])(\d{1,2})\s*(?:adet\s+)?(?:arac|araclik|tir|kamyon|kamyonet|kirkayak|dorse|cekici)\b/', $norm, $m)) {
+        } elseif (preg_match('/(?<![\d.,])(\d{1,2})\s*(?:adet\s+)?(?:arac|araclik|araba|arabalik|tir|kamyon|kamyonet|kirkayak|dorse|cekici)\b/', $norm, $m)) {
             $n = (int) $m[1];
-        } elseif (preg_match('/\b('.implode('|', array_keys($words)).')\s+(?:adet\s+)?(?:arac|tir|kamyon|kamyonet|kirkayak)\b/', $norm, $m)) {
+        } elseif (preg_match('/\b('.implode('|', array_keys($words)).')\s+(?:adet\s+)?(?:arac|araba|tir|kamyon|kamyonet|kirkayak)\b/', $norm, $m)) {
             $n = $words[$m[1]];
         }
 

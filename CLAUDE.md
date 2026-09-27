@@ -91,6 +91,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "X İLÇELERİ BOŞALTIR" özet satırı ilçeler tek tek varsa atlanır; yapay zeka çağrılmaz (`skip_ai`); rota tekrarı ilçe
   düzeyinde (`routeKey(..., districtLevel: true)`); `parse_metadata.series` → kartta "Seri ilan · N nokta" rozeti.
   Engin Abi'nin 2026-09-27 örneği (40 araçlık kömür ilanı) buna göre eklendi. "Ç.KALE" takma adı Çanakkale.
+  **İkinci seri biçimi (lojistik firması "il / ilçe" listesi):** "SAMSUN YÜKLEMELERİ" başlığı + araç/yük notları + irtibat bloğu +
+  alt alta "Amasya / MERZİFON", "Ankara / KAZAN", "Iğdır / IĞDIR" satırları; boşaltma fiili yoktur. Başlık görüldükten sonra yalnız yer
+  adı taşıyan her satır boşaltma noktasıdır (`SeriesAd::isPlaceOnly`), "MERKEZ" ve il adının tekrarı il düzeyi sayılır, başlık bloğunun
+  notları (kasa, yük) her noktaya taşınır, irtibat bloğundaki adlar taşınmaz; sınır 120 nokta. `PICKUP_VERBS` "yüklemeleri / yüklemesi"
+  biçimlerini tanır. WhatsApp'tan kopyalanan "[26/9 23:01] Grup: " ve "26.09.2026 23:01 - Grup: " ön ekleri `TextPrep::prepare`'de atılır;
+  "PAZAR GÜNÜ / Çarşamba sabahı" gibi gün ifadeleri yer sanılmaz (`TurkishLocations::stripDayPhrases`; "Rize Pazar", "Samsun Çarşamba"
+  il ile yazılınca çözülür); "-nden/-ndan" ekli ilçe ("Mecitözünden") çözülür; "3 ARABA" = 3 araç; "çekirdek" tarım ürünü.
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
   kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak
@@ -118,6 +125,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "Kahraman Maraş", "Kırık Kale" birleştirilir; fuzzy stop listesi: kahraman, sultan…). `TurkishLocations::matchDistrict` il içinde
   ilçe kısaltması (Ş.KARAAĞAÇ, K.ÇEKMECE, G.O.PAŞA, K.KARABEKİR) ve 3 sözcük birleştirme (Mustafa Kemal Paşa). Yeni yazım →
   ALIASES / EXTRA_PLACES + test satırı; sık olanı panel Sözlük → konum ile de öğretilebilir.
+- **Öğrenme çemberi** (`App\Services\RuleFeedbackService`, `docs/OGRENME_CEMBERI.md`): yapay zekanın çözdüğü ama kuralın çözemediği
+  (ya da farklı çözdüğü) il/ilçe yazımı ve yük sözcüğü `ai_lexicon` tablosuna `status=suggested, source=ai` öneri olur (`hits` = kaç
+  ayrı ilanda görüldü, `note`, `last_load_id`); alım (`processSegment`) ve kuyruk (`reparseWithAi`) sonrası `fromAi` çağrılır. Panel
+  Dış kaynak → Sözlük ve öğrenme → "Öneriler": tek dokunuş **Onayla** (sözlüğe girer, `Lexicon::flush`) / **Yok say** (`status=ignored`,
+  bir daha önerilmez). `ai_suggest_auto_approve_hits` (0 kapalı) kadar ayrı ilanda aynı öneri gelirse kendiliğinden onaylanır; yapay zeka
+  aynı yazıma başka karşılık verirse sayaç sıfırlanır. Günlük denetim `scraped-loads:ai-audit` (05:20, `ai_audit_daily_count`, varsayılan 5):
+  kuralla çözülmüş (ai_status yok/skipped/failed, son 3 gün, yönetici düzenlememiş) ilanlardan rastgele örneklem yapay zekaya sorulur,
+  ilan değişmez, `parse_metadata.audit` yazılır, uyuşmazlık öneri olur; sayaçlar önbellekte haftalık (`ai:audit:{yıl-hafta}:*`).
+  Sağlık ekranı "Öğrenme çemberi" satırı: kuralla çözülen / yapay zeka gereken / denetlenen / bekleyen öneri / kendiliğinden onaylanan.
+  Yapay zeka komutu (`AiParserService::systemPrompt`) sektör kurallarını zaten taşır; yeni kural öğrenildiğinde oraya da bir satır eklenir.
 - Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,jobs/index,jobs/show,vehicles/index}.blade.php`,
   `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (iş/sefer, dönüş yükü
   taraması 10 dk'da bir, `reconcile` ile sevkiyat-sefer tutarlılığı), `App\Livewire\Concerns\HandlesExternalLoadActions`
@@ -198,7 +215,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (günlük), `system:backup` (03:30), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (günlük), `system:backup` (03:30), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz.
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı

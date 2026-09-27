@@ -441,6 +441,50 @@ class LoadIntakeTest extends TestCase
         $this->assertSame(19, ScrapedLoad::count());
     }
 
+    public function test_province_district_list_under_a_pickup_header_is_a_series_with_header_notes_on_every_point(): void
+    {
+        $this->activeSource();
+        Settings::set('ai_parse_mode', 'always');
+        // Lojistik firmalarının "il / ilçe" listesi: boşaltma fiili yok, başlık "X YÜKLEMELERİ", araç notu ve irtibat bloğu üstte.
+        $lines = ['Ağrı / ELESKIRT', 'Amasya / MERKEZ', 'Amasya / GOYNUCEK', 'Amasya / MERZIFON', 'Ankara / AKYURT', 'Ankara / KAZAN', 'Bolu / GEREDE',
+            'Çankırı / ATKARACALAR', 'Çorum / BOGAZKALE', 'Iğdır / IĞDIR', 'Kastamonu / TASKOPRU', 'Kırıkkale / BALISEYH', 'Sivas / SARKISLA', 'Tokat / RESADIYE', 'Yozgat / AKDAGMADENI'];
+        $message = "ÖRNEK LOJİSTİK\n🟦SAMSUN YÜKLEMELERİ\nGÜBRE TESİSLERİ\nAÇIK TENTE DAMPER TIR\n\n📞Ahmet Örnek\n0553 111 22 33\n📞Mehmet Deneme\n0533 444 55 66\n\n".implode("\n", $lines);
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 's3', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status'], json_encode($r, JSON_UNESCAPED_UNICODE));
+        $this->assertCount(15, $r['created_ids'], 'her il/ilçe satırı ayrı nokta');
+        Http::assertNothingSent();
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $this->assertTrue($loads->every(fn ($l) => (int) $l->pickup_province_code === 55 && $l->ai_status === 'skipped'));
+        $this->assertSame(['Eleşkirt', null, 'Göynücek', 'Merzifon', 'Akyurt', 'Kahramankazan'], $loads->take(6)->pluck('delivery_district')->all(), '"MERKEZ" il düzeyi, "KAZAN" eski ad');
+        $this->assertSame([76, null], [(int) $loads[9]->delivery_province_code, $loads[9]->delivery_district], '"Iğdır / IĞDIR" il düzeyinde tek nokta');
+        $this->assertTrue($loads->every(fn ($l) => $l->goods_type === 'Gübre' && $l->vehicle_type === 'tir'), 'başlık bloğundaki yük ve araç notu her noktaya taşınır');
+        $this->assertTrue($loads->every(fn ($l) => array_diff(['acik', 'tenteli', 'damperli'], (array) $l->body_types) === []), 'AÇIK TENTE DAMPER → üç kasa da kabul');
+        $this->assertTrue($loads->every(fn ($l) => $l->plainPhone() === '5531112233' && $l->extraPhones() === ['5334445566']));
+        $this->assertSame(15, (int) $loads->first()->meta('series')['count']);
+        $this->assertStringNotContainsString('Ahmet', (string) $loads->first()->raw_message ?? '', 'irtibat bloğundaki adlar noktalara taşınmaz');
+    }
+
+    public function test_whatsapp_export_prefix_day_phrase_and_nden_suffix_do_not_break_multi_route_messages(): void
+    {
+        $this->activeSource();
+        // Dışa aktarılan / kopyalanan WhatsApp mesajı: "[gün/ay saat] Grup: " ön eki, "PAZAR GÜNÜ" tarih satırı, "-nden" ekli ilçe, "3 ARABA"
+        $message = "[26/9 23:01] Samsun Deneme Grubu: PAZAR GÜNÜ\n\nDİYARBAKIR BİSMİLDEN SAMSUN MISIR DAMPERLİ\n\nSAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ 24 SAAT YÜKLEME\n\nÇORUMDAN BAFRA DAMPER\n\nALACADAN SAMSUN ÇARŞAMBA ÇEKİRDEK DAMPERLİ\nMECİTÖZÜNDEN SAKARYA PAMUKOVA 3 ARABA ÇEKİRDEK DAMPERLİ\n0532 111 22 33";
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 'w1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status'], json_encode($r, JSON_UNESCAPED_UNICODE));
+        $this->assertCount(5, $r['created_ids'], 'grup adı ve "PAZAR GÜNÜ" ilan değildir; boş satırsız iki rota satırı ayrı ilandır');
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $routes = $loads->map(fn ($l) => $l->pickup_location.' > '.$l->delivery_location)->all();
+        $this->assertSame(['Diyarbakır Bismil > Samsun', 'Samsun > Mardin', 'Çorum > Samsun Bafra', 'Çorum Alaca > Samsun Çarşamba', 'Çorum Mecitözü > Sakarya Pamukova'], $routes);
+        $this->assertFalse($loads->contains(fn ($l) => str_contains((string) $l->delivery_location, 'Pazar')), '"PAZAR GÜNÜ" Rize Pazar sanılmaz');
+        $this->assertSame(3, (int) $loads->last()->vehicle_count, '"3 ARABA" = 3 araç');
+        $this->assertSame(['Tarım ürünü', 'Gübre'], [$loads->last()->goods_type, $loads[1]->goods_type]);
+        $this->assertTrue($loads->every(fn ($l) => $l->plainPhone() === '5321112233' && in_array('damperli', (array) $l->body_types, true)));
+    }
+
     public function test_series_is_not_triggered_by_ordinary_multi_route_lists(): void
     {
         $message = "Bursa - İstanbul 13.60 tenteli\nBursa - Ankara 13.60 tenteli\nBursa - İzmir 13.60 tenteli\n0544 111 11 14";

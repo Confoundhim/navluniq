@@ -19,7 +19,17 @@ class AiLexicon extends Model
         'ignore' => 'Yok sayılacak sözcük',
     ];
 
-    protected $fillable = ['kind', 'term', 'canonical', 'status', 'source', 'hits', 'sample', 'created_by'];
+    protected $fillable = ['kind', 'term', 'canonical', 'status', 'source', 'hits', 'sample', 'note', 'last_load_id', 'created_by'];
 
-    protected $casts = ['hits' => 'integer'];
+    protected $casts = ['hits' => 'integer', 'last_load_id' => 'integer'];
+
+    /** Kaynak etiketi (sözlük ekranı). */
+    public function sourceLabel(): string
+    {
+        return match ($this->source) {
+            'learned' => 'öğrenildi',
+            'ai' => 'yapay zeka',
+            default => 'yönetici',
+        };
+    }
 }

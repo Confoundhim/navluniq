@@ -62,6 +62,8 @@ new class extends Component {
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
         'scraper_rejected_retention_days' => 'Reddedilen adayların silinme süresi (gün)',
         'ai_parse_mode' => 'Yapay zeka çözümleme',
+        'ai_suggest_auto_approve_hits' => 'Öneri kendiliğinden onaylansın: aynı öneri kaç ayrı ilanda görülürse (0: yalnız elle onay)',
+        'ai_audit_daily_count' => 'Günlük denetim: kuralla çözülen kaç ilan yapay zekaya sorulsun (0: kapalı)',
         'ai_provider' => 'Öncelikli sağlayıcı',
         'ai_ollama_enabled' => 'Yerel model (Ollama)',
         'ai_ollama_base' => 'Ollama adresi',
@@ -445,6 +447,8 @@ new class extends Component {
             'scraper.scraper_ai_wait_minutes' => 'required|integer|min:1|max:1440',
             'scraper.scraper_local_min_confidence' => 'required|integer|min:50|max:100',
             'scraper.ai_parse_mode' => 'required|in:off,fill_gaps,always',
+            'scraper.ai_suggest_auto_approve_hits' => 'required|integer|min:0|max:50',
+            'scraper.ai_audit_daily_count' => 'required|integer|min:0|max:100',
             'scraper.ai_provider' => 'nullable|in:,'.implode(',', array_keys(\App\Services\AiParserService::PROVIDERS)),
             'scraper.ai_gemini_model' => 'nullable|string|max:120',
             'scraper.ai_groq_model' => 'nullable|string|max:120',
@@ -485,7 +489,7 @@ new class extends Component {
             if (in_array($key, self::SCRAPER_TOGGLES, true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
-            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes'], true)) {
+            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes', 'ai_suggest_auto_approve_hits', 'ai_audit_daily_count'], true)) {
                 $value = (string) (int) $value;
                 $old = (string) Settings::int($key);
             } else {
@@ -741,6 +745,11 @@ new class extends Component {
                         <select wire:model="scraper.ai_provider" class="{{ $input }}"><option value="">Otomatik (ücretsizden başlayan sıra)</option>@foreach(\App\Services\AiParserService::visibleProviders() as $k => $p)<option value="{{ $k }}">{{ $p['label'] }}</option>@endforeach</select>
                     </div>
                     <div><label class="form-label">{{ $scraperKeys['scraper_rejected_retention_days'] }}</label><input type="number" min="0" max="365" wire:model="scraper.scraper_rejected_retention_days" class="{{ $input }}">@error('scraper.scraper_rejected_retention_days')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                </div>
+                <p class="text-[11px] text-neutral-400 pt-1"><strong>Öğrenme çemberi:</strong> yapay zekanın çözdüğü ama kuralın bilmediği yazımlar Dış Kaynak İlanları → "Sözlük ve öğrenme" sekmesine öneri olarak düşer; onaylanan öneri sözlüğe girer ve bir daha yapay zekaya sorulmaz. Kuralla çözülen ilanlardan günlük bir örneklem de yapay zekaya denetletilir; uyuşmazlık yine öneri olur. Durum: Sistem sağlığı → "Öğrenme çemberi".</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><label class="form-label">{{ $scraperKeys['ai_suggest_auto_approve_hits'] }}</label><input type="number" min="0" max="50" wire:model="scraper.ai_suggest_auto_approve_hits" class="{{ $input }}">@error('scraper.ai_suggest_auto_approve_hits')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                    <div><label class="form-label">{{ $scraperKeys['ai_audit_daily_count'] }}</label><input type="number" min="0" max="100" wire:model="scraper.ai_audit_daily_count" class="{{ $input }}">@error('scraper.ai_audit_daily_count')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
                 </div>
                 <div class="space-y-2">
                     @foreach(\App\Services\AiParserService::visibleProviders() as $pk => $prov)

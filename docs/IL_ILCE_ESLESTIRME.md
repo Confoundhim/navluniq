@@ -12,7 +12,7 @@ Her satır testle korunur: `tests/Unit/LocationSpellingTest.php`.
 |---|---|---|
 | Birebir ad | Ankara, İzmir Aliağa | Tablodan |
 | Türkçe karaktersiz / küçük harf | sanliurfa viransehir, canakkale gokceada | ç→c, ş→s, ğ→g, ı→i, ö→o, ü→u sadeleştirmesi |
-| Ekli yazım | İzmirden, Aliağaya, Ankara'dan, Gebzeden | -dan/-den/-a/-e/-ya/-ye ekleri atılır |
+| Ekli yazım | İzmirden, Aliağaya, Ankara'dan, Gebzeden, Mecitözünden, Tekkeköyünden | -dan/-den/-ndan/-nden/-a/-e/-ya/-ye ekleri atılır |
 | Noktalı il kısaltması | Ç.KALE, K.MARAŞ, Ş.URFA, D.BAKIR, G.ANTEP, K.KALE, T.DAĞ, B.KESİR, E.ŞEHİR, N.ŞEHİR, A.KARAHİSAR, K.MONU, G.HANE | "İlk harf + il adının sonu" kuralı; tek bir il uyarsa |
 | Noktasız il kısaltması | GANTEP, KMARAŞ, KKALE, ZONG, İST, ANK | Takma ad listesi + aynı kural (son ek en az 4 harf) |
 | Kısa / eski il adları | Afyon, Urfa, Antep, Maraş, İzmit, Adapazarı, Antakya | Takma ad listesi |
@@ -26,6 +26,7 @@ Her satır testle korunur: `tests/Unit/LocationSpellingTest.php`.
 
 ## Bilerek çözülmeyenler (yanlış eşleşme olmasın diye)
 
+- Gün ifadeleri yer sanılmaz: "Pazar günü", "Çarşamba sabahı", "Cuma akşamı" atılır; il ile yazılınca ("Rize Pazar", "Samsun Çarşamba") çözülür.
 - Gündelik sözcükler il sanılmaz: kadar, burda, sonra, kamyon, tenteli, sanayi, liman, merkez, **kahraman** (tek başına), sultan, mustafa, kemal.
 - Kısa il adlarında (Kars, Bolu, Van, Muş) yazım hatası toleransı yoktur; birebir yazılmalıdır.
 - Kısaltma birden çok ile uyuyorsa çözülmez (örnek: "K.ELİ" Kırklareli'ne de Kocaeli'ne de uyar; açık yazılmalı).
