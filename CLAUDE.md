@@ -85,6 +85,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - "13.60" = damper hariç her kasa; "dökme yük" = damper; "kapalı ≠ tenteli"; "kasalı" ürün → tenteli/kapalı/frigo;
   "her türlü" = kısıt yok; lowbed artık TIR kasa tipidir (iş makinesi → lowbed/açık).
 - "Samsun 2 yer" = 2 ayrı tır (vehicle_count), "Adana + Urfa" = çok teslim noktası (delivery_stops).
+- **Seri ilan (tek yükleme, çok boşaltma; her nokta ayrı araç):** "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER" başlığı + alt alta
+  "BURDUR AĞLASUN BOŞALTIR" satırları, blok sonunda "DAMPERLİ ARAÇLAR", sonda numaralar. `App\Support\SeriesAd::segments`
+  (splitSegments'in başında) her boşaltma satırını ayrı aday yapar (başlık + satır + blok notları + numaralar), en çok 60;
+  "X İLÇELERİ BOŞALTIR" özet satırı ilçeler tek tek varsa atlanır; yapay zeka çağrılmaz (`skip_ai`); rota tekrarı ilçe
+  düzeyinde (`routeKey(..., districtLevel: true)`); `parse_metadata.series` → kartta "Seri ilan · N nokta" rozeti.
+  Engin Abi'nin 2026-09-27 örneği (40 araçlık kömür ilanı) buna göre eklendi. "Ç.KALE" takma adı Çanakkale.
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
   kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak
@@ -104,6 +110,14 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - Ayrıştırma hattı: `LoadIntakeService` (mesajı parçalara böler; büyük harfli başlıklar Türkçe küçültülerek
   eşlenir), `LoadStandardizer`, `AiParserService` (sağlayıcı zinciri), `LocalClassifier`, `Lexicon`,
   `GoodsCatalog`, `TurkishLocations` (il/ilçe, koordinat, takma adlar; ilçe listesi tekil ve Türk alfabesi sırasında).
+  İlçe tablosu (`resources/data/tr-locations.json`, 81 il / 973 ilçe) 2026-09-27'de resmî listeyle karşılaştırılıp düzeltildi
+  (26 ilçe yanlış ile bağlıydı ya da yanlış/İngilizce adlıydı; `0001_01_30` kayıtları düzeltir).
+  `tests/Feature/Support/TurkishLocationsDataTest` il başına ilçe sayısını sabitler; tabloya dokununca o test güncellenir.
+  **Yazım eşleştirme** (`docs/IL_ILCE_ESLESTIRME.md`, `tests/Unit/LocationSpellingTest`): `TurkishCities::match` il adını ve kaç
+  sözcük kapladığını verir (noktalı/noktasız kısaltma "ilk harf + son ek" kuralı: Ç.KALE, G.ANTEP, K.KALE, GANTEP; ayrık yazım
+  "Kahraman Maraş", "Kırık Kale" birleştirilir; fuzzy stop listesi: kahraman, sultan…). `TurkishLocations::matchDistrict` il içinde
+  ilçe kısaltması (Ş.KARAAĞAÇ, K.ÇEKMECE, G.O.PAŞA, K.KARABEKİR) ve 3 sözcük birleştirme (Mustafa Kemal Paşa). Yeni yazım →
+  ALIASES / EXTRA_PLACES + test satırı; sık olanı panel Sözlük → konum ile de öğretilebilir.
 - Şoför tarafı: `resources/views/livewire/driver/{dashboard,loads/index,jobs/index,jobs/show,vehicles/index}.blade.php`,
   `LoadFilterService` (filtre ön ayarları, il/ilçe, kasa, yakınımda), `DriverTripService` (iş/sefer, dönüş yükü
   taraması 10 dk'da bir, `reconcile` ile sevkiyat-sefer tutarlılığı), `App\Livewire\Concerns\HandlesExternalLoadActions`

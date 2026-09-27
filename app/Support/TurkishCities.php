@@ -28,8 +28,18 @@ final class TurkishCities
         'kmaraş' => 'Kahramanmaraş', 'k.maraş' => 'Kahramanmaraş', 'k.maras' => 'Kahramanmaraş', 'kahramanmaras' => 'Kahramanmaraş', 'gaziantep' => 'Gaziantep',
         'ş.urfa' => 'Şanlıurfa', 's.urfa' => 'Şanlıurfa', 'surfa' => 'Şanlıurfa', 'sanli' => 'Şanlıurfa', 'd.bakır' => 'Diyarbakır', 'd.bakir' => 'Diyarbakır', 'dbakir' => 'Diyarbakır',
         'eskişehr' => 'Eskişehir', 'esk' => 'Eskişehir', 'ktahya' => 'Kütahya', 'a.karahisar' => 'Afyonkarahisar', 'akarahisar' => 'Afyonkarahisar',
+        'ç.kale' => 'Çanakkale', 'c.kale' => 'Çanakkale', 'ckale' => 'Çanakkale', 'çkale' => 'Çanakkale', 'zong' => 'Zonguldak',
+        'kkale' => 'Kırıkkale', 'k.kale' => 'Kırıkkale', 'gantep' => 'Gaziantep', 'g.antep' => 'Gaziantep', 'tdag' => 'Tekirdağ', 't.dag' => 'Tekirdağ',
+        'bkesir' => 'Balıkesir', 'b.kesir' => 'Balıkesir', 'esehir' => 'Eskişehir', 'e.sehir' => 'Eskişehir', 'ksehir' => 'Kırşehir', 'nsehir' => 'Nevşehir',
+        'adapazari' => 'Sakarya', 'antakya' => 'Hatay', 'iskenderun' => 'Hatay',
         'anadolu' => 'İstanbul', 'avrupa' => 'İstanbul', 'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
     ];
+
+    /** Yer adına benzeyen gündelik sözcükler: yazım hatası toleransıyla bile il/ilçe sanılmaz. */
+    public const STOP_WORDS = ['burda', 'orda', 'surda', 'sonra', 'yukle', 'yuklu', 'hemen', 'acele', 'kadar', 'tonaj', 'arasi', 'gunde', 'yarin',
+        'kahraman', 'kahramanlar', 'sultan', 'mustafa', 'kemal', 'kirik', 'sanli', 'gazi', 'sehir', 'merkez', 'liman', 'sanayi', 'tenteli', 'kapali',
+        'bugun', 'sabah', 'aksam', 'gece', 'fiyat', 'kamyon', 'bosta', 'ambar', 'depo', 'sube', 'aydan', 'kilit', 'ucak', 'boru', 'palet', 'torba',
+        'sirket', 'firma', 'musteri', 'dolar', 'nakit', 'siparis', 'teslim', 'gidecek', 'gelecek', 'olacak', 'lazim', 'aranan', 'yukleme', 'bosaltma'];
 
     private const SUFFIXES = ['ından', 'inden', 'undan', 'ünden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'ı', 'i', 'u', 'ü'];
 
@@ -48,41 +58,106 @@ final class TurkishCities
     /** Metindeki ilk sözcükten il adını çıkarır; bulunamazsa null. $fuzzy: yazım hatasına tolerans. */
     public static function fromText(?string $text, bool $fuzzy = true): ?string
     {
+        return self::match($text, $fuzzy)['name'] ?? null;
+    }
+
+    /**
+     * Metnin başındaki il adını ve kaç sözcük kapladığını verir (bkz. TurkishLocations::resolve: kalan sözcüklerde ilçe aranır).
+     * Sıra: noktalı kısaltma ("K.Maraş", "Ç.Kale", "G.Antep": liste ya da "ilk harf + son ek" kuralı) → ayrık yazım
+     * ("Kahraman Maraş", "Gazi Antep", "Kırık Kale", "Afyon Karahisar": sözcükler birleştirilir) → birebir/takma ad → ek atma →
+     * noktasız kısaltma ("GANTEP", "KKALE", "TDAĞ") → yazım hatası (fuzzy).
+     *
+     * @return array{name:string, tokens:int}|null
+     */
+    public static function match(?string $text, bool $fuzzy = true): ?array
+    {
         if ($text === null || trim($text) === '') {
             return null;
         }
         $clean = trim(preg_replace("/[’'‘`]/u", '', $text) ?? $text);
-        // Noktalı kısaltma ("K.Maraş", "Ş.Urfa", "D.Bakır") önce bütün olarak takma ad listesinde aranır
-        $dotted = strtok($clean, " \t\n,;:");
-        if ($dotted !== false && str_contains($dotted, '.') && isset(self::ALIASES[self::ascii(rtrim($dotted, '.'))])) {
-            return self::ALIASES[self::ascii(rtrim($dotted, '.'))];
+        $tokens = array_values(array_filter(preg_split('/[\s,;:]+/u', $clean) ?: [], fn ($t) => $t !== ''));
+        if ($tokens === []) {
+            return null;
         }
-        $first = strtok($clean, " \t\n,.;:-");
+        $map = self::asciiMap();
+
+        // 1) Noktalı kısaltma: "K.Maraş", "Ş.Urfa", "Ç.Kale", "G.Antep", "T.Dağ", "B.Kesir"
+        $t0 = rtrim($tokens[0], '.');
+        if (str_contains($t0, '.')) {
+            $a = self::ascii($t0);
+            if (isset(self::ALIASES[$a])) {
+                return ['name' => self::ALIASES[$a], 'tokens' => 1];
+            }
+            if (($abbr = self::abbreviation($a, 3)) !== null) {
+                return ['name' => $abbr, 'tokens' => 1];
+            }
+        }
+
+        // 2) Ayrık yazım: iki ya da üç sözcük birleşince il adı veriyorsa ("Kahraman Maraş", "Şanlı Urfa", "Afyon Kara Hisar")
+        foreach ([3, 2] as $n) {
+            if (count($tokens) < $n) {
+                continue;
+            }
+            $joined = self::ascii(str_replace('.', '', implode('', array_slice($tokens, 0, $n))));
+            $joined = preg_replace('/[^a-z]/', '', $joined) ?? $joined;
+            if (isset($map[$joined])) {
+                return ['name' => $map[$joined], 'tokens' => $n];
+            }
+            if (isset(self::ALIASES[$joined]) && strlen($joined) >= 6) {
+                return ['name' => self::ALIASES[$joined], 'tokens' => $n];
+            }
+        }
+
+        // 3) Tek sözcük: "Bursa-İstanbul" gibi tireli/noktalı yazımda ilk parça
+        $first = strtok($tokens[0], '.-');
         if ($first === false || $first === '') {
             return null;
         }
         $token = self::ascii($first);
         if (isset(self::ALIASES[$token])) {
-            return self::ALIASES[$token];
+            return ['name' => self::ALIASES[$token], 'tokens' => 1];
         }
-
-        $map = self::asciiMap();
         if (isset($map[$token])) {
-            return $map[$token];
+            return ['name' => $map[$token], 'tokens' => 1];
         }
         foreach (self::SUFFIXES as $suffix) {
             if (str_ends_with($token, $suffix)) {
                 $stem = substr($token, 0, -strlen($suffix));
                 if (strlen($stem) >= 3 && isset($map[$stem])) {
-                    return $map[$stem];
+                    return ['name' => $map[$stem], 'tokens' => 1];
                 }
                 if (strlen($stem) >= 3 && isset(self::ALIASES[$stem])) {
-                    return self::ALIASES[$stem]; // "antepe", "urfadan", "izmitten"
+                    return ['name' => self::ALIASES[$stem], 'tokens' => 1]; // "antepe", "urfadan", "izmitten"
                 }
             }
         }
+        // 4) Noktasız kısaltma: "GANTEP", "KKALE", "KMARAS" (ilk harf + il adının sonu, tek eşleşme)
+        if (($abbr = self::abbreviation($token, 4)) !== null) {
+            return ['name' => $abbr, 'tokens' => 1];
+        }
 
-        return $fuzzy ? self::fuzzyProvince($token) : null;
+        $name = $fuzzy ? self::fuzzyProvince($token) : null;
+
+        return $name !== null ? ['name' => $name, 'tokens' => 1] : null;
+    }
+
+    /**
+     * "İlk harf + il adının sonu" kısaltması: "c.kale" → Çanakkale, "g.antep" → Gaziantep, "kkale" → Kırıkkale.
+     * Yalnız tek bir il uyarsa; kısaltma parçası en az $minRest harf (noktalı 3, noktasız 4: gündelik sözcükler eşleşmesin).
+     */
+    public static function abbreviation(string $ascii, int $minRest): ?string
+    {
+        if (preg_match('/^([a-z])(?:\.[a-z])*?\.?([a-z]{3,})$/', $ascii, $m) !== 1 || strlen($m[2]) < $minRest) {
+            return null;
+        }
+        $hits = [];
+        foreach (self::asciiMap() as $name => $label) {
+            if ($name[0] === $m[1] && str_ends_with($name, $m[2]) && strlen($name) > strlen($m[2]) + 1) {
+                $hits[$label] = true;
+            }
+        }
+
+        return count($hits) === 1 ? array_key_first($hits) : null;
     }
 
     /**
@@ -93,10 +168,7 @@ final class TurkishCities
     {
         $token = preg_replace('/[^a-z]/', '', $asciiToken) ?? '';
         // Yer adına benzeyen gündelik sözcükler il sanılmasın ("burda" → Bursa, "aydan" → Aydın).
-        static $stop = ['burda', 'orda', 'surda', 'sonra', 'yukle', 'yuklu', 'hemen', 'acele', 'kadar', 'tonaj', 'arasi', 'gunde', 'yarin',
-            'bugun', 'sabah', 'aksam', 'gece', 'fiyat', 'kamyon', 'bosta', 'ambar', 'depo', 'liman', 'sube', 'aydan', 'kilit', 'ucak', 'boru',
-            'sirket', 'firma', 'musteri', 'dolar', 'nakit', 'siparis', 'teslim', 'gidecek', 'gelecek', 'olacak', 'lazim', 'aranan'];
-        if (strlen($token) < 5 || in_array($token, $stop, true)) {
+        if (strlen($token) < 5 || in_array($token, self::STOP_WORDS, true)) {
             return null;
         }
         // Ek takılı yazım da denenir: "diyarbakrdan" → "diyarbakr"

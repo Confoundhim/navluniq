@@ -8,7 +8,9 @@ use App\Models\Scraper;
 use App\Services\AiParserService;
 use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
+use App\Support\SeriesAd;
 use App\Support\Settings;
+use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -404,5 +406,46 @@ class LoadIntakeTest extends TestCase
         $this->assertSame('created', $result['status']);
         $this->assertSame(1, Scraper::withTrashed()->where('source_identifier', 'yaris@g.us')->count());
         $this->assertSame(1, ScrapedLoad::count());
+    }
+
+    public function test_single_pickup_many_drop_series_opens_one_candidate_per_destination_without_ai(): void
+    {
+        $this->activeSource();
+        Settings::set('ai_parse_mode', 'always'); // yapay zeka öncelikli kipte bile seri ilan kuralla çözülür
+        $burdur = ['AĞLASUN', 'ALTINYAYLA', 'BUCAK', 'MERKEZ', 'ÇAVDIR', 'ÇELTİKÇİ', 'GÖLHİSAR', 'KARAMANLI', 'KEMER', 'TEFENNİ', 'YEŞİLOVA'];
+        $isparta = ['AKSU', 'ATABEY', 'EĞİRDİR', 'GELENDOST', 'GÖNEN', 'MERKEZ', 'KEÇİBORLU', 'SENİRKENT'];
+        $block = fn (string $il, array $ilceler, bool $ozet) => "🔴Ç.KALE ÇAN TORBA KÖMÜR YÜKLER\n".($ozet ? "🔸 {$il} İLÇELERİ BOŞALTIR\n" : '')
+            .implode("\n", array_map(fn ($i) => "🔸 {$il} {$i} BOŞALTIR", $ilceler))."\n⚠️ DAMPERLİ ARAÇLAR";
+        $message = $block('BURDUR', $burdur, true)."\n------------------------\n".$block('ISPARTA', $isparta, false)."\n📞0530 111 22 33\n📞0539 444 55 66";
+
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => $message, 'message_id' => 's1', 'source_jid' => '1203630000001@g.us']);
+
+        $this->assertSame('created', $r['status'], json_encode($r, JSON_UNESCAPED_UNICODE));
+        $this->assertCount(19, $r['created_ids'], '11 Burdur + 8 Isparta noktası; özet satırı sayılmaz, 15 sınırı uygulanmaz');
+        Http::assertNothingSent();
+        $loads = ScrapedLoad::orderBy('id')->get();
+        $this->assertSame([17], $loads->pluck('pickup_province_code')->map(fn ($c) => (int) $c)->unique()->values()->all(), 'Ç.KALE = Çanakkale');
+        $this->assertSame('Çan', $loads->first()->pickup_district);
+        $this->assertSame(['Ağlasun', 'Altınyayla', 'Bucak'], $loads->take(3)->pluck('delivery_district')->all());
+        $this->assertSame([15 => 11, 32 => 8], $loads->groupBy(fn ($l) => (int) $l->delivery_province_code)->map->count()->all());
+        $this->assertTrue($loads->every(fn ($l) => in_array('damperli', (array) $l->body_types, true)), 'blok sonundaki kasa notu her noktaya uygulanır');
+        $this->assertTrue($loads->every(fn ($l) => $l->goods_type === 'Kömür'), 'başlıktaki yük her noktaya uygulanır');
+        $this->assertTrue($loads->every(fn ($l) => $l->plainPhone() === '5301112233' && $l->extraPhones() === ['5394445566']));
+        $this->assertTrue($loads->every(fn ($l) => $l->ai_status === 'skipped' && (int) $l->meta('series')['count'] === 19));
+        $this->assertSame('parsed_success', $loads->first()->status);
+
+        // Aynı seri ikinci bir gruptan gelince tekrar sayılır, yeni kayıt açılmaz.
+        $this->activeSource('1203630000002@g.us');
+        $again = app(LoadIntakeService::class)->intake(['group_name' => 'Başka Grup', 'raw_message' => $message, 'message_id' => 's2', 'source_jid' => '1203630000002@g.us']);
+        $this->assertSame('duplicate', $again['status']);
+        $this->assertSame(19, ScrapedLoad::count());
+    }
+
+    public function test_series_is_not_triggered_by_ordinary_multi_route_lists(): void
+    {
+        $message = "Bursa - İstanbul 13.60 tenteli\nBursa - Ankara 13.60 tenteli\nBursa - İzmir 13.60 tenteli\n0544 111 11 14";
+        $this->assertNull(SeriesAd::segments(TextPrep::prepare($message)));
+        $this->assertSame('Çanakkale', TurkishCities::fromText('Ç.KALE'));
+        $this->assertSame('Çanakkale', TurkishCities::fromText('ç.kale çan'));
     }
 }

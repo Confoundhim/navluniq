@@ -58,6 +58,14 @@ final class TurkishLocations
         ['p' => 34, 'n' => 'Arnavutköy', 'lat' => 41.14, 'lng' => 28.63, 'aliases' => ['Hadımköy', 'Hadimkoy', 'Tayakadın']],
         ['p' => 34, 'n' => 'Avcılar', 'lat' => 41.02, 'lng' => 28.72, 'aliases' => ['Ambarlı', 'Ambarlı Liman', 'Marport', 'Kumport']],
         ['p' => 34, 'n' => 'Sultangazi', 'lat' => 41.10, 'lng' => 28.87],
+        ['p' => 34, 'n' => 'Adalar', 'lat' => 40.88, 'lng' => 29.09, 'aliases' => ['Büyükada', 'Heybeliada', 'Burgazada', 'Kınalıada']],
+        ['p' => 34, 'n' => 'Fatih', 'lat' => 41.02, 'lng' => 28.94, 'aliases' => ['Eminönü', 'Topkapı', 'Aksaray İstanbul']],
+        ['p' => 34, 'n' => 'Beyoğlu', 'lat' => 41.03, 'lng' => 28.97, 'aliases' => ['Kasımpaşa', 'Karaköy', 'Taksim']],
+        ['p' => 34, 'n' => 'Zeytinburnu', 'lat' => 41.00, 'lng' => 28.90, 'aliases' => ['Z.Burnu', 'Zburnu']],
+        ['p' => 34, 'n' => 'Gaziosmanpaşa', 'lat' => 41.06, 'lng' => 28.91, 'aliases' => ['G.O.Paşa', 'GOP']],
+        ['p' => 41, 'n' => 'İzmit', 'lat' => 40.77, 'lng' => 29.92, 'aliases' => ['Kocaeli', 'Kocaeli Merkez']],
+        ['p' => 54, 'n' => 'Adapazarı', 'lat' => 40.78, 'lng' => 30.40, 'aliases' => ['Sakarya Merkez']],
+        ['p' => 31, 'n' => 'Antakya', 'lat' => 36.20, 'lng' => 36.16, 'aliases' => ['Hatay Merkez']],
         ['p' => 34, 'n' => 'Sancaktepe', 'lat' => 41.00, 'lng' => 29.23, 'aliases' => ['Samandıra']],
         ['p' => 41, 'n' => 'Çayırova', 'lat' => 40.83, 'lng' => 29.37, 'aliases' => ['Şekerpınar', 'Sekerpinar']],
         ['p' => 42, 'n' => 'Ereğli', 'lat' => 37.51, 'lng' => 34.05, 'aliases' => ['Zengen', 'Konya Ereğli']],
@@ -120,7 +128,8 @@ final class TurkishLocations
             foreach (array_merge(self::$data['districts'], self::EXTRA_PLACES) as $d) {
                 self::$districtIndex[$d['p']][TurkishCities::ascii($d['n'])] = ['n' => $d['n'], 'lat' => $d['lat'], 'lng' => $d['lng']];
                 foreach ($d['aliases'] ?? [] as $alias) {
-                    self::$districtIndex[$d['p']][TurkishCities::ascii($alias)] = ['n' => $d['n'], 'lat' => $d['lat'], 'lng' => $d['lng']];
+                    // Takma ad (semt, OSB, firma adı): birebir eşleşir; yazım hatası toleransı yalnız gerçek ilçe adlarında.
+                    self::$districtIndex[$d['p']][TurkishCities::ascii($alias)] = ['n' => $d['n'], 'lat' => $d['lat'], 'lng' => $d['lng'], 'alias' => true];
                 }
             }
         }
@@ -193,11 +202,19 @@ final class TurkishLocations
         $words = preg_split('/[\s,\/\-()]+/u', $clean) ?: [];
         $words = array_values(array_filter($words, fn ($w) => $w !== ''));
 
-        // Sıra: birebir il → tek başına ilçe adı → yazım hatalı il → yazım hatalı ilçe.
-        $province = TurkishCities::fromText($clean, fuzzy: false);
-        $code = $province ? (self::$provinceIndex[TurkishCities::ascii($province)] ?? null) : null;
+        // Sıra: birebir il (kısaltma, ayrık yazım dahil) → tek başına ilçe adı → yazım hatalı il → yazım hatalı ilçe.
+        $match = TurkishCities::match($clean, fuzzy: false);
+        $code = $match ? (self::$provinceIndex[TurkishCities::ascii($match['name'])] ?? null) : null;
         if ($code !== null) {
-            return self::withDistrict($code, array_slice($words, 1));
+            // "Kahraman Maraş Elbistan": il iki sözcük kapladıysa ilçe üçüncüden başlar. $words tire/eğik çizgiden de
+            // bölündüğü için ilin kapladığı ham sözcüklerin kaç parçaya bölündüğü sayılır.
+            $skip = 0;
+            $rawTokens = array_values(array_filter(preg_split('/[\s,;:]+/u', $clean) ?: [], fn ($t) => $t !== ''));
+            foreach (array_slice($rawTokens, 0, $match['tokens']) as $raw) {
+                $skip += max(1, count(array_filter(preg_split('/[\/\-()]+/u', $raw) ?: [], fn ($t) => $t !== '')));
+            }
+
+            return self::withDistrict($code, array_slice($words, $match['tokens'] > 1 ? $skip : 1));
         }
 
         foreach ($fuzzy ? [false, true] : [false] as $try) {
@@ -224,7 +241,7 @@ final class TurkishLocations
     /** İl bulunduysa kalan sözcüklerde ilçe arar (önce birebir, sonra yazım hatalı). */
     private static function withDistrict(int $code, array $rest): array
     {
-        $district = self::matchDistrict($code, $rest, false) ?? self::matchDistrict($code, $rest, true);
+        $district = self::matchDistrict($code, $rest, false, true) ?? self::matchDistrict($code, $rest, true, true);
         $p = self::province($code);
 
         return [
@@ -237,18 +254,22 @@ final class TurkishLocations
     }
 
     /** @param list<string> $words */
-    private static function matchDistrict(int $provinceCode, array $words, bool $fuzzy = false): ?array
+    /** $abbrev: kısaltma çözümü yalnız il biliniyorken ("K.ELİ" tek başına Korkuteli sanılmasın). */
+    private static function matchDistrict(int $provinceCode, array $words, bool $fuzzy = false, bool $abbrev = false): ?array
     {
         $districts = self::$districtIndex[$provinceCode] ?? [];
         if ($districts === [] || $words === []) {
             return null;
         }
-        // İki sözcüklü ilçe adları ("Sultan Beyli" yazımı gibi) için birleşik denemeler
+        // İki/üç sözcüklü ilçe adları ("Sultan Beyli", "Mustafa Kemal Paşa" yazımı gibi) için birleşik denemeler
         $candidates = [];
         foreach ($words as $i => $w) {
             $candidates[] = $w;
             if (isset($words[$i + 1])) {
                 $candidates[] = $w.$words[$i + 1];
+            }
+            if (isset($words[$i + 2])) {
+                $candidates[] = $w.$words[$i + 1].$words[$i + 2];
             }
         }
         foreach ($candidates as $cand) {
@@ -269,17 +290,34 @@ final class TurkishLocations
                 }
             }
         }
+        // Kısaltma: "Ş.Karaağaç" → Şarkikaraağaç, "K.Çekmece" → Küçükçekmece, "G.O.Paşa" → Gaziosmanpaşa, "K.Karabekir" → Kazımkarabekir;
+        // noktasız ("KKARABEKİR") yalnız 5+ harflik son ekle. İl içinde tek bir ilçe uyuyorsa.
+        foreach ($abbrev ? $candidates : [] as $cand) {
+            $a = TurkishCities::ascii($cand);
+            if (preg_match('/^([a-z])(?:\.[a-z])*?(\.?)([a-z]{3,})$/', $a, $m) !== 1 || strlen($m[3]) < ($m[2] === '.' ? 3 : 5)) {
+                continue;
+            }
+            $hits = [];
+            foreach ($districts as $ascii => $d) {
+                if ($ascii[0] === $m[1] && str_ends_with($ascii, $m[3]) && strlen($ascii) > strlen($m[3]) + 1) {
+                    $hits[$d['n']] = $d;
+                }
+            }
+            if (count($hits) === 1) {
+                return array_values($hits)[0];
+            }
+        }
         if (! $fuzzy) {
             return null;
         }
         // Yazım hatası: tek harf farkı (5+ harf). "cesme" ↔ "çeşme" zaten ascii'de eşittir.
         foreach ($candidates as $cand) {
             $a = TurkishCities::ascii($cand);
-            if (strlen($a) < 5) {
+            if (strlen($a) < 5 || in_array($a, TurkishCities::STOP_WORDS, true)) {
                 continue;
             }
             foreach ($districts as $ascii => $d) {
-                if (abs(strlen($ascii) - strlen($a)) <= 1 && levenshtein($a, $ascii) === 1) {
+                if (empty($d['alias']) && abs(strlen($ascii) - strlen($a)) <= 1 && levenshtein($a, $ascii) === 1) {
                     return $d;
                 }
             }
