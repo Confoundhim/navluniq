@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Canlı yedeğini yerel docker ortamına yükler. İki yedek biçimini de tanır:
-#   - Panel yedeği (Yönetim → Yedekler → indir): navluniq-YYYY-mm-dd_HHMM.zip (database.sql, env.txt, storage/*)
-#   - Sunucu betiği yedeği (deploy/backup.sh): navluniq-YYYYmmdd-HHMMSS.tar.gz
-# "app" kabının içinde çalışır:
-#   docker compose run --rm app bash deploy/docker/yerel-geri-yukle.sh /yedek/navluniq-2026-09-27_1503.zip
+# Canlı yedeğini (deploy/backup.sh çıktısı) yerel docker ortamına yükler. "app" kabının içinde çalışır:
+#   docker compose run --rm app bash deploy/docker/yerel-geri-yukle.sh /yedek/navluniq-YYYYmmdd-HHMMSS.tar.gz
 #
 # Yaptıkları: yedeği açar, yerel .env yazar (APP_KEY canlıdan gelir; şifreli telefonlar okunur), veritabanını
 # sıfırlayıp dökümü yükler, belgeleri yerine koyar, bağımlılıkları kurar, ön yüzü derler, migration çalıştırır,
@@ -29,26 +26,10 @@ cd "$APP_DIR"
 
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 log "Yedek açılıyor"
+tar -C "$WORK" -xzf "$ARCHIVE"
 Y="$WORK/yedek"
-STORAGE_TAR=""; STORAGE_DIR=""
-case "$ARCHIVE" in
-    *.zip)
-        unzip -q "$ARCHIVE" -d "$WORK/zip"
-        mkdir -p "$Y"
-        [[ -f "$WORK/zip/database.sql" && -f "$WORK/zip/env.txt" ]] || fail "Panel yedeğinde database.sql ya da env.txt yok (tam yedek olmalı, yalnız veritabanı değil)."
-        cp "$WORK/zip/env.txt" "$Y/env"
-        SQL_CMD=(cat "$WORK/zip/database.sql")
-        [[ -d "$WORK/zip/storage" ]] && STORAGE_DIR="$WORK/zip/storage"
-        ok "panel yedeği (zip)"
-        ;;
-    *)
-        tar -C "$WORK" -xzf "$ARCHIVE"
-        [[ -f "$Y/veritabani.sql.gz" && -f "$Y/env" ]] || fail "Yedekte veritabanı dökümü ya da .env yok."
-        SQL_CMD=(gunzip -c "$Y/veritabani.sql.gz")
-        [[ -f "$Y/storage-app.tar.gz" ]] && STORAGE_TAR="$Y/storage-app.tar.gz"
-        [[ -f "$Y/SURUM.txt" ]] && sed 's/^/  /' "$Y/SURUM.txt"
-        ;;
-esac
+[[ -f "$Y/veritabani.sql.gz" && -f "$Y/env" ]] || fail "Yedekte veritabanı dökümü ya da .env yok."
+[[ -f "$Y/SURUM.txt" ]] && sed 's/^/  /' "$Y/SURUM.txt"
 
 log "Yerel .env"
 cp "$Y/env" .env
@@ -88,20 +69,12 @@ for i in $(seq 1 60); do
 done
 mysql -h "$DB_HOST" -u root -p"$ROOT_PASS" -e "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL ON \`${DB_NAME}\`.* TO '${DB_USER}'@'%'; FLUSH PRIVILEGES;"
 log "Döküm yükleniyor"
-"${SQL_CMD[@]}" | mysql -h "$DB_HOST" -u root -p"$ROOT_PASS" --default-character-set=utf8mb4 "$DB_NAME"
+gunzip -c "$Y/veritabani.sql.gz" | mysql -h "$DB_HOST" -u root -p"$ROOT_PASS" --default-character-set=utf8mb4 "$DB_NAME"
 ok "$(mysql -h "$DB_HOST" -u root -p"$ROOT_PASS" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}'") tablo yüklendi"
 
 log "Belgeler ve yüklemeler"
 mkdir -p storage/app
-if [[ -n "$STORAGE_TAR" ]]; then
-    tar -C storage -xzf "$STORAGE_TAR" && ok "storage/app yerine kondu"
-elif [[ -n "$STORAGE_DIR" ]]; then
-    # Panel zip'i: storage/kyc, storage/private, storage/public → storage/app/{kyc,private,public}
-    for d in kyc private public; do
-        [[ -d "$STORAGE_DIR/$d" ]] && mkdir -p "storage/app/$d" && cp -a "$STORAGE_DIR/$d/." "storage/app/$d/"
-    done
-    ok "belgeler storage/app altına kondu"
-fi
+[[ -f "$Y/storage-app.tar.gz" ]] && tar -C storage -xzf "$Y/storage-app.tar.gz" && ok "storage/app yerine kondu"
 mkdir -p storage/app/kyc storage/app/private storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
 chmod -R a+rwX storage bootstrap/cache
 

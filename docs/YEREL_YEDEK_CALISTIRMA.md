@@ -27,27 +27,25 @@ Canlı siteye hiçbir etkisi yoktur.
 
 ## Yedeği indirip yükleme (her seferinde)
 
-1. **Yedeği alın.** En kolayı panel: Yönetim → **Yedekler** → "Tam yedek al" → listeden **indir**. Zip dosyası
-   (`navluniq-2026-09-27_1503.zip` gibi) son verileri, belgeleri ve anahtarları içerir. Bilgisayarda projedeki
-   `yedek` klasörüne taşıyın (ör. `C:\Users\osman\navluniq\yedek`).
-
-   Diğer yol, sunucu betiği: SSH ile `bash /var/www/navluniq/deploy/backup.sh`, sonra PowerShell'de (sonundaki
-   `yedek\` hedefi şart; root şifresi sorulur):
+1. Sunucuda yedek alın (SSH ile): `bash /var/www/navluniq/deploy/backup.sh` → dosya adını not edin.
+2. Yedeği bilgisayara, projedeki `yedek` klasörüne indirin (sonundaki `yedek\` hedefi şart; root şifresi sorulur):
 
    ```powershell
    cd $HOME\navluniq
    scp root@185.22.187.140:/var/backups/navluniq/navluniq-20260927-130337.tar.gz yedek\
    ```
 
-2. Veritabanı ve Redis kaplarını başlatıp yedeği yükleyin (ilk seferde 5 dakika kadar; zip ya da tar.gz fark etmez):
+   (Dosya adını kendi yedeğinizinkiyle değiştirin. En yenisini almak için adı yıldızla da yazabilirsiniz:
+   `.../navluniq-*.tar.gz yedek\`)
+3. Veritabanı ve Redis kaplarını başlatıp yedeği yükleyin (ilk seferde 5 dakika kadar):
 
    ```powershell
    docker compose up -d mysql redis
-   docker compose run --rm app bash deploy/docker/yerel-geri-yukle.sh /yedek/navluniq-2026-09-27_1503.zip
+   docker compose run --rm app bash deploy/docker/yerel-geri-yukle.sh /yedek/navluniq-20260927-130337.tar.gz
    ```
 
    Sonunda "Yerel kopya hazır" özeti çıkar.
-3. Siteyi başlatın ve tarayıcıda açın:
+4. Siteyi başlatın ve tarayıcıda açın:
 
    ```powershell
    docker compose up -d
@@ -60,7 +58,7 @@ Canlı siteye hiçbir etkisi yoktur.
 - Durdurmak: `docker compose down` · Yeniden başlatmak: `docker compose up -d`
 - Kodu güncellemek (GitHub'daki son sürüm): `git pull` sonra
   `docker compose run --rm app sh -c "composer install --no-interaction && npm ci && npm run build && php artisan migrate --force"`
-- Yeni bir yedek yüklemek: 1. ve 2. adımı tekrarlayın (veritabanı yedekten yeniden yüklenir, eski yerel veri silinir).
+- Yeni bir yedek yüklemek: 2. ve 3. adımı tekrarlayın (veritabanı yedekten yeniden yüklenir, eski yerel veri silinir).
 - Kayıtlar: `docker compose logs -f app` · Veritabanına dışarıdan bağlanmak (ör. HeidiSQL): `localhost`, kapı `3307`,
   kullanıcı `navluniq`, şifre `navluniq`.
 
