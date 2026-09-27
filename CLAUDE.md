@@ -62,8 +62,10 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   (visibility/status, ai_status, intake_events created_at+status) bileşik indeks aldı (`0001_01_28`), MySQL bellek havuzu
   RAM/4 (`innodb_buffer_pool_size`, install.sh yazar). Ölçüm: `LogSlowRequests` ara katmanı 3 sn'yi aşan istekleri
   laravel.log'a yol/süre/sorgu sayısıyla yazar (`app.slow_request_seconds`); MySQL yavaş sorgu günlüğü (`long_query_time=2`) sunucuda açık.
-- **Sunucu taşıma:** `docs/SUNUCU_TASINMA.md` (hazırlık, geçiş günü, geri dönüş). Eski sunucuda `deploy/backup.sh`
-  (veritabanı + .env + storage/app + /etc/letsencrypt), yeni sunucuda `deploy/tasima.sh [--kontrol] yedek.tar.gz`
+- **Tek dosyadan ayağa kaldırma / taşıma:** `docs/SUNUCU_TASINMA.md`. Panel tam yedeği (zip) artık **kodu da** içerir
+  (`BackupService::codeFiles`: `git ls-files` + `public/build`, `kod/` altında; vendor yok) ve BENIOKU.txt adımları yazar:
+  `unzip` → `bash kod/deploy/geri-yukle.sh yedek.zip`; GitHub gerekmez. `deploy/backup.sh` de `kod.tar.gz` ekler.
+  `install.sh` `.git` yoksa mevcut kodu kullanır (clone etmez). Yeni sunucuda `deploy/geri-yukle.sh [--kontrol] yedek.zip|tar.gz`
   (MySQL/Redis/supervisor kurar, veritabanını ve belgeleri yükler, `install.sh`'ı çağırır, güncelleme düğmesini kurar;
   `FORCE_IMPORT=1` dolu veritabanını yeniden yükler; `--deneme` IP ile açılan yalıtılmış kopya: `MAIL_MAILER=log` +
   `php artisan deneme:izole` (e-posta/Telegram kapalı, ödeme sağlayıcısı boş, süper yöneticiler kod 123456 ile girer)). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,

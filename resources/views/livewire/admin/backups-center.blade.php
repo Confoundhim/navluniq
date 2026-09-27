@@ -68,7 +68,7 @@ new class extends Component {
     <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Yedekleme</h1>
-            <p class="page-subtitle">Veritabanı (tüm ayarlar, kaynaklar, ilanlar, kullanıcılar), .env ve yüklenen dosyalar tek zip'te. Her gece 03:30'da otomatik yedek alınır; son {{ \App\Services\BackupService::DEFAULT_KEEP }} yedek sunucuda tutulur.</p>
+            <p class="page-subtitle">Uygulama kodu, veritabanı (tüm ayarlar, kaynaklar, ilanlar, kullanıcılar), .env ve yüklenen dosyalar tek zip'te; bu dosya siteyi başka bir sunucuda ayağa kaldırmaya yeter (içindeki BENIOKU.txt anlatır). Her gece 03:30'da otomatik yedek alınır; son {{ \App\Services\BackupService::DEFAULT_KEEP }} yedek sunucuda tutulur.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <button type="button" wire:click="createBackup('full')" wire:loading.attr="disabled" class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50">
@@ -94,7 +94,7 @@ new class extends Component {
                     @forelse($backups as $backup)
                         <tr class="align-top">
                             <td class="p-4"><div class="font-mono font-bold">{{ $backup->filename }}</div>@if($backup->sha256)<div class="text-[10px] text-neutral-400 font-mono">sha256 {{ substr($backup->sha256, 0, 16) }}…</div>@endif</td>
-                            <td class="p-4" data-label="Tür">{{ $backup->backup_type === 'database' ? 'Veritabanı' : 'Tam (veritabanı + dosyalar)' }}</td>
+                            <td class="p-4" data-label="Tür">{{ $backup->backup_type === 'database' ? 'Veritabanı' : 'Tam (kod + veritabanı + dosyalar)' }}</td>
                             <td class="p-4 whitespace-nowrap tabular-nums" data-label="Boyut">{{ number_format((float) $backup->size_mb, 2, ',', '.') }} MB</td>
                             <td class="p-4" data-label="Durum">
                                 <span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $backup->status === 'completed' ? 'bg-emerald-500/10 text-emerald-600' : ($backup->status === 'failed' ? 'bg-red-500/10 text-red-600' : 'bg-amber-500/10 text-amber-600') }}">{{ ['completed' => 'Hazır', 'failed' => 'Başarısız', 'running' => 'Alınıyor'][$backup->status] ?? $backup->status }}</span>
