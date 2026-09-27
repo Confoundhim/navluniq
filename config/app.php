@@ -65,6 +65,11 @@ return [
     |
     */
 
+    /*
+    | Yavaş istek eşiği (saniye): bu süreyi aşan istekler laravel.log'a yazılır; 0 kapatır.
+    */
+    'slow_request_seconds' => (float) env('SLOW_REQUEST_SECONDS', 3),
+
     'timezone' => env('APP_TIMEZONE', 'Europe/Istanbul'),
 
     /*
