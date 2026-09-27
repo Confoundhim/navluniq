@@ -22,9 +22,9 @@
     <title>{{ $title }}</title>
 
     <!-- Tarayıcı Sekme İkonu (Favicon) -->
-    <link rel="icon" type="image/png" href="/images/fav-ico.png">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    <link rel="shortcut icon" href="/images/fav-ico.png">
+    <link rel="icon" type="image/png" href="{{ asset_v('/images/fav-ico.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset_v('/apple-touch-icon.png') }}">
+    <link rel="shortcut icon" href="{{ asset_v('/images/fav-ico.png') }}">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
@@ -63,12 +63,12 @@
                         class="flex flex-col items-start group select-none transition-transform duration-300 ease-apple-ease hover:scale-[1.03]">
                         <div class="flex items-center space-x-2">
                             <!-- Açık Tema Logosu -->
-                            <img src="/images/logo-dark.png"
+                            <img src="{{ asset_v('/images/logo-dark.png') }}"
                                  alt="NavlunIQ Admin"
                                  class="h-6 w-auto block dark:hidden transition-transform duration-300 group-hover:scale-105">
 
                             <!-- Koyu Tema Logosu -->
-                            <img src="/images/logo-white.png"
+                            <img src="{{ asset_v('/images/logo-white.png') }}"
                                  alt="NavlunIQ Admin"
                                  class="h-6 w-auto hidden dark:block transition-transform duration-300 group-hover:scale-105">
 

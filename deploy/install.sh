@@ -109,7 +109,9 @@ ok "PHP yükleme sınırı 12 MB"
 # MySQL bu sunucudaysa: her kayıtta diske onay beklenmez (tek sunucu, kopya yok). Yavaş diskte fark çok büyük.
 if [[ -d /etc/mysql/mysql.conf.d ]] && systemctl is-active --quiet mysql 2>/dev/null; then
     MYCNF="/etc/mysql/mysql.conf.d/99-navluniq.cnf"
-    WANT=$'[mysqld]\ninnodb_flush_log_at_trx_commit = 2\nskip-log-bin\n'
+    # Bellek havuzu: tablolar ve indeksler RAM'de kalsın (varsayılan 128 MB yavaş diskte sürekli okuma demek). RAM'in dörtte biri.
+    POOL_MB=$(( $(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo) / 4 )); (( POOL_MB < 256 )) && POOL_MB=256
+    WANT=$'[mysqld]\ninnodb_flush_log_at_trx_commit = 2\nskip-log-bin\n'"innodb_buffer_pool_size = ${POOL_MB}M"$'\n'
     if [[ ! -f "$MYCNF" ]] || [[ "$(cat "$MYCNF")" != "$(printf '%s' "$WANT")" ]]; then
         printf '%s' "$WANT" > "$MYCNF"
         systemctl restart mysql
