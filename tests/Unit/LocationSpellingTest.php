@@ -88,6 +88,10 @@ class LocationSpellingTest extends TestCase
         yield 'Adapazarı' => ['Adapazarı', 'Sakarya', null];
         yield 'Antakya' => ['Antakya', 'Hatay', null];
         yield 'Gebze' => ['Gebze', 'Kocaeli', 'Gebze'];
+        yield 'Mecitözünden' => ['Mecitözünden', 'Çorum', 'Mecitözü'];
+        yield 'Tekkeköyünden' => ['Tekkeköyünden', 'Samsun', 'Tekkeköy'];
+        yield 'Rize Pazar' => ['Rize Pazar', 'Rize', 'Pazar'];
+        yield 'Samsun Çarşamba' => ['Samsun Çarşamba', 'Samsun', 'Çarşamba'];
         // Düzeltilen ilçe tablosu
         yield 'Aksaray Ağaçören' => ['Aksaray Ağaçören', 'Aksaray', 'Ağaçören'];
         yield 'Burdur Altınyayla' => ['Burdur Altınyayla', 'Burdur', 'Altınyayla'];
@@ -111,7 +115,7 @@ class LocationSpellingTest extends TestCase
     /** @return iterable<string, array{string}> */
     public static function nonPlaces(): iterable
     {
-        foreach (['kadar', 'burda', 'sonra', 'Kahraman', 'kamyon', 'tenteli', 'yükleme', 'acil', 'sanayi', 'liman', 'merkez'] as $w) {
+        foreach (['kadar', 'burda', 'sonra', 'Kahraman', 'kamyon', 'tenteli', 'yükleme', 'acil', 'sanayi', 'liman', 'merkez', 'PAZAR GÜNÜ', 'Çarşamba günü', 'cuma akşamı', 'pazartesi sabah'] as $w) {
             yield $w => [$w];
         }
     }

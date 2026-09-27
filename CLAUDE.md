@@ -91,6 +91,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "X İLÇELERİ BOŞALTIR" özet satırı ilçeler tek tek varsa atlanır; yapay zeka çağrılmaz (`skip_ai`); rota tekrarı ilçe
   düzeyinde (`routeKey(..., districtLevel: true)`); `parse_metadata.series` → kartta "Seri ilan · N nokta" rozeti.
   Engin Abi'nin 2026-09-27 örneği (40 araçlık kömür ilanı) buna göre eklendi. "Ç.KALE" takma adı Çanakkale.
+  **İkinci seri biçimi (lojistik firması "il / ilçe" listesi):** "SAMSUN YÜKLEMELERİ" başlığı + araç/yük notları + irtibat bloğu +
+  alt alta "Amasya / MERZİFON", "Ankara / KAZAN", "Iğdır / IĞDIR" satırları; boşaltma fiili yoktur. Başlık görüldükten sonra yalnız yer
+  adı taşıyan her satır boşaltma noktasıdır (`SeriesAd::isPlaceOnly`), "MERKEZ" ve il adının tekrarı il düzeyi sayılır, başlık bloğunun
+  notları (kasa, yük) her noktaya taşınır, irtibat bloğundaki adlar taşınmaz; sınır 120 nokta. `PICKUP_VERBS` "yüklemeleri / yüklemesi"
+  biçimlerini tanır. WhatsApp'tan kopyalanan "[26/9 23:01] Grup: " ve "26.09.2026 23:01 - Grup: " ön ekleri `TextPrep::prepare`'de atılır;
+  "PAZAR GÜNÜ / Çarşamba sabahı" gibi gün ifadeleri yer sanılmaz (`TurkishLocations::stripDayPhrases`; "Rize Pazar", "Samsun Çarşamba"
+  il ile yazılınca çözülür); "-nden/-ndan" ekli ilçe ("Mecitözünden") çözülür; "3 ARABA" = 3 araç; "çekirdek" tarım ürünü.
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
   kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak

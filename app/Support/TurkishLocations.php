@@ -178,6 +178,15 @@ final class TurkishLocations
      *
      * @return array{province_code:int, province:string, district:?string, lat:float, lng:float}|null
      */
+    /** "Pazar günü", "Çarşamba sabahı", "Cuma akşamı": gün adı + zaman sözcüğü; Rize Pazar ya da Samsun Çarşamba değildir. */
+    private const DAY_PHRASE = '/(?<!\p{L})(?:pazartes[iİı]|sal[ıiİI]|çarşamba|carsamba|perşembe|persembe|cuma|cumartes[iİı]|pazar)\s+(?:g[üu]n[üu]|g[üu]n|sabah[ıiİI]|sabah|akşam[ıiİI]|aksam[ıiİI]|akşam|aksam|gece)(?!\p{L})/iu';
+
+    /** Metinden "X günü" biçimindeki gün ifadelerini atar (yer çözümünden önce). */
+    public static function stripDayPhrases(string $text): string
+    {
+        return trim(preg_replace(self::DAY_PHRASE, ' ', $text) ?? $text);
+    }
+
     public static function resolve(?string $text, bool $fuzzy = true): ?array
     {
         if ($text === null || trim($text) === '') {
@@ -186,6 +195,10 @@ final class TurkishLocations
         self::load();
         $clean = preg_replace("/[’'‘`]/u", '', trim($text)) ?? trim($text);
         $clean = trim(preg_replace('/[()\[\]]+/u', ' ', $clean) ?? $clean); // "Elmadağ(Ank)", "Bolu (Oyak)"
+        $clean = self::stripDayPhrases($clean);
+        if ($clean === '') {
+            return null;
+        }
         // Jargon sözlüğü önce: "ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze" (yönetici ya da öğrenilmiş).
         static $depth = 0;
         if ($depth === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
@@ -281,7 +294,7 @@ final class TurkishLocations
                 return $districts[$a];
             }
             // Ek atma: "aliagaya" → "aliaga", "gebzeden" → "gebze"
-            foreach (['indan', 'inden', 'undan', 'unden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'i', 'u'] as $suffix) {
+            foreach (['indan', 'inden', 'undan', 'unden', 'ndan', 'nden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'i', 'u'] as $suffix) {
                 if (str_ends_with($a, $suffix)) {
                     $stem = substr($a, 0, -strlen($suffix));
                     if (strlen($stem) >= 4 && isset($districts[$stem])) {

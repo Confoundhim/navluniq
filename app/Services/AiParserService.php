@@ -1285,7 +1285,7 @@ TXT;
      */
     public static function placesIn(string $text, int $limit = PHP_INT_MAX): array
     {
-        $text = TextPrep::prepare($text);
+        $text = TurkishLocations::stripDayPhrases(TextPrep::prepare($text)); // "PAZAR GÜNÜ" Rize Pazar değildir
         $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
         $words = array_values(array_filter(preg_split('/[\s,\/;:()+>|]+/u', $text) ?: [], fn ($w) => $w !== ''));
         $found = [];
@@ -1453,7 +1453,7 @@ TXT;
         return [$pickup, $delivery]; // aynı yer ("ankara lojistik üssü yükler / … iner"): şehir içi taşıma
     }
 
-    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
+    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
 
     public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|boşaltır|bosaltir|boşaltma|bosaltma|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
 

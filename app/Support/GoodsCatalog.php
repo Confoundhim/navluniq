@@ -45,7 +45,7 @@ final class GoodsCatalog
         'kereste' => ['label' => 'Kereste / orman ürünü', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
             'pattern' => '/\b(?:kereste|tomruk|sunta|mdf|kontrplak|osb|ahsap|odun|kutuk\s+agac)\w*/'],
         'tarim' => ['label' => 'Tarım ürünü', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
-            'pattern' => '/\b(?:saman|pres\s+saman|yem\b|yemi\b|cuvalli\s+yem|bugday|arpa|misir|tahil|pamuk|ayciceg|silaj|yonca|balya|balle|balye|seker\s+pancar\w*|pancar|kepek|kuspe|tohum|soya|kanola|fistik|tutun)\w*/'],
+            'pattern' => '/\b(?:saman|pres\s+saman|yem\b|yemi\b|cuvalli\s+yem|bugday|arpa|misir|tahil|pamuk|ayciceg|cekirdek|cekirdegi|silaj|yonca|balya|balle|balye|seker\s+pancar\w*|pancar|kepek|kuspe|tohum|soya|kanola|fistik|tutun)\w*/'],
         'orman_kagit' => ['label' => 'Ağaç / kağıt hammaddesi', 'min_vehicle' => 'tir', 'traits' => [],
             'pattern' => '/\b(?:tahta\s+cips\w*|agac\s+cips\w*|cips\b|yonga|talas|tahta\s+parca\w*|kabuk|odun\s+parca\w*)\w*/'],
         'meyve_sebze' => ['label' => 'Meyve / sebze', 'min_vehicle' => 'kamyonet', 'traits' => ['cold'],
