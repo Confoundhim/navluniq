@@ -182,6 +182,11 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   Testler yerel `.env`'den bağımsızdır (`phpunit.xml` içindeki `<env>` satırları); `.env`'deki bir değer testi bozarsa oraya eklenir.
   Kapta MariaDB yoksa: `apt-get update && apt-get install -y mariadb-server`, sonra yukarıdaki `mysqld_safe` komutu.
   Yeni özellik = yeni test. Kod biçimi: `vendor/bin/pint --dirty`.
+- **Altın ölçüm seti** (`resources/data/altin-set.json` + `App\Support\IntakeBenchmark::generated`, 200+ örnek, uydurma numaralar):
+  gruplarda görülen yazım biçimleri ve kuralın vermesi gereken sonuç. `php artisan ilan:dogruluk` raporu yazar; `GoldenSetTest`
+  setin tamamının doğru çözülmesini ister (yapay zekasız). Yeni bir yazım biçimi düzeltildiğinde JSON'a örnek eklenir; beklenti
+  alanları: ads, routes, vehicle, body, goods, count, weight, price, phone, filtered, each. Osman'ın 2026-09-28 kararı: "bulundu/kapandı"
+  mesajlarıyla dış kaynak ilanı kapatılmaz (ilan sahibiyle ilişki yok) ve şoföre "ilan geçersiz" düğmesi konmaz (suistimale açık).
 - Yerel MariaDB durmuşsa (kap yeniden başlayınca durur): `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)`
   ve `mysqladmin ping` ile bekle. Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda).
   Ön yüz: `npm run build` (`public/build` depoda değil; CSS/JS/Tailwind sınıfı değişince derle).

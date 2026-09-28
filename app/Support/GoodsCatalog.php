@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Services\AiParserService;
+
 /**
  * Yük türü kataloğu: serbest metindeki yükü standart bir kategoriye bağlar ve
  * araç tipi yazmayan ilanlarda yükten en küçük uygun aracı çıkarır.
@@ -43,7 +45,7 @@ final class GoodsCatalog
         'insaat' => ['label' => 'İnşaat malzemesi', 'min_vehicle' => '6_teker_kamyon', 'traits' => [],
             'pattern' => '/\b(?:tugla|cimento|kum\b|cakil|micir|kiremit|seramik|fayans|alci|kirec|briket|gazbeton|ytong|bims|parke\s+tas|bordur|kalip|iskele|insaat\s+malzeme\w*|hazir\s+beton|beton)\w*/'],
         'kereste' => ['label' => 'Kereste / orman ürünü', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
-            'pattern' => '/\b(?:kereste|tomruk|sunta|mdf|kontrplak|osb|ahsap|odun|kutuk\s+agac)\w*/'],
+            'pattern' => '/\b(?:kereste|tomruk|sunta|mdf|kontrplak|osb\s+(?:levha|plaka|panel)|ahsap|odun|kutuk\s+agac)\w*/'],
         'tarim' => ['label' => 'Tarım ürünü', 'min_vehicle' => '10_teker_kamyon', 'traits' => [],
             'pattern' => '/\b(?:saman|pres\s+saman|yem\b|yemi\b|cuvalli\s+yem|bugday|arpa|misir|tahil|pamuk|ayciceg|cekirdek|cekirdegi|silaj|yonca|balya|balle|balye|seker\s+pancar\w*|pancar|kepek|kuspe|tohum|soya|kanola|fistik|tutun)\w*/'],
         'orman_kagit' => ['label' => 'Ağaç / kağıt hammaddesi', 'min_vehicle' => 'tir', 'traits' => [],
@@ -102,12 +104,29 @@ final class GoodsCatalog
     {
         $words = [];
         foreach (self::EMOJI_GOODS as $emoji => $word) {
-            if (str_contains($raw, $emoji) && ! in_array($word, $words, true)) {
-                $words[] = $word;
+            if (! str_contains($raw, $emoji) || in_array($word, $words, true)) {
+                continue;
             }
+            // "📦 İzmir Aliağa": kutu emojisi varış etiketi olarak da kullanılır; satırında yer adı varsa yük sayılmaz.
+            if ($emoji === '📦' && ! self::emojiMarksGoods($raw, $emoji)) {
+                continue;
+            }
+            $words[] = $word;
         }
 
         return implode(' ', $words);
+    }
+
+    /** Emojinin geçtiği satırlardan en az biri yer adı taşımıyorsa yük işareti sayılır. */
+    private static function emojiMarksGoods(string $raw, string $emoji): bool
+    {
+        foreach (preg_split('/\R/u', $raw) ?: [] as $line) {
+            if (str_contains($line, $emoji) && AiParserService::placesIn($line, 1) === []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static function detect(string $normalizedText): ?array
