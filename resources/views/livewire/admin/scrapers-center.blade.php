@@ -711,7 +711,7 @@ new class extends Component {
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
-            'tokenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
+            'tokenBody' => '', 'screenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
 
@@ -737,6 +737,7 @@ new class extends Component {
             $data['sources'] = $this->sourceQuery()->withCount('scrapedLoads')->paginate(20);
             $data['sourceTotal'] = $this->sourceQuery()->count();
             $data['tokenBody'] = ScrapedLoadService::phoneRequestBody();
+            $data['screenBody'] = ScrapedLoadService::screenRequestBody();
             $data['pingUrl'] = ScrapedLoadService::pingUrl();
             $data['phoneParams'] = ScrapedLoadService::phoneRequestParams();
         } else {
@@ -1025,8 +1026,8 @@ new class extends Component {
                 <a href="{{ $pingUrl }}" target="_blank" rel="noopener" class="text-brand-600 font-semibold hover:underline text-xs">Buradan aç</a>
             </div>
 
-            <details class="text-xs" open>
-                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Kurulum için adres ve alanlar</summary>
+            <div class="text-xs space-y-1">
+                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">1. WhatsApp bildirimleri: kurulum için adres ve alanlar</h3>
                 <p class="text-[11px] text-neutral-500 mt-2">Önerilen: içerik türü <strong>application/x-www-form-urlencoded</strong>, "Parametreler" bölümüne şu alanlar (mesajdaki tırnak/satır sonu JSON'u bozabilir, form alanlarını bozamaz):</p>
                 <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[11px] font-mono mt-1">
                     @foreach($phoneParams as $k => $v)<dt class="font-bold">{{ $k }}</dt><dd class="break-all min-w-0">{{ $v }}</dd>@endforeach
@@ -1043,18 +1044,45 @@ new class extends Component {
                     <button type="button" wire:click="regenerateToken" wire:confirm="Anahtar yenilenince telefonlardaki eski alanlar çalışmaz; yeni anahtarı telefonlara yeniden girmeniz gerekir. Devam edilsin mi?" class="text-red-600 font-semibold hover:underline whitespace-nowrap">Anahtarı yenile</button>
                     <span class="text-[11px] text-neutral-400">İçerik türü: application/json · Zaman aşımı: 20 sn · "Yanıtı değişkene kaydet" gerekmez.</span>
                 </div>
-            </details>
+            </div>
 
-            <details class="text-xs">
-                <summary class="cursor-pointer font-semibold text-neutral-700 dark:text-neutral-200">Facebook grupları (aynı makro, bot yok)</summary>
-                <ol class="list-decimal pl-5 mt-2 space-y-1.5 text-[11px] text-neutral-600 dark:text-neutral-300">
-                    <li>Telefonda Facebook uygulamasında gruba girin → <strong>⋯</strong> → <strong>Bildirim ayarları</strong> → <strong>Tüm gönderiler</strong>. Her grup için ayrı yapılır; "Öne çıkanlar" seçiliyse ilanların çoğu gelmez.</li>
-                    <li>MacroDroid'de WhatsApp makrosunu açın → <strong>Tetikleyici</strong> → "Bildirim alındı" → uygulama listesine <strong>Facebook</strong>'u (varsa Facebook Lite) ekleyin. Gövde ve adres aynıdır; başka ayar gerekmez. Uygulama adı <span class="font-mono">{{ $phoneParams['app'] }}</span> alanıyla gelir, sunucu buna göre Facebook ayrıştırmasını kullanır.</li>
-                    <li>İlk gönderi düşünce kaynak aşağıda <strong>Facebook grubu (bildirim iletici)</strong> türüyle, <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır; <strong>Aktif et</strong> deyince ilanlar işlenir.</li>
+            <div class="text-xs space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/50">
+                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">2. Facebook grupları: tek dokunuşla akışı toplama (bot yok)</h3>
+                <p class="text-[11px] text-neutral-500">Facebook kalabalık gruplarda her gönderi için bildirim göndermez; bu yüzden gönderiler telefonun içinde okunur. Facebook'ta <strong>Gruplar</strong> sekmesi tüm grupların gönderilerini tek akışta gösterir; kayan düğmeye bir kez dokununca makro akışı aşağı kaydırır, ekrandaki yazıyı okur ve tek istekte buraya yollar. Facebook sunucusuna otomatik istek atılmaz. Sunucu dökümü gönderilere ayırır, yazar adlarını atar, reklamları ve tekrarları eler; her gönderi normal ayrıştırmadan geçer. Fotoğraf içindeki yazı okunamaz.</p>
+                <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">İzinler</p>
+                <ul class="list-disc pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li>MacroDroid → Ayarlar → <strong>Erişilebilirlik hizmetleri</strong>: "UI etkileşimi" ve "Ekran içeriğini okuma" açık (Android erişilebilirlik izni istenir).</li>
+                </ul>
+                <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Makro (WhatsApp makrosundan ayrı, yeni makro)</p>
+                <ol class="list-decimal pl-5 space-y-1.5 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li><strong>Tetikleyici:</strong> Kayan düğme (MacroDroid → Kayan düğme) ya da ana ekran kısayolu.</li>
+                    <li><strong>İşlem 1:</strong> Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> (metin) = boş.</li>
+                    <li><strong>İşlem 2:</strong> Döngü → Yinele <strong>15 kez</strong> (15 ekran ≈ son 30-40 gönderi). Döngünün içine sırayla:
+                        <ul class="list-disc pl-5 mt-1 space-y-1">
+                            <li>UI etkileşimi → Tıkla → Metin içeriği: <span class="font-mono">Devamını gör</span> (uzun gönderiler açılsın; bulunamazsa devam eder).</li>
+                            <li>Bekle → 1 saniye.</li>
+                            <li>UI etkileşimi → <strong>Ekran içeriğini oku</strong> → değişken <span class="font-mono">parca</span>.</li>
+                            <li>Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> = <span class="font-mono">{lv=ekran}</span> + yeni satır + <span class="font-mono">-----</span> + yeni satır + <span class="font-mono">{lv=parca}</span> ("Ekle" seçeneğiyle).</li>
+                            <li>UI etkileşimi → Hareket: kaydır (yukarı; ekranın alt yarısından üst yarısına, 400 ms).</li>
+                            <li>Bekle → 1,5 saniye.</li>
+                        </ul>
+                    </li>
+                    <li><strong>İşlem 3:</strong> Bağlantı → HTTP İsteği → POST, adres yukarıdaki (POST) adres, içerik türü application/json, zaman aşımı 60 sn, gövde aşağıdaki hazır metin (anahtar içinde hazır).</li>
+                    <li><strong>İşlem 4 (isteğe bağlı):</strong> Bildirim göster: "NavlunIQ: akış gönderildi".</li>
                 </ol>
-                <p class="text-[11px] text-neutral-400 mt-2">Yorum, beğeni ve arkadaşlık bildirimleri kendiliğinden atlanır (Canlı akışta "facebook_not_post"). Aynı ilan WhatsApp grubunda da paylaşılmışsa ikinci kayıt açılmaz; ilan "birden fazla kaynakta" sayacına yazılır.</p>
-                <button type="button" @click="copy('Facebook', 'fbapp')" class="btn-secondary py-1.5 px-3 text-xs mt-2" x-text="copied === 'fbapp' ? 'Kopyalandı' : 'Uygulama adını kopyala (Facebook)'"></button>
-            </details>
+                <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 items-center">
+                    <span class="text-neutral-400">Gövde (JSON)</span>
+                    <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $screenBody }}</code>
+                    <button type="button" @click="copy(@js($screenBody), 'screen')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'screen' ? 'Kopyalandı' : 'Kopyala'"></button>
+                </div>
+                <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Kullanım</p>
+                <ul class="list-disc pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li>Facebook → <strong>Gruplar</strong> sekmesi → en üste gelin → kayan düğmeye dokunun → 30-40 saniye telefona dokunmayın.</li>
+                    <li>Tek bir grubun içinden toplamak için gövdedeki <span class="font-mono">"title": "ekran"</span> yerine o grubun adını yazın (ayrı bir makro olarak).</li>
+                    <li>Gönderiler Canlı akışta satır satır görünür; yeni gruplar aşağıda <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır, <strong>Aktif et</strong> deyince işlenir. Aynı ilan WhatsApp'ta da geldiyse ikinci kayıt açılmaz.</li>
+                    <li>Facebook ekran düzenini değiştirirse "Devamını gör" metni ve kaydırma ayarı güncellenir.</li>
+                </ul>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
