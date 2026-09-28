@@ -74,10 +74,11 @@ class NotificationWebhookController extends Controller
 
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
-            'text' => ['nullable', 'string', 'max:10000'],
-            'text_big' => ['nullable', 'string', 'max:10000'],
+            'text' => ['nullable', 'string', 'max:200000'], // ekran dökümü (kind=screen) uzun olabilir
+            'text_big' => ['nullable', 'string', 'max:200000'],
             'ticker' => ['nullable', 'string', 'max:2000'],
             'app' => ['nullable', 'string', 'max:120'],
+            'kind' => ['nullable', 'string', 'in:notification,screen'], // screen: Facebook ekran dökümü (tek dokunuşla toplama)
             'posted_at' => ['nullable', 'string', 'max:64'],
         ]);
 
@@ -93,7 +94,7 @@ class NotificationWebhookController extends Controller
         $useQueue = QueueHeartbeat::alive();
         $results = [];
         foreach ($parsed['messages'] as $message) {
-            $job = new ProcessNotificationMessage($parsed['group'], $parsed['platform'], $message, $validated['title'] ?? null, $request->ip());
+            $job = new ProcessNotificationMessage($message['group'] ?? $parsed['group'], $parsed['platform'], $message, $validated['title'] ?? null, $request->ip());
             if ($useQueue) {
                 dispatch($job);
                 $results[] = ['status' => 'queued', 'message' => 'Kuyruğa alındı; sonucu canlı akışta görünür.', 'success' => true, 'code' => 202];
@@ -117,7 +118,7 @@ class NotificationWebhookController extends Controller
     /** "title = …" satırlarından alanları okur; text alanı bir sonraki "alan =" satırına kadar çok satırlı olabilir. */
     public static function parseKeyValueLines(string $raw): array
     {
-        $keys = 'title|text|text_big|ticker|app|token|posted_at';
+        $keys = 'title|text|text_big|ticker|app|token|posted_at|kind';
         $out = [];
         if (preg_match_all('/(?:^|\n)[ \t]*('.$keys.')[ \t]*=[ \t]*(.*?)(?=\n[ \t]*(?:'.$keys.')[ \t]*=|\z)/su', $raw, $m, PREG_SET_ORDER)) {
             foreach ($m as $hit) {
@@ -131,7 +132,7 @@ class NotificationWebhookController extends Controller
     /** Bozuk JSON gövdesinden bilinen alanları çıkarır (değer içinde tırnak/satır sonu olsa da). */
     public static function repairJson(string $raw): array
     {
-        $keys = 'title|text|text_big|ticker|app|token|posted_at';
+        $keys = 'title|text|text_big|ticker|app|token|posted_at|kind';
         $out = [];
         if (preg_match_all('/"('.$keys.')"\s*:\s*"(.*?)"\s*(?=,\s*"(?:'.$keys.')"\s*:|\s*}\s*$)/su', $raw, $m, PREG_SET_ORDER)) {
             foreach ($m as $hit) {

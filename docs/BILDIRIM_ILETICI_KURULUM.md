@@ -81,6 +81,50 @@ kaynakta" sayacına yazılır (kaynak adları listesinde Facebook grubu da gör�
 
 5. Makroyu kaydedip **etkin** yapın.
 
+### Facebook: tek dokunuşla akışı toplama (ekran dökümü)
+
+Kalabalık gruplarda Facebook her gönderi için bildirim basmaz (günde birkaç özet gönderir); bildirim yolu tek başına yetmez.
+Bu düzenekte gönderiler **telefonun içinde** okunur: Facebook uygulamasında **Gruplar** sekmesi (tüm grupların gönderileri tek
+akışta) açılır, bir düğmeye dokunulur; makro akışı aşağı kaydırıp ekrandaki yazıyı okur ve tek istekte sunucuya yollar.
+Facebook sunucusuna otomatik istek atılmaz; Facebook'un gördüğü şey akışı kaydıran bir kullanıcıdır. Sunucu dökümü
+gönderilere ayırır (grup adı, gönderi metni), yazar adlarını atar, reklamları ve kaydırma tekrarlarını eler; her gönderi
+normal ayrıştırmadan geçer (telefonu olmayan elenir, WhatsApp'ta da gelen ilan tekrar sayılır). Fotoğraf içindeki yazı okunamaz.
+
+**İzinler:** MacroDroid → Ayarlar → **Erişilebilirlik hizmetleri** → "UI etkileşimi" ve "Ekran içeriğini okuma" açık
+(Android erişilebilirlik ayarından izin ister).
+
+**Makro (ikinci bir makro olarak kurun):**
+
+Tetikleyici: **Kayan düğme** (MacroDroid → Kayan düğme; ekranda küçük bir daire durur) ya da **Ana ekran kısayolu**.
+
+İşlemler, sırasıyla:
+1. Değişkenler → **Değişken ayarla**: `ekran` (metin) = boş.
+2. Döngü → **Yinele: 15 kez** (kaç ekran kaydırılacağı; 15 ekran yaklaşık son 30-40 gönderi). Döngünün içine:
+   - UI etkileşimi → **Tıkla → Metin içeriği**: `Devamını gör` (uzun gönderiler açılsın; bulunamazsa hata vermez).
+   - Bekle → **1 saniye**.
+   - UI etkileşimi → **Ekran içeriğini oku** → değişken: `parca` (Screen contents → variable). *Bazı sürümlerde "Ekran içeriği"
+     eylem adı "UI etkileşimi → Ekran metnini al"dır.*
+   - Değişkenler → Değişken ayarla: `ekran` = `{lv=ekran}` + yeni satır + `-----` + yeni satır + `{lv=parca}`
+     (birleştirme: "Ekle" seçeneği; yeni satır için değişken düzenleyicide Enter).
+   - UI etkileşimi → **Hareket: kaydır** (yukarı; ekranın alt yarısından üst yarısına, 400 ms).
+   - Bekle → **1,5 saniye**.
+3. Bağlantı → **HTTP İsteği**: POST, adres `https://navluniq.com/api/v1/webhook/notification`, içerik türü application/json, gövde:
+
+```json
+{"app": "Facebook", "kind": "screen", "title": "ekran", "text": "{lv=ekran}", "token": "PANELDEKI_ANAHTAR"}
+```
+
+   Zaman aşımı 60 saniye. Gövde sınırı 200.000 karakterdir; 15 ekran rahat sığar.
+4. Bildirim → **Bildirim göster**: "NavlunIQ: akış gönderildi" (isteğe bağlı).
+
+**Kullanım:** Facebook → Gruplar sekmesi → en üste gelin → kayan düğmeye dokunun; 30-40 saniye telefona dokunmayın.
+Tek bir grubun içindeyken kullanacaksanız gövdedeki `title` alanına o grubun adını yazın (ya da ikinci bir makroda
+`"title": "Grup Adı"`); akış kipinde `title` "ekran" kalır, grup adı gönderiden okunur.
+
+**Sonuç:** Canlı akışta her gönderi ayrı satır olarak görünür; yeni gruplar **Kaynaklar ve telefon** listesine `fb:grup-adi`
+tanımlayıcısıyla pasif düşer, **Aktif et** deyince işlenir. Deneme: 2-3 grupla bir hafta; makro Facebook'un ekran düzeni
+değişince bozulursa "Devamını gör" metni ve kaydırma ayarı güncellenir.
+
 ## 5. Deneme
 
 Dinlenen bir gruba deneme ilanı yazdırın, örneğin:

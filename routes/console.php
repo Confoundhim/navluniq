@@ -10,6 +10,7 @@ use App\Services\RuleFeedbackService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
+use App\Support\IntakeBenchmark;
 use App\Support\Settings;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +54,19 @@ Artisan::command('scraped-loads:ai-audit {--limit= : Denetlenecek ilan sayısı 
     $r = $feedback->audit($limit);
     $this->info($r['skipped'] ? 'Denetim kapalı ya da yapay zeka ayarlı değil.' : "Denetlenen: {$r['checked']}, uyuşmazlık: {$r['mismatched']} (öneri olarak sözlük ekranına düştü).");
 })->purpose('Kuralla çözülen ilanlardan günlük örneklemi yapay zekaya denetletir; uyuşmazlıklar sözlük ekranına öneri olur');
+
+Artisan::command('ilan:dogruluk {--hatalar : Yalnız bozuk örnekleri yaz}', function () {
+    $r = IntakeBenchmark::run();
+    $this->info("Altın ölçüm seti: {$r['passed']} / {$r['total']} örnek doğru (".($r['total'] > 0 ? round($r['passed'] * 100 / $r['total'], 1) : 0).'%)');
+    foreach ($r['failed'] as $f) {
+        $this->line('  - '.$f['id'].': '.implode(' | ', $f['errors']));
+        if (! $this->option('hatalar')) {
+            $this->line('      '.str_replace("\n", ' ⏎ ', mb_substr($f['message'], 0, 160)));
+        }
+    }
+
+    return $r['failed'] === [] ? self::SUCCESS : self::FAILURE;
+})->purpose('Altın ölçüm setini kural katmanından geçirir ve doğruluk oranını yazar (yapay zeka çağrılmaz)');
 
 Artisan::command('ai:learn {--rebuild : Sayaçları sıfırlayıp geçmiş kararlardan yeniden öğren}', function (LocalClassifier $classifier) {
     if ($this->option('rebuild')) {

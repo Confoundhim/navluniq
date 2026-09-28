@@ -9,6 +9,7 @@ use App\Services\DriverTripService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Attributes\Url;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -24,6 +25,8 @@ class extends Component {
     use HandlesJobActions;
     use WithPagination;
 
+    /** Sekme adreste taşınır (?sekme=past): yenilemede ve geri gelince aynı sekme açılır. */
+    #[Url(as: 'sekme', except: 'open')]
     public string $tab = 'open';
 
     public function mount(DriverTripService $trips): void
@@ -31,7 +34,7 @@ class extends Component {
         if ($profile = Auth::user()->driverProfile) {
             $trips->reconcile($profile); // sefer kaydı olmayan / geride kalmış NavlunIQ işleri düzeltilir
         }
-        $this->tab = request()->query('sekme') === 'past' ? 'past' : 'open';
+        $this->tab = $this->tab === 'past' ? 'past' : 'open';
         // Bildirim bağlantısı: ?is=ID (eski bildirimlerde ?sefer=ID)
         $id = (int) request()->query('is', request()->query('sefer', 0));
         if ($id > 0 && ($status = $this->jobsQuery()->whereKey($id)->value('status'))) {

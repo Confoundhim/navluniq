@@ -107,7 +107,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - **Facebook grupları** bot ile taranmaz (Meta kuralları, hesap kapatma, KVKK): WhatsApp gibi telefondaki bildirim iletici
   (MacroDroid) Facebook bildirimlerini aynı adrese yollar; `NotificationIntakeParser::parseFacebook` (uygulama adı "Facebook")
   grup ve gönderiyi ayıklar, kaynak `facebook` türü ve `fb:grup-adi` tanımlayıcısıyla pasif açılır. Yorum/beğeni bildirimleri
-  atlanır. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
+  atlanır. **Tek dokunuşla ekran dökümü (2026-09-28):** Facebook kalabalık gruplarda bildirim basmadığı için iletici telefonda
+  MacroDroid kayan düğmesi "Gruplar" akışını kaydırıp ekran yazısını okur ve `kind=screen` ile tek istekte yollar;
+  `NotificationIntakeParser::parseFacebookScreen` dökümü "Paylaş" düğme satırlarından gönderilere böler, ilk satır grup adı
+  (title verilmişse o), yazar satırı atılır (ad saklanmaz), arayüz/sayaç/zaman satırları ve "Sponsorlu" bloklar elenir, döküm içi
+  tekrarlar elenir; her gönderi kendi grubuyla (`messages[].group`) kuyruğa gider. Sunucuya otomatik Facebook isteği yoktur.
+  Kurulum adımları belgede ("Facebook: tek dokunuşla akışı toplama"). Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
+  kazıyıcı servisler hesap riski nedeniyle kullanılmaz. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
   `seen_sources` sayacına yazılır. Gönderen adı saklanmaz. Kurulum: `docs/BILDIRIM_ILETICI_KURULUM.md` Facebook bölümü.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
@@ -182,6 +188,11 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   Testler yerel `.env`'den bağımsızdır (`phpunit.xml` içindeki `<env>` satırları); `.env`'deki bir değer testi bozarsa oraya eklenir.
   Kapta MariaDB yoksa: `apt-get update && apt-get install -y mariadb-server`, sonra yukarıdaki `mysqld_safe` komutu.
   Yeni özellik = yeni test. Kod biçimi: `vendor/bin/pint --dirty`.
+- **Altın ölçüm seti** (`resources/data/altin-set.json` + `App\Support\IntakeBenchmark::generated`, 200+ örnek, uydurma numaralar):
+  gruplarda görülen yazım biçimleri ve kuralın vermesi gereken sonuç. `php artisan ilan:dogruluk` raporu yazar; `GoldenSetTest`
+  setin tamamının doğru çözülmesini ister (yapay zekasız). Yeni bir yazım biçimi düzeltildiğinde JSON'a örnek eklenir; beklenti
+  alanları: ads, routes, vehicle, body, goods, count, weight, price, phone, filtered, each. Osman'ın 2026-09-28 kararı: "bulundu/kapandı"
+  mesajlarıyla dış kaynak ilanı kapatılmaz (ilan sahibiyle ilişki yok) ve şoföre "ilan geçersiz" düğmesi konmaz (suistimale açık).
 - Yerel MariaDB durmuşsa (kap yeniden başlayınca durur): `(setsid nohup mysqld_safe --user=mysql >/dev/null 2>&1 &)`
   ve `mysqladmin ping` ile bekle. Geliştirme sunucusu: `php artisan serve --host 127.0.0.1 --port 8085` (arka planda).
   Ön yüz: `npm run build` (`public/build` depoda değil; CSS/JS/Tailwind sınıfı değişince derle).

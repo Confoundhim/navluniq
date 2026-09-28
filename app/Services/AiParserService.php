@@ -1568,7 +1568,10 @@ TXT;
         while ($words !== [] && $isStop($words[0])) {
             array_shift($words);
         }
-        while ($words !== [] && $isStop($words[array_key_last($words)])) {
+        // "Samsun Çarşamba", "Rize Pazar": gün adıyla aynı olan ilçe, önündeki ille birlikte çözülüyorsa atılmaz.
+        $dayDistrict = fn (array $ws): bool => count($ws) >= 2 && in_array(TurkishCities::lower($ws[array_key_last($ws)]), ['çarşamba', 'carsamba', 'pazar'], true)
+            && (TurkishLocations::resolve($ws[array_key_last($ws) - 1].' '.$ws[array_key_last($ws)], false)['district'] ?? null) !== null;
+        while ($words !== [] && $isStop($words[array_key_last($words)]) && ! $dayDistrict($words)) {
             array_pop($words);
         }
         if ($words === []) {
