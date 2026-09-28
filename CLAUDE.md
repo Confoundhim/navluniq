@@ -107,7 +107,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 - **Facebook grupları** bot ile taranmaz (Meta kuralları, hesap kapatma, KVKK): WhatsApp gibi telefondaki bildirim iletici
   (MacroDroid) Facebook bildirimlerini aynı adrese yollar; `NotificationIntakeParser::parseFacebook` (uygulama adı "Facebook")
   grup ve gönderiyi ayıklar, kaynak `facebook` türü ve `fb:grup-adi` tanımlayıcısıyla pasif açılır. Yorum/beğeni bildirimleri
-  atlanır. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
+  atlanır. **Tek dokunuşla ekran dökümü (2026-09-28):** Facebook kalabalık gruplarda bildirim basmadığı için iletici telefonda
+  MacroDroid kayan düğmesi "Gruplar" akışını kaydırıp ekran yazısını okur ve `kind=screen` ile tek istekte yollar;
+  `NotificationIntakeParser::parseFacebookScreen` dökümü "Paylaş" düğme satırlarından gönderilere böler, ilk satır grup adı
+  (title verilmişse o), yazar satırı atılır (ad saklanmaz), arayüz/sayaç/zaman satırları ve "Sponsorlu" bloklar elenir, döküm içi
+  tekrarlar elenir; her gönderi kendi grubuyla (`messages[].group`) kuyruğa gider. Sunucuya otomatik Facebook isteği yoktur.
+  Kurulum adımları belgede ("Facebook: tek dokunuşla akışı toplama"). Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
+  kazıyıcı servisler hesap riski nedeniyle kullanılmaz. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
   `seen_sources` sayacına yazılır. Gönderen adı saklanmaz. Kurulum: `docs/BILDIRIM_ILETICI_KURULUM.md` Facebook bölümü.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.

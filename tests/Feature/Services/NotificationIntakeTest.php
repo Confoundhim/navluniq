@@ -127,6 +127,48 @@ class NotificationIntakeTest extends TestCase
         $this->assertSame('Antalya', ScrapedLoad::latest('id')->first()->delivery_location);
     }
 
+    public function test_facebook_screen_dump_is_split_into_posts_per_group_without_author_names(): void
+    {
+        // Tek dokunuşla toplanan "Gruplar" akışı dökümü (uydurma adlar ve numaralar): grup adı, yazar satırı, gönderi,
+        // düğme satırları, sayaçlar, reklam bloğu ve kaydırma tekrarı.
+        $dump = implode("\n", [
+            'Gruplar', 'Nakliye Yük İlanları', 'Ahmet Örnek · 2 sa · 🌐', 'Ankara Ostimden İzmir Aliağaya 24 ton palet tenteli tır lazım', '0532 111 22 33',
+            'Devamını gör', '👍 12', '3 yorum', 'Beğen', 'Yorum yap', 'Paylaş',
+            'Sponsorlu', 'Süper Lastik', 'Kış lastiği kampanyası başladı', 'Beğen', 'Yorum yap', 'Paylaş',
+            'Karadeniz Tır Grubu', 'Mehmet Deneme', 'Dün saat 21:15', 'SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ', '0533 444 55 66', 'Beğen', 'Yorum yap', 'Paylaş',
+            '-----',
+            'Karadeniz Tır Grubu', 'Mehmet Deneme', 'Dün saat 21:15', 'SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ', '0533 444 55 66', 'Beğen', 'Yorum yap', 'Paylaş',
+            'Nakliye Yük İlanları', 'Ayşe Örnek · 5 dk', 'Hayırlı işler arkadaşlar', 'Beğen', 'Yorum yap', 'Paylaş',
+            'Yorum yaz…',
+        ]);
+        $r = NotificationIntakeParser::parse(['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => $dump]);
+        $this->assertNull($r['skipped']);
+        $this->assertSame('facebook', $r['platform']);
+        $this->assertCount(3, $r['messages'], 'reklam atlanır, kaydırma tekrarı elenir');
+        $this->assertSame(['Nakliye Yük İlanları', 'Karadeniz Tır Grubu', 'Nakliye Yük İlanları'], array_column($r['messages'], 'group'));
+        $this->assertSame("Ankara Ostimden İzmir Aliağaya 24 ton palet tenteli tır lazım\n0532 111 22 33", $r['messages'][0]['text']);
+        $this->assertSame("SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ\n0533 444 55 66", $r['messages'][1]['text']);
+        foreach ($r['messages'] as $m) {
+            $this->assertNull($m['sender']);
+            $this->assertStringNotContainsString('Örnek', $m['text']);
+            $this->assertStringNotContainsString('Deneme', $m['text']);
+        }
+        // Tek grubun içinden alınan döküm: grup adı başlıktan gelir, ilk satır grup sanılmaz.
+        $single = NotificationIntakeParser::parse(['kind' => 'screen', 'title' => 'Ege Nakliyeciler', 'text' => "Ali Örnek · 1 sa\nDenizli - Muğla 12 ton tekstil 0532 111 22 33\nBeğen\nYorum yap\nPaylaş"]);
+        $this->assertSame([['Ege Nakliyeciler', 'Denizli - Muğla 12 ton tekstil 0532 111 22 33']], array_map(fn ($m) => [$m['group'], $m['text']], $single['messages']));
+        $this->assertSame('facebook_screen_empty', NotificationIntakeParser::parse(['kind' => 'screen', 'text' => "Beğen\nYorum yap\nPaylaş"])['skipped']);
+
+        // Uçtan uca: döküm tek istekte gelir, her grup kendi kaynağıyla açılır; aktif olan grubun ilanı kaydedilir.
+        Scraper::create(['name' => 'Nakliye Yük İlanları', 'type' => 'facebook', 'source_identifier' => 'fb:nakliye-yuk-ilanlari', 'is_active' => true]);
+        $resp = $this->postJson('/api/v1/webhook/notification', ['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => $dump, 'token' => 'phone-secret'])->assertOk();
+        $this->assertSame(3, $resp->json('processed'));
+        $this->assertSame(1, ScrapedLoad::count(), 'aktif gruptan gelen ilan kaydedilir; sohbet elenir; öbür grup onay bekler');
+        $this->assertSame(['Ankara Yenimahalle', 'İzmir Aliağa'], [ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]);
+        $pending = Scraper::where('source_identifier', 'fb:karadeniz-tir-grubu')->first();
+        $this->assertSame(['facebook', false], [$pending->type, (bool) $pending->is_active]);
+        Http::assertNothingSent();
+    }
+
     public function test_endpoint_requires_token_and_creates_pending_source_then_loads(): void
     {
         $payload = ['title' => 'Ankara Nakliye Grubu', 'text' => "Ahmet Usta: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67"];

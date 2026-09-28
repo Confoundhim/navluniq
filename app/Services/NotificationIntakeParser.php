@@ -28,6 +28,22 @@ final class NotificationIntakeParser
         '/yedekleme|backup|arama|call|görüşme|kaçırılan/iu',
     ];
 
+    /** Facebook ekran dökümünde arayüz satırları (düğme, sayaç, zaman, rozet); gönderi metni değildir. */
+    private const SCREEN_NOISE = [
+        '/^(?:gruplar|groups|ana sayfa|home|ara|search|bildirimler|notifications|menü|menu|facebook|akış|feed|sizin için|for you|keşfet|discover|gönderi oluştur|create post|aklınızda ne var\??|what\'s on your mind\??|hikayeler?|reels|videolar|video|pazar yeri|marketplace|arkadaşlar|friends|profil|profile|gruplarınız|your groups|en son|latest|popüler|popular|tümünü gör|see all)$/iu',
+        '/^(?:beğen|yorum yap|paylaş|gönder|devamını gör|daha az gör|daha fazla|katıl|takip et|takibi bırak|yönetici|moderatör|öne çıkan|yeni üye|grup uzmanı|en çok katkıda bulunan|yorum yaz|yorum yazın|tüm yorumları gör|diğer yorumları gör|en alakalı|çeviriyi gör|çevirisine bak|gönderiyi gör|gönderiyi görüntüle|görüntüle|yazın|like|comment|share|send|see more|see translation|join|follow|top contributor|admin|moderator)\b.{0,20}$/iu',
+        '/^\d+\s*(?:yorum|paylaşım|görüntüleme|beğeni|kişi|comments?|shares?|views?|likes?)?\s*$/iu',
+        '/^[\p{So}\p{Sk}\p{P}\s\d]+$/u',
+        '/^(?:az önce|şimdi|just now|dün(?:\s.*)?|yesterday.*|\d+\s*(?:sn|dk|sa|g|hafta|ay|yıl|s|m|h|d|w)\b.*|\d{1,2}\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\b.*)$/iu',
+        '/^(?:yorum(?:unuzu)? yaz(?:ın)?|bir yorum yaz(?:ın)?|write a comment)\W*$/iu',
+    ];
+
+    /** Yazar satırı: "Ad Soyad · 2 sa", "Ad Soyad · Dün 14:03" */
+    private const SCREEN_AUTHOR = '/·\s*(?:az önce|şimdi|dün|yesterday|just now|\d+\s*(?:sn|dk|sa|g|hafta|s|m|h|d|w)\b|\d{1,2}\s+\p{L}+)/iu';
+
+    /** Reklam ve önerilen gönderiler ilan değildir. */
+    private const SCREEN_SKIP_BLOCK = '/^(?:sponsorlu|önerilen(?:\s+gönderi)?|önerilen gruplar|sponsored|suggested)\b/iu';
+
     /** Facebook'ta ilan olmayan bildirimler (yorum, beğeni, arkadaşlık, etkinlik…). */
     private const FACEBOOK_SKIP = '/yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|doğum\s+gün|hatırlat|canlı\s+yayın|etkinlik|anı(?:nız|ları)|commented|reacted|liked|friend\s+request|tagged|mentioned|birthday|memories|is\s+live/iu';
 
@@ -38,6 +54,9 @@ final class NotificationIntakeParser
     public static function parse(array $payload): array
     {
         $app = trim((string) ($payload['app'] ?? ''));
+        if (($payload['kind'] ?? null) === 'screen') {
+            return self::parseFacebookScreen((string) ($payload['text_big'] ?? $payload['text'] ?? ''), trim((string) ($payload['title'] ?? '')));
+        }
         if (preg_match('/facebook/iu', $app)) {
             return self::parseFacebook($payload);
         }
@@ -146,6 +165,113 @@ final class NotificationIntakeParser
         }
 
         return ['skipped' => null, 'group' => $group, 'platform' => 'facebook', 'messages' => [['sender' => $sender, 'phone' => null, 'text' => $body]]];
+    }
+
+    /**
+     * Facebook ekran dökümü: iletici telefonda tek dokunuşla "Gruplar" akışı (ya da tek bir grup) aşağı kaydırılıp ekrandaki
+     * yazı okunur ve tek istekte gelir. Facebook sunucusuna otomatik istek atılmaz. Döküm gönderilere ayrılır: her gönderinin
+     * sonunda "Beğen / Yorum yap / Paylaş" düğme satırları vardır; başında grup adı (akış kipinde) ve yazar satırı bulunur.
+     * Yazar adı saklanmaz. Kaydırma sırasında aynı gönderi iki ekranda görünür; döküm içinde tekrarlar elenir (kalanı
+     * alımdaki tekrar denetimi yakalar). Reklam ("Sponsorlu") ve önerilen gönderiler atlanır.
+     *
+     * @param  string  $groupHint  tek bir grubun içinden alınan dökümde grup adı (title); boşsa her gönderi kendi grubunu taşır
+     * @return array{skipped:?string, group:?string, platform:string, messages:list<array{sender:?string, phone:?string, text:string, group:string}>}
+     */
+    public static function parseFacebookScreen(string $dump, string $groupHint = ''): array
+    {
+        $dump = trim($dump);
+        if ($dump === '') {
+            return self::skip('empty');
+        }
+        $groupHint = preg_match('/^(?:facebook|ekran|screen|gruplar|groups)$/iu', $groupHint) ? '' : $groupHint;
+        // Bloklar: "Paylaş" (düğme satırı sonu) her gönderiyi kapatır; makronun ekranlar arasına koyduğu "-----" de sınırdır.
+        $blocks = [];
+        $current = [];
+        foreach (preg_split('/\R/u', $dump) ?: [] as $line) {
+            $line = trim(preg_replace('/\s+/u', ' ', $line) ?? $line);
+            if ($line === '' || preg_match('/^-{3,}$/', $line)) {
+                if (preg_match('/^-{3,}$/', $line) && $current !== []) {
+                    $blocks[] = $current;
+                    $current = [];
+                }
+
+                continue;
+            }
+            $current[] = $line;
+            if (preg_match('/^(?:paylaş|share)$/iu', $line)) {
+                $blocks[] = $current;
+                $current = [];
+            }
+        }
+        if ($current !== []) {
+            $blocks[] = $current;
+        }
+
+        $messages = [];
+        $seen = [];
+        foreach ($blocks as $lines) {
+            if (array_filter($lines, fn ($l) => preg_match(self::SCREEN_SKIP_BLOCK, $l) === 1) !== []) {
+                continue;
+            }
+            $lines = array_values(array_filter($lines, fn ($l) => ! self::isScreenNoise($l)));
+            if ($lines === []) {
+                continue;
+            }
+            $group = $groupHint;
+            if ($group === '') {
+                $group = array_shift($lines); // akış kipinde ilk satır grup adıdır
+            }
+            // Yazar satırı: "Ad Soyad · 2 sa" ya da ad + ayrı zaman satırı (zaman satırı gürültü olarak zaten atıldı)
+            if (isset($lines[0]) && preg_match(self::SCREEN_AUTHOR, $lines[0])) {
+                array_shift($lines);
+            } elseif (isset($lines[0]) && self::looksLikePersonName($lines[0])) {
+                array_shift($lines);
+            }
+            $body = trim(implode("\n", $lines));
+            $body = trim(preg_replace('/\s*(?:…|\.\.\.)\s*$/u', '', $body) ?? $body);
+            if ($group === null || $group === '' || mb_strlen(preg_replace('/[^\p{L}\p{N}]/u', '', $body) ?? '') < 12) {
+                continue;
+            }
+            $key = TurkishCities::ascii(preg_replace('/[^\p{L}\p{N}]+/u', '', $body) ?? $body);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $messages[] = ['sender' => null, 'phone' => null, 'text' => $body, 'group' => mb_substr($group, 0, 120)];
+        }
+        if ($messages === []) {
+            return self::skip('facebook_screen_empty');
+        }
+
+        return ['skipped' => null, 'group' => $groupHint !== '' ? $groupHint : $messages[0]['group'], 'platform' => 'facebook', 'messages' => $messages];
+    }
+
+    private static function isScreenNoise(string $line): bool
+    {
+        if (LoadIntakeService::hasPhone($line)) {
+            return false; // "0532 111 22 33" sayaç değil, ilanın numarasıdır
+        }
+        foreach (self::SCREEN_NOISE as $pattern) {
+            if (preg_match($pattern, $line) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Kısa, rakamsız, yer adı ve nakliye sözcüğü içermeyen 1-4 sözcük: yazar adı sayılır ve saklanmaz. */
+    private static function looksLikePersonName(string $line): bool
+    {
+        $words = preg_split('/\s+/u', trim($line)) ?: [];
+        if ($words === [] || count($words) > 4 || mb_strlen($line) > 40 || preg_match('/[\d:@\/\-→]/u', $line)) {
+            return false;
+        }
+        if (preg_match('/(?<!\p{L})(?:yük|yuk|ton|tır|tir|kamyon|kamyonet|dorse|tente|frigo|damper|acil|araç|arac|nakliye|lojistik|çıkış|cikis|yükleme|yukleme|boşalt|bosalt|iner|fiyat|palet|kg)/iu', $line)) {
+            return false;
+        }
+
+        return AiParserService::placesIn($line, 1) === [];
     }
 
     /** Grup ilan kaynağı için sabit tanımlayıcı: aynı grup adı her zaman aynı kaynağa düşer (Facebook: fb:, WhatsApp: notif:). */
