@@ -19,7 +19,7 @@ MacroDroid'e yapıştırırsınız. (Eski kurulumlarda `.env` içindeki `SCRAPER
 
 Uç nokta: `https://navluniq.com/api/v1/webhook/notification` (POST, JSON).
 Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `ticker` (isteğe bağlı; "Gönderen @ Grup: mesaj"),
-`app` (uygulama adı), `token`.
+`app` (uygulama adı), `token`; Facebook ekran dökümünde ayrıca `kind` = `screen`.
 
 ## 3. Telefon: WhatsApp bildirim ayarları
 
@@ -59,32 +59,15 @@ Alanlar: `title` (bildirim başlığı = grup adı), `text` (bildirim metni), `t
 - "Bildirim büyük metni" gibi genişletilmiş metin değişkeni sunuluyorsa `text` için onu seçin; uzun ilanlar kırpılmaz.
 - Zaman aşımı 20 saniye; "Yanıtı değişkene kaydet" gerekmez.
 
-### Facebook grupları (aynı makro)
-
-Facebook gruplarındaki ilanlar da bot olmadan, aynı bildirim iletici yoluyla alınır; Facebook sunucusuna otomatik
-istek atılmaz, yalnız telefonunuza düşen bildirimler iletilir.
-
-1. Telefonda Facebook uygulamasında gruba girin → ⋯ → **Bildirim ayarları** → **Tüm gönderiler** (yalnız "öne çıkanlar"
-   seçiliyse ilanların çoğu gelmez). Her grup için ayrı yapılır.
-2. MacroDroid'deki makronun tetikleyicisine uygulama olarak **Facebook**'u da ekleyin (WhatsApp'ın yanına). Gövde aynıdır;
-   `app` alanı "Facebook" gelince sunucu Facebook ayrıştırmasını kullanır.
-3. Kaynak panelde **Facebook grubu (bildirim iletici)** türüyle, `fb:grup-adi` tanımlayıcısıyla pasif açılır; WhatsApp
-   gruplarında olduğu gibi **Aktif et** deyince ilanlar işlenmeye başlar.
-
-Sunucu yorum, beğeni, arkadaşlık gibi ilan olmayan Facebook bildirimlerini atlar (Canlı akışta "facebook_not_post").
-Gönderi metni bildirime sığmayıp "…" ile kısalmışsa kalan kısım alınamaz; ilanın telefonu ve rotası bildirimde
-görünüyorsa yine işlenir. Aynı ilan WhatsApp grubunda da paylaşılmışsa ikinci kayıt açılmaz; ilan "birden fazla
-kaynakta" sayacına yazılır (kaynak adları listesinde Facebook grubu da görünür).
-
 **Kısıt**
 - Boş bırakın. (İsteğe bağlı: yalnız Wi-Fi/mobil veri açıkken.)
 
 5. Makroyu kaydedip **etkin** yapın.
 
-### Facebook: tek dokunuşla akışı toplama (ekran dökümü)
+### Facebook grupları: tek dokunuşla akışı toplama (ekran dökümü)
 
 Kalabalık gruplarda Facebook her gönderi için bildirim basmaz (günde birkaç özet gönderir); bildirim yolu tek başına yetmez.
-Bu düzenekte gönderiler **telefonun içinde** okunur: Facebook uygulamasında **Gruplar** sekmesi (tüm grupların gönderileri tek
+Bildirim yolu Facebook için kullanılmaz. Bu düzenekte gönderiler **telefonun içinde** okunur: Facebook uygulamasında **Gruplar** sekmesi (tüm grupların gönderileri tek
 akışta) açılır, bir düğmeye dokunulur; makro akışı aşağı kaydırıp ekrandaki yazıyı okur ve tek istekte sunucuya yollar.
 Facebook sunucusuna otomatik istek atılmaz; Facebook'un gördüğü şey akışı kaydıran bir kullanıcıdır. Sunucu dökümü
 gönderilere ayırır (grup adı, gönderi metni), yazar adlarını atar, reklamları ve kaydırma tekrarlarını eler; her gönderi

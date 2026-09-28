@@ -76,6 +76,14 @@ class ScrapedLoadService
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
     }
 
+    /** Facebook ekran dökümü (tek dokunuşla akış toplama) makrosunun HTTP gövdesi: {lv=ekran} MacroDroid yerel değişkenidir. */
+    public static function screenRequestBody(): string
+    {
+        return json_encode([
+            'app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => '{lv=ekran}', 'token' => self::apiToken(),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+    }
+
     /** Zamanlayıcının son nabzı (saniye önce); hiç yoksa null. */
     public static function schedulerAgeSeconds(): ?int
     {
