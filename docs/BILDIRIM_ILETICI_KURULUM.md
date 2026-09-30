@@ -95,13 +95,10 @@ Tetikleyici: **Kayan düğme** (MacroDroid → Kayan düğme; ekranda küçük b
      (birleştirme: "Ekle" seçeneği; yeni satır için değişken düzenleyicide Enter).
    - UI etkileşimi → **Hareket: kaydır** (yukarı; ekranın alt yarısından üst yarısına, 400 ms).
    - Bekle → **1,5 saniye**.
-3. Bağlantı → **HTTP İsteği**: POST, adres `https://navluniq.com/api/v1/webhook/notification`, içerik türü application/json, gövde:
-
-```json
-{"app": "Facebook", "kind": "screen", "title": "ekran", "text": "{lv=ekran}", "token": "PANELDEKI_ANAHTAR"}
-```
-
-   Zaman aşımı 60 saniye. Gövde sınırı 200.000 karakterdir; 15 ekran rahat sığar.
+3. Bağlantı → **HTTP İsteği**: Ayarlar sekmesi: POST, adres `https://navluniq.com/api/v1/webhook/notification`, zaman aşımı 60 sn.
+   İçerik gövdesi sekmesi: içerik türü **text/plain**, Metin, gövdeye yalnız `{lv=ekran}`. Başlık parametreleri sekmesi:
+   `X-Scraper-Token` = paneldeki anahtar, `X-Intake-Kind` = `screen`. (Gövde JSON olamaz: ekran içeriğindeki tırnak ve satır
+   sonları JSON'u bozar; sunucu düz metin gövdeyi başlıktaki anahtarla kabul eder.) Gövde sınırı 200.000 karakterdir.
 4. Bildirim → **Bildirim göster**: "NavlunIQ: akış gönderildi" (isteğe bağlı).
 
 **Kullanım:** Facebook → Gruplar sekmesi → en üste gelin → kayan düğmeye dokunun; 30-40 saniye telefona dokunmayın.

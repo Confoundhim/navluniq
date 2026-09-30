@@ -1084,18 +1084,18 @@ new class extends Component {
                             <li>Bekle → 1,5 saniye.</li>
                         </ul>
                     </li>
-                    <li><strong>İşlem 3:</strong> Bağlantı → HTTP İsteği → POST, adres yukarıdaki (POST) adres, içerik türü application/json, zaman aşımı 60 sn, gövde aşağıdaki hazır metin (anahtar içinde hazır).</li>
+                    <li><strong>İşlem 3:</strong> Bağlantı → HTTP İsteği → Ayarlar: POST, adres yukarıdaki (POST) adres, zaman aşımı 60 sn. İçerik gövdesi: içerik türü <strong>text/plain</strong>, Metin, gövdeye yalnız <span class="font-mono">{lv=ekran}</span>. Başlık parametreleri: <span class="font-mono">X-Scraper-Token</span> = yukarıdaki anahtar (token satırı), <span class="font-mono">X-Intake-Kind</span> = <span class="font-mono">screen</span>. (Gövde JSON olmaz: ekran içeriğindeki tırnaklar JSON'u bozar.)</li>
                     <li><strong>İşlem 4 (isteğe bağlı):</strong> Bildirim göster: "NavlunIQ: akış gönderildi".</li>
                 </ol>
                 <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 items-center">
-                    <span class="text-neutral-400">Gövde (JSON)</span>
+                    <span class="text-neutral-400">Gövde (düz metin)</span>
                     <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">{{ $screenBody }}</code>
                     <button type="button" @click="copy(@js($screenBody), 'screen')" class="btn-primary py-2 px-3 text-xs" x-text="copied === 'screen' ? 'Kopyalandı' : 'Kopyala'"></button>
                 </div>
                 <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Kullanım</p>
                 <ul class="list-disc pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
                     <li>Facebook → <strong>Gruplar</strong> sekmesi → en üste gelin → kayan düğmeye dokunun → 30-40 saniye telefona dokunmayın.</li>
-                    <li>Tek bir grubun içinden toplamak için gövdedeki <span class="font-mono">"title": "ekran"</span> yerine o grubun adını yazın (ayrı bir makro olarak).</li>
+                    <li>Tek bir grubun içinden toplamak için HTTP isteğine <span class="font-mono">X-Intake-Title</span> başlığıyla grubun adını ekleyin (ayrı bir makro olarak).</li>
                     <li>Gönderiler Canlı akışta satır satır görünür; yeni gruplar aşağıda <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır, <strong>Aktif et</strong> deyince işlenir. Aynı ilan WhatsApp'ta da geldiyse ikinci kayıt açılmaz.</li>
                     <li>Facebook ekran düzenini değiştirirse "Devamını gör" metni ve kaydırma ayarı güncellenir.</li>
                 </ul>
