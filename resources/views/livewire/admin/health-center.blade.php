@@ -29,6 +29,24 @@ new class extends Component {
             : 'Güncelleme zaten çalışıyor; bitmesini bekleyin.');
     }
 
+    /** Başarısız işleri kuyruğa geri koyar (queue:retry all) ve kontrolleri yeniler. */
+    public function retryFailedJobs(): void
+    {
+        abort_unless(auth()->user()?->can('manage settings'), 403);
+        \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => ['all']]);
+        session()->flash('success_message', 'Başarısız işler yeniden kuyruğa alındı; işçi çalışıyorsa birazdan işlenir.');
+        $this->runChecks();
+    }
+
+    /** Başarısız işleri siler (queue:flush). Telefon mesajı işleri zaten Canlı akışa hata olarak yazılmıştır; silmek ilan kaybettirmez. */
+    public function flushFailedJobs(): void
+    {
+        abort_unless(auth()->user()?->can('manage settings'), 403);
+        \Illuminate\Support\Facades\Artisan::call('queue:flush');
+        session()->flash('success_message', 'Başarısız işler temizlendi.');
+        $this->runChecks();
+    }
+
     public function runChecks(): void
     {
         $this->checks = [];
@@ -76,7 +94,11 @@ new class extends Component {
             }
             $count = DB::table('failed_jobs')->count();
             if ($count > 0) {
-                throw new RuntimeException($count.' başarısız iş bekliyor.');
+                $last = DB::table('failed_jobs')->orderByDesc('id')->first();
+                $payload = json_decode((string) ($last->payload ?? ''), true);
+                $name = class_basename((string) ($payload['displayName'] ?? 'İş'));
+                $reason = mb_substr(trim((string) strtok((string) ($last->exception ?? ''), "\n")), 0, 80);
+                throw new RuntimeException($count.' başarısız iş bekliyor. Sonuncusu: '.$name.($reason !== '' ? ' — '.$reason : '').'. İlan kaybettirmez; yeniden deneyin ya da temizleyin (3 günden eskiler kendiliğinden silinir).');
             }
 
             return '0 başarısız iş';
@@ -252,6 +274,12 @@ new class extends Component {
                     <span class="h-2.5 w-2.5 rounded-full {{ $check['ok'] ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
                 </div>
                 <p class="mt-3 text-xs font-semibold text-neutral-900 dark:text-white break-words">{{ $check['detail'] }}</p>
+                @if($check['name'] === 'Başarısız işler' && ! $check['ok'])
+                    <div class="mt-3 flex flex-wrap items-center gap-3">
+                        <button type="button" wire:click="retryFailedJobs" class="btn-secondary py-1.5 px-3 text-xs">Yeniden dene</button>
+                        <button type="button" wire:click="flushFailedJobs" wire:confirm="Başarısız işler silinsin mi? Telefon mesajı işleri Canlı akışta hata olarak zaten görünür; ilan kaybolmaz." class="text-red-600 text-xs font-semibold hover:underline">Temizle</button>
+                    </div>
+                @endif
             </div>
         @endforeach
     </div>

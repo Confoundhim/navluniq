@@ -101,6 +101,7 @@ Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlap
 Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
+Schedule::command('queue:prune-failed', ['--hours' => 72])->dailyAt('04:40'); // 3 günden eski başarısız işler kendiliğinden silinir (sağlık ekranında takılı kalmasın)
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
 Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
 // Kuyruk nabzı: işçi bu işi çalıştırınca zaman damgası yazar; tazeyse telefon mesajları kuyruğa verilir (bkz. NotificationWebhookController).
