@@ -1049,7 +1049,18 @@ new class extends Component {
             <div class="text-xs space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/50">
                 <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">2. Facebook grupları: tek dokunuşla akışı toplama (bot yok)</h3>
                 <p class="text-[11px] text-neutral-500">Facebook kalabalık gruplarda her gönderi için bildirim göndermez; bu yüzden gönderiler telefonun içinde okunur. Facebook'ta <strong>Gruplar</strong> sekmesi tüm grupların gönderilerini tek akışta gösterir; kayan düğmeye bir kez dokununca makro akışı aşağı kaydırır, ekrandaki yazıyı okur ve tek istekte buraya yollar. Facebook sunucusuna otomatik istek atılmaz. Sunucu dökümü gönderilere ayırır, yazar adlarını atar, reklamları ve tekrarları eler; her gönderi normal ayrıştırmadan geçer. Fotoğraf içindeki yazı okunamaz.</p>
-                <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">İzinler</p>
+                <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 space-y-2">
+                    <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Hazır makro dosyası (elle kurulum gerekmez)</p>
+                    <ol class="list-decimal pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                        <li>Aşağıdaki düğmeyle <span class="font-mono">navluniq-akis.macro</span> dosyasını indirin; anahtar ve adres içinde hazırdır. Dosyayı WhatsApp ile iletici telefona gönderin.</li>
+                        <li>Telefonda dosyaya dokunun, açmak için <strong>MacroDroid</strong>'i seçin (ya da MacroDroid → Makrolar → sağ üst ⋮ → <strong>İçe aktar</strong> → dosyayı seçin). "NavlunIQ akış" makrosu listeye gelir.</li>
+                        <li>MacroDroid izin isterse verin: Erişilebilirlik (UI etkileşimi, ekran okuma) ve "Diğer uygulamaların üzerinde göster". Ekranda <strong>NQ</strong> düğmesi belirir.</li>
+                        <li>Facebook → <strong>Gruplar</strong> sekmesi → en üst → NQ düğmesine dokunun; 30-40 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür.</li>
+                    </ol>
+                    <a href="{{ route('admin.macrodroid.download') }}" class="btn-primary py-2 px-4 text-xs inline-block">Makro dosyasını indir</a>
+                    <p class="text-[11px] text-neutral-400">İçe aktarma hata verirse ya da makrodaki "HTTP İsteği" / "Ekran içeriğini oku" satırları boş görünürse: telefondaki WhatsApp makrosuna uzun basıp <strong>Dışa aktar</strong> deyin ve çıkan dosyayı Osman'a gönderin; dosya biçimi ona göre düzeltilir. Aşağıdaki elle kurulum adımları yedek yoldur.</p>
+                </div>
+                <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum (yedek yol) · İzinler</p>
                 <ul class="list-disc pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
                     <li>MacroDroid → Ayarlar → <strong>Erişilebilirlik hizmetleri</strong>: "UI etkileşimi" ve "Ekran içeriğini okuma" açık (Android erişilebilirlik izni istenir).</li>
                 </ul>

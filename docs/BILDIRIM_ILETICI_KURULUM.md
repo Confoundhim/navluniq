@@ -73,6 +73,10 @@ Facebook sunucusuna otomatik istek atılmaz; Facebook'un gördüğü şey akış
 gönderilere ayırır (grup adı, gönderi metni), yazar adlarını atar, reklamları ve kaydırma tekrarlarını eler; her gönderi
 normal ayrıştırmadan geçer (telefonu olmayan elenir, WhatsApp'ta da gelen ilan tekrar sayılır). Fotoğraf içindeki yazı okunamaz.
 
+**Hazır dosya (önerilen yol):** panel → Kaynaklar ve telefon → "Makro dosyasını indir" ile `navluniq-akis.macro` indirilir
+(anahtar ve adres içinde). Dosya telefona gönderilir, dosyaya dokunup MacroDroid ile açılır (ya da MacroDroid → Makrolar → ⋮ →
+İçe aktar). MacroDroid izin isterse verilir; NQ düğmesi ekranda belirir. Aşağıdaki elle kurulum yalnız yedek yoldur.
+
 **İzinler:** MacroDroid → Ayarlar → **Erişilebilirlik hizmetleri** → "UI etkileşimi" ve "Ekran içeriğini okuma" açık
 (Android erişilebilirlik ayarından izin ister).
 
