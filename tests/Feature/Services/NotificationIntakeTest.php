@@ -162,6 +162,11 @@ class NotificationIntakeTest extends TestCase
         $plain = $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'text/plain', 'HTTP_X_SCRAPER_TOKEN' => 'phone-secret', 'HTTP_X_INTAKE_KIND' => 'screen'], $dump);
         $plain->assertOk();
         $this->assertSame(3, $plain->json('processed'), 'düz metin gövde de üç gönderi verir');
+        // İstek sunucuya ulaşır ulaşmaz canlı akışta "Ekran dökümü alındı" satırı düşer (kuyruk beklese de görünür).
+        $received = IntakeEvent::query()->where('status', 'screen')->latest('id')->first();
+        $this->assertNotNull($received, 'ekran dökümü alındı satırı');
+        $this->assertStringContainsString('3 gönderi', $received->excerpt);
+        $this->assertSame('Ekran dökümü alındı (telefon sunucuya ulaştı)', $received->statusLabel());
         ScrapedLoad::query()->forceDelete();
         Scraper::query()->forceDelete();
 
