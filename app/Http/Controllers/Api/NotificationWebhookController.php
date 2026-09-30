@@ -95,6 +95,13 @@ class NotificationWebhookController extends Controller
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
 
+        // Ekran dökümü (Facebook, tek dokunuş): isteğin sunucuya ulaştığı canlı akışta hemen görünsün; kuyruk beklese de
+        // "geldi mi" sorusu buradan cevaplanır. Gönderiler ayrıca kendi satırlarıyla işlenir.
+        if (($validated['kind'] ?? null) === 'screen') {
+            IntakeEvent::record('screen', ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null,
+                'excerpt' => count($parsed['messages']).' gönderi ayrıştırıldı, '.mb_strlen((string) ($validated['text'] ?? '')).' karakter döküm']);
+        }
+
         // Kuyruk işçisi canlıysa mesajlar kuyruğa bırakılır ve telefon hemen cevap alır: yapay zeka çağrısı ve
         // tekrar kilidi web sunucusunun PHP işçilerini tutmaz, site yavaşlamaz. İşçi yoksa eski gibi burada işlenir.
         $useQueue = QueueHeartbeat::alive();

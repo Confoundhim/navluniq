@@ -31,8 +31,17 @@ class MacroDownloadTest extends TestCase
         $this->assertSame(['FloatingButtonTrigger'], array_column($m['m_triggerList'], 'm_classType'));
         $this->assertSame('fb://groups', $m['m_actionList'][0]['m_urlToOpen']);
         $this->assertSame(['OpenWebPageAction', 'PauseAction', 'SetVariableAction', 'LoopAction', 'UIInteractionAction', 'PauseAction', 'ReadScreenContentsAction', 'SetVariableAction', 'UIInteractionAction', 'PauseAction', 'EndLoopAction', 'HttpRequestAction', 'NotificationAction'], array_column($m['m_actionList'], 'm_classType'));
-        $http = $m['m_actionList'][11]['httpRequestConfig'];
-        $this->assertSame(['POST', url('/api/v1/webhook/notification'), 'text/plain', '{lv=ekran}'], [$http['requestType'], $http['urlToOpen'], $http['contentType'], $http['contentBodyText']]);
+        $http = $m['m_actionList'][11]['requestConfig']; // alan adları gerçek dışa aktarımdan: requestType 1 = POST
+        $this->assertSame([1, url('/api/v1/webhook/notification'), 'text/plain', '{lv=ekran}', 0], [$http['requestType'], $http['urlToOpen'], $http['contentType'], $http['contentBodyText'], $http['contentBodySource']]);
+        $read = $m['m_actionList'][6];
+        $this->assertSame(['parca', true], [$read['variableName'], $read['isLocalVar']]);
+        $this->assertArrayNotHasKey('m_comment', $read);
+        $click = $m['m_actionList'][4]['uiInteractionConfiguration'];
+        $this->assertSame(['^(diğer|Devamını gör)$', true, 1], [$click['textContent'], $click['useRegex'], $click['clickOption']], 'yalnız tam "diğer" satırı; "diğer seçenekler" menüsü değil');
+        $trigger = $m['m_triggerList'][0];
+        $this->assertFalse($trigger['m_isDisabled'], 'tetikleyici açık gelir (Osman\'ın telefonunda kapalı kalmıştı, simge çıkmıyordu)');
+        $this->assertFalse($trigger['disableTriggerOnRemove'], 'çöpe sürükleyince tetikleyici kapanmaz, düğme yalnız gizlenir');
+        $this->assertSame('', $m['m_category']);
         $this->assertSame([['X-Scraper-Token', ScrapedLoadService::apiToken()], ['X-Intake-Kind', 'screen']], array_map(fn ($h) => [$h['paramName'], $h['paramValue']], $http['headerParams']));
         $this->assertNotSame('', ScrapedLoadService::apiToken());
         $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][7]['m_newStringValue']);

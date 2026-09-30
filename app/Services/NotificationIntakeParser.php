@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\TurkishCities;
+use App\Support\TurkishText;
 
 /**
  * Android bildirim iletici (MacroDroid vb.) ile gelen WhatsApp bildirimini ilan mesajlarına ayırır.
@@ -43,6 +44,23 @@ final class NotificationIntakeParser
 
     /** Reklam ve önerilen gönderiler ilan değildir. */
     private const SCREEN_SKIP_BLOCK = '/^(?:sponsorlu|önerilen(?:\s+gönderi)?|önerilen gruplar|sponsored|suggested)\b/iu';
+
+    /**
+     * Erişilebilirlik dökümü (hazır makronun "Ekran içeriğini oku" çıktısı): "Paylaş" düğmesi okunmaz; her gönderi
+     * "Ad•3s•Paylaşılanlar: Herkese açık grup" ve "Ad'in gönderisi için diğer seçenekler" başlık satırlarıyla gelir.
+     */
+    private const A11Y_ANCHOR = '/^(.+?)[\'’](?:in|ın|un|ün|nin|nın|nun|nün)\s+gönderisi için diğer seçenekler$/iu';
+
+    private const A11Y_SHARED = '/•\s*Paylaşılanlar\s*:/iu';
+
+    /** Grup sayfasının başlığı: "Grup Adı'da Ara" arama kutusu. */
+    private const A11Y_GROUP_PAGE = '/^(.{2,120}?)[\'’](?:da|de|ta|te|nda|nde)\s+Ara$/iu';
+
+    /** Başlık bölgesindeki arayüz satırları (yazar adı ayrıca elenir). */
+    private const A11Y_HEADER_UI = '/^(?:takip et|katıl|gönderiyi gizle|grup kapak fotoğrafı|gönderiyi yönet|daha fazla bilgi edin|en alakalı)$|(?:profil resmi|hikayesini aç.*|hikayesi, görmedin)$/iu';
+
+    /** Gövdeye girmeyen ek satırlar: fotoğraf/video/bağlantı kutuları, "diğer" düğmesi, sayfa başlığı. */
+    private const A11Y_BODY_NOISE = '/^(?:fotoğraf(?:\s+\d+\s*\/\s*\d+.*)?|.*fotoğrafı genişlet|reels videosu|mevcut reels videosunu oynat|sesini aç|\+\d+|paylaşılan bağlantı:.*|bağlantı görseli paylaşıldı|bu içerik hakkında|.*arka plan(?: görseli)?|diğer|daha fazla|geri|facebook logosu|oluştur,.*|.+, \\d+ \\/ \\d+|.+, tab \\d+ of \\d+|üyelik araçları için daha fazla seçenek|grup gönderileri|grupların|senin için|senin hareketlerin|keşfet|grup ara|tümünü gör|grup kur|ayarlar|yöneticinin onaylaması bekleniyor.*|öne çıkanlar|sen|rehberler|fotoğraflar)$/iu';
 
     /** Facebook'ta ilan olmayan bildirimler (yorum, beğeni, arkadaşlık, etkinlik…). */
     private const FACEBOOK_SKIP = '/yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|doğum\s+gün|hatırlat|canlı\s+yayın|etkinlik|anı(?:nız|ları)|commented|reacted|liked|friend\s+request|tagged|mentioned|birthday|memories|is\s+live/iu';
@@ -185,6 +203,9 @@ final class NotificationIntakeParser
         }
         $groupHint = preg_match('/^(?:facebook|ekran|screen|gruplar|groups)$/iu', $groupHint) ? '' : $groupHint;
         $dump = self::flattenJsonChunks($dump);
+        if (preg_match(self::A11Y_ANCHOR, $dump) === 1 || preg_match(self::A11Y_SHARED, $dump) === 1) {
+            return self::parseAccessibilityScreens($dump, $groupHint);
+        }
         // Bloklar: "Paylaş" (düğme satırı sonu) her gönderiyi kapatır; makronun ekranlar arasına koyduğu "-----" de sınırdır.
         $blocks = [];
         $current = [];
@@ -245,6 +266,120 @@ final class NotificationIntakeParser
         }
 
         return ['skipped' => null, 'group' => $groupHint !== '' ? $groupHint : $messages[0]['group'], 'platform' => 'facebook', 'messages' => $messages];
+    }
+
+    /**
+     * Erişilebilirlik dökümünü gönderilere böler. Her ekran ("-----" arası) ayrı okunur; gönderinin çapası
+     * "Ad'in gönderisi için diğer seçenekler" satırıdır. Çapadan geriye doğru başlık bölgesi (yazar, "•Paylaşılanlar",
+     * Takip Et/Katıl, grup adı) taranır; gövde çapadan sonraki satırlardan bir sonraki gönderinin başlığına kadardır.
+     * Grup adı: grup sayfasındaysa "Grup Adı'da Ara" satırından, akıştaysa başlık bölgesindeki yazar dışı satırdan
+     * ("Grup•Katıl" eki atılır). Yazar adı ve profil satırları saklanmaz.
+     *
+     * @return array{skipped:?string, group:?string, platform:string, messages:list<array{sender:?string, phone:?string, text:string, group:string}>}
+     */
+    private static function parseAccessibilityScreens(string $dump, string $groupHint): array
+    {
+        $messages = [];
+        $seen = [];
+        foreach (preg_split('/^-{3,}$/mu', $dump) ?: [] as $screen) {
+            $lines = [];
+            foreach (preg_split('/\R/u', $screen) ?: [] as $line) {
+                $line = trim(preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', preg_replace('/\s+/u', ' ', $line) ?? $line) ?? $line);
+                if ($line !== '') {
+                    $lines[] = $line;
+                }
+            }
+            $pageGroup = '';
+            foreach ($lines as $line) {
+                if (preg_match(self::A11Y_GROUP_PAGE, $line, $m)) {
+                    $pageGroup = trim($m[1]);
+                    break;
+                }
+            }
+            $anchors = [];
+            foreach ($lines as $i => $line) {
+                if (preg_match(self::A11Y_ANCHOR, $line, $m)) {
+                    $anchors[] = ['at' => $i, 'author' => trim($m[1])];
+                }
+            }
+            if ($anchors === []) {
+                continue;
+            }
+            // Her çapanın başlık bölgesinin başı: geriye doğru yazar/arayüz/"•Paylaşılanlar" satırları ve en çok iki grup adayı.
+            foreach ($anchors as $k => &$anchor) {
+                $floor = $k > 0 ? $anchors[$k - 1]['at'] + 1 : 0;
+                $start = $anchor['at'];
+                $candidates = [];
+                $sponsored = false;
+                for ($i = $anchor['at'] - 1; $i >= $floor && $i >= $anchor['at'] - 12; $i--) {
+                    $line = $lines[$i];
+                    if (preg_match(self::SCREEN_SKIP_BLOCK, $line)) {
+                        $sponsored = true;
+                        $start = $i;
+
+                        continue;
+                    }
+                    if (self::isAuthorLine($line, $anchor['author']) || preg_match(self::A11Y_SHARED, $line) || preg_match(self::A11Y_HEADER_UI, TurkishText::lower($line))) {
+                        $start = $i;
+
+                        continue;
+                    }
+                    $clean = trim(preg_replace('/\s*•\s*(?:katıl|takip et)\s*$/iu', '', $line) ?? $line);
+                    if (count($candidates) < 2 && mb_strlen($clean) <= 80 && ! preg_match('/[.!?:]\s*$|\d{3}/u', $clean) && ! LoadIntakeService::hasPhone($clean)) {
+                        $candidates[] = $clean;
+                        $start = $i;
+
+                        continue;
+                    }
+                    break;
+                }
+                $anchor['start'] = $start;
+                $anchor['sponsored'] = $sponsored;
+                $anchor['group'] = $pageGroup !== '' ? $pageGroup : ($candidates !== [] ? end($candidates) : ($groupHint !== '' ? $groupHint : 'Facebook akışı'));
+            }
+            unset($anchor);
+
+            foreach ($anchors as $k => $anchor) {
+                if ($anchor['sponsored']) {
+                    continue;
+                }
+                $end = isset($anchors[$k + 1]) ? $anchors[$k + 1]['start'] : count($lines);
+                $body = [];
+                for ($i = $anchor['at'] + 1; $i < $end; $i++) {
+                    // "… diğer" (devamını gör) düğmesi satır sonunda; kısaltılmış gövde olduğu gibi kalır
+                    $line = trim(preg_replace('/\\s*(?:…|\\.\\.\\.)\\s*diğer\\s*$/u', '', $lines[$i]) ?? $lines[$i]);
+                    $lower = TurkishText::lower($line); // /i bayrağı İ/I dönüşümünü bilmez
+                    if ($line === '' || $line === $pageGroup || self::isAuthorLine($line, $anchor['author']) || preg_match(self::A11Y_BODY_NOISE, $lower) || preg_match(self::A11Y_HEADER_UI, $lower) || self::isScreenNoise($lower)) {
+                        continue;
+                    }
+                    if ($body !== [] && mb_stripos(end($body), $line) !== false) {
+                        continue; // "#etiket" gibi bir önceki satırın parçası olan tekrar
+                    }
+                    $body[] = $line;
+                }
+                $text = trim(implode("\n", $body));
+                if (mb_strlen(preg_replace('/[^\p{L}\p{N}]/u', '', $text) ?? '') < 12) {
+                    continue;
+                }
+                $key = TurkishCities::ascii(preg_replace('/[^\p{L}\p{N}]+/u', '', $text) ?? $text);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $messages[] = ['sender' => null, 'phone' => null, 'text' => $text, 'group' => mb_substr($anchor['group'], 0, 120)];
+            }
+        }
+        if ($messages === []) {
+            return self::skip('facebook_screen_empty');
+        }
+
+        return ['skipped' => null, 'group' => $groupHint !== '' ? $groupHint : $messages[0]['group'], 'platform' => 'facebook', 'messages' => $messages];
+    }
+
+    /** Yazar adıyla başlayan satırlar: "Ad", "Ad•Takip Et", "Ad profil resmi", "Ad profesyonel hissediyor." */
+    private static function isAuthorLine(string $line, string $author): bool
+    {
+        return $author !== '' && mb_stripos($line, $author) === 0;
     }
 
     /**

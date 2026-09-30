@@ -19,6 +19,7 @@ class IntakeEvent extends Model
         'unauthorized' => 'Anahtar hatalı',
         'failed' => 'İşlenemedi',
         'ping' => 'Bağlantı sınaması (telefon sunucuya ulaştı)',
+        'screen' => 'Ekran dökümü alındı (telefon sunucuya ulaştı)',
         'source_deleted' => 'Silinmiş kaynaktan mesaj (yok sayıldı)',
     ];
 
