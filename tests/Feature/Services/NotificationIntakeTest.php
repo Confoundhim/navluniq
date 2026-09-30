@@ -158,6 +158,13 @@ class NotificationIntakeTest extends TestCase
         $this->assertSame([['Ege Nakliyeciler', 'Denizli - Muğla 12 ton tekstil 0532 111 22 33']], array_map(fn ($m) => [$m['group'], $m['text']], $single['messages']));
         $this->assertSame('facebook_screen_empty', NotificationIntakeParser::parse(['kind' => 'screen', 'text' => "Beğen\nYorum yap\nPaylaş"])['skipped']);
 
+        // Düz metin gövde: döküm tırnak içerse de bozulmaz; anahtar ve tür başlıkta.
+        $plain = $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'text/plain', 'HTTP_X_SCRAPER_TOKEN' => 'phone-secret', 'HTTP_X_INTAKE_KIND' => 'screen'], $dump);
+        $plain->assertOk();
+        $this->assertSame(3, $plain->json('processed'), 'düz metin gövde de üç gönderi verir');
+        ScrapedLoad::query()->forceDelete();
+        Scraper::query()->forceDelete();
+
         // Uçtan uca: döküm tek istekte gelir, her grup kendi kaynağıyla açılır; aktif olan grubun ilanı kaydedilir.
         Scraper::create(['name' => 'Nakliye Yük İlanları', 'type' => 'facebook', 'source_identifier' => 'fb:nakliye-yuk-ilanlari', 'is_active' => true]);
         $resp = $this->postJson('/api/v1/webhook/notification', ['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => $dump, 'token' => 'phone-secret'])->assertOk();

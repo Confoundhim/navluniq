@@ -32,13 +32,12 @@ class MacroDownloadTest extends TestCase
         $this->assertSame('fb://groups', $m['m_actionList'][0]['m_urlToOpen']);
         $this->assertSame(['OpenWebPageAction', 'PauseAction', 'SetVariableAction', 'LoopAction', 'UIInteractionAction', 'PauseAction', 'ReadScreenContentsAction', 'SetVariableAction', 'UIInteractionAction', 'PauseAction', 'EndLoopAction', 'HttpRequestAction', 'NotificationAction'], array_column($m['m_actionList'], 'm_classType'));
         $http = $m['m_actionList'][11]['httpRequestConfig'];
-        $this->assertSame(['POST', url('/api/v1/webhook/notification'), 'application/json'], [$http['requestType'], $http['urlToOpen'], $http['contentType']]);
-        $body = json_decode($http['contentBodyText'], true);
-        $this->assertSame(['Facebook', 'screen', '{lv=ekran}', ScrapedLoadService::apiToken()], [$body['app'], $body['kind'], $body['text'], $body['token']]);
-        $this->assertNotSame('', $body['token']);
+        $this->assertSame(['POST', url('/api/v1/webhook/notification'), 'text/plain', '{lv=ekran}'], [$http['requestType'], $http['urlToOpen'], $http['contentType'], $http['contentBodyText']]);
+        $this->assertSame([['X-Scraper-Token', ScrapedLoadService::apiToken()], ['X-Intake-Kind', 'screen']], array_map(fn ($h) => [$h['paramName'], $h['paramValue']], $http['headerParams']));
+        $this->assertNotSame('', ScrapedLoadService::apiToken());
         $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][7]['m_newStringValue']);
         $this->assertSame(['ekran', 'parca'], array_column($m['localVariables'], 'm_name'));
-        $this->assertSame(15, $m['m_actionList'][3]['m_fixedOptionCount']);
+        $this->assertSame([15, 0], [$m['m_actionList'][3]['m_fixedOptionCount'], $m['m_actionList'][3]['m_option']], 'sabit sayıda yinele; 1 koşul döngüsü olup sonsuz dönüyordu');
         $this->assertFalse($m['m_triggerList'][0]['preventRemoveByDrag'], 'çöp kutusuna sürükleyince kapanır');
         $d2 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 8]))->getContent(), true);
         $this->assertSame(8, $d2['macro']['m_actionList'][3]['m_fixedOptionCount']);

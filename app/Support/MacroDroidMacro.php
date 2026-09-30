@@ -21,14 +21,16 @@ final class MacroDroidMacro
     {
         $ekran = self::variable('ekran', 2);
         $parca = self::variable('parca', 4);
-        $body = json_encode(['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => '{lv=ekran}', 'token' => $token], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+        // Gövde düz metin: ekran içeriği tırnak/satır sonu taşır, JSON'a gömülünce bozulurdu. Anahtar ve tür başlıkta gider.
+        $body = '{lv=ekran}';
 
         $actions = [
             // Önce Facebook'un Gruplar sekmesi açılır (derin bağlantı); böylece düğmeye nerede basıldığı fark etmez.
             self::action('OpenWebPageAction', ['m_urlToOpen' => 'fb://groups', 'm_httpGet' => false, 'm_disableUrlEncode' => true, 'm_blockNextAction' => false]),
             self::action('PauseAction', ['m_delayInMilliSeconds' => 0, 'm_delayInSeconds' => 4, 'm_useAlarm' => false, 'unitForVariables' => 0]),
             self::action('SetVariableAction', self::setString($ekran, '')),
-            self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 1, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
+            // m_option 0 = sabit sayıda yinele (1 = koşul sürdükçe: Osman'ın günlüğünde "ESNASINDA / ÇALIŞTIR" olarak sonsuz döndü)
+            self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 0, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
             self::action('UIInteractionAction', ['action' => 0, 'uiInteractionConfiguration' => [
                 'blocking' => false, 'checkOverlays' => false, 'clickOption' => 1, 'longClick' => false, 'textContent' => 'Devamını gör',
                 'textMatchOption' => 1, 'viewId' => '', 'xyPercentages' => false, 'type' => 'Click',
@@ -44,8 +46,8 @@ final class MacroDroidMacro
             self::action('EndLoopAction', []),
             self::action('HttpRequestAction', ['httpRequestConfig' => [
                 'allowAnyCertificate' => false, 'basicAuthEnabled' => false, 'basicAuthPassword' => '', 'basicAuthUsername' => '', 'blockNextAction' => true,
-                'contentBodyFile' => '', 'contentBodyText' => $body, 'contentBodyType' => 'text', 'contentType' => 'application/json', 'followRedirects' => true,
-                'headerParams' => [], 'queryParams' => [], 'requestType' => 'POST', 'saveResponseFileName' => '', 'saveResponseFolderPath' => '',
+                'contentBodyFile' => '', 'contentBodyText' => $body, 'contentBodyType' => 'text', 'contentType' => 'text/plain', 'followRedirects' => true,
+                'headerParams' => [['paramName' => 'X-Scraper-Token', 'paramValue' => $token], ['paramName' => 'X-Intake-Kind', 'paramValue' => 'screen']], 'queryParams' => [], 'requestType' => 'POST', 'saveResponseFileName' => '', 'saveResponseFolderPath' => '',
                 'saveResponseFolderPathDisplayName' => '', 'saveResponseType' => 'none', 'timeoutSeconds' => 60, 'urlEncodeBody' => false, 'urlEncodeParams' => false,
                 'urlToOpen' => $url,
             ]]),
@@ -69,7 +71,7 @@ final class MacroDroidMacro
                 'aiGenerated' => 0, 'breakpoints' => [], 'disabledTimestamp' => 0, 'exportedActionBlocks' => [], 'forceEvenIfNotEnabledTimestamp' => 0,
                 'isActionBlock' => false, 'isExtra' => false, 'isFavourite' => false, 'lastEditedTimestamp' => (int) (microtime(true) * 1000),
                 'localVariables' => [$ekran, $parca], 'localVarsAlphabetical' => true, 'm_GUID' => self::guid(),
-                'm_actionList' => $actions, 'm_category' => 'NavlunIQ', 'm_constraintList' => [],
+                'm_actionList' => $actions, 'm_category' => '', 'm_constraintList' => [], // kategorisiz: kapalı kategori makroyu durduruyordu (Osman'da "DEVRE DIŞI (KATEGORİ)")
                 'm_description' => 'Facebook Gruplar akışını 15 ekran kaydırıp okur ve NavlunIQ sunucusuna yollar. Facebook → Gruplar sekmesi → NQ düğmesine dokunun.',
                 'm_descriptionOpen' => false, 'm_enabled' => true, 'm_excludeLog' => false, 'm_headingColor' => 0, 'm_isOrCondition' => false,
                 'm_name' => 'NavlunIQ akış', 'm_triggerList' => [$trigger],
