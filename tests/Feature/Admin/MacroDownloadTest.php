@@ -38,6 +38,11 @@ class MacroDownloadTest extends TestCase
         $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][5]['m_newStringValue']);
         $this->assertSame(['ekran', 'parca'], array_column($m['localVariables'], 'm_name'));
         $this->assertSame(15, $m['m_actionList'][1]['m_fixedOptionCount']);
+        $this->assertFalse($m['m_triggerList'][0]['preventRemoveByDrag'], 'çöp kutusuna sürükleyince kapanır');
+        $d2 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 8]))->getContent(), true);
+        $this->assertSame(8, $d2['macro']['m_actionList'][1]['m_fixedOptionCount']);
+        $d3 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 999]))->getContent(), true);
+        $this->assertSame(40, $d3['macro']['m_actionList'][1]['m_fixedOptionCount'], 'üst sınır 40');
         $this->assertSame(MacroDroidMacro::FILENAME, 'navluniq-akis.macro');
     }
 

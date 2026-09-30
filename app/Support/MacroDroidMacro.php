@@ -55,7 +55,7 @@ final class MacroDroidMacro
         $trigger = [
             'identifier' => 'nq', 'iconText' => 'NQ', 'useTextIcon' => true, 'iconTextColor' => -1, 'imageResourceName' => '', 'm_imageResourceId' => 0,
             'm_iconBgColor' => -1024000, 'm_alpha' => 100, 'm_padding' => 20, 'm_forceLocation' => false, 'm_showOnLockScreen' => true, 'm_size' => 0,
-            'm_transparentBackground' => false, 'm_xLocation' => 0, 'm_yLocation' => 0, 'preventRemoveByDrag' => true, 'vibrateOnPress' => true, 'detectLongPress' => false,
+            'm_transparentBackground' => false, 'm_xLocation' => 0, 'm_yLocation' => 0, 'preventRemoveByDrag' => false, 'vibrateOnPress' => true, 'detectLongPress' => false, // çöp kutusuna sürükleyince makro kapanır (Osman istedi)
             'disableLogging' => false, 'm_SIGUID' => self::guid(), 'm_classType' => 'FloatingButtonTrigger', 'm_comment' => '', 'm_constraintList' => [], 'm_isDisabled' => false, 'm_isOrCondition' => false,
         ];
 
@@ -74,9 +74,9 @@ final class MacroDroidMacro
         ];
     }
 
-    public static function json(string $url, string $token): string
+    public static function json(string $url, string $token, int $screens = 15): string
     {
-        return json_encode(self::facebookFeed($url, $token), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
+        return json_encode(self::facebookFeed($url, $token, $screens), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
     }
 
     /** @return array<string, mixed> */

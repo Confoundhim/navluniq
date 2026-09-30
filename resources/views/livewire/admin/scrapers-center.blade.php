@@ -1057,7 +1057,13 @@ new class extends Component {
                         <li>MacroDroid izin isterse verin: Erişilebilirlik (UI etkileşimi, ekran okuma) ve "Diğer uygulamaların üzerinde göster". Ekranda <strong>NQ</strong> düğmesi belirir.</li>
                         <li>Facebook → <strong>Gruplar</strong> sekmesi → en üst → NQ düğmesine dokunun; 30-40 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür.</li>
                     </ol>
-                    <a href="{{ route('admin.macrodroid.download') }}" class="btn-primary py-2 px-4 text-xs inline-block">Makro dosyasını indir</a>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ route('admin.macrodroid.download') }}" class="btn-primary py-2 px-4 text-xs inline-block">Makro dosyasını indir</a>
+                        <span class="text-[11px] text-neutral-400">15 ekran kaydırır (≈ son 30-40 gönderi). Daha az/çok:</span>
+                        <a href="{{ route('admin.macrodroid.download', ['ekran' => 8]) }}" class="text-brand-600 text-[11px] font-semibold hover:underline">8 ekran</a>
+                        <a href="{{ route('admin.macrodroid.download', ['ekran' => 25]) }}" class="text-brand-600 text-[11px] font-semibold hover:underline">25 ekran</a>
+                    </div>
+                    <p class="text-[11px] text-neutral-400">Gönderildi mi? Dış Kaynak İlanları → <strong>Canlı akış</strong> sekmesi: telefondan gelen her istek anında satır olur (kuyruğa alındı / tekrar / elendi + neden / kaynak onay bekliyor / anahtar hatalı). Hiç satır yoksa istek sunucuya ulaşmamıştır; MacroDroid → Yuva → <strong>Sistem günlüğü</strong> HTTP isteğinin sonucunu (200 = ulaştı) gösterir. NQ düğmesini çöp kutusuna sürüklerseniz makro kapanır; Makrolar listesinden yeniden açılır.</p>
                     <p class="text-[11px] text-neutral-400">İçe aktarma hata verirse ya da makrodaki "HTTP İsteği" / "Ekran içeriğini oku" satırları boş görünürse: telefondaki WhatsApp makrosuna uzun basıp <strong>Dışa aktar</strong> deyin ve çıkan dosyayı Osman'a gönderin; dosya biçimi ona göre düzeltilir. Aşağıdaki elle kurulum adımları yedek yoldur.</p>
                 </div>
                 <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum (yedek yol) · İzinler</p>
