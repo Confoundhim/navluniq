@@ -114,11 +114,15 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   tekrarlar elenir; her gönderi kendi grubuyla (`messages[].group`) kuyruğa gider. Sunucuya otomatik Facebook isteği yoktur.
   **Hazır makro dosyası (2026-09-30):** `App\Support\MacroDroidMacro::facebookFeed` MacroDroid dışa aktarma biçiminde (.macro JSON,
   macroExportVersion 1) makroyu üretir; panelde "Makro dosyasını indir" (`admin.macrodroid.download`, `manage scrapers`, anahtar ve adres
-  içinde). Bilinen yapılar gerçek dışa aktarımlardan (LoopAction, UIInteractionAction, PauseAction, SetVariableAction, değişken nesnesi);
-  FloatingButtonTrigger, ReadScreenContentsAction, HttpRequestAction, NotificationAction alan adları **en iyi tahmindir** (açık örnek
-  bulunamadı, forum/wiki erişimi kapalı): içe aktarma bozulursa Osman telefondaki WhatsApp makrosunun dışa aktarımını gönderir, alanlar
-  ona göre düzeltilir. Ekran içeriği sözlük değişkenidir; makro `{lvjson=parca}` ile JSON ekler, `parseFacebookScreen` `flattenJsonChunks`
-  ile değerleri satıra çevirir. Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
+  içinde). **Tüm alan adları 2026-09-30'da Osman'ın telefonundan gelen gerçek dışa aktarımdan alındı** (HttpRequestAction `requestConfig`,
+  `requestType` 1 = POST, `contentBodySource` 0; ReadScreenContentsAction `variableName`/`isLocalVar`, m_comment yok; FloatingButtonTrigger
+  `disableTriggerOnRemove` false — true iken çöpe sürüklenen düğme tetikleyiciyi kapatıyordu ve simge çıkmıyordu). Ekran içeriği sözlük
+  değişkenidir; makro `{lvjson=parca}` ile JSON ekler. **Gerçek döküm biçimi (erişilebilirlik):** "Paylaş" düğmesi okunmaz; gönderi çapası
+  "Ad'in gönderisi için diğer seçenekler", başlıkta "Ad•3s•Paylaşılanlar: …", grup sayfasında "Grup Adı'da Ara", akışta "Grup•Katıl";
+  kısaltılmış gövde "… diğer" ile biter (makro `^(diğer|Devamını gör)$` düzenli ifadesiyle tam "diğer" satırına dokunur).
+  `NotificationIntakeParser::parseAccessibilityScreens` bunu çözer (çapa görülünce devreye girer; eski "Paylaş" biçimi de durur);
+  `/i` bayrağı İ/I'yı bilmediğinden satırlar `TurkishText::lower` ile eşlenir. Yazar/profil satırları saklanmaz. Sunucuya ulaşan her döküm
+  canlı akışa "Ekran dökümü alındı" satırı düşürür (kuyruk beklese de görünür). Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
   kazıyıcı servisler hesap riski nedeniyle kullanılmaz. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
   `seen_sources` sayacına yazılır. Gönderen adı saklanmaz. Kurulum: `docs/BILDIRIM_ILETICI_KURULUM.md` Facebook bölümü.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,

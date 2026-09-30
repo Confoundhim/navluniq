@@ -1063,7 +1063,7 @@ new class extends Component {
                         <a href="{{ route('admin.macrodroid.download', ['ekran' => 8]) }}" class="text-brand-600 text-[11px] font-semibold hover:underline">8 ekran</a>
                         <a href="{{ route('admin.macrodroid.download', ['ekran' => 25]) }}" class="text-brand-600 text-[11px] font-semibold hover:underline">25 ekran</a>
                     </div>
-                    <p class="text-[11px] text-neutral-400">Gönderildi mi? Dış Kaynak İlanları → <strong>Canlı akış</strong> sekmesi: telefondan gelen her istek anında satır olur (kuyruğa alındı / tekrar / elendi + neden / kaynak onay bekliyor / anahtar hatalı). Hiç satır yoksa istek sunucuya ulaşmamıştır; MacroDroid → Yuva → <strong>Sistem günlüğü</strong> HTTP isteğinin sonucunu (200 = ulaştı) gösterir. NQ düğmesini çöp kutusuna sürüklerseniz makro kapanır; Makrolar listesinden yeniden açılır.</p>
+                    <p class="text-[11px] text-neutral-400">Gönderildi mi? Dış Kaynak İlanları → <strong>Canlı akış</strong> sekmesi: telefondan gelen her istek anında satır olur (kuyruğa alındı / tekrar / elendi + neden / kaynak onay bekliyor / anahtar hatalı). Ekran dökümü gelir gelmez "Ekran dökümü alındı" satırı düşer (kaç gönderi, kaç karakter). Hiç satır yoksa istek sunucuya ulaşmamıştır; MacroDroid → Yuva → <strong>Sistem günlüğü</strong> HTTP isteğinin sonucunu (200 = ulaştı) gösterir. NQ düğmesini çöp kutusuna sürüklerseniz düğme gizlenir; geri getirmek için Makrolar listesinde makronun anahtarını kapatıp açın.</p>
                     <p class="text-[11px] text-neutral-400">İçe aktarma hata verirse ya da makrodaki "HTTP İsteği" / "Ekran içeriğini oku" satırları boş görünürse: telefondaki WhatsApp makrosuna uzun basıp <strong>Dışa aktar</strong> deyin ve çıkan dosyayı Osman'a gönderin; dosya biçimi ona göre düzeltilir. Aşağıdaki elle kurulum adımları yedek yoldur.</p>
                 </div>
                 <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Elle kurulum (yedek yol) · İzinler</p>
@@ -1076,7 +1076,7 @@ new class extends Component {
                     <li><strong>İşlem 1:</strong> Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> (metin) = boş.</li>
                     <li><strong>İşlem 2:</strong> Döngü → Yinele <strong>15 kez</strong> (15 ekran ≈ son 30-40 gönderi). Döngünün içine sırayla:
                         <ul class="list-disc pl-5 mt-1 space-y-1">
-                            <li>UI etkileşimi → Tıkla → Metin içeriği: <span class="font-mono">Devamını gör</span> (uzun gönderiler açılsın; bulunamazsa devam eder).</li>
+                            <li>UI etkileşimi → Tıkla → Metin içeriği: <span class="font-mono">^(diğer|Devamını gör)$</span>, düzenli ifade açık (kısaltılmış gönderi "… diğer" ile biter; yalnız tam "diğer" satırına dokunulur, bulunamazsa devam eder).</li>
                             <li>Bekle → 1 saniye.</li>
                             <li>UI etkileşimi → <strong>Ekran içeriğini oku</strong> → değişken <span class="font-mono">parca</span>.</li>
                             <li>Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> = <span class="font-mono">{lv=ekran}</span> + yeni satır + <span class="font-mono">-----</span> + yeni satır + <span class="font-mono">{lv=parca}</span> ("Ekle" seçeneğiyle).</li>
@@ -1097,7 +1097,7 @@ new class extends Component {
                     <li>Facebook → <strong>Gruplar</strong> sekmesi → en üste gelin → kayan düğmeye dokunun → 30-40 saniye telefona dokunmayın.</li>
                     <li>Tek bir grubun içinden toplamak için HTTP isteğine <span class="font-mono">X-Intake-Title</span> başlığıyla grubun adını ekleyin (ayrı bir makro olarak).</li>
                     <li>Gönderiler Canlı akışta satır satır görünür; yeni gruplar aşağıda <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır, <strong>Aktif et</strong> deyince işlenir. Aynı ilan WhatsApp'ta da geldiyse ikinci kayıt açılmaz.</li>
-                    <li>Facebook ekran düzenini değiştirirse "Devamını gör" metni ve kaydırma ayarı güncellenir.</li>
+                    <li>Facebook ekran düzenini değiştirirse "diğer" metni ve kaydırma ayarı güncellenir.</li>
                 </ul>
             </div>
         </div>

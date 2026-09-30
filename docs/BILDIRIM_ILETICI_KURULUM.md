@@ -87,7 +87,8 @@ Tetikleyici: **Kayan düğme** (MacroDroid → Kayan düğme; ekranda küçük b
 İşlemler, sırasıyla:
 1. Değişkenler → **Değişken ayarla**: `ekran` (metin) = boş.
 2. Döngü → **Yinele: 15 kez** (kaç ekran kaydırılacağı; 15 ekran yaklaşık son 30-40 gönderi). Döngünün içine:
-   - UI etkileşimi → **Tıkla → Metin içeriği**: `Devamını gör` (uzun gönderiler açılsın; bulunamazsa hata vermez).
+   - UI etkileşimi → **Tıkla → Metin içeriği**: `^(diğer|Devamını gör)$`, düzenli ifade açık (kısaltılmış gönderi "… diğer" ile
+     biter; yalnız tam "diğer" satırına dokunulur, "diğer seçenekler" menüsüne değil; bulunamazsa hata vermez).
    - Bekle → **1 saniye**.
    - UI etkileşimi → **Ekran içeriğini oku** → değişken: `parca` (Screen contents → variable). *Bazı sürümlerde "Ekran içeriği"
      eylem adı "UI etkileşimi → Ekran metnini al"dır.*
@@ -107,7 +108,7 @@ Tek bir grubun içindeyken kullanacaksanız gövdedeki `title` alanına o grubun
 
 **Sonuç:** Canlı akışta her gönderi ayrı satır olarak görünür; yeni gruplar **Kaynaklar ve telefon** listesine `fb:grup-adi`
 tanımlayıcısıyla pasif düşer, **Aktif et** deyince işlenir. Deneme: 2-3 grupla bir hafta; makro Facebook'un ekran düzeni
-değişince bozulursa "Devamını gör" metni ve kaydırma ayarı güncellenir.
+değişince bozulursa "diğer" metni ve kaydırma ayarı güncellenir.
 
 ## 5. Deneme
 

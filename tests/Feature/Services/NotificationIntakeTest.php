@@ -181,6 +181,34 @@ class NotificationIntakeTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /** Hazır makronun gerçek çıktısı: "Paylaş" düğmesi okunmaz; gönderiler "Ad'in gönderisi için diğer seçenekler" çapasıyla ayrılır. */
+    public function test_accessibility_screen_dump_from_the_ready_macro_is_split_into_posts(): void
+    {
+        $feed = json_encode([
+            'id/1' => 'Grup kur', 'id/2' => 'Ayarlar', 'index:15' => 'Grupların', 'index:16' => 'Tümünü gör', 'index:18' => 'Ege Nakliyeciler', 'index:19' => 'Grubun sabitlemesini kaldır',
+            'index:49' => 'Grup gönderileri', 'index:55' => 'Grup kapak fotoğrafı', 'index:57' => 'Nakliye Yük İlanları•Katıl', 'index:58' => 'Nakliye Yük İlanları', 'index:59' => 'Katıl',
+            'index:60' => 'Ahmet Örnek•2s•Paylaşılanlar: Herkese açık grup', 'index:61' => 'Ahmet Örnek', 'index:62' => "Ahmet Örnek'in gönderisi için diğer seçenekler", 'index:63' => 'Gönderiyi Gizle',
+            'index:66' => "Ankara Yenimahalle - İzmir Aliağa 24 ton palet tenteli\n0532 111 22 33", 'index:67' => 'Fotoğraf 1 / 2, fotoğrafı genişlet', 'index:68' => 'Fotoğraf 2 / 2, fotoğrafı genişlet',
+            'index:71' => 'Senin için, 1 / 4', 'index:73' => 'Grupların, 2 / 4', 'index:82' => 'Geri', 'index:86' => 'Grup ara',
+        ], JSON_UNESCAPED_UNICODE);
+        $page = json_encode([
+            'id/1' => 'Geri', 'id/2' => "Karadeniz Tır Grubu'da Ara", 'id/3' => 'Üyelik araçları için daha fazla seçenek',
+            'index:30' => 'Mehmet Deneme profil resmi', 'index:31' => 'Mehmet Deneme ‌ profesyonel hissediyor.', 'index:32' => 'Mehmet Deneme', 'index:33' => '22 Kas 2022•Paylaşılanlar: Üyelere özel grup',
+            'index:34' => "Mehmet Deneme'in gönderisi için diğer seçenekler", 'index:37' => 'Samsun - Mardin 25 ton gübre damperli araç lazım 0533 444 55 66… diğer', 'index:38' => 'diğer', 'index:45' => 'Reels Videosu', 'index:46' => 'Sesini aç',
+            'index:57' => 'Ayşe Örnek profil resmi', 'index:58' => 'Ayşe Örnek•Takip Et', 'index:59' => 'Takip Et', 'index:60' => '23 Kas 2022•Paylaşılanlar: Üyelere özel grup',
+            'index:61' => "Ayşe Örnek'in gönderisi için diğer seçenekler", 'index:64' => '#nakliye 🙈', 'index:65' => '#nakliye', 'index:66' => 'Paylaşılan Bağlantı: Belge, liste.docx',
+            'index:70' => 'Sponsorlu', 'index:71' => 'Reklam Firması profil resmi', 'index:72' => 'Reklam Firması', 'index:73' => "Reklam Firması'in gönderisi için diğer seçenekler", 'index:74' => 'Kampanyalı lastik fiyatları için tıklayın',
+            'index:84' => 'Karadeniz Tır Grubu',
+        ], JSON_UNESCAPED_UNICODE);
+        $r = NotificationIntakeParser::parse(['kind' => 'screen', 'title' => 'ekran', 'text' => "\n-----\n".$feed."\n-----\n".$page."\n-----\n".$page]);
+        $this->assertNull($r['skipped']);
+        $this->assertSame([
+            ['Nakliye Yük İlanları', "Ankara Yenimahalle - İzmir Aliağa 24 ton palet tenteli\n0532 111 22 33"],
+            ['Karadeniz Tır Grubu', 'Samsun - Mardin 25 ton gübre damperli araç lazım 0533 444 55 66'],
+        ], array_map(fn ($m) => [$m['group'], $m['text']], $r['messages']), 'yazar, fotoğraf, bağlantı ve arayüz satırları atılır; kısa etiket gönderisi ve sponsorlu blok elenir; ikinci ekran tekrar sayılmaz');
+        $this->assertStringNotContainsString('Ahmet', json_encode($r, JSON_UNESCAPED_UNICODE), 'yazar adı saklanmaz');
+    }
+
     public function test_endpoint_requires_token_and_creates_pending_source_then_loads(): void
     {
         $payload = ['title' => 'Ankara Nakliye Grubu', 'text' => "Ahmet Usta: Ankara'dan İzmir'e 24 ton palet 0532 123 45 67"];
