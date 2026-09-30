@@ -112,7 +112,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `NotificationIntakeParser::parseFacebookScreen` dökümü "Paylaş" düğme satırlarından gönderilere böler, ilk satır grup adı
   (title verilmişse o), yazar satırı atılır (ad saklanmaz), arayüz/sayaç/zaman satırları ve "Sponsorlu" bloklar elenir, döküm içi
   tekrarlar elenir; her gönderi kendi grubuyla (`messages[].group`) kuyruğa gider. Sunucuya otomatik Facebook isteği yoktur.
-  Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
+  **Hazır makro dosyası (2026-09-30):** `App\Support\MacroDroidMacro::facebookFeed` MacroDroid dışa aktarma biçiminde (.macro JSON,
+  macroExportVersion 1) makroyu üretir; panelde "Makro dosyasını indir" (`admin.macrodroid.download`, `manage scrapers`, anahtar ve adres
+  içinde). Bilinen yapılar gerçek dışa aktarımlardan (LoopAction, UIInteractionAction, PauseAction, SetVariableAction, değişken nesnesi);
+  FloatingButtonTrigger, ReadScreenContentsAction, HttpRequestAction, NotificationAction alan adları **en iyi tahmindir** (açık örnek
+  bulunamadı, forum/wiki erişimi kapalı): içe aktarma bozulursa Osman telefondaki WhatsApp makrosunun dışa aktarımını gönderir, alanlar
+  ona göre düzeltilir. Ekran içeriği sözlük değişkenidir; makro `{lvjson=parca}` ile JSON ekler, `parseFacebookScreen` `flattenJsonChunks`
+  ile değerleri satıra çevirir. Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
   kazıyıcı servisler hesap riski nedeniyle kullanılmaz. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
   `seen_sources` sayacına yazılır. Gönderen adı saklanmaz. Kurulum: `docs/BILDIRIM_ILETICI_KURULUM.md` Facebook bölümü.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,

@@ -184,6 +184,7 @@ final class NotificationIntakeParser
             return self::skip('empty');
         }
         $groupHint = preg_match('/^(?:facebook|ekran|screen|gruplar|groups)$/iu', $groupHint) ? '' : $groupHint;
+        $dump = self::flattenJsonChunks($dump);
         // Bloklar: "Paylaş" (düğme satırı sonu) her gönderiyi kapatır; makronun ekranlar arasına koyduğu "-----" de sınırdır.
         $blocks = [];
         $current = [];
@@ -244,6 +245,36 @@ final class NotificationIntakeParser
         }
 
         return ['skipped' => null, 'group' => $groupHint !== '' ? $groupHint : $messages[0]['group'], 'platform' => 'facebook', 'messages' => $messages];
+    }
+
+    /**
+     * Hazır makro ekran içeriğini sözlük olarak JSON biçiminde ekler ({lvjson=parca}: görünüm kimliği → yazı). "-----" ile
+     * ayrılmış her parça JSON nesnesiyse değerleri sırayla satır yapılır; düz metin parçalar olduğu gibi kalır.
+     */
+    private static function flattenJsonChunks(string $dump): string
+    {
+        $out = [];
+        foreach (preg_split('/^-{3,}$/mu', $dump) ?: [] as $chunk) {
+            $chunk = trim($chunk);
+            if ($chunk === '') {
+                continue;
+            }
+            if (str_starts_with($chunk, '{') || str_starts_with($chunk, '[')) {
+                $decoded = json_decode($chunk, true);
+                if (is_array($decoded)) {
+                    $lines = [];
+                    array_walk_recursive($decoded, function ($v) use (&$lines): void {
+                        if (is_scalar($v) && trim((string) $v) !== '') {
+                            $lines[] = trim((string) $v);
+                        }
+                    });
+                    $chunk = implode("\n", $lines);
+                }
+            }
+            $out[] = $chunk;
+        }
+
+        return implode("\n-----\n", $out);
     }
 
     private static function isScreenNoise(string $line): bool

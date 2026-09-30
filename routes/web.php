@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BackupDownloadController;
+use App\Http\Controllers\Admin\MacroDownloadController;
 use App\Http\Controllers\Admin\PanelSwitchController;
 use App\Http\Controllers\Admin\UpdateStatusController;
 use App\Http\Controllers\Driver\LocationController;
@@ -176,6 +177,7 @@ Route::prefix('adminsystem')->group(function () {
             return view('admin.backups-page');
         })->name('admin.backups');
         Route::get('/backups/{backup}/download', BackupDownloadController::class)->name('admin.backups.download');
+        Route::get('/macrodroid/navluniq-akis.macro', MacroDownloadController::class)->name('admin.macrodroid.download');
         Route::get('/panel-gecis/{panel}', PanelSwitchController::class)->where('panel', 'driver|cargo_owner')->name('admin.panel-switch');
 
         Route::post('/logout', function () {
