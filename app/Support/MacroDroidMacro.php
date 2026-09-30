@@ -8,7 +8,8 @@ namespace App\Support;
  *
  * Yapı, MacroDroid'in dışa aktardığı JSON biçimidir (macroExportVersion 1): kayan düğme tetikleyicisi, 15 kez yinelenen
  * döngüde "Devamını gör"e dokunma, ekran içeriğini okuma (sözlük değişkeni), biriktirme, yukarı kaydırma, bekleme; döngü
- * sonunda HTTP POST ve bildirim. Ekran içeriği her turda "-----" ayracıyla ve JSON (lvjson) biçiminde eklenir; sunucu
+ * sonunda HTTP POST ve bildirim. Başta "fb://groups" derin bağlantısıyla Facebook'un Gruplar sekmesi açılır (Osman ana akışta
+ * basınca ana akış kaymıştı; artık nereden basılırsa basılsın Gruplar akışı kaydırılır). Ekran içeriği her turda "-----" ayracıyla ve JSON (lvjson) biçiminde eklenir; sunucu
  * (NotificationIntakeParser::parseFacebookScreen) JSON sözlüğün değerlerini satır satır alır.
  */
 final class MacroDroidMacro
@@ -23,6 +24,9 @@ final class MacroDroidMacro
         $body = json_encode(['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => '{lv=ekran}', 'token' => $token], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
 
         $actions = [
+            // Önce Facebook'un Gruplar sekmesi açılır (derin bağlantı); böylece düğmeye nerede basıldığı fark etmez.
+            self::action('OpenWebPageAction', ['m_urlToOpen' => 'fb://groups', 'm_httpGet' => false, 'm_disableUrlEncode' => true, 'm_blockNextAction' => false]),
+            self::action('PauseAction', ['m_delayInMilliSeconds' => 0, 'm_delayInSeconds' => 4, 'm_useAlarm' => false, 'unitForVariables' => 0]),
             self::action('SetVariableAction', self::setString($ekran, '')),
             self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 1, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
             self::action('UIInteractionAction', ['action' => 0, 'uiInteractionConfiguration' => [

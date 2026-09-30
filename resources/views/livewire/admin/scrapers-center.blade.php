@@ -1055,7 +1055,7 @@ new class extends Component {
                         <li>Aşağıdaki düğmeyle <span class="font-mono">navluniq-akis.macro</span> dosyasını indirin; anahtar ve adres içinde hazırdır. Dosyayı WhatsApp ile iletici telefona gönderin.</li>
                         <li>Telefonda dosyaya dokunun, açmak için <strong>MacroDroid</strong>'i seçin (ya da MacroDroid → Makrolar → sağ üst ⋮ → <strong>İçe aktar</strong> → dosyayı seçin). "NavlunIQ akış" makrosu listeye gelir.</li>
                         <li>MacroDroid izin isterse verin: Erişilebilirlik (UI etkileşimi, ekran okuma) ve "Diğer uygulamaların üzerinde göster". Ekranda <strong>NQ</strong> düğmesi belirir.</li>
-                        <li>Facebook → <strong>Gruplar</strong> sekmesi → en üst → NQ düğmesine dokunun; 30-40 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür.</li>
+                        <li>NQ düğmesine dokunun (Facebook'un neresinde olduğunuz fark etmez: makro önce Gruplar sekmesini açar, 4 saniye bekler, sonra kaydırır); 40-50 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür.</li>
                     </ol>
                     <div class="flex flex-wrap items-center gap-2">
                         <a href="{{ route('admin.macrodroid.download') }}" class="btn-primary py-2 px-4 text-xs inline-block">Makro dosyasını indir</a>
