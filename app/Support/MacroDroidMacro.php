@@ -71,7 +71,7 @@ final class MacroDroidMacro
                 'aiGenerated' => 0, 'breakpoints' => [], 'disabledTimestamp' => 0, 'exportedActionBlocks' => [], 'forceEvenIfNotEnabledTimestamp' => 0,
                 'isActionBlock' => false, 'isExtra' => false, 'isFavourite' => false, 'lastEditedTimestamp' => (int) (microtime(true) * 1000),
                 'localVariables' => [$ekran, $parca], 'localVarsAlphabetical' => true, 'm_GUID' => self::guid(),
-                'm_actionList' => $actions, 'm_category' => 'NavlunIQ', 'm_constraintList' => [],
+                'm_actionList' => $actions, 'm_category' => '', 'm_constraintList' => [], // kategorisiz: kapalı kategori makroyu durduruyordu (Osman'da "DEVRE DIŞI (KATEGORİ)")
                 'm_description' => 'Facebook Gruplar akışını 15 ekran kaydırıp okur ve NavlunIQ sunucusuna yollar. Facebook → Gruplar sekmesi → NQ düğmesine dokunun.',
                 'm_descriptionOpen' => false, 'm_enabled' => true, 'm_excludeLog' => false, 'm_headingColor' => 0, 'm_isOrCondition' => false,
                 'm_name' => 'NavlunIQ akış', 'm_triggerList' => [$trigger],
