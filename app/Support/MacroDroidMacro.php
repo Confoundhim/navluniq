@@ -21,7 +21,8 @@ final class MacroDroidMacro
     {
         $ekran = self::variable('ekran', 2);
         $parca = self::variable('parca', 4);
-        $body = json_encode(['app' => 'Facebook', 'kind' => 'screen', 'title' => 'ekran', 'text' => '{lv=ekran}', 'token' => $token], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+        // Gövde düz metin: ekran içeriği tırnak/satır sonu taşır, JSON'a gömülünce bozulurdu. Anahtar ve tür başlıkta gider.
+        $body = '{lv=ekran}';
 
         $actions = [
             // Önce Facebook'un Gruplar sekmesi açılır (derin bağlantı); böylece düğmeye nerede basıldığı fark etmez.
@@ -45,8 +46,8 @@ final class MacroDroidMacro
             self::action('EndLoopAction', []),
             self::action('HttpRequestAction', ['httpRequestConfig' => [
                 'allowAnyCertificate' => false, 'basicAuthEnabled' => false, 'basicAuthPassword' => '', 'basicAuthUsername' => '', 'blockNextAction' => true,
-                'contentBodyFile' => '', 'contentBodyText' => $body, 'contentBodyType' => 'text', 'contentType' => 'application/json', 'followRedirects' => true,
-                'headerParams' => [], 'queryParams' => [], 'requestType' => 'POST', 'saveResponseFileName' => '', 'saveResponseFolderPath' => '',
+                'contentBodyFile' => '', 'contentBodyText' => $body, 'contentBodyType' => 'text', 'contentType' => 'text/plain', 'followRedirects' => true,
+                'headerParams' => [['paramName' => 'X-Scraper-Token', 'paramValue' => $token], ['paramName' => 'X-Intake-Kind', 'paramValue' => 'screen']], 'queryParams' => [], 'requestType' => 'POST', 'saveResponseFileName' => '', 'saveResponseFolderPath' => '',
                 'saveResponseFolderPathDisplayName' => '', 'saveResponseType' => 'none', 'timeoutSeconds' => 60, 'urlEncodeBody' => false, 'urlEncodeParams' => false,
                 'urlToOpen' => $url,
             ]]),

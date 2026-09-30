@@ -60,6 +60,12 @@ class NotificationWebhookController extends Controller
             $repaired = true;
         }
 
+        // Düz metin gövde (Facebook ekran dökümü): içerik tırnak/satır sonu taşıdığından JSON'a gömülemez; makro gövdeyi olduğu gibi
+        // text/plain yollar, anahtar ve tür başlıkta gelir (X-Scraper-Token, X-Intake-Kind: screen).
+        if (strtolower((string) $request->header('X-Intake-Kind')) === 'screen' && $request->input('text', '') === '' && trim($raw) !== '') {
+            $request->merge(['kind' => 'screen', 'app' => 'Facebook', 'title' => (string) ($request->header('X-Intake-Title') ?: 'ekran'), 'text' => $raw]);
+        }
+
         // Başlık ya da gövde alanı; bazı otomasyon uygulamaları özel başlık gönderemez.
         $providedToken = (string) ($request->header('X-Scraper-Token') ?: $request->input('token', ''));
         if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
