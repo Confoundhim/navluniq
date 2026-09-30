@@ -28,7 +28,8 @@ final class MacroDroidMacro
             self::action('OpenWebPageAction', ['m_urlToOpen' => 'fb://groups', 'm_httpGet' => false, 'm_disableUrlEncode' => true, 'm_blockNextAction' => false]),
             self::action('PauseAction', ['m_delayInMilliSeconds' => 0, 'm_delayInSeconds' => 4, 'm_useAlarm' => false, 'unitForVariables' => 0]),
             self::action('SetVariableAction', self::setString($ekran, '')),
-            self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 1, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
+            // m_option 0 = sabit sayıda yinele (1 = koşul sürdükçe: Osman'ın günlüğünde "ESNASINDA / ÇALIŞTIR" olarak sonsuz döndü)
+            self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 0, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
             self::action('UIInteractionAction', ['action' => 0, 'uiInteractionConfiguration' => [
                 'blocking' => false, 'checkOverlays' => false, 'clickOption' => 1, 'longClick' => false, 'textContent' => 'Devamını gör',
                 'textMatchOption' => 1, 'viewId' => '', 'xyPercentages' => false, 'type' => 'Click',

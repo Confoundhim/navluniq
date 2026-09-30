@@ -38,7 +38,7 @@ class MacroDownloadTest extends TestCase
         $this->assertNotSame('', $body['token']);
         $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][7]['m_newStringValue']);
         $this->assertSame(['ekran', 'parca'], array_column($m['localVariables'], 'm_name'));
-        $this->assertSame(15, $m['m_actionList'][3]['m_fixedOptionCount']);
+        $this->assertSame([15, 0], [$m['m_actionList'][3]['m_fixedOptionCount'], $m['m_actionList'][3]['m_option']], 'sabit sayıda yinele; 1 koşul döngüsü olup sonsuz dönüyordu');
         $this->assertFalse($m['m_triggerList'][0]['preventRemoveByDrag'], 'çöp kutusuna sürükleyince kapanır');
         $d2 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 8]))->getContent(), true);
         $this->assertSame(8, $d2['macro']['m_actionList'][3]['m_fixedOptionCount']);
