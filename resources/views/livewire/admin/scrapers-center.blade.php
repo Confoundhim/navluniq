@@ -1045,7 +1045,7 @@ new class extends Component {
                     <li><strong>Pil kısıtlamasını kaldır</strong> deyin; Xiaomi/Huawei/Oppo'da ayrıca Uygulama bilgisi → "Otomatik başlat" açılır.</li>
                     <li>Bitti. WhatsApp grup mesajları kendiliğinden gelir; Canlı akışta görünmeye başlayınca MacroDroid'deki WhatsApp makrosunu kapatın (ikisi birden açık kalırsa sunucu tekrarı eler ama gereksiz yük olur). Facebook için Gruplar akışında ya da bir grubun içinde normal kaydırın; her yeni ekran 20 saniyede bir paket olarak gider, Canlı akışa "Ekran dökümü alındı" satırı düşer. Aynı gönderi 24 saat içinde bir daha kuyruğa girmez.</li>
                 </ol>
-                <p class="text-[11px] text-neutral-500">Uygulamanın kendi ekranında son gönderim, bekleyen paket sayısı ve günlük görünür; sorun olursa o ekranın görüntüsü yeter. Yeni sürüm çıkınca uygulama kendisi haber verir. Aşağıdaki MacroDroid yolları yalnız yedek olarak duruyor.</p>
+                <p class="text-[11px] text-neutral-500">Tanı: <a href="{{ route('admin.toplayici.dump') }}" class="text-brand-600 font-semibold hover:underline">son Facebook dökümünü indir</a> (son 3 ekran paketi, 48 saat; Kaynaklar'a tuhaf adlar düşerse bu dosya gönderilir, ayrıştırıcı ona göre düzeltilir). Uygulamanın kendi ekranında son gönderim, bekleyen paket sayısı ve günlük görünür; sorun olursa o ekranın görüntüsü yeter. Yeni sürüm çıkınca uygulama kendisi haber verir. Aşağıdaki MacroDroid yolları yalnız yedek olarak duruyor.</p>
             </div>
 
             <div class="text-xs space-y-1">

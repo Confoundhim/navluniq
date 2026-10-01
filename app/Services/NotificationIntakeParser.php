@@ -57,7 +57,10 @@ final class NotificationIntakeParser
     private const A11Y_GROUP_PAGE = '/^(.{2,120}?)[\'’](?:da|de|ta|te|nda|nde)\s+Ara$/iu';
 
     /** Başlık bölgesindeki arayüz satırları (yazar adı ayrıca elenir). */
-    private const A11Y_HEADER_UI = '/^(?:takip et|katıl|gönderiyi gizle|grup kapak fotoğrafı|gönderiyi yönet|daha fazla bilgi edin|en alakalı)$|(?:profil resmi|hikayesini aç.*|hikayesi, görmedin)$/iu';
+    private const A11Y_HEADER_UI = '/^(?:takip et|katıl|gönderiyi gizle|grup kapak fotoğrafı|gönderiyi yönet|daha fazla bilgi edin|en alakalı|geri|tümünü gör|gönderiyi kaydet|ifade bırak|ara|kapat|beğen|yorum yap|yorum|yorumlar|paylaş|gönder|yanıtla|bildirimler|menü|profil|kaydet|kaydedildi|diğer|daha fazla|ana sayfa|reels|videolar|arkadaşlar|hikayeler?|çevirisini gör|tepki ver|yorum yaz|gruba katıl|gruplar|grup|sayfa|anonim üye|yönetici|moderatör|yeni üye|en çok katkıda bulunan|.*videosunu gizle(?:\s+\d+)?|.*gönderisini gizle|.*fotoğrafı|.*kapak fotoğrafı)$|(?:profil resmi|hikayesini aç.*|hikayesi, görmedin|grubuna git|sayfasına git)$/iu';
+
+    /** Grup adı sayılabilecek satır: nakliye/grup sözcüğü taşıyan ya da işaretli ("•Katıl", kapak fotoğrafı sonrası) satır. */
+    private const GROUP_HINT_WORDS = '/(?<!\p{L})(?:yük|yuk|nakliye|nakliyat|nakliyeci|lojistik|tır|tir|kamyon|kamyonet|kamyoncu|tırcı|tirci|şoför|sofor|sürücü|dorse|treyler|frigo|kargo|taşıma|tasima|taşımacı|sefer|navlun|araç|arac|ilan|grup|grubu|gruplar|platform|topluluk|dernek|derneği|birlik|birliği|kulüp|kulübü|club|forum|pazar|pazarı|borsa|borsası|türkiye|turkiye|anadolu|marmara|ege|akdeniz|karadeniz)(?!\p{L})/iu';
 
     /** Gövdeye girmeyen ek satırlar: fotoğraf/video/bağlantı kutuları, "diğer" düğmesi, sayfa başlığı. */
     private const A11Y_BODY_NOISE = '/^(?:fotoğraf(?:\s+\d+\s*\/\s*\d+.*)?|.*fotoğrafı genişlet|reels videosu|mevcut reels videosunu oynat|sesini aç|\+\d+|paylaşılan bağlantı:.*|bağlantı görseli paylaşıldı|bu içerik hakkında|.*arka plan(?: görseli)?|diğer|daha fazla|geri|facebook logosu|oluştur,.*|.+, \\d+ \\/ \\d+|.+, tab \\d+ of \\d+|üyelik araçları için daha fazla seçenek|grup gönderileri|grupların|senin için|senin hareketlerin|keşfet|grup ara|tümünü gör|grup kur|ayarlar|yöneticinin onaylaması bekleniyor.*|öne çıkanlar|sen|rehberler|fotoğraflar)$/iu';
@@ -305,11 +308,13 @@ final class NotificationIntakeParser
             if ($anchors === []) {
                 continue;
             }
+            $authors = array_map(fn ($a) => TurkishText::lower($a['author']), $anchors);
             // Her çapanın başlık bölgesinin başı: geriye doğru yazar/arayüz/"•Paylaşılanlar" satırları ve en çok iki grup adayı.
             foreach ($anchors as $k => &$anchor) {
                 $floor = $k > 0 ? $anchors[$k - 1]['at'] + 1 : 0;
                 $start = $anchor['at'];
                 $candidates = [];
+                $shaped = 0; // başlıkta en çok iki "ad gibi" satır; fazlası önceki gönderinin gövdesidir
                 $sponsored = false;
                 for ($i = $anchor['at'] - 1; $i >= $floor && $i >= $anchor['at'] - 12; $i--) {
                     $line = $lines[$i];
@@ -324,9 +329,17 @@ final class NotificationIntakeParser
 
                         continue;
                     }
-                    $clean = trim(preg_replace('/\s*•\s*(?:katıl|takip et)\s*$/iu', '', $line) ?? $line);
-                    if (count($candidates) < 2 && mb_strlen($clean) <= 80 && ! preg_match('/[.!?:]\s*$|\d{3}/u', $clean) && ! LoadIntakeService::hasPhone($clean)) {
-                        $candidates[] = $clean;
+                    $clean = trim(preg_replace('/\s*•\s*(?:katıl|takip et)\s*$/iu', '', $line, -1, $marked) ?? $line);
+                    if ($shaped < 2 && mb_strlen($clean) <= 80 && ! preg_match('/[.!?:]\s*$|\d{3}/u', $clean) && ! LoadIntakeService::hasPhone($clean)) {
+                        $shaped++;
+                        // Grup adı yalnız güvenilir işaretle: "•Katıl/•Takip Et" eki, kapak fotoğrafı/profil satırından hemen sonra,
+                        // aynı satırın başlıkta tekrarı ya da grup/nakliye sözcüğü. Düğme yazısı ve yazar/kişi adı grup olamaz.
+                        $afterCover = $i > 0 && preg_match('/(?:kapak fotoğrafı|profil resmi)$/iu', $lines[$i - 1]) === 1;
+                        $repeated = in_array($clean, $candidates, true) || (isset($lines[$i + 1]) && trim(preg_replace('/\s*•.*$/u', '', $lines[$i + 1]) ?? '') === $clean);
+                        $signal = $marked > 0 || $afterCover || $repeated;
+                        if (self::isPlausibleGroupName($clean, $authors, $signal) && ($signal || preg_match(self::GROUP_HINT_WORDS, $clean))) {
+                            $candidates[] = $clean;
+                        }
                         $start = $i;
 
                         continue;
@@ -376,6 +389,30 @@ final class NotificationIntakeParser
         }
 
         return ['skipped' => null, 'group' => $groupHint !== '' ? $groupHint : $messages[0]['group'], 'platform' => 'facebook', 'messages' => $messages];
+    }
+
+    /**
+     * Grup adı olabilir mi: arayüz yazısı değil, ekrandaki bir yazarın adı değil, grup/nakliye sözcüğü taşımayan 1-4 sözcüklük
+     * kişi adı görünümünde değil ("turgut özdem" grup sanılmıştı). Gerçek grup adları ya işaretle ya sözcükle gelir.
+     *
+     * @param  list<string>  $authorsLower
+     */
+    private static function isPlausibleGroupName(string $clean, array $authorsLower, bool $signal = false): bool
+    {
+        $lower = TurkishText::lower($clean);
+        if (mb_strlen($clean) < 3 || preg_match(self::A11Y_HEADER_UI, $lower) || preg_match(self::A11Y_BODY_NOISE, $lower) || self::isScreenNoise($lower)) {
+            return false;
+        }
+        foreach ($authorsLower as $author) {
+            if ($author !== '' && ($lower === $author || str_starts_with($lower, $author.' ') || str_starts_with($author, $lower))) {
+                return false;
+            }
+        }
+        if ($signal || preg_match(self::GROUP_HINT_WORDS, $clean)) {
+            return true; // "•Katıl" / kapak fotoğrafı / tekrar işareti ya da sözcük: kişi adı denetimine gerek yok
+        }
+
+        return ! self::looksLikePersonName($clean);
     }
 
     /** Yazar adıyla başlayan satırlar: "Ad", "Ad•Takip Et", "Ad profil resmi", "Ad profesyonel hissediyor." */

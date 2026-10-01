@@ -99,6 +99,9 @@ class NotificationWebhookController extends Controller
         // Ekran dökümü (Facebook, tek dokunuş): isteğin sunucuya ulaştığı canlı akışta hemen görünsün; kuyruk beklese de
         // "geldi mi" sorusu buradan cevaplanır. Gönderiler ayrıca kendi satırlarıyla işlenir.
         if (($validated['kind'] ?? null) === 'screen') {
+            // Tanı: son 3 ham döküm 48 saat önbellekte durur, panelden indirilir (ayrıştırıcı yanlış grup/satır çıkarınca gerçek biçim görülür).
+            $dumps = array_slice(array_merge([['at' => now()->toDateTimeString(), 'app' => (string) $request->header('X-Intake-App', ''), 'text' => mb_substr((string) ($validated['text'] ?? ''), 0, 120000)]], (array) Cache::get('fb:last_dumps', [])), 0, 3);
+            Cache::put('fb:last_dumps', $dumps, now()->addHours(48));
             // Toplayıcı uygulaması kullanıcı kaydırdıkça aynı gönderiyi birkaç kez gösterir; 24 saat içinde görülen gönderi kuyruğa
             // bir daha girmez (canlı akış "tekrar" satırlarıyla dolmaz). Önbellek anahtarı grup + metin özetidir.
             $total = count($parsed['messages']);
