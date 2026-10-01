@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\NotificationWebhookController;
 use App\Http\Controllers\Api\WhatsappWebhookController;
+use App\Support\Toplayici;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,4 +24,7 @@ Route::prefix('v1')->group(function () {
     // Telefonun tarayıcısından açılan bağlantı sınaması (GET); Canlı akışa "Bağlantı sınaması" düşer.
     Route::get('/webhook/notification/ping', [NotificationWebhookController::class, 'ping'])
         ->middleware('throttle:30,1')->name('api.notification.ping');
+    // NavlunIQ Toplayıcı (Android) sürüm denetimi: uygulama açılışta bakar, yenisi varsa indirme bağlantısı gösterir.
+    Route::get('/toplayici/version', fn () => response()->json(Toplayici::version()))
+        ->middleware('throttle:60,1')->name('api.toplayici.version');
 });

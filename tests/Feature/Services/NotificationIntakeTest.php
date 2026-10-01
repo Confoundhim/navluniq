@@ -167,6 +167,14 @@ class NotificationIntakeTest extends TestCase
         $this->assertNotNull($received, 'ekran dökümü alındı satırı');
         $this->assertStringContainsString('3 gönderi', $received->excerpt);
         $this->assertSame('Ekran dökümü alındı (telefon sunucuya ulaştı)', $received->statusLabel());
+        $this->assertStringContainsString('3 yeni', $received->excerpt);
+        // Toplayıcı uygulaması kullanıcı kaydırdıkça aynı gönderiyi yeniden yollar: 24 saat içinde görülen gönderi kuyruğa girmez.
+        $again = $this->call('POST', '/api/v1/webhook/notification', [], [], [], ['CONTENT_TYPE' => 'text/plain', 'HTTP_X_SCRAPER_TOKEN' => 'phone-secret', 'HTTP_X_INTAKE_KIND' => 'screen', 'HTTP_X_INTAKE_APP' => 'toplayici/1.0'], $dump);
+        $again->assertOk();
+        $this->assertSame(['skipped', 'already_seen', 0, 3], [$again->json('status'), $again->json('reason'), $again->json('processed'), $again->json('seen')]);
+        $this->assertStringContainsString('0 yeni, ', IntakeEvent::query()->where('status', 'screen')->latest('id')->first()->excerpt);
+        $this->assertStringContainsString('toplayici/1.0', IntakeEvent::query()->where('status', 'screen')->latest('id')->first()->excerpt);
+        Cache::flush();
         ScrapedLoad::query()->forceDelete();
         Scraper::query()->forceDelete();
 

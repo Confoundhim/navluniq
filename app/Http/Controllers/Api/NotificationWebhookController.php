@@ -11,6 +11,7 @@ use App\Services\NotificationIntakeParser;
 use App\Services\ScrapedLoadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -98,8 +99,16 @@ class NotificationWebhookController extends Controller
         // Ekran dökümü (Facebook, tek dokunuş): isteğin sunucuya ulaştığı canlı akışta hemen görünsün; kuyruk beklese de
         // "geldi mi" sorusu buradan cevaplanır. Gönderiler ayrıca kendi satırlarıyla işlenir.
         if (($validated['kind'] ?? null) === 'screen') {
+            // Toplayıcı uygulaması kullanıcı kaydırdıkça aynı gönderiyi birkaç kez gösterir; 24 saat içinde görülen gönderi kuyruğa
+            // bir daha girmez (canlı akış "tekrar" satırlarıyla dolmaz). Önbellek anahtarı grup + metin özetidir.
+            $total = count($parsed['messages']);
+            $parsed['messages'] = array_values(array_filter($parsed['messages'], fn (array $m) => Cache::add('fb:seen:'.sha1(($m['group'] ?? '').'|'.$m['text']), 1, now()->addDay())));
+            $app = (string) $request->header('X-Intake-App', '');
             IntakeEvent::record('screen', ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null,
-                'excerpt' => count($parsed['messages']).' gönderi ayrıştırıldı, '.mb_strlen((string) ($validated['text'] ?? '')).' karakter döküm']);
+                'excerpt' => $total.' gönderi ayrıştırıldı, '.count($parsed['messages']).' yeni, '.mb_strlen((string) ($validated['text'] ?? '')).' karakter döküm'.($app !== '' ? ' · '.mb_substr($app, 0, 40) : '')]);
+            if ($parsed['messages'] === []) {
+                return response()->json(['success' => true, 'status' => 'skipped', 'reason' => 'already_seen', 'processed' => 0, 'seen' => $total]);
+            }
         }
 
         // Kuyruk işçisi canlıysa mesajlar kuyruğa bırakılır ve telefon hemen cevap alır: yapay zeka çağrısı ve
