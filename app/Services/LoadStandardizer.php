@@ -208,10 +208,11 @@ class LoadStandardizer
      * boşsa ya da ham metinden çıkan il kayıtlıdan farklıysa (örn. "Kahraman Maraş" eskiden Karaman okunmuştu) günceller.
      * Yönetici düzenlemesi ve yapay zekanın çözdüğü kayıtlara dokunmaz. Değişiklik olduysa true.
      */
-    public function relocateFromRaw(ScrapedLoad $load): bool
+    public function relocateFromRaw(ScrapedLoad $load, bool $force = false): bool
     {
         $meta = (array) ($load->parse_metadata ?? []);
-        if (! empty($meta['admin_edited']) || $load->ai_status === 'done' || trim((string) $load->raw_message) === '') {
+        // force: yapay zeka / şablon çözümü de yeniden konumlanır (konum sözlüğü zehirlenmişken onlar da aynı çözücüden geçmişti)
+        if (! empty($meta['admin_edited']) || (! $force && $load->ai_status === 'done') || trim((string) $load->raw_message) === '') {
             return false;
         }
         $parsed = app(AiParserService::class)->parseCheap((string) $load->raw_message);

@@ -97,11 +97,11 @@ class LoadIntakeService
 
         try {
             $recent = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
-                ->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->first();
+                ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))->first();
             if ($recent) {
                 $this->noteSighting($recent, $groupName);
 
-                return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan daha önce alındı.', $recent->id);
+                return $this->result(200, true, 'duplicate', 'Aynı ilan yeniden paylaşıldı; kayıt tazelendi.', $recent->id);
             }
 
             // 3) Kaynak onaylı değilse hiçbir ayrıştırma yapılmaz; kota harcanmaz.
@@ -281,11 +281,11 @@ class LoadIntakeService
                 return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.', $first?->id) + ['excerpt' => $text];
             }
             $recent = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
-                ->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->first();
+                ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))->first();
             if ($recent) {
                 $this->noteSighting($recent, $groupName);
 
-                return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan daha önce alındı.', $recent->id) + ['excerpt' => $text];
+                return $this->result(200, true, 'duplicate', 'Aynı ilan yeniden paylaşıldı; kayıt tazelendi.', $recent->id) + ['excerpt' => $text];
             }
         }
 
@@ -370,6 +370,8 @@ class LoadIntakeService
             'route_key' => $routeKey,
             'duplicate_count' => 1,
             'seen_sources' => [$groupName],
+            'last_seen_at' => now(),
+            'sighting_count' => 1,
             'raw_message' => $text,
             'sender_phone' => null,
             'encrypted_sender_phone' => Crypt::encryptString($phone),
@@ -883,17 +885,25 @@ class LoadIntakeService
     }
 
     /** Aynı ilan yeni bir kaynaktan görüldüyse sayacı ve kaynak listesini günceller; aynı kaynaktan tekrar sayılmaz. */
+    /**
+     * Aynı ilan yeniden görüldü (başka grup ya da aynı grupta tekrar paylaşım): kaynak listesine eklenir ve ilan tazelenir.
+     * Her gün yeniden paylaşılan ilan "canlı"dır: last_seen_at ilerler, yayındaysa saklama süresi uzar ve listede öne çıkar;
+     * eskiden ilk görüldüğü tarihte kalıp 7 gün sonra düşüyordu (Engin Abi: "İstanbul çıkışlı ilan yok, hep 7 günlük").
+     */
     private function noteSighting(?ScrapedLoad $load, string $groupName): void
     {
-        if (! $load || $groupName === '') {
+        if (! $load) {
             return;
         }
         $sources = array_values(array_filter((array) ($load->seen_sources ?? [])));
-        if (in_array($groupName, $sources, true)) {
-            return;
+        if ($groupName !== '' && ! in_array($groupName, $sources, true)) {
+            $sources[] = $groupName;
         }
-        $sources[] = $groupName;
-        $load->forceFill(['seen_sources' => $sources, 'duplicate_count' => count($sources)])->save();
+        $changes = ['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'last_seen_at' => now(), 'sighting_count' => (int) $load->sighting_count + 1];
+        if ($load->visibility === 'public' && $load->status !== 'rejected') {
+            $changes['retention_expires_at'] = now()->addDays(max(1, Settings::int('scraper_list_days')));
+        }
+        $load->forceFill($changes)->save();
     }
 
     /** Emoji, noktalama, bağlantı ve büyük/küçük harf farklarını yok sayan karşılaştırma metni. */
@@ -1002,8 +1012,9 @@ class LoadIntakeService
             return null;
         }
 
+        // Son görülme sayılır: her gün aynı rotayı paylaşan gönderenin ilanı tek kayıtta tazelenir, kayıt çoğalmaz.
         return ScrapedLoad::query()->where('route_key', $routeKey)
-            ->where('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->first();
+            ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->orWhere('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS)))->first();
     }
 
     public static function routeKey(?string $phone, ?string $pickup, ?string $delivery, bool $districtLevel = false): ?string

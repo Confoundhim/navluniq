@@ -370,6 +370,13 @@ class ScrapedLoadService
         if ($d['wait']) {
             return 'yapay zeka doğrulaması bekleniyor';
         }
+        // Kural tamamsa (iki il, telefon, araç tipi) yerel sınıflandırıcının kuşkusu ilanı "eksik bilgili"ye düşüremez; yalnız
+        // yapay zeka açıkça "ilan değil" derse ya da puan ret sınırının altındaysa yayınlanmaz (Engin Abi: araç yazılı ama eksikte).
+        $vehicleCertain = $load->vehicle_any || ($load->vehicle_type && in_array($load->vehicle_type_source, ['keyword', 'admin', 'template'], true));
+        $ruleComplete = $load->pickup_province_code && $load->delivery_province_code && $vehicleCertain && ($load->encrypted_sender_phone || $load->sender_phone);
+        if ($ruleComplete && $d['score'] > self::pct('scraper_auto_reject_max_score') && ($d['ai'] === null || $d['ai'] >= 0.5)) {
+            return null;
+        }
         $pct = (int) round($d['score'] * 100);
         if ($d['score'] >= self::pct('scraper_auto_approve_min_confidence')) {
             return null;
@@ -535,7 +542,7 @@ class ScrapedLoadService
         // Süre dolan ilan arşivlenir; panelden süre kısaltıldıysa yayın tarihi yeni süreyi aşan ilanlar da beklemeden arşivlenir.
         $listDays = max(1, Settings::int('scraper_list_days'));
         ScrapedLoad::query()->where('visibility', 'public')
-            ->where(fn ($q) => $q->where('retention_expires_at', '<', now())->orWhere('published_at', '<', now()->subDays($listDays)))
+            ->where(fn ($q) => $q->where('retention_expires_at', '<', now())->orWhereRaw('COALESCE(last_seen_at, published_at) < ?', [now()->subDays($listDays)]))
             ->orderBy('id')->limit(2000)->get()
             ->each(function (ScrapedLoad $load) use (&$count): void {
                 $load->update(['visibility' => 'private']);

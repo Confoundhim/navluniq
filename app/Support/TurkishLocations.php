@@ -187,6 +187,25 @@ final class TurkishLocations
         return trim(preg_replace(self::DAY_PHRASE, ' ', $text) ?? $text);
     }
 
+    private static int $catalogOnly = 0;
+
+    /** Yalnız katalog (il/ilçe tablosu, takma adlar hariç), birebir yazım: sözlük girdisi bu yazımı asla değiştiremez. */
+    public static function resolveCatalog(?string $text): ?array
+    {
+        return self::withoutLexicon(fn () => self::resolve($text, fuzzy: false));
+    }
+
+    /** @template T  @param  callable(): T  $fn  @return T */
+    private static function withoutLexicon(callable $fn): mixed
+    {
+        self::$catalogOnly++;
+        try {
+            return $fn();
+        } finally {
+            self::$catalogOnly--;
+        }
+    }
+
     public static function resolve(?string $text, bool $fuzzy = true): ?array
     {
         if ($text === null || trim($text) === '') {
@@ -199,15 +218,11 @@ final class TurkishLocations
         if ($clean === '') {
             return null;
         }
-        // Jargon sözlüğü önce: "ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze" (yönetici ya da öğrenilmiş).
-        static $depth = 0;
-        if ($depth === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
-            $depth++;
-            try {
-                $hit = self::resolve($alias);
-            } finally {
-                $depth--;
-            }
+        // Jargon sözlüğü ("ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze") yalnız katalogda birebir bulunmayan yazım için.
+        // Katalog her zaman önce gelir: öğrenilmiş ya da elle girilmiş bir takma ad "ankara" gibi bilinen bir il/ilçe adını
+        // başka yere çeviremez (2026-10-01: yanlış öğrenilen "ankara → İzmir Torbalı" girdisi binlerce ilanı bozmuştu).
+        if (self::$catalogOnly === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
+            $hit = self::resolveCatalog($clean) ?? self::withoutLexicon(fn () => self::resolve($alias));
             if ($hit !== null) {
                 return $hit;
             }

@@ -149,6 +149,20 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   kaynağın 7 günlük kayıtlarında ön ek eşleşmesiyle (≥40 karakter) tam metni kesik kaydın yerine koyar (kesik arşive), kesik
   sonradan gelirse tekrar sayar; yayınlanmış/yönetici düzenlemiş kayıt dokunulmaz. Osman'ın sorusuna cevap (2026-10-01): kendi
   uygulamamız MacroDroid'den daha güvenli (3 izin, yalnız Facebook paketleri, veri yalnız navluniq.com'a, kod açık, dokunma yok).
+- **2026-10-01 büyük teşhis (Osman + Engin Abi: "şehirler çok yanlış", "İstanbul çıkışlı ilan yok, hep 7 günlük", "araç yazılı ama
+  eksik bilgilide"):** üç kök neden bulundu ve düzeltildi. (1) **Konum sözlüğü kataloğu eziyordu:** `LearningService::learnLocations`
+  otomatik yayından da öğreniyor ve "ankara" gibi bilinen bir adı yanlış çözülmüş ilanın etiketine ("İzmir Torbalı") bağlayabiliyordu;
+  `TurkishLocations::resolve` sözlüğe katalogdan önce bakıyordu → her "Ankara" İzmir Torbalı oldu, rota anahtarları çakışıp yeni ilanlar
+  "tekrar" diye düştü. Artık katalog her zaman önce (`resolveCatalog`, sözlük yalnız katalogda olmayan jargon için), konum yalnız
+  **yönetici** kararından öğrenilir ve katalogda çözülen yazım hiç öğrenilmez; `0001_01_32` kataloğu ezen takma adları siler ve
+  `scraped-loads:relocate-force` (5 dk'da bir, ayar `scraper_relocate_force_until/cursor`) son 14 günün ilanlarını ham mesajdan
+  yeniden konumlar (yapay zeka/şablon çözümü dahil, yönetici düzenlemesi hariç). (2) **Yeniden paylaşılan ilan tazelenmiyordu:**
+  `last_seen_at` + `sighting_count` eklendi; `noteSighting` her görülmede ileri alır, yayındaysa saklama süresini uzatır; metin ve
+  numara+rota tekrar pencereleri son görülmeye bakar; şoför listesi `last_seen_at` ile sıralanır, kart "yeniden paylaşıldı · 2 sa önce"
+  der; arşivleme `COALESCE(last_seen_at, published_at)`. (3) **Kural tamamken yerel sınıflandırıcı ilanı eksik bilgiliye düşürüyordu:**
+  `autoApprovalBlocker` kısayolu: iki il + telefon + kesin araç (keyword/admin/template ya da vehicle_any) ve puan ret sınırının
+  üstünde → yayın; yalnız yapay zeka açıkça kuşkuluysa (<0,5) kısayol işlemez. Ayrıca üçüncü seri biçimi "KIZILTEPE = ADAPAZARI
+  DİLOVASI" (`SeriesAd`, "=" / "=>" / "→"; başlıksız giriş bloğunun notları ilk başlığa taşınır). Testler: `LocationPoisonTest`.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

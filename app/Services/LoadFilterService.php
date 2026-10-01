@@ -192,7 +192,7 @@ class LoadFilterService
             $q->whereBetween('pickup_date', [now()->startOfDay(), now()->addDays((int) $f['pickup_within_days'])->endOfDay()]);
         }
 
-        return $this->applySort($q, $f, 'published_at');
+        return $this->applySort($q, $f, 'last_seen_at'); // yeniden paylaşılan ilan öne gelir
     }
 
     public function applyToScraped(Builder $q, array $f, ?DriverProfile $profile): Builder

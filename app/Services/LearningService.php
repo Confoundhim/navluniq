@@ -22,7 +22,11 @@ class LearningService
     {
         try {
             $this->classifier->train((string) $load->raw_message, true);
-            $this->learnLocations((string) $load->raw_message, $load->pickup_location, $load->delivery_location, $load->id);
+            // Konum sözlüğü yalnız yönetici onayından öğrenir: otomatik yayından öğrenmek kendi kendini besleyen bir döngüydü
+            // (yanlış çözülen ilan yayınlanır → yanlış takma ad öğrenilir → sonraki ilanlar da yanlış çözülür).
+            if ($byAdmin) {
+                $this->learnLocations((string) $load->raw_message, $load->pickup_location, $load->delivery_location, $load->id);
+            }
             // Yönetici onayı en güçlü doğrulamadır: gönderenin kalıbı öğrenilir (sonraki aynı kalıp yapay zekasız okunur).
             $phone = $load->plainPhone();
             if ($byAdmin && $phone && $load->pickup_province_code && $load->delivery_province_code) {
@@ -96,6 +100,9 @@ class LearningService
             $target = TurkishLocations::resolve($label);
             if ($target === null) {
                 continue; // öğretilecek etiketin kendisi katalogda yoksa sözlüğe girmez
+            }
+            if (TurkishLocations::resolveCatalog($text) !== null) {
+                continue; // katalogda bilinen bir il/ilçe adı: hangi etikete bağlanırsa bağlansın yeniden öğretilmez ("ankara" asla başka yer olamaz)
             }
             $resolved = TurkishLocations::resolve($text);
             if ($resolved !== null && $resolved['province_code'] === $target['province_code']) {
