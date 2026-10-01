@@ -142,9 +142,9 @@ class RuleFeedbackTest extends TestCase
 
         // Yapay zeka aynı yazıma başka karşılık verirse sayaç sıfırlanır (çelişkili öneri kendiliğinden onaylanmaz).
         Settings::set('ai_suggest_auto_approve_hits', 2);
-        $feedback->suggest('location', 'Yarımca', 'Kocaeli Körfez', 'ilan 1', 21);
-        $feedback->suggest('location', 'Yarımca', 'İzmit', 'ilan 2', 22);
-        $row = AiLexicon::query()->where('term', 'yarimca')->first();
+        $feedback->suggest('location', 'Zomzom', 'Kocaeli Körfez', 'ilan 1', 21); // katalogda olmayan jargon (bilinen ad öneri olamaz)
+        $feedback->suggest('location', 'Zomzom', 'İzmit', 'ilan 2', 22);
+        $row = AiLexicon::query()->where('term', 'zomzom')->first();
         $this->assertSame(['suggested', 1, 'İzmit'], [$row->status, $row->hits, $row->canonical]);
         $this->assertStringContainsString('önceki karşılık: Kocaeli Körfez', (string) $row->note);
     }
@@ -170,21 +170,20 @@ class RuleFeedbackTest extends TestCase
         $this->assertFalse($kale->meta('audit')['agree']);
         $this->assertStringContainsString('Malatya', $kale->meta('audit')['diff']['pickup']);
         $this->assertTrue($ostim->fresh()->meta('audit')['agree']);
-        $sg = AiLexicon::query()->where('kind', 'location')->where('term', 'kale')->first();
-        $this->assertNotNull($sg, 'uyuşmazlık öneri olur');
-        $this->assertSame(['Malatya Kale', 'suggested'], [$sg->canonical, $sg->status]);
-        $this->assertStringContainsString('denetim · kural Denizli okuyor, yapay zeka Malatya', (string) $sg->note);
+        // "Kale" katalogda bilinen bir ilçe adı: uyuşmazlık kayda geçer ama takma ad önerisi olmaz (katalog yeniden öğretilmez;
+        // 2026-10-01'de "ankara → İzmir Torbalı" gibi öneriler kataloğu ezmişti). Eş adlı ilçe sorunu bağlamla çözülür, sözlükle değil.
+        $this->assertNull(AiLexicon::query()->where('kind', 'location')->where('term', 'kale')->first(), 'katalog adı öneri olmaz');
 
         // Aynı ilan bir daha denetlenmez; sayaçlar sağlık ekranında.
         $this->artisan('scraped-loads:ai-audit')->expectsOutputToContain('Denetlenen: 0');
         $stats = app(RuleFeedbackService::class)->weeklyStats();
-        $this->assertSame([2, 1, 1], [$stats['audited'], $stats['mismatched'], $stats['pending']]);
+        $this->assertSame([2, 1, 0], [$stats['audited'], $stats['mismatched'], $stats['pending']]);
         $this->assertSame([2, 1], [$stats['rule'], $stats['ai']]);
 
         $this->seed(RolesAndPermissionsSeeder::class);
         $admin = User::factory()->create(['current_role' => 'admin']);
         $admin->syncRoles(['super_admin']);
         $this->actingAs($admin->fresh());
-        Volt::test('admin.health-center')->assertSee('Öğrenme çemberi')->assertSee('denetlenen 2 (uyuşmazlık 1)')->assertSee('bekleyen öneri 1');
+        Volt::test('admin.health-center')->assertSee('Öğrenme çemberi')->assertSee('denetlenen 2 (uyuşmazlık 1)')->assertSee('bekleyen öneri 0');
     }
 }

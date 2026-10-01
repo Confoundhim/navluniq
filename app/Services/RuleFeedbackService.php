@@ -54,6 +54,9 @@ class RuleFeedbackService
                 if (! is_string($ruleText) || trim($ruleText) === '') {
                     continue;
                 }
+                if (TurkishLocations::resolveCatalog($ruleText) !== null) {
+                    continue; // katalogda bilinen il/ilçe adı: yapay zeka farklı okusa da öneri olmaz, katalog yeniden öğretilmez
+                }
                 $resolved = TurkishLocations::resolve($ruleText);
                 if ($resolved !== null && (int) $resolved['province_code'] === (int) $target['province_code']) {
                     continue; // kural zaten aynı ili okuyor
@@ -86,6 +89,9 @@ class RuleFeedbackService
         if (mb_strlen($term) < 3 || mb_strlen($term) > 60 || $words > 3 || preg_match('/^\d+$/', $term) === 1 || Lexicon::normalize($canonical) === $term
             || in_array($term, TurkishCities::STOP_WORDS, true) || in_array($term, AiParserService::PLACE_NOISE, true)) {
             return false;
+        }
+        if ($kind === 'location' && TurkishLocations::resolveCatalog($rawTerm) !== null) {
+            return false; // bilinen il/ilçe adı hiçbir karşılığa bağlanamaz (katalog her zaman önce)
         }
         if (AiLexicon::query()->where('kind', $kind)->where('term', $term)->where('status', 'active')->exists()) {
             return false; // karar verilmiş: yönetici ya da öğrenilmiş girdi geçerli
@@ -128,6 +134,11 @@ class RuleFeedbackService
         $term = Lexicon::normalize((string) ($term ?? $row->term ?? ''));
         if ($row->status !== 'suggested' || mb_strlen($term) < 2) {
             return false;
+        }
+        if ($row->kind === 'location' && TurkishLocations::resolveCatalog($term) !== null) {
+            $row->update(['status' => 'ignored', 'note' => mb_substr('katalogda bilinen ad; takma ad olamaz · '.($row->note ?? ''), 0, 200)]);
+
+            return false; // tek dokunuşla bile "ankara → başka yer" öğretilemez
         }
         AiLexicon::query()->where('kind', $row->kind)->where('term', $term)->where('id', '!=', $row->id)->delete();
         $row->update(['term' => $term, 'status' => 'active', 'created_by' => $adminId ?? $row->created_by, 'note' => mb_substr('yönetici onayladı · '.($row->note ?? ''), 0, 200)]);

@@ -7,6 +7,7 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\LearningService;
 use App\Services\LoadIntakeService;
+use App\Services\RuleFeedbackService;
 use App\Support\Lexicon;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
@@ -62,6 +63,22 @@ class LocationPoisonTest extends TestCase
         $load->forceFill(['pickup_location' => 'Manisa Soma', 'pickup_province_code' => 45])->save();
         $learning->onApproved($load->fresh(), byAdmin: false);
         $this->assertNull(AiLexicon::query()->where('kind', 'location')->where('term', 'kavaklıdere')->first(), 'otomatik yayın konum öğretmez (kendi kendini besleyen döngü)');
+    }
+
+    public function test_ai_suggestions_never_rebind_catalog_names_even_with_auto_approve(): void
+    {
+        Settings::set('ai_suggest_auto_approve_hits', '1');
+        $feedback = app(RuleFeedbackService::class);
+        $this->assertFalse($feedback->suggest('location', 'Ankara', 'İzmir Torbalı', 'Ankara - Kayseri 0532 111 22 33'), 'bilinen il adı öneri olamaz');
+        $this->assertSame(0, $feedback->fromAi(['pickup_location' => 'Ankara', 'delivery_location' => 'Kayseri'], ['provider' => 'gemini', 'is_load' => true, 'pickup_location' => 'İzmir Torbalı', 'delivery_location' => 'Kayseri'], 'Ankara - Kayseri 40 ayak 0532 111 22 33'));
+        $this->assertSame(0, AiLexicon::query()->where('kind', 'location')->count());
+        $this->assertTrue($feedback->suggest('location', 'Yükkent', 'Kocaeli Gebze', 'Yükkent - Bursa 0532 111 22 33'), 'katalogda olmayan jargon önerilir');
+        $row = AiLexicon::query()->where('kind', 'location')->where('term', 'yukkent')->firstOrFail();
+        $this->assertSame('active', $row->status, 'eşik 1: kendiliğinden onaylandı');
+        // Elle onay da katalog adını sözlüğe sokamaz
+        $bad = AiLexicon::create(['kind' => 'location', 'term' => 'adana', 'canonical' => 'İzmir', 'status' => 'suggested', 'source' => 'ai']);
+        $this->assertFalse($feedback->approve($bad));
+        $this->assertSame('ignored', $bad->fresh()->status);
     }
 
     public function test_migration_cleanup_removes_aliases_that_shadow_the_catalog_and_arms_forced_relocation(): void
