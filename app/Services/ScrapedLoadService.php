@@ -264,6 +264,7 @@ class ScrapedLoadService
             'published_at' => $load->published_at ?? now(),
             // Listede kalma süresi yayından itibaren sayılır; sonra arşivlenir (silinmez, sayaçta kalır)
             'retention_expires_at' => now()->addDays(max(1, Settings::int('scraper_list_days'))),
+            'last_seen_at' => now(), // tazelik anahtarı: yayın anı, liste/yeni sayacı/arşiv buna bakar
             'parse_metadata' => $metaAfter,
         ]);
         app(LoadStatsService::class)->forget();
@@ -300,10 +301,19 @@ class ScrapedLoadService
                     ->where('created_at', '>=', now()->subDays(LoadIntakeService::TEXT_DEDUPE_DAYS)));
             }
             if ($load->route_key) {
-                $q->orWhere(fn ($w) => $w->where('route_key', $load->route_key)
-                    ->where('created_at', '>=', now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)));
+                $q->orWhere('route_key', $load->route_key); // yayındaki ikiz yaşı ne olursa olsun bulunur; kim kalacağına çağıran karar verir
             }
         })->orderBy('id')->first();
+    }
+
+    /** Yayındaki eski ikiz, yeni adayın yayınına yer açar (arşiv): aynı numara + rota ama metin değişmiş (fiyat, araç, tarih). */
+    private function retireSuperseded(ScrapedLoad $twin, ScrapedLoad $load): void
+    {
+        $sources = array_values(array_unique(array_filter(array_merge((array) ($twin->seen_sources ?? []), (array) ($load->seen_sources ?? [])))));
+        $load->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'sighting_count' => max(1, (int) $load->sighting_count, (int) $twin->sighting_count)])->saveQuietly();
+        $twin->forceFill(['visibility' => 'private', 'content_hash' => null, 'parse_metadata' => array_merge((array) $twin->parse_metadata, ['superseded_by' => $load->id])])->saveQuietly();
+        $twin->delete();
+        ActivityLog::record('scraped_load.superseded', "Dış kaynak ilanı #{$twin->id} yeni paylaşım #{$load->id} ile değişti; eski arşivlendi", null, $twin);
     }
 
     /** Adayı tekrar olarak reddeder; görüldüğü kaynak yayındaki ilanın sayacına eklenir. */
@@ -312,7 +322,8 @@ class ScrapedLoadService
         $sources = array_values(array_unique(array_filter(array_merge(
             (array) ($twin->seen_sources ?? []), [$twin->scraper?->name], (array) ($load->seen_sources ?? []), [$load->scraper?->name]
         ))));
-        $twin->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources))])->save();
+        $twin->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'last_seen_at' => now(), 'sighting_count' => (int) $twin->sighting_count + 1,
+            'retention_expires_at' => now()->addDays(max(1, Settings::int('scraper_list_days')))])->saveQuietly(); // yayındaki ikiz tazelenir
         $load->update([
             'status' => 'rejected', 'visibility' => 'private',
             'parse_metadata' => array_merge((array) $load->parse_metadata, ['duplicate_of' => $twin->id]),
@@ -327,9 +338,13 @@ class ScrapedLoadService
             return 'durum';
         }
         if ($twin = $this->publishedDuplicateOf($load)) {
-            $this->markDuplicate($load, $twin, null);
+            $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
+            if ($sameText || ($twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
+                $this->markDuplicate($load, $twin, null);
 
-            return "tekrar (#{$twin->id} yayında)";
+                return "tekrar (#{$twin->id} yayında)";
+            }
+            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ve metin farklı: yeni paylaşım onun yerine geçer
         }
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
@@ -545,7 +560,7 @@ class ScrapedLoadService
             ->where(fn ($q) => $q->where('retention_expires_at', '<', now())->orWhereRaw('COALESCE(last_seen_at, published_at) < ?', [now()->subDays($listDays)]))
             ->orderBy('id')->limit(2000)->get()
             ->each(function (ScrapedLoad $load) use (&$count): void {
-                $load->update(['visibility' => 'private']);
+                $load->update(['visibility' => 'private', 'content_hash' => null]); // yeniden paylaşılırsa yeni aday açılabilsin
                 $load->delete();
                 $count++;
             });

@@ -192,7 +192,7 @@ class LoadFilterService
             $q->whereBetween('pickup_date', [now()->startOfDay(), now()->addDays((int) $f['pickup_within_days'])->endOfDay()]);
         }
 
-        return $this->applySort($q, $f, 'last_seen_at'); // yeniden paylaşılan ilan öne gelir
+        return $this->applySort($q, $f, 'published_at');
     }
 
     public function applyToScraped(Builder $q, array $f, ?DriverProfile $profile): Builder
@@ -200,7 +200,7 @@ class LoadFilterService
         $this->applyCommon($q, $f, $profile, allowUnknownVehicle: true);
         $this->applyWeightPrice($q, $f, priceNullable: true);
 
-        return $this->applySort($q, $f, 'created_at');
+        return $this->applySort($q, $f, 'last_seen_at'); // yeniden paylaşılan dış kaynak ilanı öne gelir
     }
 
     private function applyCommon(Builder $q, array $f, ?DriverProfile $profile, bool $allowUnknownVehicle): void

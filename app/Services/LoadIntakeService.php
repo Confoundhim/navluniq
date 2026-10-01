@@ -11,6 +11,7 @@ use App\Support\SeriesAd;
 use App\Support\Settings;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
+use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -45,8 +46,12 @@ class LoadIntakeService
      * @param  array{group_name:string, raw_message:string, sender_phone?:?string, message_id?:?string, source_jid?:?string, source_type?:string}  $payload
      * @return array{code:int, success:bool, message:string, status:string, scraped_load_id?:int, reason?:string, created_ids?:list<int>, segments?:list<array>}
      */
+    /** Bu mesajda açılan kayıtlar: aynı mesajın ikinci ilanı (aynı il çifti, farklı ilçe) birincinin tekrarı sayılmasın. */
+    private array $messageIds = [];
+
     public function intake(array $payload): array
     {
+        $this->messageIds = [];
         // Aynı metin iki gruptan aynı saniyede gelince (bildirim iletici her grubu ayrı yollar) iki istek yan yana
         // işlenir ve tekrar denetimi henüz yazılmamış kaydı göremezdi. Mesaj başına kilit: ikinci istek ilkinin
         // bitmesini bekler, sonra kaydı bulur ve "tekrar" der. Kilit alınamazsa (aşırı bekleme) kilitsiz devam edilir.
@@ -78,6 +83,8 @@ class LoadIntakeService
         $contentHash = hash('sha256', $sourceId.'|'.$messageId.'|'.$raw);
         $groupName = (string) $payload['group_name'];
         if ($existing = ScrapedLoad::query()->where('content_hash', $contentHash)->first()) {
+            $this->noteSighting($existing, $groupName); // aynı grupta aynı metin yeniden paylaşıldı: kayıt tazelenir
+
             return $this->result(200, true, 'duplicate', 'Mesaj daha önce işlendi.', $existing->id);
         }
 
@@ -96,8 +103,7 @@ class LoadIntakeService
         }
 
         try {
-            $recent = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
-                ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))->first();
+            $recent = $this->recentByText($normalizedHash);
             if ($recent) {
                 $this->noteSighting($recent, $groupName);
 
@@ -272,16 +278,19 @@ class LoadIntakeService
         // Parça düzeyinde tekrar (mesajın tamamı için üstte bakıldı; alt parçalar için burada).
         if (! $isWhole) {
             if ($existing = ScrapedLoad::query()->where('content_hash', $contentHash)->first()) {
+                $this->noteSighting($existing, $groupName);
+
                 return $this->result(200, true, 'duplicate', 'İlan daha önce işlendi.', $existing->id) + ['excerpt' => $text];
             }
             if (! Cache::add($seenKey, 1, now()->addHours(24))) {
                 $first = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)->latest('id')->first();
-                $this->noteSighting($first, $groupName);
+                if ($first) {
+                    $this->noteSighting($first, $groupName);
 
-                return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.', $first?->id) + ['excerpt' => $text];
+                    return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.', $first->id) + ['excerpt' => $text];
+                }
             }
-            $recent = ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
-                ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))->first();
+            $recent = $this->recentByText($normalizedHash);
             if ($recent) {
                 $this->noteSighting($recent, $groupName);
 
@@ -363,7 +372,7 @@ class LoadIntakeService
         /** @var Scraper $scraper */
         $scraper = $ctx['scraper'];
         $scraper->update(['last_scraped_at' => now(), 'last_success_at' => now(), 'last_error' => null]);
-        $scrapedLoad = ScrapedLoad::create([
+        $scrapedLoad = $this->createLoad([
             'scraper_id' => $scraper->id,
             'content_hash' => $contentHash,
             'normalized_hash' => $normalizedHash,
@@ -417,6 +426,8 @@ class LoadIntakeService
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30), // yayınlanmayan aday 30 gün sonra arşivlenir; yayınlananda yayın anından itibaren ayarlanır
         ]);
+
+        $this->messageIds[] = $scrapedLoad->id;
 
         // Öğrenme çemberi: yapay zekanın çözdüğü, kuralın çözemediği yazımlar sözlük ekranına öneri olur (onayla → kural öğrenir).
         if ($ai['status'] === 'done' && $ai['data'] !== null) {
@@ -896,14 +907,22 @@ class LoadIntakeService
             return;
         }
         $sources = array_values(array_filter((array) ($load->seen_sources ?? [])));
-        if ($groupName !== '' && ! in_array($groupName, $sources, true)) {
+        $newSource = $groupName !== '' && ! in_array($groupName, $sources, true);
+        if ($newSource) {
             $sources[] = $groupName;
         }
-        $changes = ['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'last_seen_at' => now(), 'sighting_count' => (int) $load->sighting_count + 1];
-        if ($load->visibility === 'public' && $load->status !== 'rejected') {
-            $changes['retention_expires_at'] = now()->addDays(max(1, Settings::int('scraper_list_days')));
+        $changes = ['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources))];
+        // Reddedilmiş kayıt tazelenmez (yeniden paylaşım yeni aday açsın); bir saat içindeki tekrar teslim (bildirim yinelemesi) sayılmaz.
+        $recentlySeen = $load->last_seen_at !== null && $load->last_seen_at->gt(now()->subHour());
+        if ($load->status !== 'rejected' && ! $recentlySeen) {
+            $changes += ['last_seen_at' => now(), 'sighting_count' => (int) $load->sighting_count + 1];
+            if ($load->visibility === 'public') {
+                $changes['retention_expires_at'] = now()->addDays(max(1, Settings::int('scraper_list_days')));
+            }
+        } elseif (! $newSource) {
+            return;
         }
-        $load->forceFill($changes)->save();
+        $load->forceFill($changes)->saveQuietly();
     }
 
     /** Emoji, noktalama, bağlantı ve büyük/küçük harf farklarını yok sayan karşılaştırma metni. */
@@ -921,7 +940,7 @@ class LoadIntakeService
             return null;
         }
         $recent = ScrapedLoad::query()->where('scraper_id', $scraper->id)->where('created_at', '>=', now()->subDays(7))
-            ->latest('id')->limit(300)->get(['id', 'raw_message', 'status', 'visibility', 'parse_metadata', 'seen_sources', 'duplicate_count']);
+            ->latest('id')->limit(300)->get(['id', 'raw_message', 'status', 'visibility', 'parse_metadata', 'seen_sources', 'duplicate_count', 'last_seen_at', 'sighting_count', 'retention_expires_at']);
         foreach ($recent as $load) {
             $old = self::normalizeText((string) $load->raw_message);
             if (mb_strlen($old) < 40 || $old === $new) {
@@ -938,6 +957,7 @@ class LoadIntakeService
                 if ($load->visibility !== 'public' && $load->status !== 'rejected' && ! $editedByAdmin) {
                     Log::info('Facebook kesik gönderi tam metinle değiştirildi', ['scraped_load_id' => $load->id, 'scraper_id' => $scraper->id]);
                     Cache::forget('intake:seen:'.hash('sha256', $old));
+                    ScrapedLoad::query()->whereKey($load->id)->update(['content_hash' => null]); // tekil anahtar boşalır
                     ScrapedLoad::query()->whereKey($load->id)->delete(); // arşive gider; tam metin yeni kayıt olarak işlenir
                 }
 
@@ -1012,9 +1032,25 @@ class LoadIntakeService
             return null;
         }
 
-        // Son görülme sayılır: her gün aynı rotayı paylaşan gönderenin ilanı tek kayıtta tazelenir, kayıt çoğalmaz.
+        // Son görülme sayılır (her gün aynı rotayı paylaşan gönderenin ilanı tek kayıtta tazelenir) ama en çok 7 gün: sonra
+        // yeni kayıt açılır ki fiyat/araç değişen ilan donup kalmasın. Reddedilmiş kayıt yalnız 48 saatlik açılış penceresinde
+        // tutar; aynı mesajın öbür ilanı (aynı il çifti, farklı ilçe) tekrar sayılmaz.
         return ScrapedLoad::query()->where('route_key', $routeKey)
-            ->where(fn ($q) => $q->where('last_seen_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->orWhere('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS)))->first();
+            ->when($this->messageIds !== [], fn ($q) => $q->whereNotIn('id', $this->messageIds))
+            ->where(fn ($q) => $q
+                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS))->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
+                ->orWhere('created_at', '>=', now()->subHours(self::ROUTE_DEDUPE_HOURS)))
+            ->orderByRaw("CASE WHEN visibility = 'public' THEN 0 ELSE 1 END")->orderByRaw("CASE WHEN status = 'rejected' THEN 1 ELSE 0 END")->latest('id')->first();
+    }
+
+    /** Aynı metin: yayındaki ya da bekleyen kayıt 7 gün boyunca (son görülmeye göre) tazelenir; reddedilmiş kayıt yalnız açılıştan 7 gün tutar. */
+    private function recentByText(string $normalizedHash): ?ScrapedLoad
+    {
+        return ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
+            ->where(fn ($q) => $q
+                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
+                ->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
+            ->orderByRaw("CASE WHEN visibility = 'public' THEN 0 ELSE 1 END")->orderByRaw("CASE WHEN status = 'rejected' THEN 1 ELSE 0 END")->latest('id')->first();
     }
 
     public static function routeKey(?string $phone, ?string $pickup, ?string $delivery, bool $districtLevel = false): ?string
@@ -1025,10 +1061,32 @@ class LoadIntakeService
         // İlçe/semt yazımı kaynağa göre değiştiği için il düzeyinde karşılaştırılır:
         // aynı numara, aynı il çifti, 48 saat içinde → aynı ilan. İl bulunamazsa ilk sözcük kullanılır.
         // Seri ilanda (aynı ilin ilçelerine ayrı araçlar) varış ilçe düzeyinde tutulur.
-        $city = fn (string $v) => TurkishCities::ascii(TurkishCities::fromText($v) ?? (string) strtok(self::normalizeText($v), ' '));
+        // İl, katalogdan çözülür ("Tuzla" → İstanbul, "İstanbul Tuzla" → İstanbul): ham ve standart etiket aynı anahtarı verir.
+        $city = fn (string $v) => TurkishCities::ascii(TurkishLocations::resolve($v)['province'] ?? TurkishCities::fromText($v) ?? (string) strtok(self::normalizeText($v), ' '));
         $dest = $districtLevel ? TurkishCities::ascii(self::normalizeText($delivery)) : $city($delivery);
 
         return mb_substr($phone.'|'.$city($pickup).'|'.$dest, 0, 191);
+    }
+
+    /**
+     * Kaydı açar. Arşivlenmiş (soft delete) bir kayıt aynı content_hash'i taşıyorsa (eski arşivler, tekil anahtar) onun
+     * anahtarı boşaltılıp yeniden denenir; yeniden paylaşılan ilan "failed" ile düşmez.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createLoad(array $attributes): ScrapedLoad
+    {
+        try {
+            return ScrapedLoad::create($attributes);
+        } catch (UniqueConstraintViolationException $e) {
+            $trashed = ScrapedLoad::withTrashed()->where('content_hash', $attributes['content_hash'])->whereNotNull('deleted_at')->first();
+            if ($trashed === null) {
+                throw $e;
+            }
+            ScrapedLoad::withTrashed()->whereKey($trashed->id)->update(['content_hash' => null]);
+
+            return ScrapedLoad::create($attributes);
+        }
     }
 
     private function result(int $code, bool $success, string $status, string $message, ?int $id = null, ?string $reason = null): array

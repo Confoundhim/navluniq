@@ -102,7 +102,7 @@ class extends Component {
             }
         }
         $matchedLoads = $systemLoads->map(fn ($l) => ['kind' => 'system', 'at' => $l->published_at ?? $l->created_at, 'load' => $l])
-            ->concat($externalLoads->map(fn ($l) => ['kind' => 'external', 'at' => $l->created_at, 'load' => $l]))
+            ->concat($externalLoads->map(fn ($l) => ['kind' => 'external', 'at' => $l->last_seen_at ?? $l->created_at, 'load' => $l]))
             ->sortByDesc('at')->take(8)->values();
         $matchSummary = array_values(array_filter(array_merge(
             [$vehicle ? implode(' · ', array_filter([VehicleTypes::label($vehicle->vehicle_type), $vehicle->trailer_length ? (BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null) : null, $vehicle->body_type ? BodyTypes::label($vehicle->body_type) : null])) : null],

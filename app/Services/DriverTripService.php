@@ -256,7 +256,7 @@ class DriverTripService
                 ->when($trip->scraped_load_id, fn (Builder $q) => $q->whereKeyNot($trip->scraped_load_id))
                 ->tap(fn (Builder $q) => $this->filters->applyPickupAround($q, $trip->delivery_province_code, $point['lat'] ?? null, $point['lng'] ?? null, $radius))
                 ->tap(fn (Builder $q) => $this->filters->applyToScraped($q, $filters, $profile))
-                ->when($since, fn (Builder $q) => $q->where('created_at', '>=', $since)) // aynı saniye: bildirilmişler zaten dışarıda
+                ->when($since, fn (Builder $q) => $q->where('last_seen_at', '>=', $since)) // yayın ya da yeniden paylaşım; bildirilmişler zaten dışarıda
                 ->when(($seen['external'] ?? []) !== [], fn (Builder $q) => $q->whereKeyNot($seen['external']))
                 ->take($limit)->get();
         }
