@@ -138,7 +138,7 @@ public class MainActivity extends Activity {
         root.addView(section("3. Seçenekler"));
         root.addView(toggle("Facebook gönderilerini topla", "fb", Prefs.fbEnabled(this)));
         root.addView(toggle("Uzun gönderileri kendiliğinden aç (\"diğer\" düğmesine uygulama dokunur, tam metin gelir)", "auto_expand", Prefs.autoExpand(this)));
-        root.addView(toggle("WhatsApp bildirimlerini ilet (şimdilik MacroDroid yapıyor; ikisi birden açılmasın)", "wa", Prefs.waEnabled(this)));
+        root.addView(toggle("WhatsApp bildirimlerini ilet (MacroDroid WhatsApp makrosu kapatılmalı; ikisi birden açılmasın)", "wa", Prefs.waEnabled(this)));
         root.addView(toggle("Yalnız grup sohbetleri (kişisel sohbetler gitmez)", "wa_groups_only", Prefs.waGroupsOnly(this)));
 
         root.addView(section("4. Durum"));
@@ -198,7 +198,7 @@ public class MainActivity extends Activity {
         String when = last == 0 ? "henüz yok" : DateUtils.getRelativeTimeSpanString(last, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString();
         sendStatus.setText("Son gönderim: " + when + (Prefs.lastSendResult(this).isEmpty() ? "" : " · " + Prefs.lastSendResult(this))
             + "\nBekleyen paket: " + Uploader.pending(this)
-            + "\nToplam gönderim: " + Prefs.sentCount(this) + " · Facebook ekranı: " + Prefs.screens(this) + " · WhatsApp mesajı: " + Prefs.whatsAppMessages(this)
+            + "\nToplam gönderim: " + Prefs.sentCount(this) + " · Facebook ekranı: " + Prefs.screens(this) + " · açılan gönderi: " + Prefs.expanded(this) + " · WhatsApp mesajı: " + Prefs.whatsAppMessages(this)
             + (Prefs.token(this).isEmpty() ? "\n! Anahtar girilmedi; hiçbir şey gönderilmez." : ""));
 
         List<String> lines = AppLog.read(this);

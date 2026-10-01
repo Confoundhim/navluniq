@@ -120,6 +120,7 @@ public class ScreenReaderService extends AccessibilityService {
                 if (clickOrParent(expandable.get(i))) {
                     clicks++;
                     clicked.put(key, now);
+                    Prefs.bumpExpanded(this);
                 }
             }
             while (clicked.size() > 200) {
@@ -188,23 +189,22 @@ public class ScreenReaderService extends AccessibilityService {
         return line.equals("diğer") || line.equals("Devamını gör") || line.equals("See more") || line.equals("Daha fazla gör");
     }
 
+    /**
+     * Yalnız "diğer" düğmesinin kendisine dokunulur; üst öğeye (gönderinin tamamına) asla çıkılmaz, yoksa gönderi sayfası
+     * açılıp kullanıcının akışı bozulurdu. Düğme dokunmaya kapalıysa işlem yapılmaz (false döner, hiçbir şey olmaz).
+     */
     private static boolean clickOrParent(AccessibilityNodeInfo node) {
-        AccessibilityNodeInfo n = node;
-        for (int i = 0; i < 4 && n != null; i++) {
-            if (n.isClickable()) {
-                try {
-                    return n.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                } catch (Exception e) {
-                    return false;
-                }
-            }
-            try {
-                n = n.getParent();
-            } catch (Exception e) {
+        if (node == null) {
+            return false;
+        }
+        try {
+            if (!node.isClickable()) {
                 return false;
             }
+            return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        } catch (Exception e) {
+            return false;
         }
-        return false;
     }
 
     private void appendToBuffer(String dump) {

@@ -51,9 +51,15 @@ indirilir (anahtar içinde değildir, bağlantı herkese açıktır).
 
 Seçenekler: Facebook toplama (açık), uzun gönderileri kendiliğinden açma (**açık**, v1.2: kısaltılmış gönderinin "diğer"
 düğmesine kullanıcı değil uygulama dokunur, gönderi yerinde açılır, bir sonraki okumada tam metin gelir; aynı düğmeye 6 sn içinde
-ikinci kez dokunulmaz; Facebook tam metni ekrana basmadığı için başka yolu yoktur), WhatsApp iletme (**kapalı**: Osman'ın
-kararıyla WhatsApp şimdilik MacroDroid'de kalır; MacroDroid kapatılırsa buradan açılır, ikisi birden açık olmaz), yalnız grup
-sohbetleri (açık; kişisel sohbetler hiç gitmez).
+ikinci kez dokunulmaz; Facebook tam metni ekrana basmadığı için başka yolu yoktur), WhatsApp iletme (**açık**, v1.3: Osman'ın
+kararıyla WhatsApp da uygulamadan gider; uygulama doğrulanınca MacroDroid WhatsApp makrosu kapatılır, ikisi birden açık kalmaz),
+yalnız grup sohbetleri (açık; kişisel sohbetler hiç gitmez).
+
+"diğer" dokunuşu nasıl çalışır: erişilebilirlik hizmeti Facebook ekranını öğe ağacı olarak görür; kısaltılmış gönderide "diğer"
+ayrı, dokunulabilir bir öğedir. Uygulama o öğeye `ACTION_CLICK` gönderir (TalkBack kullanıcısının çift dokunmasıyla aynı yol;
+koordinat ya da parmak hareketi yok). Facebook bunu normal dokunuş gibi işler, gönderi yerinde açılır, bir sonraki okuma tam metni
+alır. Yalnız düğmenin kendisine dokunulur, üst öğeye (gönderinin tamamına) çıkılmaz; yoksa gönderi sayfası açılıp akış bozulurdu.
+Uygulama ekranında "açılan gönderi" sayacı mekanizmanın çalıştığını gösterir (v1.3, versionCode 4).
 
 ## Hızlı kaydırma ve tam metin (v1.2, versionCode 3)
 

@@ -5,8 +5,8 @@ import android.content.SharedPreferences;
 
 /** Ayarlar: sunucu adresi, anahtar, açık/kapalı seçenekler, son gönderim durumu. Yalnız bu telefonda durur. */
 public final class Prefs {
-    public static final int VERSION_CODE = 3;
-    public static final String VERSION_NAME = "1.2";
+    public static final int VERSION_CODE = 4;
+    public static final String VERSION_NAME = "1.3";
     private static final String FILE = "toplayici";
 
     private Prefs() {}
@@ -32,7 +32,7 @@ public final class Prefs {
     }
 
     public static boolean waEnabled(Context c) {
-        return sp(c).getBoolean("wa", false); // v1.1: WhatsApp şimdilik MacroDroid'de kalır (Osman); istenirse uygulamadan açılır
+        return sp(c).getBoolean("wa", true); // v1.3: WhatsApp da uygulamadan (Osman); MacroDroid WhatsApp makrosu doğrulama sonrası kapatılır
     }
 
     public static boolean waGroupsOnly(Context c) {
@@ -85,5 +85,14 @@ public final class Prefs {
 
     public static int whatsAppMessages(Context c) {
         return sp(c).getInt("wa_messages", 0);
+    }
+
+    public static void bumpExpanded(Context c) {
+        sp(c).edit().putInt("fb_expanded", sp(c).getInt("fb_expanded", 0) + 1).apply();
+    }
+
+    /** Uygulamanın "diğer" düğmesine dokunup açtığı gönderi sayısı; telefonda mekanizmanın çalıştığı buradan görülür. */
+    public static int expanded(Context c) {
+        return sp(c).getInt("fb_expanded", 0);
     }
 }
