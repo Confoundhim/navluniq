@@ -139,8 +139,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   Yeni sürüm: manifest `versionCode/versionName` + `Prefs.VERSION_*` birlikte artar (`ToplayiciVersionTest` eşitliği denetler), build.sh,
   APK commit. Sunucu: ekran dökümünde 24 saat içinde görülen gönderi (`fb:seen:` önbellek) kuyruğa girmez, canlı akış satırı
   "N gönderi, M yeni · toplayici/1.0". Panel Kaynaklar ve telefon: "Önerilen yol" kutusu + APK bağlantısı (herkese açık, anahtar
-  içinde değil); MacroDroid bölümleri "Yedek yol A/B" olarak duruyor. Telefonda MacroDroid WhatsApp makrosu ile uygulama aynı anda
-  çalışabilir (sunucu aynı mesajı tekrar sayar); uygulama doğrulanınca makro kapatılır.
+  içinde değil); MacroDroid bölümleri "Yedek yol A/B" olarak duruyor. **Osman'ın kararı (2026-10-01): WhatsApp şimdilik MacroDroid'de kalır**;
+  uygulamada WhatsApp iletme ve "diğer" dokunma varsayılan kapalı (v1.1, versionCode 2), uygulama yalnız Facebook ekranını okur.
+  MacroDroid kapatılırsa WhatsApp uygulamadan açılır; ikisi birden açılmaz.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

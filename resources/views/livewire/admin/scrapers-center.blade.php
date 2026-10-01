@@ -1041,11 +1041,11 @@ new class extends Component {
                 <ol class="list-decimal pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
                     <li>Telefonda bağlantıyı açın, inen dosyaya dokunun; "Bilinmeyen uygulama" uyarısında <strong>İzin ver → Yükle</strong>. (Play Protect "tanınmayan uygulama" derse <strong>Yine de yükle</strong>.)</li>
                     <li>Uygulamayı açın, anahtarı yapıştırın (yukarıdaki <strong>Kopyala</strong> düğmesinden gelen metnin içindeki <span class="font-mono">token</span> değeri ya da aşağıdaki anahtar), <strong>Kaydet</strong>, <strong>Bağlantıyı sına</strong>: Canlı akışa "Bağlantı sınaması" düşer.</li>
-                    <li><strong>WhatsApp bildirim iznini aç</strong> → listede NavlunIQ Toplayıcı'yı açın. <strong>Facebook okuma iznini aç</strong> → Yüklü uygulamalar → NavlunIQ Toplayıcı → açın. Anahtar gri ve tıklanmıyorsa (Android 13+): <strong>Uygulama bilgisi</strong> → sağ üst ⋮ → "Kısıtlı ayarlara izin ver", sonra tekrar.</li>
+                    <li><strong>Facebook okuma iznini aç</strong> → Yüklü uygulamalar → NavlunIQ Toplayıcı → açın. Anahtar gri ve tıklanmıyorsa (Android 13+): <strong>Uygulama bilgisi</strong> → sağ üst ⋮ → "Kısıtlı ayarlara izin ver", sonra tekrar.</li>
                     <li><strong>Pil kısıtlamasını kaldır</strong> deyin; Xiaomi/Huawei/Oppo'da ayrıca Uygulama bilgisi → "Otomatik başlat" açılır.</li>
-                    <li>Bitti. WhatsApp grup mesajları kendiliğinden gelir. Facebook için Gruplar akışında ya da bir grubun içinde normal kaydırın; her yeni ekran 20 saniyede bir paket olarak gider, Canlı akışa "Ekran dökümü alındı" satırı düşer. Aynı gönderi 24 saat içinde bir daha kuyruğa girmez.</li>
+                    <li>Bitti. Facebook için Gruplar akışında ya da bir grubun içinde normal kaydırın; her yeni ekran 20 saniyede bir paket olarak gider, Canlı akışa "Ekran dökümü alındı" satırı düşer. Aynı gönderi 24 saat içinde bir daha kuyruğa girmez.</li>
                 </ol>
-                <p class="text-[11px] text-neutral-500">Uygulamanın kendi ekranında son gönderim, bekleyen paket sayısı ve günlük görünür; sorun olursa o ekranın görüntüsü yeter. Yeni sürüm çıkınca uygulama kendisi haber verir. Aşağıdaki MacroDroid yolları yalnız yedek olarak duruyor.</p>
+                <p class="text-[11px] text-neutral-500">WhatsApp şimdilik MacroDroid ile iletilmeye devam eder (uygulamada "WhatsApp bildirimlerini ilet" kapalı gelir; MacroDroid kapatılırsa buradan açılır, ikisi birden açılmaz). Uygulamanın kendi ekranında son gönderim, bekleyen paket sayısı ve günlük görünür; sorun olursa o ekranın görüntüsü yeter. Yeni sürüm çıkınca uygulama kendisi haber verir. Aşağıdaki MacroDroid yolları yalnız yedek olarak duruyor.</p>
             </div>
 
             <div class="text-xs space-y-1">

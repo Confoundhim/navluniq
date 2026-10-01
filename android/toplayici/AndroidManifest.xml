@@ -3,8 +3,8 @@
      Yalnız iki izin: bildirim erişimi (WhatsApp) ve erişilebilirlik (Facebook ekranı). Başka hiçbir yere veri gitmez. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.navluniq.toplayici"
-    android:versionCode="1"
-    android:versionName="1.0">
+    android:versionCode="2"
+    android:versionName="1.1">
 
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="33" />
 

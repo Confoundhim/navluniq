@@ -5,8 +5,8 @@ import android.content.SharedPreferences;
 
 /** Ayarlar: sunucu adresi, anahtar, açık/kapalı seçenekler, son gönderim durumu. Yalnız bu telefonda durur. */
 public final class Prefs {
-    public static final int VERSION_CODE = 1;
-    public static final String VERSION_NAME = "1.0";
+    public static final int VERSION_CODE = 2;
+    public static final String VERSION_NAME = "1.1";
     private static final String FILE = "toplayici";
 
     private Prefs() {}
@@ -32,7 +32,7 @@ public final class Prefs {
     }
 
     public static boolean waEnabled(Context c) {
-        return sp(c).getBoolean("wa", true);
+        return sp(c).getBoolean("wa", false); // v1.1: WhatsApp şimdilik MacroDroid'de kalır (Osman); istenirse uygulamadan açılır
     }
 
     public static boolean waGroupsOnly(Context c) {
@@ -40,7 +40,7 @@ public final class Prefs {
     }
 
     public static boolean autoExpand(Context c) {
-        return sp(c).getBoolean("auto_expand", true);
+        return sp(c).getBoolean("auto_expand", false); // v1.1: hiçbir şeye dokunulmaz; "devamını gör" sunucu tarafında ele alınır
     }
 
     public static void save(Context c, String url, String token) {

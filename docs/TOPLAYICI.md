@@ -49,8 +49,10 @@ indirilir (anahtar içinde değildir, bağlantı herkese açıktır).
 5. **Pil kısıtlamasını kaldır.**
 6. Facebook'ta Gruplar akışında ya da bir grubun içinde normal kaydır. Canlı akışa "Ekran dökümü alındı" satırı düşer.
 
-Seçenekler: Facebook toplama, uzun gönderileri kendiliğinden açma ("diğer"), WhatsApp iletme, yalnız grup sohbetleri
-(kişisel sohbetler hiç gitmez; varsayılan açık).
+Seçenekler: Facebook toplama (açık), uzun gönderileri kendiliğinden açma ("diğer"; **kapalı**: hiçbir şeye dokunulmaz,
+kısaltılmış gönderi "… diğer" ile gelir ve sunucu tarafında ele alınır), WhatsApp iletme (**kapalı**: Osman'ın kararıyla
+WhatsApp şimdilik MacroDroid'de kalır; MacroDroid kapatılırsa buradan açılır, ikisi birden açık olmaz), yalnız grup sohbetleri
+(açık; kişisel sohbetler hiç gitmez). v1.1 (versionCode 2) bu varsayılanlarla çıktı.
 
 ## Sunucu tarafı
 
