@@ -29,6 +29,7 @@ final class MacroDroidMacro
             // Facebook açılmaz, sayfa değiştirilmez: Osman neredeyse (Gruplar akışı ya da bir grubun içi) orası kaydırılır.
             // "fb://groups" derin bağlantısı ana sayfaya fırlatıyordu; "diğer" düğmesine dokunma adımı makroyu baştan durduruyordu.
             self::pause(1), // düğmeye dokunuş bitsin
+            self::notify('Başladı, telefona dokunmayın'),
             self::action('SetVariableAction', self::setString($ekran, '')),
             // m_option 0 = sabit sayıda yinele (1 = koşul sürdükçe: sonsuz dönüyordu)
             self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 0, 'timedDurationValue' => 1, 'timedTimeUnit' => 0, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
@@ -41,6 +42,7 @@ final class MacroDroidMacro
             ]]),
             self::pause(1, 500),
             self::action('EndLoopAction', []),
+            self::notify('Okuma bitti, gönderiliyor'),
             self::action('HttpRequestAction', ['requestConfig' => [
                 'allFilesAccessPath' => '', 'allowAnyCertificate' => false, 'basicAuthEnabled' => false, 'basicAuthPassword' => '', 'basicAuthUsername' => '', 'blockNextAction' => true,
                 'clientCertEnabled' => false, 'clientCertKeyStoreDisplayName' => '', 'clientCertKeyStoreUri' => '', 'clientCertPassword' => '',
@@ -54,20 +56,14 @@ final class MacroDroidMacro
                 'saveResponseUseAllFilesAccess' => false, 'saveReturnCodeToVariable' => false, 'saveReturnHeadersToVariable' => false, 'urlToOpen' => $url,
                 'useAllFilesAccess' => false, 'useLocalFileUri' => false, 'useStaticContentBodyFile' => true,
             ]]),
-            self::action('NotificationAction', [
-                'autoExpand' => true, 'blockNextAction' => false, 'dimBackground' => true, 'disableHtml' => false, 'displayOverStatusBar' => false, 'iconText' => '', 'iconType' => 0,
-                'liveNotification' => false, 'm_backgroundColor' => -16777216, 'm_iconBgColor' => -1762269, 'm_imageResourceId' => 0, 'm_macroGUIDToRun' => 0, 'm_notificationChannelType' => 0,
-                'm_notificationSubject' => 'NavlunIQ', 'm_notificationText' => 'Akış gönderildi', 'm_overwriteExisting' => true, 'm_priority' => 0, 'm_ringtoneIndex' => 0, 'm_ringtoneName' => 'Default',
-                'm_runMacroWhenPressed' => false, 'm_textColor' => -1, 'maintainSpaces' => false, 'notificationActionButtons' => [], 'notificatonId' => 0, 'preventAndroid16Grouping' => false,
-                'preventBackButtonClosing' => false, 'preventRemovalByBin' => false, 'showAsOverlayOption' => 1, 'yPosition' => 0.5,
-            ]),
+            self::notify('Akış gönderildi'),
         ];
 
         $trigger = [
             // disableTriggerOnRemove false: düğme çöp kutusuna sürüklenince yalnız gizlenir, tetikleyici kapanmaz (Osman'ın telefonunda
             // tetikleyici kapalı kalmış, simge çıkmıyordu). Geri getirmek için makronun anahtarı kapatılıp açılır.
             'disableTriggerOnRemove' => false, 'drawOverSystemApps' => false, 'fixedLocation' => false, 'forceLocation' => false, 'iconText' => 'NQ', 'iconTextColor' => -1,
-            'iconTintColor' => -1, 'iconTintEnabled' => false, 'iconType' => 0, 'identifier' => 'nq', 'longPressEnabled' => false, 'm_alpha' => 100, 'm_iconBgColor' => -1024000,
+            'iconTintColor' => -1, 'iconTintEnabled' => false, 'iconType' => 0, 'identifier' => 'nqv1', 'longPressEnabled' => false, 'm_alpha' => 100, 'm_iconBgColor' => -1024000,
             'm_imageResourceId' => 0, 'm_padding' => 20, 'm_showOnLockScreen' => true, 'm_size' => 0, 'm_transparentBackground' => false, 'overridenAlpha' => 0, 'overridenBgColor' => 0,
             'overridenSize' => 0, 'overridenTransparentBackground' => false, 'preventRemoveByDrag' => false, 'showPositionOnMove' => false, 'usePercentForLocation' => false,
             'vibrateOnClick' => true, 'xLocation' => 0, 'yLocation' => 0,
@@ -91,7 +87,19 @@ final class MacroDroidMacro
 
     public static function json(string $url, string $token, int $screens = 15): string
     {
-        return json_encode(self::facebookFeed($url, $token, $screens), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
+        return json_encode(self::facebookFeed($url, $token, $screens), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION) ?: '{}';
+    }
+
+    /** Makro her aşamada kendini bildirir (aynı bildirim üzerine yazılır): nerede takıldığı telefondan görülür. */
+    private static function notify(string $text): array
+    {
+        return self::action('NotificationAction', [
+            'autoExpand' => true, 'blockNextAction' => false, 'dimBackground' => true, 'disableHtml' => false, 'displayOverStatusBar' => false, 'iconText' => '', 'iconType' => 0,
+            'liveNotification' => false, 'm_backgroundColor' => -16777216, 'm_iconBgColor' => -1762269, 'm_imageResourceId' => 0, 'm_macroGUIDToRun' => 0, 'm_notificationChannelType' => 0,
+            'm_notificationSubject' => 'NavlunIQ', 'm_notificationText' => $text, 'm_overwriteExisting' => true, 'm_priority' => 0, 'm_ringtoneIndex' => 0, 'm_ringtoneName' => 'Default',
+            'm_runMacroWhenPressed' => false, 'm_textColor' => -1, 'maintainSpaces' => false, 'notificationActionButtons' => [], 'notificatonId' => 0, 'preventAndroid16Grouping' => false,
+            'preventBackButtonClosing' => false, 'preventRemovalByBin' => false, 'showAsOverlayOption' => 1, 'yPosition' => 0.5,
+        ]);
     }
 
     /** @return array<string, mixed> */
