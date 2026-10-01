@@ -44,8 +44,9 @@ class ClassifyScrapedLoadsCommand extends Command
         $started = microtime(true);
         $relocated = 0;
         $checked = 0;
+        // En yeniden eskiye: yöneticinin baktığı güncel ilanlar 90 sn'lik bütçede ilk düzelenler olsun
         ScrapedLoad::query()->where('status', '!=', 'rejected')->where('created_at', '>=', now()->subDays(30))->where('ai_status', '!=', 'done')
-            ->orderBy('id')->chunkById(200, function ($loads) use (&$relocated, &$checked, $standardizer, $started): bool {
+            ->orderByDesc('id')->chunkByIdDesc(200, function ($loads) use (&$relocated, &$checked, $standardizer, $started): bool {
                 foreach ($loads as $load) {
                     if (microtime(true) - $started > 90) {
                         return false;

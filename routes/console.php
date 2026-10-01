@@ -106,11 +106,14 @@ Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlap
 
 // Konum sözlüğü temizliği sonrası (0001_01_32) son 14 günün ilanları ham mesajdan yeniden konumlanır; parça parça, 60 sn/çalıştırma,
 // imleç ayarda; bitince ya da süre dolunca ayar silinir. Yönetici düzenlemesi korunur; yapay zeka/şablon çözümü de yeniden bakılır.
-Artisan::command('scraped-loads:relocate-force', function (LoadStandardizer $standardizer) {
+Artisan::command('scraped-loads:relocate-force {--seconds=60 : Bu çalıştırmada en çok kaç saniye}', function (LoadStandardizer $standardizer) {
     $until = Settings::string('scraper_relocate_force_until');
     if ($until === '' || now()->gt(Carbon::parse($until))) {
+        $this->info('Yeniden konumlama planlı değil ya da süresi doldu.');
+
         return;
     }
+    $budget = max(5, (int) $this->option('seconds'));
     $cursor = (int) Settings::string('scraper_relocate_force_cursor');
     $started = microtime(true);
     $done = 0;
@@ -121,7 +124,7 @@ Artisan::command('scraped-loads:relocate-force', function (LoadStandardizer $sta
     }
     $finished = true;
     foreach ($q->limit(3000)->cursor() as $load) {
-        if (microtime(true) - $started > 60) {
+        if (microtime(true) - $started > $budget) {
             $finished = false;
             break;
         }
@@ -131,14 +134,19 @@ Artisan::command('scraped-loads:relocate-force', function (LoadStandardizer $sta
         }
         $cursor = $load->id;
     }
+    // İlerleme sağlık ekranında görünür: toplam bakılan/değişen, son parça zamanı, imleç
+    $progress = json_decode(Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
+    $progress = ['done' => (int) ($progress['done'] ?? 0) + $done, 'changed' => (int) ($progress['changed'] ?? 0) + $changed, 'at' => now()->toDateTimeString(), 'cursor' => $cursor, 'finished' => false];
     if ($finished && $done < 3000) {
         Settings::set('scraper_relocate_force_until', '');
         Settings::set('scraper_relocate_force_cursor', '0');
+        $progress['finished'] = true;
         $this->info("Yeniden konumlama bitti: {$changed} / {$done} (son parça)");
     } else {
         Settings::set('scraper_relocate_force_cursor', (string) $cursor);
         $this->info("Yeniden konumlama sürüyor: {$changed} / {$done}, imleç #{$cursor}");
     }
+    Settings::set('scraper_relocate_force_progress', json_encode($progress));
 })->purpose('Konum sözlüğü düzeltmesi sonrası ilanları ham mesajdan yeniden konumlar');
 Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
