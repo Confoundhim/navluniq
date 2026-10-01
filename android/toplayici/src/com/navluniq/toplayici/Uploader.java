@@ -27,6 +27,11 @@ import java.util.regex.Pattern;
  */
 public final class Uploader {
     private static final ExecutorService EXEC = Executors.newSingleThreadExecutor();
+    private static final java.util.concurrent.ScheduledExecutorService RETRY = Executors.newSingleThreadScheduledExecutor();
+    /** Ağ hatasında kendiliğinden yeniden deneme aralıkları (sn); başarıda sıfırlanır. */
+    private static final long[] BACKOFF = {20, 60, 120, 300, 900};
+    private static int failures = 0;
+    private static java.util.concurrent.ScheduledFuture<?> scheduled;
     private static final int MAX_QUEUE = 120;
     private static final Pattern PROCESSED = Pattern.compile("\"processed\"\\s*:\\s*(\\d+)");
     private static final Pattern SKIPPED = Pattern.compile("\"reason\"\\s*:\\s*\"([^\"]{0,60})\"");
@@ -116,14 +121,17 @@ public final class Uploader {
                 response = is == null ? "" : readAll(is);
                 conn.disconnect();
             } catch (Exception e) {
-                String msg = "Gönderilemedi (ağ): " + e.getClass().getSimpleName() + " " + (e.getMessage() == null ? "" : e.getMessage());
+                String msg = "Gönderilemedi (ağ): " + e.getClass().getSimpleName() + " " + (e.getMessage() == null ? "" : e.getMessage())
+                    + " · " + (body.length() / 1024) + " KB";
                 AppLog.add(c, msg);
                 Prefs.recordSend(c, false, msg);
-                return; // sonraki fırsatta yeniden denenir
+                scheduleRetry(c);
+                return; // dosya kaldı; süre dolunca kendiliğinden yeniden denenir
             }
+            failures = 0;
             if (code >= 200 && code < 300) {
                 String summary = summarize(response, screen);
-                AppLog.add(c, (screen ? "Facebook dökümü gönderildi" : "WhatsApp mesajı gönderildi") + " · " + summary);
+                AppLog.add(c, (screen ? "Facebook dökümü gönderildi (" + (body.length() / 1024) + " KB)" : "WhatsApp mesajı gönderildi") + " · " + summary);
                 Prefs.recordSend(c, true, "HTTP " + code + " · " + summary);
                 f.delete();
             } else if (code == 401) {
@@ -133,6 +141,7 @@ public final class Uploader {
             } else if (code == 429 || code >= 500) {
                 AppLog.add(c, "Sunucu meşgul (" + code + "), sonra yeniden denenecek.");
                 Prefs.recordSend(c, false, "HTTP " + code);
+                scheduleRetry(c);
                 return;
             } else {
                 AppLog.add(c, "Sunucu kabul etmedi (" + code + "): " + shorten(response, 120));
@@ -140,6 +149,22 @@ public final class Uploader {
                 f.delete(); // bizim hatamız; tekrar denemek anlamsız
             }
         }
+    }
+
+    /** Ağ/sunucu hatasından sonra 20 sn, 1 dk, 2 dk, 5 dk, 15 dk sonra kendiliğinden yeniden dener; kullanıcı düğmeye basmak zorunda kalmaz. */
+    private static synchronized void scheduleRetry(final Context c) {
+        long delay = BACKOFF[Math.min(failures, BACKOFF.length - 1)];
+        failures++;
+        if (scheduled != null && !scheduled.isDone()) {
+            return;
+        }
+        AppLog.add(c, delay + " sn sonra yeniden denenecek (bekleyen paket: " + pending(c) + ").");
+        scheduled = RETRY.schedule(new Runnable() {
+            @Override
+            public void run() {
+                flush(c);
+            }
+        }, delay, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     private static String summarize(String response, boolean screen) {
