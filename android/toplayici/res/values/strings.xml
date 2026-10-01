@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NavlunIQ Toplayıcı</string>
+    <string name="a11y_label">NavlunIQ Toplayıcı (Facebook okuma)</string>
+    <string name="a11y_description">Facebook uygulamasında ekranda görünen grup gönderilerini okur ve yalnız NavlunIQ sunucusuna iletir. Hiçbir şeye dokunmaz, başka uygulamaları okumaz.</string>
+    <string name="listener_label">NavlunIQ Toplayıcı (WhatsApp bildirimleri)</string>
+</resources>

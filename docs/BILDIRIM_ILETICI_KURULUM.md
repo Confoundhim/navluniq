@@ -3,6 +3,9 @@
 WhatsApp'a hiçbir cihaz bağlanmaz. Telefonda çalışan MacroDroid uygulaması, seçili grupların
 bildirim metnini NavlunIQ'ya iletir; sunucu tekrarları eler, ilanı ayrıştırır ve onay kuyruğuna alır.
 
+> **2026-10-01'den beri önerilen yol kendi uygulamamızdır: NavlunIQ Toplayıcı** (`docs/TOPLAYICI.md`). WhatsApp bildirimlerini
+> ve Facebook gönderilerini tek kurulumla iletir; aşağıdaki MacroDroid adımları yalnız yedek yoldur.
+
 ## 1. Kurulum nasıl yapılır
 
 Herkese açık bir kurulum sayfası **yoktur**. Kurulum, panel → **Dış Kaynak İlanları → Kaynaklar ve telefon**

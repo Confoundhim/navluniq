@@ -127,6 +127,28 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   canlı akışa "Ekran dökümü alındı" satırı düşürür (kuyruk beklese de görünür). Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve
   kazıyıcı servisler hesap riski nedeniyle kullanılmaz. Tekrar denetimi metin ve numara+rota üzerinden, kaynaktan bağımsız: aynı ilan WhatsApp'ta da varsa tek kayıt,
   `seen_sources` sayacına yazılır. Gönderen adı saklanmaz. Kurulum: `docs/BILDIRIM_ILETICI_KURULUM.md` Facebook bölümü.
+- **NavlunIQ Toplayıcı (2026-10-01, Osman onayı: "kendi küçük uygulamamızı yapalım, WhatsApp'ı da dahil edelim"):** kendi Android
+  uygulamamız (`android/toplayici/`, Java, lambda yok; `docs/TOPLAYICI.md`). MacroDroid'in yerini alır: WhatsApp grup bildirimleri
+  (NotificationListenerService, MacroDroid ile aynı JSON: title "Grup: Gönderen", text, app, posted_at) ve Facebook ekranı
+  (AccessibilityService, yalnız com.facebook.* paketleri, kullanıcı normal gezinir, 1,2 sn sonra ekran okunur, 20 sn / 60 KB'de paket,
+  `X-Intake-Kind: screen` düz metin). Hiçbir şeye dokunmaz (isteğe bağlı "diğer" düğmesi). Telefonda kuyruk dosyaları (ağ yoksa bekler),
+  uygulama içi günlük/durum ekranı, `GET /api/v1/toplayici/version` ile sürüm denetimi. Derleme Android SDK'sız: `bash android/build.sh`
+  (Ubuntu `aapt zipalign apksigner dalvik-exchange` paketleri + `android/.tools/android.jar` API 34 raw.githubusercontent.com'dan;
+  dl.google.com bu ortamda kapalı). APK **depoda** `public/toplayici/navluniq-toplayici.apk` + `version.json`; imza anahtarı
+  `android/keystore/toplayici.jks` depoda (yan yükleme imzası, parola build.sh'ta; değişirse telefonlarda silip yeniden kurma).
+  Yeni sürüm: manifest `versionCode/versionName` + `Prefs.VERSION_*` birlikte artar (`ToplayiciVersionTest` eşitliği denetler), build.sh,
+  APK commit. Sunucu: ekran dökümünde 24 saat içinde görülen gönderi (`fb:seen:` önbellek) kuyruğa girmez, canlı akış satırı
+  "N gönderi, M yeni · toplayici/1.0". Panel Kaynaklar ve telefon: "Önerilen yol" kutusu + APK bağlantısı (herkese açık, anahtar
+  içinde değil); MacroDroid bölümleri "Yedek yol A/B" olarak duruyor. **Osman'ın kararı (2026-10-01): WhatsApp şimdilik MacroDroid'de kalır**;
+  (v1.1-1.2'de uygulamada kapalıydı). **v1.3 (versionCode 4, 2026-10-01): Osman "WhatsApp için de kendi uygulamamızı kullanacağız"
+  dedi → WhatsApp iletme varsayılan açık**; uygulama doğrulanınca MacroDroid WhatsApp makrosu kapatılır. "diğer" dokunuşu yalnız
+  düğmenin kendisine (`isClickable` + `ACTION_CLICK`), üst öğeye çıkılmaz (gönderi sayfası açılmasın); "açılan gönderi" sayacı. **v1.2 (versionCode 3):** Osman tam metni istedi ("devamını gör'e tıklamadan devamını görmesi gerek,
+  hızlı kaydırsak da düzgün hesaplasın"): Facebook tam metni ekrana basmadığından tek yol "diğer" düğmesine **uygulamanın** dokunması
+  (`auto_expand` varsayılan açık, aynı düğmeye 6 sn'de bir, en çok 3/okuma); okuma kaydırma sürerken 350 ms'de bir + durunca 700 ms.
+  Sunucu: `NotificationIntakeParser` kesik gönderiyi `truncated` işaretler; `LoadIntakeService::mergeTruncatedFacebookPost` aynı
+  kaynağın 7 günlük kayıtlarında ön ek eşleşmesiyle (≥40 karakter) tam metni kesik kaydın yerine koyar (kesik arşive), kesik
+  sonradan gelirse tekrar sayar; yayınlanmış/yönetici düzenlemiş kayıt dokunulmaz. Osman'ın sorusuna cevap (2026-10-01): kendi
+  uygulamamız MacroDroid'den daha güvenli (3 izin, yalnız Facebook paketleri, veri yalnız navluniq.com'a, kod açık, dokunma yok).
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

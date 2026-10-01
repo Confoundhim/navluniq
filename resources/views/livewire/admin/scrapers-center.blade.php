@@ -711,7 +711,7 @@ new class extends Component {
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
-            'tokenBody' => '', 'screenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
+            'tokenBody' => '', 'screenBody' => '', 'webhookUrl' => url('/api/v1/webhook/notification'), 'pingUrl' => '', 'phoneParams' => [], 'toplayici' => \App\Support\Toplayici::version(), 'sourceCounts' => ['active' => 0, 'pending' => 0, 'deleted' => 0], 'sourceTotal' => 0,
             'lexicon' => collect(), 'suggestions' => collect(), 'classifier' => null,
         ];
 
@@ -1026,8 +1026,30 @@ new class extends Component {
                 <a href="{{ $pingUrl }}" target="_blank" rel="noopener" class="text-brand-600 font-semibold hover:underline text-xs">Buradan aç</a>
             </div>
 
+            <div class="text-xs space-y-2 p-3 rounded-2xl bg-brand-50/60 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-800/40">
+                <h3 class="font-semibold text-neutral-800 dark:text-neutral-100">Önerilen yol: NavlunIQ Toplayıcı uygulaması (WhatsApp + Facebook, tek kurulum)</h3>
+                <p class="text-[11px] text-neutral-600 dark:text-neutral-300">Kendi küçük Android uygulamamız. Telefona bir kez kurulur, iki izin verilir, anahtar yapıştırılır; sonrası kendiliğinden: WhatsApp grup bildirimlerindeki her mesaj ve Facebook'ta <strong>normal gezinirken</strong> ekranda görünen her grup gönderisi sunucuya gelir. Düğme yok, kaydırma makrosu yok, MacroDroid yok. Veri yalnız bu sunucuya gider; yazar adları saklanmaz.</p>
+                @if ($toplayici['available'])
+                    <div class="flex flex-wrap items-center gap-2">
+                        <a href="{{ $toplayici['url'] }}" class="btn-primary py-2 px-3 text-xs">Uygulamayı indir (APK, v{{ $toplayici['versionName'] }})</a>
+                        <button type="button" @click="copy(@js($toplayici['url']), 'apk')" class="btn-secondary py-2 px-3 text-xs" x-text="copied === 'apk' ? 'Kopyalandı' : 'İndirme bağlantısını kopyala'"></button>
+                        <span class="text-[11px] text-neutral-500">{{ number_format($toplayici['bytes'] / 1024, 0) }} KB · bağlantı herkese açıktır, anahtar içinde değildir; şoföre WhatsApp ile gönderilebilir.</span>
+                    </div>
+                @else
+                    <p class="text-[11px] text-red-600">APK dosyası sunucuda yok (public/toplayici). Siteyi güncelleyin.</p>
+                @endif
+                <ol class="list-decimal pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+                    <li>Telefonda bağlantıyı açın, inen dosyaya dokunun; "Bilinmeyen uygulama" uyarısında <strong>İzin ver → Yükle</strong>. (Play Protect "tanınmayan uygulama" derse <strong>Yine de yükle</strong>.)</li>
+                    <li>Uygulamayı açın, anahtarı yapıştırın (yukarıdaki <strong>Kopyala</strong> düğmesinden gelen metnin içindeki <span class="font-mono">token</span> değeri ya da aşağıdaki anahtar), <strong>Kaydet</strong>, <strong>Bağlantıyı sına</strong>: Canlı akışa "Bağlantı sınaması" düşer.</li>
+                    <li><strong>WhatsApp bildirim iznini aç</strong> → listede NavlunIQ Toplayıcı'yı açın. <strong>Facebook okuma iznini aç</strong> → Yüklü uygulamalar → NavlunIQ Toplayıcı → açın. Anahtar gri ve tıklanmıyorsa (Android 13+): <strong>Uygulama bilgisi</strong> → sağ üst ⋮ → "Kısıtlı ayarlara izin ver", sonra tekrar.</li>
+                    <li><strong>Pil kısıtlamasını kaldır</strong> deyin; Xiaomi/Huawei/Oppo'da ayrıca Uygulama bilgisi → "Otomatik başlat" açılır.</li>
+                    <li>Bitti. WhatsApp grup mesajları kendiliğinden gelir; Canlı akışta görünmeye başlayınca MacroDroid'deki WhatsApp makrosunu kapatın (ikisi birden açık kalırsa sunucu tekrarı eler ama gereksiz yük olur). Facebook için Gruplar akışında ya da bir grubun içinde normal kaydırın; her yeni ekran 20 saniyede bir paket olarak gider, Canlı akışa "Ekran dökümü alındı" satırı düşer. Aynı gönderi 24 saat içinde bir daha kuyruğa girmez.</li>
+                </ol>
+                <p class="text-[11px] text-neutral-500">Uygulamanın kendi ekranında son gönderim, bekleyen paket sayısı ve günlük görünür; sorun olursa o ekranın görüntüsü yeter. Yeni sürüm çıkınca uygulama kendisi haber verir. Aşağıdaki MacroDroid yolları yalnız yedek olarak duruyor.</p>
+            </div>
+
             <div class="text-xs space-y-1">
-                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">1. WhatsApp bildirimleri: kurulum için adres ve alanlar</h3>
+                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">Yedek yol A · MacroDroid ile WhatsApp bildirimleri: adres ve alanlar</h3>
                 <p class="text-[11px] text-neutral-500 mt-2">Önerilen: içerik türü <strong>application/x-www-form-urlencoded</strong>, "Parametreler" bölümüne şu alanlar (mesajdaki tırnak/satır sonu JSON'u bozabilir, form alanlarını bozamaz):</p>
                 <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-[11px] font-mono mt-1">
                     @foreach($phoneParams as $k => $v)<dt class="font-bold">{{ $k }}</dt><dd class="break-all min-w-0">{{ $v }}</dd>@endforeach
@@ -1047,7 +1069,7 @@ new class extends Component {
             </div>
 
             <div class="text-xs space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800/50">
-                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">2. Facebook grupları: tek dokunuşla akışı toplama (bot yok)</h3>
+                <h3 class="font-semibold text-neutral-700 dark:text-neutral-200">Yedek yol B · MacroDroid ile Facebook akışı (bot yok)</h3>
                 <p class="text-[11px] text-neutral-500">Facebook kalabalık gruplarda her gönderi için bildirim göndermez; bu yüzden gönderiler telefonun içinde okunur. Facebook'ta <strong>Gruplar</strong> sekmesi tüm grupların gönderilerini tek akışta gösterir; kayan düğmeye bir kez dokununca makro akışı aşağı kaydırır, ekrandaki yazıyı okur ve tek istekte buraya yollar. Facebook sunucusuna otomatik istek atılmaz. Sunucu dökümü gönderilere ayırır, yazar adlarını atar, reklamları ve tekrarları eler; her gönderi normal ayrıştırmadan geçer. Fotoğraf içindeki yazı okunamaz.</p>
                 <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 space-y-2">
                     <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Hazır makro dosyası (elle kurulum gerekmez)</p>

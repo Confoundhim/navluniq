@@ -345,9 +345,11 @@ final class NotificationIntakeParser
                 }
                 $end = isset($anchors[$k + 1]) ? $anchors[$k + 1]['start'] : count($lines);
                 $body = [];
+                $truncated = false;
                 for ($i = $anchor['at'] + 1; $i < $end; $i++) {
-                    // "… diğer" (devamını gör) düğmesi satır sonunda; kısaltılmış gövde olduğu gibi kalır
-                    $line = trim(preg_replace('/\\s*(?:…|\\.\\.\\.)\\s*diğer\\s*$/u', '', $lines[$i]) ?? $lines[$i]);
+                    // "… diğer" (devamını gör) düğmesi satır sonunda; kısaltılmış gövde olduğu gibi kalır, gönderi "kesik" işaretlenir
+                    $line = trim(preg_replace('/\\s*(?:…|\\.\\.\\.)\\s*diğer\\s*$/u', '', $lines[$i], -1, $cut) ?? $lines[$i]);
+                    $truncated = $truncated || $cut > 0;
                     $lower = TurkishText::lower($line); // /i bayrağı İ/I dönüşümünü bilmez
                     if ($line === '' || $line === $pageGroup || self::isAuthorLine($line, $anchor['author']) || preg_match(self::A11Y_BODY_NOISE, $lower) || preg_match(self::A11Y_HEADER_UI, $lower) || self::isScreenNoise($lower)) {
                         continue;
@@ -366,7 +368,7 @@ final class NotificationIntakeParser
                     continue;
                 }
                 $seen[$key] = true;
-                $messages[] = ['sender' => null, 'phone' => null, 'text' => $text, 'group' => mb_substr($anchor['group'], 0, 120)];
+                $messages[] = ['sender' => null, 'phone' => null, 'text' => $text, 'group' => mb_substr($anchor['group'], 0, 120), 'truncated' => $truncated];
             }
         }
         if ($messages === []) {

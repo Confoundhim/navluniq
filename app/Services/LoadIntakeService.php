@@ -133,6 +133,12 @@ class LoadIntakeService
                 return $this->result(202, false, 'source_pending', 'Kaynak yönetici onayı bekliyor.');
             }
 
+            // 3b) Facebook ekranından gelen gönderi kesik ("… diğer") ya da aynı gönderinin tam hâli olabilir: tam hâli kuyruktaki
+            // kesik kaydın yerini alır, kesik hâli tam kaydın tekrarı sayılır (kullanıcı geri kaydırınca yeniden görünür).
+            if ($sourceType === 'facebook' && ($merged = $this->mergeTruncatedFacebookPost($scraper, $raw, $groupName)) !== null) {
+                return $merged;
+            }
+
             // 4) Telefonu olmayan mesaj ilan olarak kullanılamaz; yapay zekaya da gitmez (kota).
             $fallbackPhone = Phone::normalize($payload['sender_phone'] ?? null);
             if (! self::hasPhone($raw) && $fallbackPhone === null) {
@@ -891,6 +897,47 @@ class LoadIntakeService
     }
 
     /** Emoji, noktalama, bağlantı ve büyük/küçük harf farklarını yok sayan karşılaştırma metni. */
+    /**
+     * Facebook ekranında aynı gönderi iki biçimde görülür: kesik ("… diğer" ile biten) ve açılmış tam metin. Aynı kaynağın son
+     * 7 gündeki kayıtlarıyla ön ek karşılaştırması yapılır (en az 40 karakter ortak):
+     * - Yeni metin, kuyruktaki (yayınlanmamış, reddedilmemiş, yönetici düzenlememiş) bir kaydın metnini baştan içeriyorsa o kayıt
+     *   arşivlenir ve işlem yeni (tam) metinle sürer (null döner).
+     * - Yeni metin, var olan bir kaydın metninin başlangıcıysa (kesik hâl sonradan geldi) tekrar sayılır.
+     */
+    private function mergeTruncatedFacebookPost(Scraper $scraper, string $raw, string $groupName): ?array
+    {
+        $new = self::normalizeText($raw);
+        if (mb_strlen($new) < 40) {
+            return null;
+        }
+        $recent = ScrapedLoad::query()->where('scraper_id', $scraper->id)->where('created_at', '>=', now()->subDays(7))
+            ->latest('id')->limit(300)->get(['id', 'raw_message', 'status', 'visibility', 'parse_metadata', 'seen_sources', 'duplicate_count']);
+        foreach ($recent as $load) {
+            $old = self::normalizeText((string) $load->raw_message);
+            if (mb_strlen($old) < 40 || $old === $new) {
+                continue;
+            }
+            if (str_starts_with($old, $new)) {
+                $this->noteSighting($load, $groupName);
+
+                return $this->result(200, true, 'duplicate', 'Aynı gönderinin kesik hâli; tam metin daha önce alındı.', $load->id);
+            }
+            if (str_starts_with($new, $old)) {
+                $meta = (array) ($load->parse_metadata ?? []);
+                $editedByAdmin = ! empty($meta['admin_edited_at']) || ! empty($meta['edited_by']) || ! empty($meta['manual']);
+                if ($load->visibility !== 'public' && $load->status !== 'rejected' && ! $editedByAdmin) {
+                    Log::info('Facebook kesik gönderi tam metinle değiştirildi', ['scraped_load_id' => $load->id, 'scraper_id' => $scraper->id]);
+                    Cache::forget('intake:seen:'.hash('sha256', $old));
+                    ScrapedLoad::query()->whereKey($load->id)->delete(); // arşive gider; tam metin yeni kayıt olarak işlenir
+                }
+
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     public static function normalizeText(string $text): string
     {
         $t = TurkishCities::lower($text);
