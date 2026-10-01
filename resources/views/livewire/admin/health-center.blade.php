@@ -47,9 +47,40 @@ new class extends Component {
         $this->runChecks();
     }
 
+    /** Yeniden konumlamanın bir parçasını hemen çalıştırır (zamanlayıcıyı beklemeden; en çok 15 sn). */
+    public function runRelocateBatch(): void
+    {
+        abort_unless(auth()->user()?->can('manage settings'), 403);
+        \Illuminate\Support\Facades\Artisan::call('scraped-loads:relocate-force', ['--seconds' => 15]);
+        session()->flash('success_message', trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'Bir parça çalıştırıldı.');
+        $this->runChecks();
+    }
+
     public function runChecks(): void
     {
         $this->checks = [];
+
+        $this->checks[] = $this->probe('Çalışan sürüm', function (): string {
+            $commit = \App\Support\AppVersion::commit();
+            if ($commit === null) {
+                throw new RuntimeException('Sürüm okunamadı (.git yok).');
+            }
+
+            return $commit.' · GitHub main ile aynıysa güncelleme uygulanmış demektir';
+        });
+
+        $this->checks[] = $this->probe('Yeniden konumlama', function (): string {
+            $until = \App\Support\Settings::string('scraper_relocate_force_until');
+            $p = json_decode(\App\Support\Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
+            $summary = isset($p['at']) ? ' · bakılan '.(int) ($p['done'] ?? 0).', değişen '.(int) ($p['changed'] ?? 0).' · son parça '.\Illuminate\Support\Carbon::parse($p['at'])->format('d.m H:i') : '';
+            if ($until === '') {
+                return ($p['finished'] ?? false) ? 'tamamlandı'.$summary : 'planlı değil'.$summary;
+            }
+            $cursor = (int) \App\Support\Settings::string('scraper_relocate_force_cursor');
+            $remaining = \App\Models\ScrapedLoad::query()->where('status', '!=', 'rejected')->where('created_at', '>=', now()->subDays(14))->when($cursor > 0, fn ($q) => $q->where('id', '<', $cursor))->count();
+
+            return 'sürüyor · kalan '.$remaining.' ilan (5 dk\'da bir parça, en yeniden eskiye)'.$summary.' · bitiş en geç '.\Illuminate\Support\Carbon::parse($until)->format('d.m H:i');
+        });
 
         $this->checks[] = $this->probe('Veritabanı', function (): string {
             DB::selectOne('select 1 as ok');
@@ -274,6 +305,14 @@ new class extends Component {
                     <span class="h-2.5 w-2.5 rounded-full {{ $check['ok'] ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
                 </div>
                 <p class="mt-3 text-xs font-semibold text-neutral-900 dark:text-white break-words">{{ $check['detail'] }}</p>
+                @if($check['name'] === 'Yeniden konumlama' && str_starts_with($check['detail'], 'sürüyor'))
+                    <div class="mt-3">
+                        <button type="button" wire:click="runRelocateBatch" wire:loading.attr="disabled" class="btn-secondary py-1.5 px-3 text-xs">
+                            <span wire:loading.remove wire:target="runRelocateBatch">Bir parça şimdi çalıştır</span>
+                            <span wire:loading wire:target="runRelocateBatch">Çalışıyor…</span>
+                        </button>
+                    </div>
+                @endif
                 @if($check['name'] === 'Başarısız işler' && ! $check['ok'])
                     <div class="mt-3 flex flex-wrap items-center gap-3">
                         <button type="button" wire:click="retryFailedJobs" class="btn-secondary py-1.5 px-3 text-xs">Yeniden dene</button>
