@@ -3,19 +3,21 @@
 namespace App\Support;
 
 /**
- * Hazır MacroDroid makrosu (.macro dosyası): Facebook "Gruplar" akışını tek dokunuşla toplayıp sunucuya yollar.
- * Engin Abi dosyayı telefonda MacroDroid'e içe aktarır; elle kurulum gerekmez. Anahtar ve adres dosyanın içine yazılır.
+ * Hazır MacroDroid makrosu (.macro dosyası): Facebook'ta açık olan akışı (Gruplar ya da bir grubun içi) tek dokunuşla kaydırıp
+ * okur ve sunucuya yollar. Engin Abi dosyayı telefonda MacroDroid'e içe aktarır; elle kurulum gerekmez. Anahtar ve adres içindedir.
  *
  * Yapı, MacroDroid'in dışa aktardığı JSON biçimidir (macroExportVersion 1); alan adları Osman'ın telefonundan alınan gerçek
- * dışa aktarımdan (2026-09-30) birebir kopyalandı: kayan düğme tetikleyicisi, sabit sayıda yinelenen döngüde "diğer"
- * (devamını gör) düğmesine dokunma, ekran içeriğini okuma (sözlük değişkeni), biriktirme, yukarı kaydırma, bekleme; döngü
- * sonunda HTTP POST (düz metin gövde, anahtar ve tür başlıkta) ve bildirim. Başta "fb://groups" derin bağlantısıyla
- * Facebook'un Gruplar sekmesi açılır. Ekran içeriği her turda "-----" ayracıyla JSON (lvjson) biçiminde eklenir; sunucu
- * (NotificationIntakeParser::parseFacebookScreen) erişilebilirlik dökümünü gönderilere böler.
+ * dışa aktarımdan (2026-09-30) birebir kopyalandı. Akış: kayan düğme → sabit sayıda yinelenen döngüde ekran içeriğini oku (sözlük
+ * değişkeni), biriktir, yukarı kaydır, bekle → HTTP POST (düz metin gövde, anahtar ve tür başlıkta) → bildirim. Facebook açılmaz ve
+ * hiçbir şeye dokunulmaz: "fb://groups" bağlantısı ana sayfaya fırlatıyordu, "diğer" düğmesine dokunma adımı makroyu durduruyordu
+ * (Osman, 2026-10-01). Ekran içeriği her turda "-----" ayracıyla JSON (lvjson) biçiminde eklenir; sunucu
+ * (NotificationIntakeParser::parseFacebookScreen) erişilebilirlik dökümünü gönderilere böler. Kısaltılmış gönderi "… diğer" ile gelir.
  */
 final class MacroDroidMacro
 {
-    public const FILENAME = 'navluniq-akis.macro';
+    public const FILENAME = 'navluniq-macro-final-v1.macro';
+
+    public const NAME = 'navluniq macro final v1';
 
     /** @return array<string, mixed> */
     public static function facebookFeed(string $url, string $token, int $screens = 15): array
@@ -24,23 +26,18 @@ final class MacroDroidMacro
         $parca = self::variable('parca', 4);
 
         $actions = [
-            // Önce Facebook'un Gruplar sekmesi açılır (derin bağlantı); böylece düğmeye nerede basıldığı fark etmez.
-            self::action('OpenWebPageAction', ['allowAnyCertificate' => false, 'blockNextAction' => false, 'm_disableUrlEncode' => true, 'm_httpGet' => false, 'm_urlToOpen' => 'fb://groups']),
-            self::pause(6), // Gruplar sayfası menüden sonra yükleniyor; 4 sn'de ilk ekran menü çıkmıştı
+            // Facebook açılmaz, sayfa değiştirilmez: Osman neredeyse (Gruplar akışı ya da bir grubun içi) orası kaydırılır.
+            // "fb://groups" derin bağlantısı ana sayfaya fırlatıyordu; "diğer" düğmesine dokunma adımı makroyu baştan durduruyordu.
+            self::pause(1), // düğmeye dokunuş bitsin
             self::action('SetVariableAction', self::setString($ekran, '')),
             // m_option 0 = sabit sayıda yinele (1 = koşul sürdükçe: sonsuz dönüyordu)
             self::action('LoopAction', ['m_fixedOptionCount' => $screens, 'm_option' => 0, 'timedDurationValue' => 1, 'timedTimeUnit' => 0, 'childrenCollapsed' => false, 'dontLogIfConditionIsFalse' => false]),
-            // Kısaltılmış gönderide "… diğer" düğmesi: yalnız tam "diğer" satırı (düzenli ifade), "diğer seçenekler" menüsüne dokunulmaz
-            self::action('UIInteractionAction', ['action' => 0, 'uiInteractionConfiguration' => [
-                'blocking' => false, 'checkOverlays' => false, 'clickOption' => 1, 'longClick' => false, 'showTouchLocation' => false,
-                'textContent' => '^(diğer|Devamını gör)$', 'textMatchOption' => 1, 'useRegex' => true, 'viewId' => '', 'xyPercentages' => false, 'type' => 'Click',
-            ]]),
-            self::pause(1),
             self::action('ReadScreenContentsAction', ['dictionaryKeys' => ['keys' => []], 'forceScreenRefresh' => false, 'includeOverlays' => false, 'includeScreenLocation' => false, 'includeWithoutText' => false, 'isLocalVar' => true, 'variableName' => 'parca'], comment: false),
             self::action('SetVariableAction', self::setString($ekran, "{lv=ekran}\n-----\n{lvjson=parca}")),
+            // Yukarı kaydırma: ekranın %75'inden %25'ine, yarım saniye (kısa/hızlı hareket dokunma sanılmasın)
             self::action('UIInteractionAction', ['action' => 6, 'uiInteractionConfiguration' => [
-                'additionalFingers' => 0, 'durationMs' => 400, 'endX' => 50, 'endX2' => 0, 'endY' => 20, 'endY2' => 0, 'showTouchLocation' => false,
-                'startX' => 50, 'startX2' => 0, 'startY' => 80, 'startY2' => 0, 'waitBeforeNext' => true, 'xyPercentages' => true, 'type' => 'Gesture',
+                'additionalFingers' => 0, 'durationMs' => 500, 'endX' => 50, 'endX2' => 0, 'endY' => 25, 'endY2' => 0, 'showTouchLocation' => false,
+                'startX' => 50, 'startX2' => 0, 'startY' => 75, 'startY2' => 0, 'waitBeforeNext' => true, 'xyPercentages' => true, 'type' => 'Gesture',
             ]]),
             self::pause(1, 500),
             self::action('EndLoopAction', []),
@@ -84,9 +81,9 @@ final class MacroDroidMacro
                 'isActionBlock' => false, 'isExtra' => false, 'isFavourite' => false, 'lastEditedTimestamp' => (int) (microtime(true) * 1000),
                 'localVariables' => [$ekran, $parca], 'localVarsAlphabetical' => true, 'loggingLevel' => 0, 'm_GUID' => self::guid(),
                 'm_actionList' => $actions, 'm_category' => '', 'm_completed' => true, 'm_constraintList' => [], // kategorisiz: kapalı kategori makroyu durduruyordu
-                'm_description' => 'Facebook Gruplar akışını '.$screens.' ekran kaydırıp okur ve NavlunIQ sunucusuna yollar. NQ düğmesine dokunun; Facebook kendiliğinden açılır.',
+                'm_description' => 'Facebook\'ta Gruplar akışında ya da bir grubun içinde NQ düğmesine dokunun: '.$screens.' ekran kaydırıp okur ve NavlunIQ sunucusuna yollar. Bu sırada telefona dokunmayın.',
                 'm_descriptionOpen' => false, 'm_enabled' => true, 'm_excludeLog' => false, 'm_headingColor' => -855310, 'm_isOrCondition' => false,
-                'm_name' => 'NavlunIQ akış', 'm_triggerList' => [$trigger],
+                'm_name' => self::NAME, 'm_triggerList' => [$trigger],
             ],
             'macroExportVersion' => 1,
         ];
