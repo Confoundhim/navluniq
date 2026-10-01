@@ -14,8 +14,18 @@ final class Lexicon
 {
     private const CACHE_KEY = 'ai:lexicon:v1';
 
+    /** Sözlük her değiştiğinde artan sayı: uzun ömürlü kuyruk işçileri bellekteki kopyanın eskidiğini buradan anlar. */
+    private const VERSION_KEY = 'ai:lexicon:version';
+
+    /** Sürüm denetimi en çok bu kadar saniyede bir yapılır (her eşleme için önbelleğe gidilmez). */
+    private const VERSION_CHECK_SECONDS = 30;
+
     /** @var array<string, array<string, string>>|null kind → [term → canonical] */
     private static ?array $memo = null;
+
+    private static ?string $memoVersion = null;
+
+    private static float $versionCheckedAt = 0.0;
 
     public static function normalize(string $text): string
     {
@@ -34,10 +44,16 @@ final class Lexicon
     /** @return array<string, array<string, string>> */
     private static function all(): array
     {
-        if (self::$memo !== null) {
+        if (self::$memo !== null && microtime(true) - self::$versionCheckedAt < self::VERSION_CHECK_SECONDS) {
             return self::$memo;
         }
         try {
+            $version = (string) Cache::get(self::VERSION_KEY, '0');
+            self::$versionCheckedAt = microtime(true);
+            if (self::$memo !== null && $version === self::$memoVersion) {
+                return self::$memo;
+            }
+            self::$memoVersion = $version;
             self::$memo = Cache::remember(self::CACHE_KEY, now()->addMinutes(10), function (): array {
                 $out = [];
                 foreach (AiLexicon::query()->where('status', 'active')->whereNotNull('term')->get(['kind', 'term', 'canonical']) as $row) {
@@ -59,7 +75,12 @@ final class Lexicon
     public static function flush(): void
     {
         self::$memo = null;
+        self::$memoVersion = null;
         Cache::forget(self::CACHE_KEY);
+        try {
+            Cache::forever(self::VERSION_KEY, (string) (((int) Cache::get(self::VERSION_KEY, '0')) + 1)); // diğer işçiler 30 sn içinde yeniden okur
+        } catch (Throwable) {
+        }
     }
 
     /**
@@ -100,7 +121,11 @@ final class Lexicon
             return null;
         }
         $hay = ' '.$normalizedText.' ';
+        $minLength = in_array($kind, ['not_load', 'load_signal'], true) ? 4 : 1; // "ok", "var" gibi kısa ifadeler her mesajda geçer
         foreach ($map as $term => $canonical) {
+            if (mb_strlen($term) < $minLength) {
+                continue;
+            }
             if ($term !== '' && preg_match('/(?<![\p{L}\p{N}])'.preg_quote($term, '/').'(?:[\p{L}]{0,4})?(?![\p{L}\p{N}])/u', $hay) === 1) {
                 return ['term' => $term, 'canonical' => $canonical];
             }

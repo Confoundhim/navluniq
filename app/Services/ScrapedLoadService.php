@@ -228,7 +228,7 @@ class ScrapedLoadService
         return true;
     }
 
-    public function approve(ScrapedLoad $load, ?int $userId = null, bool $auto = false, bool $incomplete = false): void
+    public function approve(ScrapedLoad $load, ?int $userId = null, bool $auto = false, bool $incomplete = false, bool $bulk = false): void
     {
         if ($load->visibility === 'public') {
             throw new RuntimeException('İlan adayı zaten yayında.');
@@ -275,7 +275,7 @@ class ScrapedLoadService
             $userId,
             $load
         );
-        app(LearningService::class)->onApproved($load, byAdmin: ! $auto);
+        app(LearningService::class)->onApproved($load, byAdmin: ! $auto, bulk: $bulk);
     }
 
     public function reject(ScrapedLoad $load, ?int $userId = null): void

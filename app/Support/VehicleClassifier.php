@@ -103,7 +103,7 @@ final class VehicleClassifier
         }
         // Jargon sözlüğü: yöneticinin öğrettiği araç sözcükleri kesin eşleşme sayılır.
         if (($lex = Lexicon::matchVehicle($norm)) !== null) {
-            $scores[$lex['canonical']] = max($scores[$lex['canonical']] ?? 0, 10);
+            $scores[$lex['canonical']] = max($scores[$lex['canonical']] ?? 0, 8); // açık araç adı ("tır", "13.60": 10) sözlük sözcüğünü yener
             $evidence[] = "sözlük: {$lex['term']}";
         }
         // "kamyon" tek başına: alt tipi teker/dingil ipucu ya da tonaj belirler.

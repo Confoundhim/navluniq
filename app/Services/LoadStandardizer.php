@@ -7,6 +7,7 @@ use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
 use App\Support\TextPrep;
+use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
 use App\Support\TurkishText;
 use App\Support\VehicleClassifier;
@@ -211,16 +212,28 @@ class LoadStandardizer
     public function relocateFromRaw(ScrapedLoad $load, bool $force = false): bool
     {
         $meta = (array) ($load->parse_metadata ?? []);
-        // force: yapay zeka / şablon çözümü de yeniden konumlanır (konum sözlüğü zehirlenmişken onlar da aynı çözücüden geçmişti)
-        if (! empty($meta['admin_edited']) || (! $force && $load->ai_status === 'done') || trim((string) $load->raw_message) === '') {
+        // force: yapay zeka / şablon çözümü de yeniden konumlanır (konum sözlüğü zehirlenmişken onlar da aynı çözücüden geçmişti).
+        // Seri ilan parçaları (başlık + boşaltma satırı) tek mesajdan türetilmiştir; ham mesajdan yeniden okunamaz.
+        if (! empty($meta['admin_edited']) || ! empty($meta['series']) || (! $force && $load->ai_status === 'done') || trim((string) $load->raw_message) === '') {
             return false;
         }
         $parsed = app(AiParserService::class)->parseCheap((string) $load->raw_message);
         $changes = [];
+        $previous = [];
         foreach (['pickup', 'delivery'] as $side) {
-            $fresh = $this->location($parsed["{$side}_location"] ?? null);
+            $text = $parsed["{$side}_location"] ?? null;
+            $fresh = $this->location($text);
             if ($fresh['province_code'] === null) {
                 continue;
+            }
+            // Yapay zeka / şablon çözümünün üstüne yazmak için kural kesin olmalı: yer katalogda birebir (sözlük ve yakın eşleme yok)
+            // ve il adı metinde yazılı ya da ilçe adı tek ilde var. "Kemalpaşa", "Gölbaşı" gibi belirsiz yazım yapay zekayı ezmez.
+            if ($force && $load->ai_status === 'done') {
+                $catalog = TurkishLocations::resolveCatalog(is_string($text) ? $text : null);
+                $namesProvince = is_string($text) && TurkishCities::match($text, fuzzy: false) !== null;
+                if ($catalog === null || (int) $catalog['province_code'] !== (int) $fresh['province_code'] || (! $namesProvince && TurkishLocations::isAmbiguousDistrict($catalog['district'] ?? null))) {
+                    continue;
+                }
             }
             $current = (int) $load->{"{$side}_province_code"};
             $districtMissing = $current === $fresh['province_code'] && $load->{"{$side}_district"} === null && $fresh['district'] !== null;
@@ -232,10 +245,14 @@ class LoadStandardizer
             $changes["{$side}_district"] = $fresh['district'];
             $changes["{$side}_lat"] = $fresh['lat'];
             $changes["{$side}_lng"] = $fresh['lng'];
+            $previous[$side] = $load->{"{$side}_location"};
         }
         if ($changes === []) {
             return false;
         }
+        // İz: hangi değerden hangi yolla değişti (yönetici ekranında ve denetimde görünür; geri alınabilir)
+        $meta['relocated_from'] = ['at' => now()->toDateTimeString(), 'force' => $force] + $previous;
+        $changes['parse_metadata'] = $meta;
         $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
         $pickupCode = $changes['pickup_province_code'] ?? $load->pickup_province_code;
         $deliveryCode = $changes['delivery_province_code'] ?? $load->delivery_province_code;
@@ -288,11 +305,14 @@ class LoadStandardizer
             // Satırın "+" zinciri: "GÖNEN+MERKEZ – TIR – 26 TON" → ["GÖNEN", "MERKEZ – TIR – 26 TON"]
             $tokens = array_map('trim', preg_split('/\s*\+\s*/u', preg_replace(AiParserService::PHONE_PATTERN, ' ', $line) ?? $line) ?: []);
             $stops = [];
+            $resolvedCount = 0;
             foreach ($tokens as $i => $token) {
                 if ($i === 0) {
-                    $token = preg_replace('/^.*->\s*/u', '', $token) ?? $token; // "Samsundan 13.60 var -> Çorum" → "Çorum"
+                    // "Samsundan 13.60 var -> Çorum", "Ankara - Bursa": ilk parçada son bağlaçtan sonrası ana varıştır
+                    $token = preg_replace('/^.*(?:->|[–—:|]|\s-\s|(?<=\p{L})-(?=\s))\s*/u', '', $token) ?? $token;
+                } else {
+                    $token = trim(preg_replace('/(?:[–—:|]|\s-\s|(?<=\p{L})-(?=\s)).*$/u', '', $token) ?? $token); // "MERKEZ – TIR – 26 TON" → "MERKEZ"
                 }
-                $token = trim(preg_replace('/(?:[–—:|]|\s-\s|(?<=\p{L})-(?=\s)).*$/u', '', $token) ?? $token); // "MERKEZ – TIR – 26 TON" → "MERKEZ"
                 if ($token === '') {
                     continue;
                 }
@@ -301,8 +321,10 @@ class LoadStandardizer
                     // İlk parçada kalkış/başlık da olabilir ("Samsun'dan 13.60 tenteli var Çorum+…" → Çorum): son yer adı;
                     // sonraki parçalarda ilk yer adı ("Denizli 26 ton" → Denizli).
                     $label = $i === 0 ? $places[array_key_last($places)]['label'] : $places[0]['label'];
+                    $resolvedCount++;
                 } elseif (preg_match('/^merkez\b/iu', $token) && $stops !== []) {
-                    $label = (string) strtok($stops[array_key_last($stops)], ' ').' Merkez';
+                    $label = (string) strtok($stops[array_key_last($stops)], ' ').' Merkez'; // "GÖNEN+MERKEZ": önceki noktanın il merkezi
+                    $resolvedCount++;
                 } else {
                     $label = $this->titleCase($token);
                 }
@@ -311,6 +333,9 @@ class LoadStandardizer
                 }
             }
             $stops = array_values(array_filter($stops, fn ($s) => mb_strlen($s) >= 3));
+            if ($resolvedCount < 2) {
+                continue; // "tenteli+kapalı araç olur": yer adı olmayan "+" zinciri teslim noktası değildir
+            }
             if (count($stops) >= 2) {
                 // Ana varış listenin başına: rota çözümleyicisi ilk noktayı seçtiyse sıra korunur
                 if ($deliveryLabel !== null && in_array($deliveryLabel, $stops, true)) {
@@ -343,10 +368,12 @@ class LoadStandardizer
             return ['label' => $this->titleCase($text), 'province_code' => null, 'district' => null, 'lat' => null, 'lng' => null];
         }
 
+        $label = TurkishLocations::label($r);
+
         return [
-            'label' => $r['province'].($r['district'] && $r['district'] !== 'Merkez' ? ' '.$r['district'] : ''),
+            'label' => $label,
             'province_code' => $r['province_code'],
-            'district' => $r['district'] !== 'Merkez' ? $r['district'] : null,
+            'district' => $label !== $r['province'] ? $r['district'] : null, // "Bolu Merkez" gibi il adını tekrarlayan ilçe adı etikete girmez
             'lat' => $r['lat'],
             'lng' => $r['lng'],
         ];

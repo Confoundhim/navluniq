@@ -49,9 +49,13 @@ class LoadIntakeService
     /** Bu mesajda açılan kayıtlar: aynı mesajın ikinci ilanı (aynı il çifti, farklı ilçe) birincinin tekrarı sayılmasın. */
     private array $messageIds = [];
 
+    /** @var list<string> Bu mesajın parçaları için yazılan 'görüldü' anahtarları (hata olursa geri alınır) */
+    private array $segmentSeenKeys = [];
+
     public function intake(array $payload): array
     {
         $this->messageIds = [];
+        $this->segmentSeenKeys = [];
         // Aynı metin iki gruptan aynı saniyede gelince (bildirim iletici her grubu ayrı yollar) iki istek yan yana
         // işlenir ve tekrar denetimi henüz yazılmamış kaydı göremezdi. Mesaj başına kilit: ikinci istek ilkinin
         // bitmesini bekler, sonra kaydı bulur ve "tekrar" der. Kilit alınamazsa (aşırı bekleme) kilitsiz devam edilir.
@@ -252,6 +256,9 @@ class LoadIntakeService
             ksort($results);
         } catch (Throwable $e) {
             Cache::forget($seenKey); // yeniden denenebilsin
+            foreach ($this->segmentSeenKeys as $k) {
+                Cache::forget($k); // yarım kalan parçalar da 24 saat "görüldü" diye kilitli kalmasın
+            }
             Log::error('Dış kaynak ilanı ayrıştırılamadı.', ['exception' => $e::class, 'error' => $e->getMessage()]);
 
             return $this->result(503, false, 'failed', 'Mesaj işlenemedi.', null, $e::class);
@@ -289,6 +296,8 @@ class LoadIntakeService
 
                     return $this->result(200, true, 'duplicate', 'Aynı ilan başka bir kaynaktan işleniyor veya işlendi.', $first->id) + ['excerpt' => $text];
                 }
+            } else {
+                $this->segmentSeenKeys[] = $seenKey;
             }
             $recent = $this->recentByText($normalizedHash);
             if ($recent) {
@@ -438,7 +447,9 @@ class LoadIntakeService
         if (($ai['data']['provider'] ?? null) !== 'template' && $ai['status'] === 'done' && (float) ($ai['data']['confidence'] ?? 0) >= 0.8
             && empty($parsed['ai_conflict']) && ($std['pickup_province_code'] !== null || ! empty($std['metadata']['international']['pickup']))
             && ($std['delivery_province_code'] !== null || ! empty($std['metadata']['international']['delivery']))) {
-            $this->templates->learn($phone, $text, $std['pickup_location'], $std['delivery_location'], $std['vehicle_type'], $ai['data']['goods_category'] ?? null, true, (float) $ai['data']['confidence'], $scrapedLoad->id);
+            // Araç yalnız kural kesin okuduysa kalıba yazılır: yapay zekanın tahmini araç sonraki mesajlara "kesin" diye taşınmaz
+            $templateVehicle = ($std['vehicle_type_source'] ?? null) === 'keyword' ? $std['vehicle_type'] : null;
+            $this->templates->learn($phone, $text, $std['pickup_location'], $std['delivery_location'], $templateVehicle, $ai['data']['goods_category'] ?? null, true, (float) $ai['data']['confidence'], $scrapedLoad->id);
         }
 
         return $this->result(201, true, 'created', 'İlan adayı kaydedildi.', $scrapedLoad->id) + ['excerpt' => $text];

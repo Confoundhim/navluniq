@@ -29,8 +29,10 @@ class TemplateMemory
         $norm = LoadIntakeService::normalizeText($clean);
         $out = [];
         $locations = [];
-        foreach (explode(' ', $norm) as $word) {
-            if ($word === '') {
+        $words = array_values(array_filter(explode(' ', $norm), fn ($w) => $w !== ''));
+        $skip = -1;
+        foreach ($words as $i => $word) {
+            if ($i <= $skip) {
                 continue;
             }
             if ($word === 'tel') {
@@ -43,18 +45,26 @@ class TemplateMemory
 
                 continue;
             }
-            if (mb_strlen($word) >= 3 && ! preg_match('/\d/u', $word)) {
-                $resolved = TurkishCities::fromText($word, fuzzy: false) !== null ? TurkishLocations::resolve($word) : null;
+            if (mb_strlen($word) >= 3 && ! preg_match('/\d/u', $word) && ! in_array($word, AiParserService::PLACE_NOISE, true)) {
+                // Yalnız birebir yazım: yakın eşleme "sinan" → Sincan, "saman" → Kaman gibi yer olmayan sözcükleri {yer} yapıyordu
+                $resolved = TurkishCities::fromText($word, fuzzy: false) !== null ? TurkishLocations::resolve($word, false) : null;
+                if ($resolved !== null && isset($words[$i + 1]) && TurkishCities::fromText($words[$i + 1], fuzzy: false) === null) {
+                    // İl + ilçe tek yer ("ankara sincan"): iki ayrı {yer} olsaydı kalıp başka mesajda ilçeyi varış sanabilirdi
+                    $pair = TurkishLocations::resolve($word.' '.$words[$i + 1], false);
+                    if ($pair !== null && ($pair['district'] ?? null) !== null) {
+                        $resolved = $pair;
+                        $skip = $i + 1;
+                    }
+                }
                 if ($resolved === null && mb_strlen($word) >= 4) {
-                    $r = TurkishLocations::resolve($word);
+                    $r = TurkishLocations::resolve($word, false);
                     $resolved = $r !== null && ($r['district'] ?? null) !== null ? $r : null; // tek başına ilçe adı
                     if ($resolved === null && ($f = ForeignPlaces::match($word)) !== null) {
                         $resolved = ['province' => $f['label'], 'district' => null, 'province_code' => 0];
                     }
                 }
                 if ($resolved !== null) {
-                    $label = $resolved['province'].(($resolved['district'] ?? null) && $resolved['district'] !== 'Merkez' ? ' '.$resolved['district'] : '');
-                    $locations[] = ['text' => $word, 'province_code' => (int) $resolved['province_code'], 'label' => $label];
+                    $locations[] = ['text' => $word.($skip === $i + 1 ? ' '.$words[$i + 1] : ''), 'province_code' => (int) $resolved['province_code'], 'label' => (string) TurkishLocations::label($resolved)];
                     $out[] = '{yer}';
 
                     continue;
@@ -91,6 +101,9 @@ class TemplateMemory
         if (count(explode(' ', $sig['signature'])) < 3) {
             return null; // çok kısa kalıp: ayırt edici değil
         }
+        if (! $isLoad && str_contains($sig['signature'], '{yer}')) {
+            return null; // yer adı geçen bir kalıp "ilan değil" diye öğrenilmez: aynı kalıp başka gün gerçek ilan olabilir
+        }
         $indexOf = function (?string $label) use ($sig): ?int {
             $target = is_string($label) && $label !== '' ? TurkishLocations::resolve($label) : null;
             if ($target === null && is_string($label) && ($f = ForeignPlaces::match($label)) !== null) {
@@ -104,6 +117,12 @@ class TemplateMemory
             }
             if ($target === null) {
                 return null;
+            }
+            $targetLabel = TurkishLocations::label($target);
+            foreach ($sig['locations'] as $i => $loc) {
+                if ($loc['province_code'] !== 0 && $loc['label'] === $targetLabel) {
+                    return $i; // birebir aynı yer ("Kayseri Develi") önce; aynı ilin başka yeri sonra
+                }
             }
             foreach ($sig['locations'] as $i => $loc) {
                 if ($loc['province_code'] === (int) $target['province_code'] && $loc['province_code'] !== 0) {
@@ -119,6 +138,11 @@ class TemplateMemory
             return null; // rota kalıptan çıkarılamıyorsa kalıp güvenilmez
         }
         try {
+            $existing = $this->find($phone, $sig['hash']);
+            if ($existing !== null && (float) $existing->confidence >= 1.0 && $confidence < 1.0) {
+                return $existing; // yönetici onayıyla öğrenilmiş kalıp, yapay zekanın daha düşük güvenli çözümüyle ezilmez
+            }
+
             return AiTemplate::updateOrCreate(
                 ['phone_hash' => self::phoneHash($phone), 'signature_hash' => $sig['hash']],
                 ['signature' => $sig['signature'], 'is_load' => $isLoad, 'pickup_index' => $pickupIdx, 'delivery_index' => $deliveryIdx,
@@ -145,8 +169,21 @@ class TemplateMemory
         if (! isset($locations[$template->pickup_index], $locations[$template->delivery_index])) {
             return null;
         }
-        $parsed['pickup_location'] = $locations[$template->pickup_index]['label'];
-        $parsed['delivery_location'] = $locations[$template->delivery_index]['label'];
+        $tplPickup = $locations[$template->pickup_index];
+        $tplDelivery = $locations[$template->delivery_index];
+        if ($tplPickup['province_code'] === $tplDelivery['province_code'] && $tplPickup['province_code'] !== 0 && $tplPickup['label'] === $tplDelivery['label']) {
+            return null; // kalıp iki ucu aynı yere düşürüyor: bu mesaja uymuyor
+        }
+        // Kural zaten iki ucu da çözdüyse kalıp onu ezmez; kalıp yalnız kuralın çözemediği ucu doldurur. Kural iki ucu aynı ile
+        // düşürmüşse ("Kayseri → Kayseri Develi") ve kalıp iki farklı il veriyorsa kalıp kazanır.
+        $ruleP = TurkishLocations::resolve($parsed['pickup_location'] ?? null);
+        $ruleD = TurkishLocations::resolve($parsed['delivery_location'] ?? null);
+        $ruleSame = $ruleP !== null && $ruleD !== null && $ruleP['province_code'] === $ruleD['province_code'];
+        $tplDifferent = $tplPickup['province_code'] !== $tplDelivery['province_code'];
+        if ($ruleP === null || $ruleD === null || ($ruleSame && $tplDifferent)) {
+            $parsed['pickup_location'] = $ruleP !== null && ! ($ruleSame && $tplDifferent) ? $parsed['pickup_location'] : $tplPickup['label'];
+            $parsed['delivery_location'] = $ruleD !== null && ! ($ruleSame && $tplDifferent) ? $parsed['delivery_location'] : $tplDelivery['label'];
+        }
         if (empty($parsed['vehicle_type']) && $template->vehicle_type) {
             $parsed['vehicle_type'] = $template->vehicle_type;
             $parsed['vehicle_type_source'] = 'template';

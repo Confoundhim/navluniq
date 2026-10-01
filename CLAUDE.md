@@ -163,6 +163,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `autoApprovalBlocker` kısayolu: iki il + telefon + kesin araç (keyword/admin/template ya da vehicle_any) ve puan ret sınırının
   üstünde → yayın; yalnız yapay zeka açıkça kuşkuluysa (<0,5) kısayol işlemez. Ayrıca üçüncü seri biçimi "KIZILTEPE = ADAPAZARI
   DİLOVASI" (`SeriesAd`, "=" / "=>" / "→"; başlıksız giriş bloğunun notları ilk başlığa taşınır). Testler: `LocationPoisonTest`.
+- **2026-10-01 ikinci denetim (Osman: "başka bir sorun var mı bu alanlarda bak bi her yerine"):** üç ayrı inceleme (öğrenme
+  döngüleri, tekrar/tazelik, konum çözümü) 30'a yakın bulgu verdi; hepsi kapatıldı. Konum: eş adlı ilçe tercihi
+  (`TurkishLocations::PREFERRED_DISTRICT_PROVINCE`), il-sonra-ilçe sırası, bitişik il-ilçe (`unglueProvinceDistrict`), yakın eşleme
+  son çare (il: iki kesin yer yoksa; ilçe: ilden sonraki tek sözcük, 6+ harf, yük sözcüğü değil), gündelik/yük/firma/hitap sözcükleri
+  yer değil, rol sözcüğü ve hal eki yön verir, `TurkishLocations::label()` tek etiket üreticisi; detay `docs/IL_ILCE_ESLESTIRME.md`.
+  Öğrenme: `LearningService::routePairFor` / `isNoiseTerm`, şablon kuralı ezmez, sınıflandırıcı yalnız güvenilir örnek, toplu yayın
+  öğrenmez, sözlük sürüm damgası (işçiler 30 sn'de yeniler), `relocateFromRaw` seri ilana dokunmaz ve zorlamada yalnız kesin kuralla
+  yazar (`parse_metadata.relocated_from`); detay `docs/OGRENME_CEMBERI.md`. Tekrar/tazelik: `last_seen_at` modelde hiç boş kalmaz
+  (`ScrapedLoad::booted`), eş ilan tazelenir (`noteSighting`), reddedilmiş kayıt tekrar sayılmaz, parça anahtarları hata halinde bırakılır.
+  Testler: `LocationAuditTest` (60+ örnek), altın sette 10 yeni örnek.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

@@ -564,10 +564,21 @@ class AiParserService
                 $out[$key] = $ai[$key];
             } elseif (! empty($ai[$key]) && $resolvable($out[$key] ?? null)) {
                 // İkisi de il buldu ama farklı: yayınlamadan önce insan bakmalı (otomatik onay engeli).
-                $ruleProvince = TurkishLocations::resolve((string) $out[$key])['province_code'] ?? null;
-                $aiProvince = TurkishLocations::resolve((string) $ai[$key])['province_code'] ?? null;
+                $ruleResolved = TurkishLocations::resolve((string) $out[$key]);
+                $aiResolved = TurkishLocations::resolve((string) $ai[$key]);
+                $ruleProvince = $ruleResolved['province_code'] ?? null;
+                $aiProvince = $aiResolved['province_code'] ?? null;
                 if ($ruleProvince && $aiProvince && $ruleProvince !== $aiProvince) {
-                    $conflicts[$key] = ['rule' => $out[$key], 'ai' => $ai[$key]];
+                    // Eş adlı ilçe ("Kemalpaşa"): kural metni il adı taşımıyor, yapay zeka aynı ilçeyi iliyle yazdı → yapay zeka doğru okumuştur
+                    $ruleDistrict = $ruleResolved['district'] ?? null;
+                    $aiDistrict = $aiResolved['district'] ?? null;
+                    $ruleNamesProvince = TurkishCities::match((string) $out[$key], fuzzy: false) !== null;
+                    if (! $ruleNamesProvince && $ruleDistrict !== null && $aiDistrict !== null && TurkishCities::ascii($ruleDistrict) === TurkishCities::ascii($aiDistrict)
+                        && TurkishCities::match((string) $ai[$key], fuzzy: false) !== null) {
+                        $out[$key] = $ai[$key];
+                    } else {
+                        $conflicts[$key] = ['rule' => $out[$key], 'ai' => $ai[$key]];
+                    }
                 } elseif ($ruleProvince && $aiProvince) {
                     // Aynı il: ilçe/semt bilgisi olan taraf kazanır ("Ankara" → "Ankara Ostim"); ikisinde de varsa kural kalır.
                     $ruleDistrict = TurkishLocations::resolve((string) $out[$key])['district'] ?? null;
@@ -1146,11 +1157,19 @@ TXT;
                 [$pickup, $delivery] = $byLines;
             } else {
                 $places = self::placesIn($routeText, 4);
+                // İl adı yazılmış (kesin) yerler en az ikiyse tek başına ilçe/semt sözcükleri ("Kartal", "Kale") çifte girmez
+                $strongOnes = array_values(array_filter($places, fn ($p) => $p['strong'] ?? false));
+                if (count($strongOnes) >= 2) {
+                    $places = $strongOnes;
+                }
                 $pair = null;
                 foreach ($places as $i => $p) {
                     foreach (array_slice($places, $i + 1) as $q) {
                         if ($q['label'] !== $p['label']) {
-                            $pair = [$p['label'], $q['label']];
+                            // Hal eki yönü belirler: "İzmire gidecek Bursadan" → Bursa → İzmir
+                            $pCase = $p['case'] ?? null;
+                            $qCase = $q['case'] ?? null;
+                            $pair = ($pCase === 'to' && $qCase !== 'to') || ($qCase === 'from' && $pCase !== 'from') ? [$q['label'], $p['label']] : [$p['label'], $q['label']];
                             break 2;
                         }
                     }
@@ -1249,6 +1268,7 @@ TXT;
         $text = TextPrep::prepare($text);
         $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
         $text = str_replace(['(', ')'], ' ', $text); // "Samsun (bafra) -> Antalya (kepez)"
+        $text = self::unglueProvinceDistrict($text); // "ANKARA-SİNCAN - İZMİR", "İzmir/Kemalpaşa > Bursa": il-ilçe tek yerdir, rota değil
         $word = '(?:\p{L}\.)?\p{L}{2,}(?:\.\p{L}+)*'; // "M.Kemalpaşa" tek sözcük; tek harf ("İ.", "B.") başına eklenmedikçe sayılmaz
         // Ek bağlaç: sözcüğe bitişik ("Ankaradan", en az 3 harften sonra) ya da ayrı yazılmış ("Diyarbakr dan"); "MADEN" gibi sözcük içi "den" sayılmaz.
         $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
@@ -1271,6 +1291,25 @@ TXT;
                 if ($a === null || $b === null || ($a['province_code'] === $b['province_code'] && (($a['district'] ?? null) === null || ($b['district'] ?? null) === null))) {
                     continue; // "Tekkeköy / Samsun", "ANKARA/SİNCAN": ilçe + kendi ili, rota değil
                 }
+                // "İzmir / KEMALPAŞA": ilçe tek başına başka ilde de varsa iki uç farklı görünür; birlikte okununca il+ilçe ise rota değil
+                // (yalnız tek sözcüklü uçlar: "Mersin Tarsus, Kayseri" gerçek rotadır)
+                foreach (! str_contains($pickup, ' ') && ! str_contains($delivery, ' ') ? [$pickup.' '.$delivery, $delivery.' '.$pickup] : [] as $joined) {
+                    $j = TurkishLocations::resolveCatalog($joined);
+                    if ($j !== null && ($j['district'] ?? null) !== null && TurkishCities::fromText($joined, fuzzy: false) !== null) {
+                        continue 2;
+                    }
+                }
+            }
+            // Rol sözcüğü tarafı belirler: "İzmir teslim - Bursa yükleme", "İzmir teslim, Bursadan yüklenir" → Bursa → İzmir.
+            // Hal ekli bağlaçta ("Ostimden Aliağaya palet yükümüz") yön zaten kesindir; "yükümüz" gibi adlar rol sayılmaz.
+            if (! $dative) {
+                $rawPickup = TurkishCities::lower($m[1]);
+                $rawDelivery = TurkishCities::lower($m[4]);
+                $pickupSaysDelivery = preg_match(self::ROLE_DELIVERY, $rawPickup) === 1 && preg_match(self::ROLE_PICKUP, $rawPickup) !== 1;
+                $deliverySaysPickup = preg_match(self::ROLE_PICKUP, $rawDelivery) === 1 && preg_match(self::ROLE_DELIVERY, $rawDelivery) !== 1;
+                if ($pickupSaysDelivery || $deliverySaysPickup) {
+                    [$pickup, $delivery] = [$delivery, $pickup];
+                }
             }
             $out[] = ['pickup' => $pickup, 'delivery' => $delivery];
         }
@@ -1288,28 +1327,43 @@ TXT;
     {
         $text = TurkishLocations::stripDayPhrases(TextPrep::prepare($text)); // "PAZAR GÜNÜ" Rize Pazar değildir
         $text = preg_replace("/[’'‘`]/u", '', $text) ?? $text;
-        $words = array_values(array_filter(preg_split('/[\s,\/;:()+>|]+/u', $text) ?: [], fn ($w) => $w !== ''));
-        $found = [];
+        $text = self::unglueProvinceDistrict($text); // "Mersin-Tarsus" tek yer
+        $words = array_values(array_filter(preg_split('/[\s,\/;:()+>|]+|(?<=\p{L})-(?=\p{L})/u', $text) ?: [], fn ($w) => $w !== ''));
+        $found = []; // sözcük sırası → yer; "strong": il adı yazılmış (il ya da il+ilçe) ya da ilçe + kendi ili; tek başına ilçe/semt zayıftır
+        $fuzzyFound = []; // yazım hatalı il adı: yalnız kesin yer ikiden azsa katılır ("Hatası yok Konya Bursa" → Hatay olmaz)
         $skipUntil = -1;
+        $cleanWord = fn (string $x): string => preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $x) ?? $x; // "AFYON‼", "*Bursa*", "(Söke)"
         foreach ($words as $i => $word) {
             if ($i <= $skipUntil) {
                 continue;
             }
-            $w = preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $word) ?? $word; // "AFYON‼", "*Bursa*", "(Söke)"
+            $w = $cleanWord($word);
             if (mb_strlen($w) < 3 || preg_match('/\d/u', $w) || in_array(TurkishCities::lower($w), self::PLACE_NOISE, true)) {
                 continue;
             }
-            // Önce birebir il, sonra birebir ilçe; yazım hatalı il adı yalnız 6+ harfte ve ilçe olarak da çözülmüyorsa
-            // yakın eşlenir ("BALIKKESIR", "ANAKRA"; ama "SİLOPİ" Sinop değil Şırnak Silopi'dir)
+            $next = isset($words[$i + 1]) ? $cleanWord($words[$i + 1]) : null;
+            $nextLower = $next !== null ? TurkishCities::lower($next) : null;
+            // Firma adı ("Kartal Nakliyat", "Demirci Lojistik") ya da kişi ("Can Bey"): yer değil
+            if ($nextLower !== null && (in_array($nextLower, self::COMPANY_WORDS, true) || in_array($nextLower, self::PERSON_TITLES, true))) {
+                continue;
+            }
+            // Önce birebir il, sonra birebir ilçe; yazım hatalı il adı yalnız 6+ harfte, ilçe olarak da çözülmüyorsa ve metinde
+            // iki kesin yer yoksa yakın eşlenir ("BALIKKESIR", "ANAKRA"; ama "SİLOPİ" Sinop değil Şırnak Silopi'dir)
             $province = TurkishCities::fromText($w, fuzzy: false);
-            if ($province === null && mb_strlen($w) >= 6 && (TurkishLocations::resolve($w, false)['district'] ?? null) === null && ForeignPlaces::match($w) === null) {
-                $province = TurkishCities::fromText($w, fuzzy: true);
+            $strong = $province !== null;
+            if ($province === null && mb_strlen($w) >= 6 && (TurkishLocations::resolve($w, false)['district'] ?? null) === null && ForeignPlaces::match($w) === null
+                && ($fuzzyProvince = TurkishCities::fromText($w, fuzzy: true)) !== null) {
+                $fr = TurkishLocations::resolve($fuzzyProvince);
+                if ($fr !== null) {
+                    $fuzzyFound[$i] = ['label' => TurkishLocations::label($fr), 'province_code' => (int) $fr['province_code'], 'province' => $fr['province'], 'district' => null, 'text' => $w, 'strong' => false, 'case' => null];
+                }
+
+                continue;
             }
             $resolved = null;
             if ($province !== null) {
                 $resolved = TurkishLocations::resolve($province);
                 // İl adından sonra ilçe: "İstanbul Arnavutköy", "Ankara Kazan", "Kars Göle"
-                $next = isset($words[$i + 1]) ? (preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $words[$i + 1]) ?? $words[$i + 1]) : null;
                 if ($next !== null && mb_strlen($next) >= 3 && ! preg_match('/\d/u', $next) && TurkishCities::fromText($next, fuzzy: false) === null) {
                     $withDistrict = TurkishLocations::resolve($province.' '.$next, false);
                     if ($withDistrict !== null && ($withDistrict['district'] ?? null) !== null) {
@@ -1318,8 +1372,11 @@ TXT;
                     }
                 }
             } elseif (mb_strlen($w) >= 4 || in_array(TurkishCities::ascii($w), self::SHORT_DISTRICTS, true)) {
+                // Yük sözcüğüyle aynı ilçe adı ("Kiraz yükü", "Torbalı çimento", "Bor madeni"): tek başına yer değil
+                if (in_array(TurkishCities::ascii($w), self::GOODS_LIKE_DISTRICTS, true) || ($nextLower !== null && in_array($nextLower, self::GOODS_FOLLOWERS, true))) {
+                    continue;
+                }
                 $r = TurkishLocations::resolve($w, false);
-                $next = isset($words[$i + 1]) ? (preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $words[$i + 1]) ?? $words[$i + 1]) : null;
                 if (($r === null || ($r['district'] ?? null) === null) && $next !== null && mb_strlen($next) >= 3 && ! preg_match('/\d/u', $next)) {
                     // İki sözcüklü ilçe/semt adı ("Çoban Bey", "Mustafa Kemalpaşa", "Sultan Beyli")
                     $two = TurkishLocations::resolve($w.' '.$next, false);
@@ -1333,13 +1390,18 @@ TXT;
                 }
                 if ($r !== null && ($r['district'] ?? null) !== null) {
                     $resolved = $r;
-                    // "Tekkeköy / Samsun": ilçeden sonra kendi ili yazılmışsa il ayrı yer sayılmaz
+                    // "Tekkeköy / Samsun", "Gölbaşı Ankara": ilçeden sonra kendi ili yazılmışsa il ayrı yer sayılmaz; yer kesinleşir
                     if ($next !== null && TurkishCities::fromText($next, fuzzy: false) === $r['province']) {
                         $skipUntil = max($skipUntil, $i + 1);
+                        $strong = true;
+                    } elseif ($next !== null && ($nextProvince = TurkishCities::fromText($next, fuzzy: false)) !== null && ($rr = TurkishLocations::resolve($w.' '.$next, false)) !== null && ($rr['district'] ?? null) !== null && $rr['province'] === $nextProvince) {
+                        $resolved = $rr; // eş adlı ilçe + ili: "Kemalpaşa İzmir" → İzmir Kemalpaşa
+                        $skipUntil = max($skipUntil, $i + 1);
+                        $strong = true;
                     }
                 } elseif (($f = ForeignPlaces::match($w)) !== null) {
                     // Yurt dışı yer (Erbil, Zaho, Bazargan…): il kodu 0, etiket "Erbil (Irak)"
-                    $found[] = ['label' => $f['label'], 'province_code' => 0, 'province' => $f['label'], 'district' => null, 'text' => $w];
+                    $found[$i] = ['label' => $f['label'], 'province_code' => 0, 'province' => $f['label'], 'district' => null, 'text' => $w, 'strong' => true, 'case' => null];
                     if (count($found) >= $limit) {
                         break;
                     }
@@ -1350,21 +1412,89 @@ TXT;
             if ($resolved === null) {
                 continue;
             }
-            $label = $resolved['province'].(($resolved['district'] ?? null) && $resolved['district'] !== 'Merkez' ? ' '.$resolved['district'] : '');
-            $found[] = ['label' => $label, 'province_code' => (int) $resolved['province_code'], 'province' => $resolved['province'], 'district' => $resolved['district'] ?? null, 'text' => $w];
+            $found[$i] = ['label' => TurkishLocations::label($resolved), 'province_code' => (int) $resolved['province_code'], 'province' => $resolved['province'], 'district' => $resolved['district'] ?? null, 'text' => $w,
+                'strong' => $strong, 'case' => self::caseOf($skipUntil === $i + 1 ? $next : $w, $resolved)];
             if (count($found) >= $limit) {
                 break;
             }
         }
+        if (count($found) < 2 && $fuzzyFound !== []) {
+            $found += $fuzzyFound;
+            ksort($found);
+        }
 
-        return $found;
+        return array_slice(array_values($found), 0, $limit);
     }
+
+    /**
+     * "ANKARA-SİNCAN", "İzmir/Kemalpaşa", "KEMALPAŞA-İZMİR": tire/eğik çizgiyle bitişik il+ilçe (ya da ilçe+il) tek yerdir;
+     * bağlaç eşlemesi rota sanmasın diye "Ankara Sincan" biçimine çevrilir. İki il ("Bursa-İstanbul") dokunulmaz.
+     */
+    public static function unglueProvinceDistrict(string $text): string
+    {
+        return preg_replace_callback('/(?<!\p{L})(\p{L}{3,})[\-\/](\p{L}{3,})(?!\p{L})/u', function (array $m): string {
+            foreach ([[$m[1], $m[2]], [$m[2], $m[1]]] as [$province, $district]) {
+                $name = TurkishCities::fromText($province, fuzzy: false);
+                if ($name === null || TurkishCities::fromText($district, fuzzy: false) !== null) {
+                    continue;
+                }
+                $r = TurkishLocations::resolveCatalog($province.' '.$district);
+                if ($r !== null && ($r['district'] ?? null) !== null && $r['province'] === $name) {
+                    return $province.' '.$district;
+                }
+            }
+
+            return $m[0];
+        }, $text) ?? $text;
+    }
+
+    /** Sözcükteki hal eki: "Bursadan" → from, "İzmire" / "Aliağaya" → to; ek yoksa ya da sözcük yerin kendisiyse null. */
+    private static function caseOf(string $word, array $resolved): ?string
+    {
+        $a = TurkishCities::ascii($word);
+        $base = TurkishCities::ascii((string) ($resolved['district'] ?? $resolved['province'] ?? ''));
+        if ($base === '' || $a === $base || preg_match('/[^a-z]/', $a) === 1 || ! str_starts_with($a, substr($base, 0, max(3, strlen($base) - 1)))) {
+            return null;
+        }
+        if (preg_match('/(dan|den|tan|ten)$/', $a) === 1) {
+            return 'from';
+        }
+        if (preg_match('/(da|de|ta|te)$/', $a) === 1) {
+            return null; // bulunma eki ("Bursada yükleme var"): yön söylemez
+        }
+        if (preg_match('/(ya|ye|a|e)$/', $a) === 1) {
+            return 'to';
+        }
+
+        return null;
+    }
+
+    /** Bağlaçlı rotada tarafın rolünü söyleyen sözcükler (yalnız fiil/ad biçimleri; "yükümüz" gibi adlar sayılmaz). */
+    public const ROLE_PICKUP = '/(?<!\p{L})(?:yükleme|yukleme|yüklemeli|yuklemeli|yükler|yukler|yüklenir|yuklenir|yüklenecek|yuklenecek|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis)(?!\p{L})/u';
+
+    public const ROLE_DELIVERY = '/(?<!\p{L})(?:teslim|teslimat|boşaltma|bosaltma|boşaltır|bosaltir|boşaltılır|bosaltilir|iner|inecek|indirme|indirmeli|varış|varis)(?!\p{L})/u';
+
+    /** Yer adından sonra geldiğinde o adın firma adı olduğunu gösteren sözcükler ("Kartal Nakliyat", "Demirci Lojistik"). */
+    public const COMPANY_WORDS = ['nakliyat', 'nakliyat.', 'nak', 'nak.', 'lojistik', 'lojistik.', 'loj', 'loj.', 'logistics', 'ltd', 'ltd.', 'şti', 'sti', 'şti.', 'tic', 'tic.', 'san', 'san.',
+        'a.ş', 'a.ş.', 'uluslararası', 'uluslararasi', 'taşımacılık', 'tasimacilik', 'trans', 'transport', 'group', 'grup', 'holding', 'petrol', 'çimento', 'cimento', 'tekstil', 'gıda', 'gida'];
+
+    /** Yer adından sonra geldiğinde o adın kişi adı olduğunu gösteren sözcükler ("Can Bey", "Sinan Abi"). */
+    public const PERSON_TITLES = ['bey', 'abi', 'ağabey', 'hanım', 'hanim', 'usta', 'hoca', 'kardeş', 'kardes', 'amca', 'dayı', 'dayi'];
+
+    /** Yük sözcüğüyle aynı ilçe adları ("Kiraz yükü", "Torbalı çimento", "Maden yükü", "Mısır silajı"): tek başına yer sayılmaz. */
+    private const GOODS_LIKE_DISTRICTS = ['kiraz', 'kavak', 'maden', 'madeni', 'torbali', 'misir', 'hamur', 'bahce', 'ciftlik', 'kemer', 'kumru', 'yumurtalik', 'findik', 'cay', 'kozan', 'tut'];
+
+    /** Yer adından sonra geldiğinde önceki sözcüğün yük olduğunu gösteren sözcükler ("Bor madeni", "Kavak tomruk"). */
+    private const GOODS_FOLLOWERS = ['yükü', 'yuku', 'yükleri', 'yukleri', 'madeni', 'tomruk', 'tomruğu', 'çimento', 'cimento', 'silajı', 'silaji', 'gübresi', 'gubresi', 'mobilyası', 'mobilyasi', 'tozu', 'unu', 'suyu', 'yağı', 'yagi'];
 
     /** Üç harfli ama ilanlarda sık geçen gerçek ilçe adları (tek başına yer sayılır). */
     public const SHORT_DISTRICTS = ['can', 'bor', 'mut', 'kas', 'ula', 'cat', 'has', 'kale'];
 
     /** İlçe adıyla çakışan ama ilanlarda başka anlamda geçen sözcükler: tek başına yer sayılmaz. */
-    public const PLACE_NOISE = ['arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir'];
+    public const PLACE_NOISE = ['arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir',
+        // gün adları ("Perşembe yükleme"; "Samsun Çarşamba" / "Rize Pazar" il ile yazılınca çözülür), ay ("15 Aralık"), gündelik sözcükler ve yönler
+        'pazartesi', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar', 'aralık', 'aralik', 'olur', 'orta', 'güney', 'guney', 'kuzey', 'doğu', 'dogu', 'batı', 'bati',
+        'akdeniz', 'marmara', 'ege', 'karadeniz', 'termal', 'selim', 'evren', 'ulus', 'susuz', 'korkut', 'küre', 'kure', 'köşk', 'kosk', 'hal', 'hali', 'yeşil', 'yesil', 'güzel', 'guzel'];
 
     /**
      * Satır rollerinden rota: "X yükler / yüklemeli / çıkış / Xden" satırı kalkış, "Y iner / indirmeli / boşaltır / teslim /
@@ -1404,8 +1534,21 @@ TXT;
 
                     return $best;
                 };
-                $pk = $before((int) ($pm[0][1] ?? 0));
-                $dl = $before((int) ($dm[0][1] ?? 0));
+                // "Teslim: İzmir Yükleme: Bursa", "Yükleme Bursa teslim İzmir": fiil satır başında ya da ":" ile yazılmışsa yer ondan SONRA gelir
+                $after = function (int $offset, int $length) use ($places, $lower): ?string {
+                    foreach ($places as $pl) {
+                        $pos = mb_strpos($lower, TurkishCities::lower($pl['text']));
+                        if ($pos !== false && strlen(mb_substr($lower, 0, $pos)) >= $offset + $length) {
+                            return $pl['label'];
+                        }
+                    }
+
+                    return null;
+                };
+                $leads = fn (array $match): bool => ($match[0][1] ?? 0) === 0 || preg_match('/^\s*:/u', substr($lower, (int) $match[0][1] + strlen($match[0][0]))) === 1;
+                $afterMode = $leads($pm) || $leads($dm); // "Teslim İzmir yükleme Bursa": satır fiille başlıyorsa yerler fiillerden sonra gelir
+                $pk = ($afterMode ? $after((int) $pm[0][1], strlen($pm[0][0])) : null) ?? $before((int) ($pm[0][1] ?? 0));
+                $dl = ($afterMode ? $after((int) $dm[0][1], strlen($dm[0][0])) : null) ?? $before((int) ($dm[0][1] ?? 0));
                 if ($pk !== null && $dl !== null && $pk !== $dl) {
                     return [$pk, $dl];
                 }
@@ -1569,7 +1712,7 @@ TXT;
             array_shift($words);
         }
         // "Samsun Çarşamba", "Rize Pazar": gün adıyla aynı olan ilçe, önündeki ille birlikte çözülüyorsa atılmaz.
-        $dayDistrict = fn (array $ws): bool => count($ws) >= 2 && in_array(TurkishCities::lower($ws[array_key_last($ws)]), ['çarşamba', 'carsamba', 'pazar'], true)
+        $dayDistrict = fn (array $ws): bool => count($ws) >= 2 && in_array(TurkishCities::lower($ws[array_key_last($ws)]), ['çarşamba', 'carsamba', 'perşembe', 'persembe', 'pazar'], true)
             && (TurkishLocations::resolve($ws[array_key_last($ws) - 1].' '.$ws[array_key_last($ws)], false)['district'] ?? null) !== null;
         while ($words !== [] && $isStop($words[array_key_last($words)]) && ! $dayDistrict($words)) {
             array_pop($words);

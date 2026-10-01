@@ -325,7 +325,7 @@ new class extends Component {
         foreach ($this->selectedLoads() as $load) {
             try {
                 match ($action) {
-                    'approve' => $service->approve($load, auth()->id()),
+                    'approve' => $service->approve($load, auth()->id(), bulk: true), // toplu yayın: tek tek incelenmemiş ilandan konum/kalıp öğrenilmez
                     'reject' => $service->reject($load, auth()->id()),
                     'delete' => $service->delete($load, auth()->id()),
                     'reparse' => $service->reparseWithAi($load, null, true) ?: throw new \RuntimeException('yapay zeka yanıt vermedi'),
@@ -461,7 +461,7 @@ new class extends Component {
         abort_unless(auth()->user()?->can('manage scrapers'), 403);
         $this->validate([
             'lex.kind' => ['required', Rule::in(array_keys(AiLexicon::KINDS))],
-            'lex.term' => ['required', 'string', 'min:2', 'max:120'],
+            'lex.term' => ['required', 'string', in_array($this->lex['kind'] ?? '', ['not_load', 'load_signal'], true) ? 'min:4' : 'min:2', 'max:120'], // kısa ifade her mesajda geçer
             'lex.canonical' => ['nullable', 'string', 'max:160'],
         ], [], ['lex.term' => 'sözcük', 'lex.canonical' => 'karşılık']);
         $kind = $this->lex['kind'];
