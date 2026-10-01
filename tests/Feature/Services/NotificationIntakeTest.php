@@ -214,7 +214,40 @@ class NotificationIntakeTest extends TestCase
             ['Nakliye Yük İlanları', "Ankara Yenimahalle - İzmir Aliağa 24 ton palet tenteli\n0532 111 22 33"],
             ['Karadeniz Tır Grubu', 'Samsun - Mardin 25 ton gübre damperli araç lazım 0533 444 55 66'],
         ], array_map(fn ($m) => [$m['group'], $m['text']], $r['messages']), 'yazar, fotoğraf, bağlantı ve arayüz satırları atılır; kısa etiket gönderisi ve sponsorlu blok elenir; ikinci ekran tekrar sayılmaz');
+        $this->assertSame([false, true], array_column($r['messages'], 'truncated'), '"… diğer" ile biten gönderi kesik işaretlenir');
         $this->assertStringNotContainsString('Ahmet', json_encode($r, JSON_UNESCAPED_UNICODE), 'yazar adı saklanmaz');
+    }
+
+    /** Facebook'ta aynı gönderi kesik ("… diğer") ve açılmış tam metin olarak iki kez görülür: tam hâl kesik kaydın yerini alır, kesik hâl tekrardır. */
+    public function test_full_facebook_post_replaces_its_truncated_version_and_truncated_after_full_is_duplicate(): void
+    {
+        Scraper::create(['name' => 'Nakliye Yük İlanları', 'type' => 'facebook', 'source_identifier' => 'fb:nakliye-yuk-ilanlari', 'is_active' => true]);
+        $intake = app(LoadIntakeService::class);
+        $base = ['group_name' => 'Nakliye Yük İlanları', 'source_jid' => 'fb:nakliye-yuk-ilanlari', 'source_type' => 'facebook'];
+        $truncated = 'Ankara Yenimahalle yükleme İzmir Aliağa boşaltma 24 ton palet tenteli araç lazım 0532 111 22 33 yarın sabah yüklenecek acele';
+        $full = $truncated.' ekstra bilgi: iki araç olacak, fiyat konuşulur, irsaliye hazır 0533 444 55 66';
+
+        $first = $intake->intake($base + ['raw_message' => $truncated, 'message_id' => 'k1']);
+        $this->assertSame('created', $first['status']);
+        $truncatedId = $first['scraped_load_id'];
+
+        $second = $intake->intake($base + ['raw_message' => $full, 'message_id' => 'k2']);
+        $this->assertSame('created', $second['status'], 'tam metin yeni kayıt olur');
+        $this->assertNotSame($truncatedId, $second['scraped_load_id']);
+        $this->assertNotNull(ScrapedLoad::withTrashed()->find($truncatedId)->deleted_at, 'kesik kayıt arşive gider');
+        $this->assertSame(1, ScrapedLoad::query()->count());
+
+        $again = $intake->intake($base + ['raw_message' => $truncated, 'message_id' => 'k3']);
+        $this->assertSame(['duplicate', $second['scraped_load_id']], [$again['status'], $again['scraped_load_id']], 'kesik hâl sonradan gelirse tam kaydın tekrarıdır');
+        $this->assertSame(1, ScrapedLoad::query()->count());
+
+        // Yayınlanmış kayıt yerinden oynatılmaz: tam metin ayrı kayıt olur, eski kayıt durur.
+        $published = ScrapedLoad::query()->first();
+        $published->forceFill(['visibility' => 'public', 'status' => 'parsed_success'])->save();
+        $longer = $full.' ve ayrıca Manisa boşaltma seçeneği var';
+        $third = $intake->intake($base + ['raw_message' => $longer, 'message_id' => 'k4']);
+        $this->assertSame(['duplicate', $published->id], [$third['status'], $third['scraped_load_id']], 'aynı numara ve rota: yayınlanmış kaydın tekrarı sayılır');
+        $this->assertNull(ScrapedLoad::withTrashed()->find($published->id)->deleted_at, 'yayınlanmış kayıt arşivlenmez');
     }
 
     public function test_endpoint_requires_token_and_creates_pending_source_then_loads(): void

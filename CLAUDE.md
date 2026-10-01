@@ -140,8 +140,14 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   APK commit. Sunucu: ekran dökümünde 24 saat içinde görülen gönderi (`fb:seen:` önbellek) kuyruğa girmez, canlı akış satırı
   "N gönderi, M yeni · toplayici/1.0". Panel Kaynaklar ve telefon: "Önerilen yol" kutusu + APK bağlantısı (herkese açık, anahtar
   içinde değil); MacroDroid bölümleri "Yedek yol A/B" olarak duruyor. **Osman'ın kararı (2026-10-01): WhatsApp şimdilik MacroDroid'de kalır**;
-  uygulamada WhatsApp iletme ve "diğer" dokunma varsayılan kapalı (v1.1, versionCode 2), uygulama yalnız Facebook ekranını okur.
-  MacroDroid kapatılırsa WhatsApp uygulamadan açılır; ikisi birden açılmaz.
+  uygulamada WhatsApp iletme varsayılan kapalı, uygulama yalnız Facebook ekranını okur. MacroDroid kapatılırsa WhatsApp uygulamadan
+  açılır; ikisi birden açılmaz. **v1.2 (versionCode 3):** Osman tam metni istedi ("devamını gör'e tıklamadan devamını görmesi gerek,
+  hızlı kaydırsak da düzgün hesaplasın"): Facebook tam metni ekrana basmadığından tek yol "diğer" düğmesine **uygulamanın** dokunması
+  (`auto_expand` varsayılan açık, aynı düğmeye 6 sn'de bir, en çok 3/okuma); okuma kaydırma sürerken 350 ms'de bir + durunca 700 ms.
+  Sunucu: `NotificationIntakeParser` kesik gönderiyi `truncated` işaretler; `LoadIntakeService::mergeTruncatedFacebookPost` aynı
+  kaynağın 7 günlük kayıtlarında ön ek eşleşmesiyle (≥40 karakter) tam metni kesik kaydın yerine koyar (kesik arşive), kesik
+  sonradan gelirse tekrar sayar; yayınlanmış/yönetici düzenlemiş kayıt dokunulmaz. Osman'ın sorusuna cevap (2026-10-01): kendi
+  uygulamamız MacroDroid'den daha güvenli (3 izin, yalnız Facebook paketleri, veri yalnız navluniq.com'a, kod açık, dokunma yok).
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

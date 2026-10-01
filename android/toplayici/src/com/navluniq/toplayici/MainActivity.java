@@ -137,7 +137,7 @@ public class MainActivity extends Activity {
 
         root.addView(section("3. Seçenekler"));
         root.addView(toggle("Facebook gönderilerini topla", "fb", Prefs.fbEnabled(this)));
-        root.addView(toggle("Uzun gönderileri kendiliğinden aç (\"diğer\")", "auto_expand", Prefs.autoExpand(this)));
+        root.addView(toggle("Uzun gönderileri kendiliğinden aç (\"diğer\" düğmesine uygulama dokunur, tam metin gelir)", "auto_expand", Prefs.autoExpand(this)));
         root.addView(toggle("WhatsApp bildirimlerini ilet (şimdilik MacroDroid yapıyor; ikisi birden açılmasın)", "wa", Prefs.waEnabled(this)));
         root.addView(toggle("Yalnız grup sohbetleri (kişisel sohbetler gitmez)", "wa_groups_only", Prefs.waGroupsOnly(this)));
 

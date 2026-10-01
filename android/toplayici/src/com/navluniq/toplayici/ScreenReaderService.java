@@ -16,18 +16,22 @@ import java.util.List;
  * Hiçbir şeye dokunulmaz; tek istisna, açıksa, kısaltılmış gönderinin "diğer" (devamını gör) düğmesi.
  */
 public class ScreenReaderService extends AccessibilityService {
-    private static final long CAPTURE_DELAY_MS = 1200;
+    private static final long CAPTURE_DELAY_MS = 700;   // son olaydan sonra bekleme (kullanıcı durdu)
+    private static final long CAPTURE_EVERY_MS = 350;   // hızlı kaydırmada en az bu sıklıkla okuma (kaydırma bitmese de)
+    private static final long RECLICK_GUARD_MS = 6000;  // aynı "diğer" düğmesine ikinci kez dokunulmaz
     private static final long FLUSH_AFTER_MS = 20000;
     private static final int FLUSH_AT_CHARS = 60000;
     private static final int MAX_NODES = 2500;
     private static final int MAX_DEPTH = 80;
-    private static final int MAX_EXPAND_CLICKS = 2;
+    private static final int MAX_EXPAND_CLICKS = 3;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final StringBuilder buffer = new StringBuilder();
     private long bufferStartedAt = 0L;
     private int lastHash = 0;
     private int screensInBuffer = 0;
+    private long lastCaptureAt = 0L;
+    private final java.util.LinkedHashMap<String, Long> clicked = new java.util.LinkedHashMap<String, Long>();
 
     private final Runnable capture = new Runnable() {
         @Override
@@ -59,7 +63,14 @@ public class ScreenReaderService extends AccessibilityService {
             && type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             return;
         }
+        // Hızlı kaydırmada bile her 350 ms'de bir okuma; kaydırma durunca 700 ms sonra son okuma.
+        long sinceLast = System.currentTimeMillis() - lastCaptureAt;
         handler.removeCallbacks(capture);
+        if (sinceLast >= CAPTURE_EVERY_MS) {
+            handler.post(capture);
+        } else {
+            handler.postDelayed(capture, CAPTURE_EVERY_MS - sinceLast);
+        }
         handler.postDelayed(capture, CAPTURE_DELAY_MS);
     }
 
@@ -75,6 +86,7 @@ public class ScreenReaderService extends AccessibilityService {
     }
 
     private void captureNow() {
+        lastCaptureAt = System.currentTimeMillis();
         AccessibilityNodeInfo root;
         try {
             root = getRootInActiveWindow();
@@ -90,23 +102,32 @@ public class ScreenReaderService extends AccessibilityService {
         }
         List<String> lines = new ArrayList<String>();
         List<AccessibilityNodeInfo> expandable = new ArrayList<AccessibilityNodeInfo>();
+        List<String> expandKeys = new ArrayList<String>();
         int[] budget = {MAX_NODES};
-        walk(root, lines, expandable, budget, 0);
+        walk(root, lines, expandable, expandKeys, budget, 0);
 
         if (Prefs.autoExpand(this)) {
+            // Kısaltılmış gönderinin "diğer" düğmesine uygulama dokunur (kullanıcı değil); gönderi yerinde açılır ve bir
+            // sonraki okumada tam metin gelir. Aynı düğmeye 6 sn içinde ikinci kez dokunulmaz (anahtar: önceki satırın metni).
+            long now = System.currentTimeMillis();
             int clicks = 0;
-            for (AccessibilityNodeInfo n : expandable) {
-                if (clicks >= MAX_EXPAND_CLICKS) {
-                    break;
+            for (int i = 0; i < expandable.size() && clicks < MAX_EXPAND_CLICKS; i++) {
+                String key = expandKeys.get(i);
+                Long last = clicked.get(key);
+                if (last != null && now - last < RECLICK_GUARD_MS) {
+                    continue;
                 }
-                if (clickOrParent(n)) {
+                if (clickOrParent(expandable.get(i))) {
                     clicks++;
+                    clicked.put(key, now);
                 }
             }
+            while (clicked.size() > 200) {
+                clicked.remove(clicked.keySet().iterator().next());
+            }
             if (clicks > 0) {
-                // gönderi açılınca ekran değişir; yeni okuma zaten tetiklenir
                 handler.removeCallbacks(capture);
-                handler.postDelayed(capture, CAPTURE_DELAY_MS);
+                handler.postDelayed(capture, CAPTURE_DELAY_MS); // açılan metin bir sonraki okumada gelir
             }
         }
 
@@ -126,7 +147,7 @@ public class ScreenReaderService extends AccessibilityService {
         appendToBuffer(dump);
     }
 
-    private void walk(AccessibilityNodeInfo node, List<String> lines, List<AccessibilityNodeInfo> expandable, int[] budget, int depth) {
+    private void walk(AccessibilityNodeInfo node, List<String> lines, List<AccessibilityNodeInfo> expandable, List<String> expandKeys, int[] budget, int depth) {
         if (node == null || depth > MAX_DEPTH || budget[0] <= 0) {
             return;
         }
@@ -145,6 +166,7 @@ public class ScreenReaderService extends AccessibilityService {
                 lines.add(line);
                 if (isSeeMore(line)) {
                     expandable.add(node);
+                    expandKeys.add(lines.size() >= 2 ? lines.get(lines.size() - 2) : String.valueOf(lines.size()));
                 }
             }
         }
@@ -157,7 +179,7 @@ public class ScreenReaderService extends AccessibilityService {
                 // pencere değişmiş olabilir
             }
             if (child != null) {
-                walk(child, lines, expandable, budget, depth + 1);
+                walk(child, lines, expandable, expandKeys, budget, depth + 1);
             }
         }
     }

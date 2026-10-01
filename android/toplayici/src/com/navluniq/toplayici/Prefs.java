@@ -5,8 +5,8 @@ import android.content.SharedPreferences;
 
 /** Ayarlar: sunucu adresi, anahtar, açık/kapalı seçenekler, son gönderim durumu. Yalnız bu telefonda durur. */
 public final class Prefs {
-    public static final int VERSION_CODE = 2;
-    public static final String VERSION_NAME = "1.1";
+    public static final int VERSION_CODE = 3;
+    public static final String VERSION_NAME = "1.2";
     private static final String FILE = "toplayici";
 
     private Prefs() {}
@@ -40,7 +40,7 @@ public final class Prefs {
     }
 
     public static boolean autoExpand(Context c) {
-        return sp(c).getBoolean("auto_expand", false); // v1.1: hiçbir şeye dokunulmaz; "devamını gör" sunucu tarafında ele alınır
+        return sp(c).getBoolean("auto_expand", true); // v1.2: Osman tam metni istiyor; "diğer" düğmesine uygulama dokunur, kullanıcı değil
     }
 
     public static void save(Context c, String url, String token) {

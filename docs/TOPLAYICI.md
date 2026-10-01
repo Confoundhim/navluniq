@@ -49,10 +49,22 @@ indirilir (anahtar içinde değildir, bağlantı herkese açıktır).
 5. **Pil kısıtlamasını kaldır.**
 6. Facebook'ta Gruplar akışında ya da bir grubun içinde normal kaydır. Canlı akışa "Ekran dökümü alındı" satırı düşer.
 
-Seçenekler: Facebook toplama (açık), uzun gönderileri kendiliğinden açma ("diğer"; **kapalı**: hiçbir şeye dokunulmaz,
-kısaltılmış gönderi "… diğer" ile gelir ve sunucu tarafında ele alınır), WhatsApp iletme (**kapalı**: Osman'ın kararıyla
-WhatsApp şimdilik MacroDroid'de kalır; MacroDroid kapatılırsa buradan açılır, ikisi birden açık olmaz), yalnız grup sohbetleri
-(açık; kişisel sohbetler hiç gitmez). v1.1 (versionCode 2) bu varsayılanlarla çıktı.
+Seçenekler: Facebook toplama (açık), uzun gönderileri kendiliğinden açma (**açık**, v1.2: kısaltılmış gönderinin "diğer"
+düğmesine kullanıcı değil uygulama dokunur, gönderi yerinde açılır, bir sonraki okumada tam metin gelir; aynı düğmeye 6 sn içinde
+ikinci kez dokunulmaz; Facebook tam metni ekrana basmadığı için başka yolu yoktur), WhatsApp iletme (**kapalı**: Osman'ın
+kararıyla WhatsApp şimdilik MacroDroid'de kalır; MacroDroid kapatılırsa buradan açılır, ikisi birden açık olmaz), yalnız grup
+sohbetleri (açık; kişisel sohbetler hiç gitmez).
+
+## Hızlı kaydırma ve tam metin (v1.2, versionCode 3)
+
+- Okuma sıklığı: kaydırma sürerken en az 350 ms'de bir, kaydırma durunca 700 ms sonra bir kez daha. Aynı ekran iki kez
+  gönderilmez; üst üste binen ekranlardaki aynı gönderi sunucuda tek sayılır (24 saat önbellek + metin tekrar denetimi).
+- Çok hızlı fırlatılan (parmakla savrulan) akışta Facebook bazı gönderileri hiç çizmez; onlar alınamaz. Normal okuma hızında
+  her gönderi alınır.
+- Kesik / tam birleştirme (sunucu, `LoadIntakeService::mergeTruncatedFacebookPost`): aynı kaynağın son 7 gün kayıtlarıyla ön ek
+  karşılaştırması (en az 40 karakter). Tam metin kuyruktaki kesik kaydın yerini alır (kesik arşive gider); kesik hâl sonradan
+  gelirse tam kaydın tekrarı sayılır. Yayınlanmış ya da yönetici düzenlemiş kayıt yerinden oynatılmaz. Ayrıştırıcı kesik gönderiyi
+  `truncated=true` ile işaretler.
 
 ## Sunucu tarafı
 
