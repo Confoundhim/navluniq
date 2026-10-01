@@ -19,8 +19,8 @@ public class ScreenReaderService extends AccessibilityService {
     private static final long CAPTURE_DELAY_MS = 700;   // son olaydan sonra bekleme (kullanıcı durdu)
     private static final long CAPTURE_EVERY_MS = 350;   // hızlı kaydırmada en az bu sıklıkla okuma (kaydırma bitmese de)
     private static final long RECLICK_GUARD_MS = 6000;  // aynı "diğer" düğmesine ikinci kez dokunulmaz
-    private static final long FLUSH_AFTER_MS = 20000;
-    private static final int FLUSH_AT_CHARS = 60000;
+    private static final long FLUSH_AFTER_MS = 12000;  // küçük ve sık paket: ağ kopmasında az kayıp, hızlı yeniden deneme
+    private static final int FLUSH_AT_CHARS = 24000;
     private static final int MAX_NODES = 2500;
     private static final int MAX_DEPTH = 80;
     private static final int MAX_EXPAND_CLICKS = 3;
@@ -31,6 +31,7 @@ public class ScreenReaderService extends AccessibilityService {
     private int lastHash = 0;
     private int screensInBuffer = 0;
     private long lastCaptureAt = 0L;
+    private String lastExpandSeen = "";
     private final java.util.LinkedHashMap<String, Long> clicked = new java.util.LinkedHashMap<String, Long>();
 
     private final Runnable capture = new Runnable() {
@@ -106,6 +107,23 @@ public class ScreenReaderService extends AccessibilityService {
         int[] budget = {MAX_NODES};
         walk(root, lines, expandable, expandKeys, budget, 0);
 
+        if (!expandable.isEmpty()) {
+            int clickable = 0;
+            for (AccessibilityNodeInfo n : expandable) {
+                try {
+                    if (n.isClickable()) {
+                        clickable++;
+                    }
+                } catch (Exception ignored) {
+                    // düğüm kaybolmuş olabilir
+                }
+            }
+            String seen = expandable.size() + "/" + clickable;
+            if (!seen.equals(lastExpandSeen)) {
+                lastExpandSeen = seen;
+                AppLog.add(this, "\"diğer\" düğmesi: " + expandable.size() + " görüldü, " + clickable + " dokunulabilir.");
+            }
+        }
         if (Prefs.autoExpand(this)) {
             // Kısaltılmış gönderinin "diğer" düğmesine uygulama dokunur (kullanıcı değil); gönderi yerinde açılır ve bir
             // sonraki okumada tam metin gelir. Aynı düğmeye 6 sn içinde ikinci kez dokunulmaz (anahtar: önceki satırın metni).
