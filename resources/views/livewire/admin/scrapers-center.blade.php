@@ -1052,10 +1052,10 @@ new class extends Component {
                 <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 space-y-2">
                     <p class="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">Hazır makro dosyası (elle kurulum gerekmez)</p>
                     <ol class="list-decimal pl-5 space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
-                        <li>Aşağıdaki düğmeyle <span class="font-mono">navluniq-akis.macro</span> dosyasını indirin; anahtar ve adres içinde hazırdır. Dosyayı WhatsApp ile iletici telefona gönderin.</li>
-                        <li>Telefonda dosyaya dokunun, açmak için <strong>MacroDroid</strong>'i seçin (ya da MacroDroid → Makrolar → sağ üst ⋮ → <strong>İçe aktar</strong> → dosyayı seçin). "NavlunIQ akış" makrosu listeye gelir.</li>
+                        <li>Aşağıdaki düğmeyle <span class="font-mono">navluniq-macro-final-v1.macro</span> dosyasını indirin; anahtar ve adres içinde hazırdır. Dosyayı WhatsApp ile iletici telefona gönderin.</li>
+                        <li>Telefonda dosyaya dokunun, açmak için <strong>MacroDroid</strong>'i seçin (ya da MacroDroid → Makrolar → sağ üst ⋮ → <strong>İçe aktar</strong> → dosyayı seçin). "navluniq macro final v1" makrosu listeye gelir.</li>
                         <li>MacroDroid izin isterse verin: Erişilebilirlik (UI etkileşimi, ekran okuma) ve "Diğer uygulamaların üzerinde göster". Ekranda <strong>NQ</strong> düğmesi belirir.</li>
-                        <li>NQ düğmesine dokunun (Facebook'un neresinde olduğunuz fark etmez: makro önce Gruplar sekmesini açar, 4 saniye bekler, sonra kaydırır); 40-50 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür.</li>
+                        <li>Facebook'ta Gruplar akışını ya da bir grubu açın, en üste gelin, NQ düğmesine dokunun; makro bulunduğunuz sayfayı 15 ekran kaydırıp okur, 40-50 saniye telefona dokunmayın. "Akış gönderildi" bildirimi gelir, gönderiler Canlı akışta görünür. Makro Facebook'u kendisi açmaz ve hiçbir şeye dokunmaz.</li>
                     </ol>
                     <div class="flex flex-wrap items-center gap-2">
                         <a href="{{ route('admin.macrodroid.download') }}" class="btn-primary py-2 px-4 text-xs inline-block">Makro dosyasını indir</a>
@@ -1076,11 +1076,9 @@ new class extends Component {
                     <li><strong>İşlem 1:</strong> Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> (metin) = boş.</li>
                     <li><strong>İşlem 2:</strong> Döngü → Yinele <strong>15 kez</strong> (15 ekran ≈ son 30-40 gönderi). Döngünün içine sırayla:
                         <ul class="list-disc pl-5 mt-1 space-y-1">
-                            <li>UI etkileşimi → Tıkla → Metin içeriği: <span class="font-mono">^(diğer|Devamını gör)$</span>, düzenli ifade açık (kısaltılmış gönderi "… diğer" ile biter; yalnız tam "diğer" satırına dokunulur, bulunamazsa devam eder).</li>
-                            <li>Bekle → 1 saniye.</li>
                             <li>UI etkileşimi → <strong>Ekran içeriğini oku</strong> → değişken <span class="font-mono">parca</span>.</li>
                             <li>Değişkenler → Değişken ayarla → <span class="font-mono">ekran</span> = <span class="font-mono">{lv=ekran}</span> + yeni satır + <span class="font-mono">-----</span> + yeni satır + <span class="font-mono">{lv=parca}</span> ("Ekle" seçeneğiyle).</li>
-                            <li>UI etkileşimi → Hareket: kaydır (yukarı; ekranın alt yarısından üst yarısına, 400 ms).</li>
+                            <li>UI etkileşimi → Hareket: kaydır (yukarı; ekranın %75'inden %25'ine, 500 ms).</li>
                             <li>Bekle → 1,5 saniye.</li>
                         </ul>
                     </li>
@@ -1097,7 +1095,7 @@ new class extends Component {
                     <li>Facebook → <strong>Gruplar</strong> sekmesi → en üste gelin → kayan düğmeye dokunun → 30-40 saniye telefona dokunmayın.</li>
                     <li>Tek bir grubun içinden toplamak için HTTP isteğine <span class="font-mono">X-Intake-Title</span> başlığıyla grubun adını ekleyin (ayrı bir makro olarak).</li>
                     <li>Gönderiler Canlı akışta satır satır görünür; yeni gruplar aşağıda <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır, <strong>Aktif et</strong> deyince işlenir. Aynı ilan WhatsApp'ta da geldiyse ikinci kayıt açılmaz.</li>
-                    <li>Facebook ekran düzenini değiştirirse "diğer" metni ve kaydırma ayarı güncellenir.</li>
+                    <li>Facebook ekran düzenini değiştirirse kaydırma ayarı güncellenir. Kısaltılmış gönderiler "… diğer" ile kesik gelir (dokunma adımı makroyu durdurduğu için yok).</li>
                 </ul>
             </div>
         </div>

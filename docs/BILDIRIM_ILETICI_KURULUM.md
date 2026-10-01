@@ -73,7 +73,7 @@ Facebook sunucusuna otomatik istek atılmaz; Facebook'un gördüğü şey akış
 gönderilere ayırır (grup adı, gönderi metni), yazar adlarını atar, reklamları ve kaydırma tekrarlarını eler; her gönderi
 normal ayrıştırmadan geçer (telefonu olmayan elenir, WhatsApp'ta da gelen ilan tekrar sayılır). Fotoğraf içindeki yazı okunamaz.
 
-**Hazır dosya (önerilen yol):** panel → Kaynaklar ve telefon → "Makro dosyasını indir" ile `navluniq-akis.macro` indirilir
+**Hazır dosya (önerilen yol):** panel → Kaynaklar ve telefon → "Makro dosyasını indir" ile `navluniq-macro-final-v1.macro` indirilir
 (anahtar ve adres içinde). Dosya telefona gönderilir, dosyaya dokunup MacroDroid ile açılır (ya da MacroDroid → Makrolar → ⋮ →
 İçe aktar). MacroDroid izin isterse verilir; NQ düğmesi ekranda belirir. Aşağıdaki elle kurulum yalnız yedek yoldur.
 
@@ -87,14 +87,11 @@ Tetikleyici: **Kayan düğme** (MacroDroid → Kayan düğme; ekranda küçük b
 İşlemler, sırasıyla:
 1. Değişkenler → **Değişken ayarla**: `ekran` (metin) = boş.
 2. Döngü → **Yinele: 15 kez** (kaç ekran kaydırılacağı; 15 ekran yaklaşık son 30-40 gönderi). Döngünün içine:
-   - UI etkileşimi → **Tıkla → Metin içeriği**: `^(diğer|Devamını gör)$`, düzenli ifade açık (kısaltılmış gönderi "… diğer" ile
-     biter; yalnız tam "diğer" satırına dokunulur, "diğer seçenekler" menüsüne değil; bulunamazsa hata vermez).
-   - Bekle → **1 saniye**.
    - UI etkileşimi → **Ekran içeriğini oku** → değişken: `parca` (Screen contents → variable). *Bazı sürümlerde "Ekran içeriği"
      eylem adı "UI etkileşimi → Ekran metnini al"dır.*
    - Değişkenler → Değişken ayarla: `ekran` = `{lv=ekran}` + yeni satır + `-----` + yeni satır + `{lv=parca}`
      (birleştirme: "Ekle" seçeneği; yeni satır için değişken düzenleyicide Enter).
-   - UI etkileşimi → **Hareket: kaydır** (yukarı; ekranın alt yarısından üst yarısına, 400 ms).
+   - UI etkileşimi → **Hareket: kaydır** (yukarı; ekranın %75'inden %25'ine, 500 ms).
    - Bekle → **1,5 saniye**.
 3. Bağlantı → **HTTP İsteği**: Ayarlar sekmesi: POST, adres `https://navluniq.com/api/v1/webhook/notification`, zaman aşımı 60 sn.
    İçerik gövdesi sekmesi: içerik türü **text/plain**, Metin, gövdeye yalnız `{lv=ekran}`. Başlık parametreleri sekmesi:
@@ -102,13 +99,15 @@ Tetikleyici: **Kayan düğme** (MacroDroid → Kayan düğme; ekranda küçük b
    sonları JSON'u bozar; sunucu düz metin gövdeyi başlıktaki anahtarla kabul eder.) Gövde sınırı 200.000 karakterdir.
 4. Bildirim → **Bildirim göster**: "NavlunIQ: akış gönderildi" (isteğe bağlı).
 
-**Kullanım:** Facebook → Gruplar sekmesi → en üste gelin → kayan düğmeye dokunun; 30-40 saniye telefona dokunmayın.
+**Kullanım:** Facebook'ta Gruplar akışını ya da bir grubu açın → en üste gelin → kayan düğmeye dokunun; 40-50 saniye telefona
+dokunmayın. Makro Facebook'u kendisi açmaz ve hiçbir şeye dokunmaz (`fb://groups` bağlantısı ana sayfaya fırlatıyordu, "diğer"
+düğmesine dokunma adımı makroyu durduruyordu); kısaltılmış gönderiler "… diğer" ile kesik gelir.
 Tek bir grubun içindeyken kullanacaksanız gövdedeki `title` alanına o grubun adını yazın (ya da ikinci bir makroda
 `"title": "Grup Adı"`); akış kipinde `title` "ekran" kalır, grup adı gönderiden okunur.
 
 **Sonuç:** Canlı akışta her gönderi ayrı satır olarak görünür; yeni gruplar **Kaynaklar ve telefon** listesine `fb:grup-adi`
 tanımlayıcısıyla pasif düşer, **Aktif et** deyince işlenir. Deneme: 2-3 grupla bir hafta; makro Facebook'un ekran düzeni
-değişince bozulursa "diğer" metni ve kaydırma ayarı güncellenir.
+değişince bozulursa kaydırma ayarı güncellenir.
 
 ## 5. Deneme
 

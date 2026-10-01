@@ -119,7 +119,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `disableTriggerOnRemove` false — true iken çöpe sürüklenen düğme tetikleyiciyi kapatıyordu ve simge çıkmıyordu). Ekran içeriği sözlük
   değişkenidir; makro `{lvjson=parca}` ile JSON ekler. **Gerçek döküm biçimi (erişilebilirlik):** "Paylaş" düğmesi okunmaz; gönderi çapası
   "Ad'in gönderisi için diğer seçenekler", başlıkta "Ad•3s•Paylaşılanlar: …", grup sayfasında "Grup Adı'da Ara", akışta "Grup•Katıl";
-  kısaltılmış gövde "… diğer" ile biter (makro `^(diğer|Devamını gör)$` düzenli ifadesiyle tam "diğer" satırına dokunur).
+  kısaltılmış gövde "… diğer" ile biter ve öyle kalır. **Makro Facebook'u açmaz ve hiçbir şeye dokunmaz** (2026-10-01: `fb://groups`
+  ana sayfaya fırlatıyordu, "diğer"e dokunma adımı makroyu baştan durduruyordu); Osman neredeyse orası kaydırılır. Makro adı
+  `MacroDroidMacro::NAME` = "navluniq macro final v1", dosya `navluniq-macro-final-v1.macro`.
   `NotificationIntakeParser::parseAccessibilityScreens` bunu çözer (çapa görülünce devreye girer; eski "Paylaş" biçimi de durur);
   `/i` bayrağı İ/I'yı bilmediğinden satırlar `TurkishText::lower` ile eşlenir. Yazar/profil satırları saklanmaz. Sunucuya ulaşan her döküm
   canlı akışa "Ekran dökümü alındı" satırı düşürür (kuyruk beklese de görünür). Kurulum adımları panelde Kaynaklar ve telefon sekmesinde düz (açılır kutu yok; Osman istemez) ve belgede ("Facebook grupları: tek dokunuşla akışı toplama"); gövde `ScrapedLoadService::screenRequestBody`. Osman'ın kararı: sunucu botu, yapay zeka ajanı ve

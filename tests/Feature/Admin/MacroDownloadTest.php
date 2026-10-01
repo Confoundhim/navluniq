@@ -23,36 +23,37 @@ class MacroDownloadTest extends TestCase
 
         $this->get(route('admin.macrodroid.download'))->assertRedirect(); // giriş yok
         $this->actingAs($admin->fresh());
-        $r = $this->get(route('admin.macrodroid.download'))->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="navluniq-akis.macro"');
+        $r = $this->get(route('admin.macrodroid.download'))->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="navluniq-macro-final-v1.macro"');
         $d = json_decode($r->getContent(), true);
         $this->assertSame(1, $d['macroExportVersion']);
         $m = $d['macro'];
-        $this->assertSame('NavlunIQ akış', $m['m_name']);
+        $this->assertSame('navluniq macro final v1', $m['m_name']);
         $this->assertSame(['FloatingButtonTrigger'], array_column($m['m_triggerList'], 'm_classType'));
-        $this->assertSame('fb://groups', $m['m_actionList'][0]['m_urlToOpen']);
-        $this->assertSame(['OpenWebPageAction', 'PauseAction', 'SetVariableAction', 'LoopAction', 'UIInteractionAction', 'PauseAction', 'ReadScreenContentsAction', 'SetVariableAction', 'UIInteractionAction', 'PauseAction', 'EndLoopAction', 'HttpRequestAction', 'NotificationAction'], array_column($m['m_actionList'], 'm_classType'));
-        $http = $m['m_actionList'][11]['requestConfig']; // alan adları gerçek dışa aktarımdan: requestType 1 = POST
+        // Facebook açılmaz, hiçbir şeye dokunulmaz: fb://groups ana sayfaya fırlatıyordu, "diğer" tıklaması makroyu durduruyordu
+        $this->assertSame(['PauseAction', 'SetVariableAction', 'LoopAction', 'ReadScreenContentsAction', 'SetVariableAction', 'UIInteractionAction', 'PauseAction', 'EndLoopAction', 'HttpRequestAction', 'NotificationAction'], array_column($m['m_actionList'], 'm_classType'));
+        $this->assertStringNotContainsString('OpenWebPageAction', $r->getContent());
+        $http = $m['m_actionList'][8]['requestConfig']; // alan adları gerçek dışa aktarımdan: requestType 1 = POST
         $this->assertSame([1, url('/api/v1/webhook/notification'), 'text/plain', '{lv=ekran}', 0], [$http['requestType'], $http['urlToOpen'], $http['contentType'], $http['contentBodyText'], $http['contentBodySource']]);
-        $read = $m['m_actionList'][6];
+        $read = $m['m_actionList'][3];
         $this->assertSame(['parca', true], [$read['variableName'], $read['isLocalVar']]);
         $this->assertArrayNotHasKey('m_comment', $read);
-        $click = $m['m_actionList'][4]['uiInteractionConfiguration'];
-        $this->assertSame(['^(diğer|Devamını gör)$', true, 1], [$click['textContent'], $click['useRegex'], $click['clickOption']], 'yalnız tam "diğer" satırı; "diğer seçenekler" menüsü değil');
+        $swipe = $m['m_actionList'][5]['uiInteractionConfiguration'];
+        $this->assertSame(['Gesture', 75, 25, true], [$swipe['type'], $swipe['startY'], $swipe['endY'], $swipe['xyPercentages']]);
         $trigger = $m['m_triggerList'][0];
         $this->assertFalse($trigger['m_isDisabled'], 'tetikleyici açık gelir (Osman\'ın telefonunda kapalı kalmıştı, simge çıkmıyordu)');
         $this->assertFalse($trigger['disableTriggerOnRemove'], 'çöpe sürükleyince tetikleyici kapanmaz, düğme yalnız gizlenir');
         $this->assertSame('', $m['m_category']);
         $this->assertSame([['X-Scraper-Token', ScrapedLoadService::apiToken()], ['X-Intake-Kind', 'screen']], array_map(fn ($h) => [$h['paramName'], $h['paramValue']], $http['headerParams']));
         $this->assertNotSame('', ScrapedLoadService::apiToken());
-        $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][7]['m_newStringValue']);
+        $this->assertSame('{lv=ekran}'."\n-----\n".'{lvjson=parca}', $m['m_actionList'][4]['m_newStringValue']);
         $this->assertSame(['ekran', 'parca'], array_column($m['localVariables'], 'm_name'));
-        $this->assertSame([15, 0], [$m['m_actionList'][3]['m_fixedOptionCount'], $m['m_actionList'][3]['m_option']], 'sabit sayıda yinele; 1 koşul döngüsü olup sonsuz dönüyordu');
+        $this->assertSame([15, 0], [$m['m_actionList'][2]['m_fixedOptionCount'], $m['m_actionList'][2]['m_option']], 'sabit sayıda yinele; 1 koşul döngüsü olup sonsuz dönüyordu');
         $this->assertFalse($m['m_triggerList'][0]['preventRemoveByDrag'], 'çöp kutusuna sürükleyince kapanır');
         $d2 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 8]))->getContent(), true);
-        $this->assertSame(8, $d2['macro']['m_actionList'][3]['m_fixedOptionCount']);
+        $this->assertSame(8, $d2['macro']['m_actionList'][2]['m_fixedOptionCount']);
         $d3 = json_decode($this->get(route('admin.macrodroid.download', ['ekran' => 999]))->getContent(), true);
-        $this->assertSame(40, $d3['macro']['m_actionList'][3]['m_fixedOptionCount'], 'üst sınır 40');
-        $this->assertSame(MacroDroidMacro::FILENAME, 'navluniq-akis.macro');
+        $this->assertSame(40, $d3['macro']['m_actionList'][2]['m_fixedOptionCount'], 'üst sınır 40');
+        $this->assertSame(MacroDroidMacro::FILENAME, 'navluniq-macro-final-v1.macro');
     }
 
     public function test_screen_dump_chunks_in_dictionary_json_form_are_flattened_to_lines(): void
