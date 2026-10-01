@@ -29,6 +29,8 @@ class ScrapedLoad extends Model
         'seen_sources',
         'auto_approved_at',
         'published_at',
+        'last_seen_at',
+        'sighting_count',
         'telegram_posted_at',
         'telegram_attempts',
         'raw_message',
@@ -83,8 +85,19 @@ class ScrapedLoad extends Model
         'available_to_free_at' => 'datetime',
         'auto_approved_at' => 'datetime',
         'published_at' => 'datetime',
+        'last_seen_at' => 'datetime',
+        'sighting_count' => 'integer',
         'telegram_posted_at' => 'datetime',
     ];
+
+    /** Tazelik anahtarı hiç boş kalmaz: alım dışında açılan kayıtlar da (yönetici, test) yayın anını son görülme sayar. */
+    protected static function booted(): void
+    {
+        static::creating(function (self $load): void {
+            $load->last_seen_at ??= $load->published_at ?? now();
+            $load->sighting_count ??= 1;
+        });
+    }
 
     /**
      * Ait Olduğu Kazıma Kaynağı (BelongsTo)

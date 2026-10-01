@@ -303,10 +303,14 @@ class LocalLearningTest extends TestCase
         $strong = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']);
         $this->assertNull($service->autoApprovalBlocker($strong));
         $this->assertSame(0.8, $service->decision($strong)['rule']); // il çifti 55 + telefon 10 + araç adı 15
+        // Kural tamam (iki il + telefon + açık araç adı): yerel sınıflandırıcının kuşkusu (%50) ilanı eksik bilgiliye düşüremez
+        // (2026-10-01, Engin Abi: araç yazılı ilanlar "eksik bilgili"de kalıyordu). Tonajdan çıkarılan araçla kural tamam sayılmaz.
         $withLocal = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'parse_metadata' => ['local_confidence' => 0.5]]);
-        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($withLocal)); // (0,8 + 0,5) / 2 = %65
-        Settings::set('scraper_auto_approve_min_confidence', '65');
-        $this->assertNull($service->autoApprovalBlocker($withLocal));
+        $this->assertNull($service->autoApprovalBlocker($withLocal)); // (0,8 + 0,5) / 2 = %65 ama kural tamam → yayın
+        $weakLocal = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'weight', 'weight' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
+        $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($weakLocal));
+        $aiDoubt = $this->candidate($source, ['ai_status' => 'done', 'parse_confidence' => 0.3, 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword']);
+        $this->assertNotNull($service->autoApprovalBlocker($aiDoubt), 'yapay zeka açıkça kuşkuluysa kısayol işlemez');
     }
 
     public function test_template_memory_parses_repeat_senders_without_ai(): void

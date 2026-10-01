@@ -61,6 +61,26 @@ final class SeriesAd
             if ($places !== []) {
                 $placeLines++;
             }
+            // Üçüncü biçim: "KIZILTEPE = ADAPAZARI DİLOVASI" (kalkış = varış; sol taraf her satırda aynı). "=" / "=>" / "→" ayracı.
+            if (preg_match('/^(.{2,40}?)\s*(?:=>|=|→|->)\s*(.{2,60})$/u', $line, $eq) === 1) {
+                $left = AiParserService::placesIn(trim($eq[1]), 1);
+                $right = AiParserService::placesIn(trim($eq[2]), 2);
+                if ($left !== [] && $right !== []) {
+                    if ($current['pickup'] !== $left[0]['label']) {
+                        if ($current['dests'] !== []) {
+                            $blocks[] = $current;
+                            $current = self::emptyBlock();
+                        }
+                        $current['header'] = trim($eq[1]);
+                        $current['pickup'] = $left[0]['label'];
+                        $headerCount++;
+                    }
+                    $destLines++; // yer satırı yukarıda sayıldı
+                    $current['dests'][] = ['line' => trim($eq[2]), 'label' => self::destinationLabel(trim($eq[2]), $right[0]), 'summary' => false];
+
+                    continue;
+                }
+            }
             $hasPickupVerb = preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(self::PICKUP_SUFFIX, $lower) === 1;
             // Varış satırı: "X boşaltır / iner" ya da (başlık görüldükten sonra) yalnız yer adı taşıyan satır ("Amasya / MERZİFON")
             $isDest = $places !== [] && ! $hasPickupVerb
@@ -98,11 +118,18 @@ final class SeriesAd
         $header = null;
         $pickup = null;
         $headerNotes = []; // varışsız başlık bloğunun notları ("AÇIK TENTE DAMPER TIR") sonraki varış bloklarına taşınır
+        $leadingNotes = []; // başlıksız giriş bloğunun notları ("PRESLİ SAMAN YÜKLEME KAPALI TENTE ARAÇLAR YÜKLER.") ilk başlığa taşınır
         foreach ($blocks as $block) {
+            if ($block['header'] === null && $block['dests'] === []) {
+                $leadingNotes = array_merge($leadingNotes, $block['notes']);
+
+                continue;
+            }
             if ($block['header'] !== null) {
                 $header = $block['header'];
                 $pickup = $block['pickup'];
-                $headerNotes = $block['dests'] === [] ? array_values(array_filter($block['notes'], fn ($n) => $n !== $header)) : [];
+                $headerNotes = array_values(array_unique(array_merge($leadingNotes, $block['dests'] === [] ? array_values(array_filter($block['notes'], fn ($n) => $n !== $header)) : [])));
+                $leadingNotes = [];
             }
             if ($block['dests'] === [] || $header === null) {
                 continue;

@@ -1,9 +1,11 @@
 <?php
 
 use App\Jobs\QueueHeartbeat;
+use App\Models\ScrapedLoad;
 use App\Services\AccountService;
 use App\Services\DriverTripService;
 use App\Services\LoadReleaseService;
+use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
 use App\Services\RuleFeedbackService;
@@ -12,6 +14,7 @@ use App\Services\ShipmentService;
 use App\Services\SubscriptionService;
 use App\Support\IntakeBenchmark;
 use App\Support\Settings;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schedule;
@@ -100,6 +103,44 @@ Schedule::command('subscriptions:remind')->dailyAt('09:00');
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
+
+// Konum sözlüğü temizliği sonrası (0001_01_32) son 14 günün ilanları ham mesajdan yeniden konumlanır; parça parça, 60 sn/çalıştırma,
+// imleç ayarda; bitince ya da süre dolunca ayar silinir. Yönetici düzenlemesi korunur; yapay zeka/şablon çözümü de yeniden bakılır.
+Artisan::command('scraped-loads:relocate-force', function (LoadStandardizer $standardizer) {
+    $until = Settings::string('scraper_relocate_force_until');
+    if ($until === '' || now()->gt(Carbon::parse($until))) {
+        return;
+    }
+    $cursor = (int) Settings::string('scraper_relocate_force_cursor');
+    $started = microtime(true);
+    $done = 0;
+    $changed = 0;
+    $q = ScrapedLoad::query()->where('status', '!=', 'rejected')->where('created_at', '>=', now()->subDays(14))->orderByDesc('id');
+    if ($cursor > 0) {
+        $q->where('id', '<', $cursor);
+    }
+    $finished = true;
+    foreach ($q->limit(3000)->cursor() as $load) {
+        if (microtime(true) - $started > 60) {
+            $finished = false;
+            break;
+        }
+        $done++;
+        if ($standardizer->relocateFromRaw($load, force: true)) {
+            $changed++;
+        }
+        $cursor = $load->id;
+    }
+    if ($finished && $done < 3000) {
+        Settings::set('scraper_relocate_force_until', '');
+        Settings::set('scraper_relocate_force_cursor', '0');
+        $this->info("Yeniden konumlama bitti: {$changed} / {$done} (son parça)");
+    } else {
+        Settings::set('scraper_relocate_force_cursor', (string) $cursor);
+        $this->info("Yeniden konumlama sürüyor: {$changed} / {$done}, imleç #{$cursor}");
+    }
+})->purpose('Konum sözlüğü düzeltmesi sonrası ilanları ham mesajdan yeniden konumlar');
+Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
 Schedule::command('queue:prune-failed', ['--hours' => 72])->dailyAt('04:40'); // 3 günden eski başarısız işler kendiliğinden silinir (sağlık ekranında takılı kalmasın)
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.

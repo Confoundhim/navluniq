@@ -24,7 +24,7 @@ final class TurkishCities
         'antep' => 'Gaziantep', 'içel' => 'Mersin', 'icel' => 'Mersin', 'ist' => 'İstanbul', 'izmit' => 'Kocaeli',
         'gantep' => 'Gaziantep', 'ank' => 'Ankara', 'izm' => 'İzmir', 'istanbul' => 'İstanbul', 'stanbul' => 'İstanbul',
         'ıstanbul' => 'İstanbul', 'kmaras' => 'Kahramanmaraş', 'sanliurfa' => 'Şanlıurfa', 'diyarbekir' => 'Diyarbakır',
-        'trabzon' => 'Trabzon', 'ada' => 'Adana', 'mrs' => 'Mersin', 'ist.' => 'İstanbul', 'izmir' => 'İzmir',
+        'trabzon' => 'Trabzon', 'mrs' => 'Mersin', 'ist.' => 'İstanbul', 'izmir' => 'İzmir',
         'kmaraş' => 'Kahramanmaraş', 'k.maraş' => 'Kahramanmaraş', 'k.maras' => 'Kahramanmaraş', 'kahramanmaras' => 'Kahramanmaraş', 'gaziantep' => 'Gaziantep',
         'ş.urfa' => 'Şanlıurfa', 's.urfa' => 'Şanlıurfa', 'surfa' => 'Şanlıurfa', 'sanli' => 'Şanlıurfa', 'd.bakır' => 'Diyarbakır', 'd.bakir' => 'Diyarbakır', 'dbakir' => 'Diyarbakır',
         'eskişehr' => 'Eskişehir', 'esk' => 'Eskişehir', 'ktahya' => 'Kütahya', 'a.karahisar' => 'Afyonkarahisar', 'akarahisar' => 'Afyonkarahisar',
@@ -32,14 +32,15 @@ final class TurkishCities
         'kkale' => 'Kırıkkale', 'k.kale' => 'Kırıkkale', 'gantep' => 'Gaziantep', 'g.antep' => 'Gaziantep', 'tdag' => 'Tekirdağ', 't.dag' => 'Tekirdağ',
         'bkesir' => 'Balıkesir', 'b.kesir' => 'Balıkesir', 'esehir' => 'Eskişehir', 'e.sehir' => 'Eskişehir', 'ksehir' => 'Kırşehir', 'nsehir' => 'Nevşehir',
         'adapazari' => 'Sakarya', 'antakya' => 'Hatay', 'iskenderun' => 'Hatay',
-        'anadolu' => 'İstanbul', 'avrupa' => 'İstanbul', 'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
+        'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
     ];
 
     /** Yer adına benzeyen gündelik sözcükler: yazım hatası toleransıyla bile il/ilçe sanılmaz. */
     public const STOP_WORDS = ['burda', 'orda', 'surda', 'sonra', 'yukle', 'yuklu', 'hemen', 'acele', 'kadar', 'tonaj', 'arasi', 'gunde', 'yarin',
         'kahraman', 'kahramanlar', 'sultan', 'mustafa', 'kemal', 'kirik', 'sanli', 'gazi', 'sehir', 'merkez', 'liman', 'sanayi', 'tenteli', 'kapali',
         'bugun', 'sabah', 'aksam', 'gece', 'fiyat', 'kamyon', 'bosta', 'ambar', 'depo', 'sube', 'aydan', 'kilit', 'ucak', 'boru', 'palet', 'torba',
-        'sirket', 'firma', 'musteri', 'dolar', 'nakit', 'siparis', 'teslim', 'gidecek', 'gelecek', 'olacak', 'lazim', 'aranan', 'yukleme', 'bosaltma'];
+        'sirket', 'firma', 'musteri', 'dolar', 'nakit', 'siparis', 'teslim', 'gidecek', 'gelecek', 'olacak', 'lazim', 'aranan', 'yukleme', 'bosaltma',
+        'haftaya', 'hatasi', 'samsung', 'bilesik', 'denizci', 'karahan', 'tirnak', 'kaydin', 'kaydi', 'anadolu', 'avrupa', 'marmara', 'akdeniz', 'karadeniz'];
 
     private const SUFFIXES = ['ından', 'inden', 'undan', 'ünden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'ı', 'i', 'u', 'ü'];
 
@@ -202,7 +203,7 @@ final class TurkishCities
         if ($text === null) {
             return null;
         }
-        $province = self::fromText($text);
+        $province = self::fromText($text, fuzzy: false); // yakın eşleme yok: "Haftaya Ankara" Hatay olmaz
         if (! $province) {
             return $text;
         }

@@ -30,6 +30,9 @@ class RuleFeedbackService
     /** Yapay zekadan gelen önerinin kaynağı (sözlük ekranında "yapay zeka"). */
     public const SOURCE = 'ai';
 
+    /** Yük sözcüğü olamayacak genel adlar: her ilanda geçer, kategori anlatmaz. */
+    public const GENERIC_GOODS = ['yuk', 'yuku', 'mal', 'malzeme', 'urun', 'esya', 'parca', 'koli', 'palet', 'adet', 'ton', 'kg', 'cesitli', 'muhtelif', 'genel', 'karisik', 'diger'];
+
     /**
      * Yapay zeka sonucunu kural sonucuyla karşılaştırır; farkları öneri yapar. Yapılan öneri sayısını döndürür.
      *
@@ -43,16 +46,21 @@ class RuleFeedbackService
         }
         $made = 0;
         try {
-            $pairs = AiParserService::connectorMatches($text);
-            foreach (['pickup', 'delivery'] as $side) {
+            // Mesajda birden çok ilan varsa hangi çiftin hangi ilana ait olduğu belirsizdir: konum önerisi yapılmaz.
+            $multi = ! empty($ai['multiple_loads']) || (int) ($ai['ad_count'] ?? 1) > 1;
+            $pair = $multi ? null : LearningService::routePairFor($text, $ai['pickup_location'] ?? null, $ai['delivery_location'] ?? null);
+            foreach ($multi ? [] : ['pickup', 'delivery'] as $side) {
                 $aiLabel = $ai[$side.'_location'] ?? null;
                 $target = is_string($aiLabel) && $aiLabel !== '' ? TurkishLocations::resolve($aiLabel) : null;
                 if ($target === null) {
                     continue;
                 }
-                $ruleText = $pairs[0][$side] ?? ($rule[$side.'_location'] ?? null);
-                if (! is_string($ruleText) || trim($ruleText) === '') {
+                $ruleText = $pair[$side] ?? ($rule[$side.'_location'] ?? null);
+                if (! is_string($ruleText) || trim($ruleText) === '' || LearningService::isNoiseTerm(Lexicon::normalize($ruleText))) {
                     continue;
+                }
+                if (TurkishLocations::resolveCatalog($ruleText) !== null) {
+                    continue; // katalogda bilinen il/ilçe adı: yapay zeka farklı okusa da öneri olmaz, katalog yeniden öğretilmez
                 }
                 $resolved = TurkishLocations::resolve($ruleText);
                 if ($resolved !== null && (int) $resolved['province_code'] === (int) $target['province_code']) {
@@ -65,7 +73,7 @@ class RuleFeedbackService
             $goodsText = $ai['goods_text'] ?? null;
             if (is_string($goodsKey) && GoodsCatalog::label($goodsKey) !== null && is_string($goodsText) && empty($rule['goods_type'])) {
                 $norm = Lexicon::normalize($goodsText);
-                if ($norm !== '' && GoodsCatalog::detect(' '.$norm.' ') === null && Lexicon::matchGoods($norm) === null) {
+                if ($norm !== '' && mb_strlen($norm) >= 4 && ! in_array($norm, self::GENERIC_GOODS, true) && GoodsCatalog::detect(' '.$norm.' ') === null && Lexicon::matchGoods($norm) === null) {
                     $made += $this->suggest('goods', $goodsText, $goodsKey, $text, $loadId, $origin.' · kural yükü bulamadı') ? 1 : 0;
                 }
             }
@@ -86,6 +94,9 @@ class RuleFeedbackService
         if (mb_strlen($term) < 3 || mb_strlen($term) > 60 || $words > 3 || preg_match('/^\d+$/', $term) === 1 || Lexicon::normalize($canonical) === $term
             || in_array($term, TurkishCities::STOP_WORDS, true) || in_array($term, AiParserService::PLACE_NOISE, true)) {
             return false;
+        }
+        if ($kind === 'location' && TurkishLocations::resolveCatalog($rawTerm) !== null) {
+            return false; // bilinen il/ilçe adı hiçbir karşılığa bağlanamaz (katalog her zaman önce)
         }
         if (AiLexicon::query()->where('kind', $kind)->where('term', $term)->where('status', 'active')->exists()) {
             return false; // karar verilmiş: yönetici ya da öğrenilmiş girdi geçerli
@@ -109,6 +120,7 @@ class RuleFeedbackService
             $row->sample = $sample;
             $row->last_load_id = $loadId ?? $row->last_load_id;
         }
+        // Kendiliğinden onay: konum katalog korumalıdır (bilinen ad asla başka yere bağlanmaz), yük sözcüğü genel/kısa olamaz (fromAi süzer).
         $threshold = Settings::int('ai_suggest_auto_approve_hits');
         if ($threshold > 0 && (int) $row->hits >= $threshold) {
             $row->status = 'active';
@@ -128,6 +140,11 @@ class RuleFeedbackService
         $term = Lexicon::normalize((string) ($term ?? $row->term ?? ''));
         if ($row->status !== 'suggested' || mb_strlen($term) < 2) {
             return false;
+        }
+        if ($row->kind === 'location' && TurkishLocations::resolveCatalog($term) !== null) {
+            $row->update(['status' => 'ignored', 'note' => mb_substr('katalogda bilinen ad; takma ad olamaz · '.($row->note ?? ''), 0, 200)]);
+
+            return false; // tek dokunuşla bile "ankara → başka yer" öğretilemez
         }
         AiLexicon::query()->where('kind', $row->kind)->where('term', $term)->where('id', '!=', $row->id)->delete();
         $row->update(['term' => $term, 'status' => 'active', 'created_by' => $adminId ?? $row->created_by, 'note' => mb_substr('yönetici onayladı · '.($row->note ?? ''), 0, 200)]);
@@ -246,7 +263,7 @@ class RuleFeedbackService
     /** @param  array{province:string, district:?string}  $place */
     public static function locationCanonical(array $place): string
     {
-        return $place['province'].(($place['district'] ?? null) && $place['district'] !== 'Merkez' ? ' '.$place['district'] : '');
+        return (string) TurkishLocations::label($place);
     }
 
     private function counterKey(string $name): string

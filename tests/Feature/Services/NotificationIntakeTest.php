@@ -218,6 +218,24 @@ class NotificationIntakeTest extends TestCase
         $this->assertStringNotContainsString('Ahmet', json_encode($r, JSON_UNESCAPED_UNICODE), 'yazar adı saklanmaz');
     }
 
+    /** Gerçek uygulamada düğme yazıları ("Geri", "Tümünü Gör", "Gönderiyi kaydet") ve yazar adı grup sanılıp kaynak açılmıştı; artık açılmaz. */
+    public function test_ui_labels_and_author_names_never_become_facebook_groups(): void
+    {
+        $screen = json_encode([
+            'i1' => 'Geri', 'i2' => 'Ara', 'i3' => 'Tümünü Gör', 'i4' => 'Gönderiyi kaydet', 'i5' => 'İfade Bırak', 'i6' => 'Reels videosunu gizle 2',
+            'i7' => 'Mehmet Deneme profil resmi', 'i8' => 'Mehmet Deneme', 'i9' => '2s•Paylaşılanlar: Herkese açık grup', 'i10' => "Mehmet Deneme'in gönderisi için diğer seçenekler",
+            'i11' => 'Samsun - Mardin 25 ton gübre damperli araç lazım 0533 444 55 66', 'i12' => 'Beğen', 'i13' => 'Yorum yap', 'i14' => 'Paylaş',
+            'i15' => 'Kapat', 'i16' => 'ayşe örnek', 'i17' => "ayşe örnek'in gönderisi için diğer seçenekler", 'i18' => 'Ankara Sincan - Bursa Nilüfer 12 ton ambalaj tenteli 0532 111 22 33',
+            'i19' => 'Anadolu Nakliyeciler•Katıl', 'i20' => 'Anadolu Nakliyeciler', 'i21' => 'Katıl', 'i22' => 'Ali Örnek•1s•Paylaşılanlar: Herkese açık grup', 'i23' => 'Ali Örnek',
+            'i24' => "Ali Örnek'in gönderisi için diğer seçenekler", 'i25' => 'İzmir Torbalı - Konya Ereğli 20 ton yem kapalı kasa 0534 555 66 77',
+        ], JSON_UNESCAPED_UNICODE);
+        $r = NotificationIntakeParser::parse(['kind' => 'screen', 'title' => 'ekran', 'text' => "\n-----\n".$screen]);
+        $this->assertNull($r['skipped']);
+        $groups = array_column($r['messages'], 'group');
+        $this->assertSame(['Facebook akışı', 'Facebook akışı', 'Anadolu Nakliyeciler'], $groups, 'düğme yazısı ve yazar adı grup olmaz; işaretli grup adı olur');
+        $this->assertStringNotContainsString('ayşe', implode('|', $groups));
+    }
+
     /** Facebook'ta aynı gönderi kesik ("… diğer") ve açılmış tam metin olarak iki kez görülür: tam hâl kesik kaydın yerini alır, kesik hâl tekrardır. */
     public function test_full_facebook_post_replaces_its_truncated_version_and_truncated_after_full_is_duplicate(): void
     {

@@ -127,7 +127,7 @@ class extends Component {
             $since = $this->asOfTime();
             $count = $this->tab === 'pool'
                 ? $this->poolQuery(pinned: false)->where('created_at', '>', $since)->count()
-                : $this->externalQuery(pinned: false)->where('created_at', '>', $since)->count();
+                : $this->externalQuery(pinned: false)->where('last_seen_at', '>', $since)->count(); // yayın ya da yeniden paylaşım
         }
         if ($count === $this->newCount) {
             $this->skipRender();
@@ -395,7 +395,7 @@ class extends Component {
             ->where('status', 'parsed_success')
             ->where('visibility', 'public')
             ->where('is_incomplete', $this->incomplete)
-            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
+            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('last_seen_at', '<=', $this->asOfTime()))
             ->when(! $premium, fn (Builder $q) => $q->whereRaw('1 = 0')) // dış kaynak ilanları yalnız premium üyelere görünür
             ->when(trim($this->search) !== '', function (Builder $q): void {
                 $term = '%'.trim($this->search).'%';

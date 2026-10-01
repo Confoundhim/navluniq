@@ -21,6 +21,69 @@ final class TurkishLocations
      * Veri dosyasında olmayan ilçeler, eski ilçe adları, ilanlarda ilçe gibi kullanılan semt/sanayi/OSB/liman adları ve
      * sınır kapıları. n: görünen ad (ilçe düzeyinde), aliases: mesajlarda geçen yazımlar. Nakliye gruplarından derlendi.
      */
+    /**
+     * Birden çok ilde bulunan (eş adlı) ilçe adları tek başına yazılınca hangi il: nakliye akışında asıl kastedilen.
+     * Haritada olmayanlar il kodu sırasıyla ilk ile gider (eski davranış). Anahtar ascii.
+     */
+    public const PREFERRED_DISTRICT_PROVINCE = [
+        'golbasi' => 6,      // Ankara (Adıyaman değil)
+        'kemalpasa' => 35,   // İzmir (Artvin değil)
+        'eregli' => 42,      // Konya (Zonguldak Kdz. Ereğli ayrıca yazılır)
+        'yenisehir' => 16,   // Bursa
+        'pinarbasi' => 38,   // Kayseri
+        'pazar' => 53,       // Rize
+        'saray' => 59,       // Tekirdağ
+        'kale' => 20,        // Denizli
+        'yesilyurt' => 44,   // Malatya
+        'aksu' => 7,         // Antalya
+        'kemer' => 7,        // Antalya
+        'edremit' => 10,     // Balıkesir
+        'gonen' => 10,       // Balıkesir
+        'bozkurt' => 20,     // Denizli
+        'ortakoy' => 68,     // Aksaray
+        'yenice' => 17,      // Çanakkale
+        'ayvacik' => 17,     // Çanakkale
+        'ulubey' => 64,      // Uşak
+        'koprubasi' => 61,   // Trabzon
+        'yenipazar' => 9,    // Aydın
+        'ovacik' => 78,      // Karabük
+        'bayat' => 19,       // Çorum
+        'aydincik' => 33,    // Mersin
+        'altinyayla' => 15,  // Burdur
+    ];
+
+    /** Çözüm sonucunu "İl İlçe" etiketine çevirir; "Merkez" ve "Bolu Merkez" gibi il adını tekrarlayan ilçe adı eklenmez. */
+    public static function label(?array $r): ?string
+    {
+        if ($r === null || ! isset($r['province'])) {
+            return null;
+        }
+        $district = $r['district'] ?? null;
+        if (! $district || $district === 'Merkez' || TurkishCities::ascii($district) === TurkishCities::ascii($r['province'].' Merkez')) {
+            return (string) $r['province'];
+        }
+
+        return $r['province'].' '.$district;
+    }
+
+    /** İlçe adı birden çok ilde var mı (takma adlar sayılmaz)? "Kemalpaşa", "Gölbaşı" gibi tek başına yazımı belirsiz adlar. */
+    public static function isAmbiguousDistrict(?string $name): bool
+    {
+        if ($name === null || $name === '') {
+            return false;
+        }
+        self::load();
+        $a = TurkishCities::ascii($name);
+        $n = 0;
+        foreach (self::$districtIndex as $districts) {
+            if (isset($districts[$a]) && empty($districts[$a]['alias'])) {
+                $n++;
+            }
+        }
+
+        return $n > 1;
+    }
+
     public const EXTRA_PLACES = [
         ['p' => 43, 'n' => 'Gediz', 'lat' => 38.99, 'lng' => 29.39],
         ['p' => 6, 'n' => 'Kahramankazan', 'lat' => 40.23, 'lng' => 32.68, 'aliases' => ['Kazan']],
@@ -89,11 +152,11 @@ final class TurkishLocations
         ['p' => 17, 'n' => 'Biga', 'lat' => 40.23, 'lng' => 27.24, 'aliases' => ['Karabiga', 'Cenal', 'İçdaş']],
         ['p' => 1, 'n' => 'Yüreğir', 'lat' => 36.99, 'lng' => 35.40, 'aliases' => ['Misis']],
         ['p' => 26, 'n' => 'Tepebaşı', 'lat' => 39.79, 'lng' => 30.50, 'aliases' => ['T.Başı', 'Tbaşı']],
-        ['p' => 14, 'n' => 'Bolu Merkez', 'lat' => 40.73, 'lng' => 31.61, 'aliases' => ['Oyak']],
+        ['p' => 14, 'n' => 'Bolu Merkez', 'lat' => 40.73, 'lng' => 31.61],
         ['p' => 48, 'n' => 'Milas', 'lat' => 37.32, 'lng' => 27.78, 'aliases' => ['Milas Termik', 'Kemerköy', 'Yeniköy Termik']],
         ['p' => 45, 'n' => 'Soma', 'lat' => 39.19, 'lng' => 27.61, 'aliases' => ['Soma Termik']],
         ['p' => 59, 'n' => 'Malkara', 'lat' => 40.89, 'lng' => 26.90],
-        ['p' => 41, 'n' => 'Körfez', 'lat' => 40.77, 'lng' => 29.78, 'aliases' => ['Yarımca', 'Tüpraş', 'Gübretaş']],
+        ['p' => 41, 'n' => 'Körfez', 'lat' => 40.77, 'lng' => 29.78, 'aliases' => ['Yarımca']],
         ['p' => 63, 'n' => 'Akçakale', 'lat' => 36.71, 'lng' => 38.95, 'aliases' => ['Akçakale Tampon']],
         // Sınır kapıları (ilçe düzeyinde konum)
         ['p' => 31, 'n' => 'Reyhanlı', 'lat' => 36.23, 'lng' => 36.66, 'aliases' => ['Cilvegözü', 'Cilvegozu', 'Cilevgözü', 'Cilvegöz']],
@@ -108,7 +171,7 @@ final class TurkishLocations
         ['p' => 27, 'n' => 'Karkamış', 'lat' => 36.83, 'lng' => 38.00],
         ['p' => 27, 'n' => 'İslahiye', 'lat' => 37.03, 'lng' => 36.63],
         ['p' => 33, 'n' => 'Akdeniz', 'lat' => 36.80, 'lng' => 34.63, 'aliases' => ['Mersin Liman', 'Mersin Limanı']],
-        ['p' => 31, 'n' => 'İskenderun', 'lat' => 36.59, 'lng' => 36.17, 'aliases' => ['İskenderun Liman', 'Limak']],
+        ['p' => 31, 'n' => 'İskenderun', 'lat' => 36.59, 'lng' => 36.17, 'aliases' => ['İskenderun Liman']],
         ['p' => 55, 'n' => 'Tekkeköy', 'lat' => 41.21, 'lng' => 36.46, 'aliases' => ['Samsun Liman']],
     ];
 
@@ -187,6 +250,25 @@ final class TurkishLocations
         return trim(preg_replace(self::DAY_PHRASE, ' ', $text) ?? $text);
     }
 
+    private static int $catalogOnly = 0;
+
+    /** Yalnız katalog (il/ilçe tablosu, takma adlar hariç), birebir yazım: sözlük girdisi bu yazımı asla değiştiremez. */
+    public static function resolveCatalog(?string $text): ?array
+    {
+        return self::withoutLexicon(fn () => self::resolve($text, fuzzy: false));
+    }
+
+    /** @template T  @param  callable(): T  $fn  @return T */
+    private static function withoutLexicon(callable $fn): mixed
+    {
+        self::$catalogOnly++;
+        try {
+            return $fn();
+        } finally {
+            self::$catalogOnly--;
+        }
+    }
+
     public static function resolve(?string $text, bool $fuzzy = true): ?array
     {
         if ($text === null || trim($text) === '') {
@@ -199,15 +281,11 @@ final class TurkishLocations
         if ($clean === '') {
             return null;
         }
-        // Jargon sözlüğü önce: "ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze" (yönetici ya da öğrenilmiş).
-        static $depth = 0;
-        if ($depth === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
-            $depth++;
-            try {
-                $hit = self::resolve($alias);
-            } finally {
-                $depth--;
-            }
+        // Jargon sözlüğü ("ostim" → "Ankara Ostim", "gebze osb" → "Kocaeli Gebze") yalnız katalogda birebir bulunmayan yazım için.
+        // Katalog her zaman önce gelir: öğrenilmiş ya da elle girilmiş bir takma ad "ankara" gibi bilinen bir il/ilçe adını
+        // başka yere çeviremez (2026-10-01: yanlış öğrenilen "ankara → İzmir Torbalı" girdisi binlerce ilanı bozmuştu).
+        if (self::$catalogOnly === 0 && ($alias = Lexicon::matchLocation($clean)) !== null && Lexicon::normalize($alias) !== Lexicon::normalize($clean)) {
+            $hit = self::resolveCatalog($clean) ?? self::withoutLexicon(fn () => self::resolve($alias));
             if ($hit !== null) {
                 return $hit;
             }
@@ -230,14 +308,45 @@ final class TurkishLocations
             return self::withDistrict($code, array_slice($words, $match['tokens'] > 1 ? $skip : 1));
         }
 
+        // İl adı ilk sözcük değil ama ilerde yazılmış ("Gölbaşı Ankara", "Kemalpaşa/İzmir", "Torbalı çimento Konya"): o il kazanır;
+        // önceki sözcükler o ilin ilçesiyse ilçe olur, değilse (yük/firma sözcüğü) atılır. Birebir il adı; yakın eşleme yok.
+        foreach (array_slice($words, 1, 3, true) as $j => $w) {
+            if (($laterName = TurkishCities::fromText($w, fuzzy: false)) === null || ($laterCode = self::$provinceIndex[TurkishCities::ascii($laterName)] ?? null) === null) {
+                continue;
+            }
+            $district = self::matchDistrict($laterCode, array_slice($words, 0, $j), false, true);
+            if ($district !== null && $district['n'] !== 'Merkez') {
+                $p = self::province($laterCode);
+
+                return ['province_code' => $laterCode, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+            }
+
+            return self::withDistrict($laterCode, array_slice($words, $j + 1));
+        }
+
         foreach ($fuzzy ? [false, true] : [false] as $try) {
+            // Eş adlı ilçe ("Gölbaşı", "Kemalpaşa"): nakliyede kastedilen il önce denenir.
+            $pref = self::PREFERRED_DISTRICT_PROVINCE[TurkishCities::ascii($words[0] ?? '')] ?? null;
+            if (! $try && $pref !== null && ($district = self::matchDistrict($pref, array_slice($words, 0, 2), false)) !== null && $district['n'] !== 'Merkez') {
+                $p = self::province($pref);
+
+                return ['province_code' => $pref, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+            }
+            // Gerçek ilçe adı takma addan (semt, OSB) önce gelir: "Pınarbaşı" Kayseri ilçesidir, İzmir Bornova semti değil.
+            $aliasHit = null;
             foreach (self::$districtIndex as $pCode => $districts) {
                 $district = self::matchDistrict($pCode, array_slice($words, 0, 2), $try);
                 if ($district !== null && $district['n'] !== 'Merkez') {
                     $p = self::province($pCode);
-
-                    return ['province_code' => $pCode, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+                    $hit = ['province_code' => $pCode, 'province' => $p['name'], 'district' => $district['n'], 'lat' => $district['lat'], 'lng' => $district['lng']];
+                    if (empty($district['alias'])) {
+                        return $hit;
+                    }
+                    $aliasHit ??= $hit;
                 }
+            }
+            if ($aliasHit !== null) {
+                return $aliasHit;
             }
             if (! $try && $fuzzy) {
                 $province = TurkishCities::fromText($clean, fuzzy: true);
@@ -254,7 +363,8 @@ final class TurkishLocations
     /** İl bulunduysa kalan sözcüklerde ilçe arar (önce birebir, sonra yazım hatalı). */
     private static function withDistrict(int $code, array $rest): array
     {
-        $district = self::matchDistrict($code, $rest, false, true) ?? self::matchDistrict($code, $rest, true, true);
+        // Yazım hatalı ilçe yalnız ilden sonra tek sözcük kaldıysa ("Bursa Gemlk"); "Bursa yemlik arpa" yük açıklamasıdır, Gemlik değil
+        $district = self::matchDistrict($code, $rest, false, true) ?? (count($rest) === 1 ? self::matchDistrict($code, $rest, true, true) : null);
         $p = self::province($code);
 
         return [
@@ -323,10 +433,11 @@ final class TurkishLocations
         if (! $fuzzy) {
             return null;
         }
-        // Yazım hatası: tek harf farkı (5+ harf). "cesme" ↔ "çeşme" zaten ascii'de eşittir.
-        foreach ($candidates as $cand) {
+        // Yazım hatası: tek harf farkı. Yalnız ilin hemen ardındaki sözcükte ("Bursa Gemlk"), 6+ harf; "yemlik arpa", "saman",
+        // "sebze" gibi yük sözcükleri ilçe sanılmaz (Gemlik, Kaman, Gebze). "cesme" ↔ "çeşme" zaten ascii'de eşittir.
+        foreach (array_slice($candidates, 0, 3) as $cand) {
             $a = TurkishCities::ascii($cand);
-            if (strlen($a) < 5 || in_array($a, TurkishCities::STOP_WORDS, true)) {
+            if (strlen($a) < 6 || in_array($a, TurkishCities::STOP_WORDS, true) || GoodsCatalog::detect(' '.$a.' ') !== null) {
                 continue;
             }
             foreach ($districts as $ascii => $d) {

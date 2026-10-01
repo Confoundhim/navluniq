@@ -44,7 +44,7 @@ final class ForeignPlaces
         'almanya' => ['Almanya', 'Almanya', 52.52, 13.41], 'avusturya' => ['Avusturya', 'Avusturya', 48.21, 16.37], 'italya' => ['İtalya', 'İtalya', 41.90, 12.50], 'fransa' => ['Fransa', 'Fransa', 48.86, 2.35],
         'hollanda' => ['Hollanda', 'Hollanda', 52.37, 4.90], 'belcika' => ['Belçika', 'Belçika', 50.85, 4.35], 'polonya' => ['Polonya', 'Polonya', 52.23, 21.01], 'macaristan' => ['Macaristan', 'Macaristan', 47.50, 19.04],
         'ingiltere' => ['İngiltere', 'İngiltere', 51.51, -0.13], 'ispanya' => ['İspanya', 'İspanya', 40.42, -3.70], 'kibris' => ['KKTC', 'KKTC', 35.19, 33.38], 'kktc' => ['KKTC', 'KKTC', 35.19, 33.38], 'lefkosa' => ['Lefkoşa', 'KKTC', 35.19, 33.38],
-        'libya' => ['Libya', 'Libya', 32.89, 13.19], 'misir' => ['Mısır', 'Mısır', 30.04, 31.24], 'cezayir' => ['Cezayir', 'Cezayir', 36.75, 3.06], 'tunus' => ['Tunus', 'Tunus', 36.81, 10.18], 'fas' => ['Fas', 'Fas', 33.97, -6.85],
+        'libya' => ['Libya', 'Libya', 32.89, 13.19], 'cezayir' => ['Cezayir', 'Cezayir', 36.75, 3.06], 'tunus' => ['Tunus', 'Tunus', 36.81, 10.18], 'fas' => ['Fas', 'Fas', 33.97, -6.85],
     ];
 
     /**

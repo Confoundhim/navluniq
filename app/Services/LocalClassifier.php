@@ -203,19 +203,25 @@ class LocalClassifier
         Settings::set('ai_local_docs_other', 0);
         $load = 0;
         $other = 0;
-        ScrapedLoad::withTrashed()->where('visibility', 'public')->orWhereNotNull('auto_approved_at')->orderBy('id')->chunk(200, function ($rows) use (&$load): void {
-            foreach ($rows as $row) {
-                $this->train((string) $row->raw_message, true);
-                $load++;
-            }
-        });
+        // Olumlu örnek: yöneticinin yayınladığı ya da yapay zekanın çelişkisiz yüksek güvenle çözdüğü, eksik bilgili olmayan ilanlar.
+        // Kural puanıyla kendiliğinden yayınlanan aday "kesin ilan" örneği değildir (kendi kendini besleyen döngü).
+        ScrapedLoad::withTrashed()->where('visibility', 'public')->where('is_incomplete', false)
+            ->where(fn ($q) => $q->whereNull('auto_approved_at')->orWhere(fn ($w) => $w->where('ai_status', 'done')->where('parse_confidence', '>=', 0.8)->whereNull('parse_metadata->ai_conflict')))
+            ->orderBy('id')->chunk(200, function ($rows) use (&$load): void {
+                foreach ($rows as $row) {
+                    $this->train((string) $row->raw_message, true);
+                    $load++;
+                }
+            });
         ScrapedLoad::withTrashed()->where('status', 'rejected')->orderBy('id')->chunk(200, function ($rows) use (&$other): void {
             foreach ($rows as $row) {
                 $this->train((string) $row->raw_message, false);
                 $other++;
             }
         });
-        IntakeEvent::query()->where('status', 'filtered')->whereIn('reason', ['ai_not_load', 'lexicon_not_load'])->whereNotNull('excerpt')->orderBy('id')->chunk(200, function ($rows) use (&$other): void {
+        // Olumsuz örnek: yönetici reddi ve sözlükteki "ilan değil" ifadesi. Yapay zekanın "ilan değil" dediği metinler alınmaz:
+        // o karar da kesin değildir ve çoğu zaten yük mesajına benzer (sınıflandırıcıyı yanıltır).
+        IntakeEvent::query()->where('status', 'filtered')->where('reason', 'lexicon_not_load')->whereNotNull('excerpt')->orderBy('id')->chunk(200, function ($rows) use (&$other): void {
             foreach ($rows as $row) {
                 $this->train((string) $row->excerpt, false);
                 $other++;

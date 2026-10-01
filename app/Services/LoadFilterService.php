@@ -200,7 +200,7 @@ class LoadFilterService
         $this->applyCommon($q, $f, $profile, allowUnknownVehicle: true);
         $this->applyWeightPrice($q, $f, priceNullable: true);
 
-        return $this->applySort($q, $f, 'created_at');
+        return $this->applySort($q, $f, 'last_seen_at'); // yeniden paylaşılan dış kaynak ilanı öne gelir
     }
 
     private function applyCommon(Builder $q, array $f, ?DriverProfile $profile, bool $allowUnknownVehicle): void
