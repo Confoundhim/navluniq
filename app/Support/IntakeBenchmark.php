@@ -169,7 +169,7 @@ final class IntakeBenchmark
     /**
      * Tek örneği kural katmanından geçirir; beklenenle farkları döndürür (boş liste = doğru).
      *
-     * expect alanları: filtered (no_phone|not_load), ads (ilan sayısı), routes ([[kalkış, varış], …] il ya da "il ilçe"),
+     * expect alanları: filtered (no_phone|not_load|no_pickup), ads (ilan sayısı), routes ([[kalkış, varış], …] il ya da "il ilçe"),
      * vehicle, body (kasa listesi, alt küme), goods (kategori etiketi), count (araç adedi), weight (kg), price (₺), phone (5xxxxxxxxx).
      * Alanlar ilk ilana bakar; "each": true ile her ilana uygulanır.
      *
@@ -184,6 +184,7 @@ final class IntakeBenchmark
             $ok = match ($e['filtered']) {
                 'no_phone' => ! LoadIntakeService::hasPhone($message),
                 'not_load' => ! LoadIntakeService::looksLikeLoad($message) || Lexicon::isNotLoad($message),
+                'no_pickup' => ! empty(LoadIntakeService::splitSegments($message)[0]['pickup_missing']),
                 default => false,
             };
 

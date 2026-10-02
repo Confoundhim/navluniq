@@ -8,6 +8,7 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\AiParserService;
 use App\Services\LearningService;
+use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\TemplateMemory;
@@ -132,6 +133,32 @@ class LocationAuditTest extends TestCase
             array_map(fn ($w) => TurkishLocations::label(TurkishLocations::resolve($w)), ['Pınarbaşı', 'Gölbaşı', 'Kemalpaşa', 'Kale', 'Pazar']));
         $this->assertTrue(TurkishLocations::isAmbiguousDistrict('Kemalpaşa'));
         $this->assertFalse(TurkishLocations::isAmbiguousDistrict('Gebze'));
+    }
+
+    public function test_two_pickup_header_series_and_destination_lists_without_pickup(): void
+    {
+        $this->source();
+        // "GEBZE+TUZLA YÜKLER": iki kalkış seçeneği × iki varış satırı ("ANKARA 2 YER KAPALI TIR") = dört ilan, her biri 2 araç
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => "GEBZE+TUZLA YÜKLER\n\nANKARA 2 YER KAPALI TIR\nANTALYA 2 YER KAPALI TIR\n\nAD SOYAD\n05341112233\nFİRMA LOJİSTİK", 'message_id' => 's1', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame('created', $r['status'], json_encode($r, JSON_UNESCAPED_UNICODE));
+        $loads = ScrapedLoad::query()->orderBy('id')->get();
+        $this->assertSame([['Kocaeli Gebze', 'Ankara'], ['İstanbul Tuzla', 'Ankara'], ['Kocaeli Gebze', 'Antalya'], ['İstanbul Tuzla', 'Antalya']], $loads->map(fn ($l) => [$l->pickup_location, $l->delivery_location])->all());
+        $this->assertSame(['tir', ['kapali'], 2], [$loads[0]->vehicle_type, $loads[0]->body_types, $loads[0]->vehicle_count]);
+        $this->assertStringContainsString('Kalkış: İstanbul Tuzla', $loads[1]->raw_message);
+
+        // Kalkışı yazılmayan "varış + araç" listesi: satırlar birbirine rota diye bağlanmaz ("Samsun → İzmir" uydurulmaz), elenir
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\nİZMİR ÖDEMİŞ KAPALI KAMYON\n\n☎️ AD 0538 111 22 33", 'message_id' => 's2', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame(['filtered', 'pickup_missing'], [$r['status'], $r['reason']]);
+        $this->assertSame(4, ScrapedLoad::query()->count());
+
+        // Kalkış fiiliyle yazılmış tek satırlık ilan eskisi gibi: "Gebze yükler- Muğla Menteşe" ikinci yer varıştır
+        $p = app(AiParserService::class)->parseCheap('Gebze yükler- Muğla Menteşe 0532 111 22 33');
+        $this->assertSame(['Gebze', 'Muğla Menteşe'], [$p['pickup_location'], $p['delivery_location']]);
+    }
+
+    private function source(): Scraper
+    {
+        return Scraper::create(['name' => 'Grup A', 'type' => 'notification', 'source_identifier' => 'notif:grup-a', 'is_active' => true]);
     }
 
     public function test_plus_chains_keep_the_main_destination_and_ignore_non_places(): void

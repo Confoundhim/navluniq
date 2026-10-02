@@ -34,6 +34,39 @@ final class SeriesAd
     private const PLACE_ONLY_FILLER = ['merkez', 'merkezi', 'ilce', 'ilcesi', 'il', 'ili', 've', 'ile', 'veya', 'ya', 'da', 'de'];
 
     /**
+     * Varış satırında yer adının yanında olabilen araç/kasa/adet sözcükleri: "ANKARA 2 YER KAPALI TIR", "SAMSUN KAPALI TIR",
+     * "ÇANAKKALE TENTELİ KAMYON". Sayılar zaten atılır (2, 13.60).
+     */
+    private const VEHICLE_FILLER = ['yer', 'arac', 'araclar', 'adet', 'tir', 'tirlar', 'kamyon', 'kamyonet', 'panelvan', 'kirkayak', 'cekici', 'dorse', 'dorseli',
+        'kapali', 'tenteli', 'tente', 'acik', 'frigo', 'frigorifik', 'damperli', 'damper', 'lowbed', 'silobas', 'kisa', 'uzun', 'liftli', 'lift', 'ton', 'tonluk',
+        'parsiyel', 'komple', 'yuk', 'yukler', 'var', 'lazim', 'aranan', 'araniyor', 'olur', 'uygun', 'm', 'mt', 'metre', 'teker', 'tekerli', 'dingil'];
+
+    /** Mesajda kalkış bulunduğunu gösteren işaretler yoksa ve satırlar "yer + araç" biçimindeyse: kalkışsız varış listesi. */
+    public static function isDestinationListWithoutPickup(string $prepared): bool
+    {
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\n/u', $prepared) ?: []), fn ($l) => $l !== '' && AiParserService::phonesIn($l) === []));
+        $destLines = 0;
+        $placeLines = 0;
+        foreach ($lines as $line) {
+            $lower = TurkishCities::lower($line);
+            if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(self::PICKUP_SUFFIX, $lower) === 1 || preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1
+                || AiParserService::connectorMatches($line) !== [] || preg_match('/^(.{2,40}?)\s*(?:=>|=|→|->)\s*(.{2,60})$/u', $line) === 1) {
+                return false; // kalkış/varış fiili ya da rota bağlacı var: olağan ilan
+            }
+            $places = AiParserService::placesIn($line, 2);
+            if ($places === []) {
+                continue;
+            }
+            $placeLines++;
+            if (count($places) === 1 && self::isPlaceOnly($line, $places) && preg_match('/(?<!\p{L})(?:'.implode('|', array_filter(self::VEHICLE_FILLER, fn ($w) => strlen($w) >= 3)).')(?!\p{L})/u', TurkishCities::ascii($line)) === 1) {
+                $destLines++;
+            }
+        }
+
+        return $destLines >= 2 && $destLines === $placeLines;
+    }
+
+    /**
      * Hazırlanmış metin (TextPrep::prepare) seri düzenindeyse aday parçaları döner; değilse null.
      *
      * @return list<array{text:string, phones:list<string>, index:int, count:int, series:array{count:int, pickup:string, delivery:string}}>|null
@@ -93,6 +126,8 @@ final class SeriesAd
                 }
                 $current['header'] = $line;
                 $current['pickup'] = $places[0]['label'];
+                // "GEBZE+TUZLA YÜKLER", "Gebze / Tuzla yükler", "Gebze veya Tuzla yükler": iki ayrı kalkış seçeneği; her nokta her kalkıştan ayrı ilan
+                $current['pickups'] = self::alternativePickups($line, $places);
                 $headerCount++;
             } elseif ($isDest) {
                 $destLines++;
@@ -104,7 +139,9 @@ final class SeriesAd
         $blocks[] = $current;
 
         // Seri: en az bir kalkış başlığı ve yeterli sayıda "X boşaltır" satırı; yer satırlarının büyük çoğunluğu boşaltma satırı.
-        if ($headerCount === 0 || $destLines < self::MIN_DESTINATIONS || $destLines < ($placeLines - $headerCount) * 0.8) {
+        // Başlık dışındaki her yer satırı varış satırıysa ("GEBZE+TUZLA YÜKLER / ANKARA 2 YER KAPALI TIR / ANTALYA 2 YER KAPALI TIR") iki nokta yeter.
+        $minDestinations = $destLines === $placeLines - $headerCount ? 2 : self::MIN_DESTINATIONS;
+        if ($headerCount === 0 || $destLines < $minDestinations || $destLines < ($placeLines - $headerCount) * 0.8) {
             return null;
         }
 
@@ -117,6 +154,7 @@ final class SeriesAd
         $items = [];
         $header = null;
         $pickup = null;
+        $pickups = [];
         $headerNotes = []; // varışsız başlık bloğunun notları ("AÇIK TENTE DAMPER TIR") sonraki varış bloklarına taşınır
         $leadingNotes = []; // başlıksız giriş bloğunun notları ("PRESLİ SAMAN YÜKLEME KAPALI TENTE ARAÇLAR YÜKLER.") ilk başlığa taşınır
         foreach ($blocks as $block) {
@@ -128,6 +166,7 @@ final class SeriesAd
             if ($block['header'] !== null) {
                 $header = $block['header'];
                 $pickup = $block['pickup'];
+                $pickups = $block['pickups'] ?? [$pickup];
                 $headerNotes = array_values(array_unique(array_merge($leadingNotes, $block['dests'] === [] ? array_values(array_filter($block['notes'], fn ($n) => $n !== $header)) : [])));
                 $leadingNotes = [];
             }
@@ -141,17 +180,20 @@ final class SeriesAd
             }
             $notes = array_values(array_unique(array_merge($headerNotes, array_filter($block['notes'], fn ($n) => $n !== $header))));
             foreach ($dests as $dest) {
-                $items[] = [
-                    'text' => $header."\n".$dest['line'].($notes !== [] ? "\n".implode("\n", $notes) : '').$phoneLine,
-                    'phones' => $phones,
-                    'pickup' => $pickup,
-                    'delivery' => $dest['label'],
-                ];
+                foreach ($pickups as $from) {
+                    // İki kalkışlı başlıkta her ilanın metni kendi kalkışını söyler (aynı metin tekrar sayılmasın; şoför hangi kalkış olduğunu görsün)
+                    $items[] = [
+                        'text' => $header."\n".$dest['line'].(count($pickups) > 1 ? "\nKalkış: ".$from : '').($notes !== [] ? "\n".implode("\n", $notes) : '').$phoneLine,
+                        'phones' => $phones,
+                        'pickup' => $from,
+                        'delivery' => $dest['label'],
+                    ];
+                }
             }
         }
         $items = array_slice($items, 0, self::MAX_ADS);
         $count = count($items);
-        if ($count < self::MIN_DESTINATIONS) {
+        if ($count < $minDestinations) {
             return null;
         }
 
@@ -193,8 +235,8 @@ final class SeriesAd
     {
         $words = array_values(array_filter(preg_split('/[^\p{L}]+/u', TurkishCities::ascii($line)) ?: [], fn ($w) => $w !== ''));
         foreach ($words as $word) {
-            if (in_array($word, self::PLACE_ONLY_FILLER, true)) {
-                continue;
+            if (in_array($word, self::PLACE_ONLY_FILLER, true) || in_array($word, self::VEHICLE_FILLER, true)) {
+                continue; // "ANKARA 2 YER KAPALI TIR": araç/kasa/adet sözcükleri yer satırını bozmaz
             }
             $known = false;
             foreach ($places as $place) {
@@ -217,7 +259,26 @@ final class SeriesAd
         return $words !== [];
     }
 
-    /** @return array{header:?string, pickup:?string, dests:list<array{line:string,label:string,summary:bool}>, notes:list<string>} */
+    /**
+     * Başlıktaki kalkışlar: "GEBZE+TUZLA", "Gebze / Tuzla", "Gebze veya Tuzla" iki seçenektir (ikisinden de yüklenir); "Ankara Kazan" tek yerdir.
+     *
+     * @param  list<array{label:string, text:string}>  $places
+     * @return list<string>
+     */
+    public static function alternativePickups(string $line, array $places): array
+    {
+        $labels = array_values(array_unique(array_column($places, 'label')));
+        if (count($labels) < 2) {
+            return [$places[0]['label']];
+        }
+        $a = preg_quote(TurkishCities::lower($places[0]['text']), '/');
+        $b = preg_quote(TurkishCities::lower($places[1]['text']), '/');
+        $joined = preg_match('/'.$a.'\s*(?:\+|\/|veya|ve|ya da)\s*'.$b.'/u', TurkishCities::lower($line)) === 1;
+
+        return $joined ? array_slice($labels, 0, 2) : [$places[0]['label']];
+    }
+
+    /** @return array{header:?string, pickup:?string, pickups?:list<string>, dests:list<array{line:string,label:string,summary:bool}>, notes:list<string>} */
     private static function emptyBlock(): array
     {
         return ['header' => null, 'pickup' => null, 'dests' => [], 'notes' => []];

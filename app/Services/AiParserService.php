@@ -6,6 +6,7 @@ use App\Models\AiProviderUsage;
 use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
+use App\Support\SeriesAd;
 use App\Support\Settings;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
@@ -1556,8 +1557,9 @@ TXT;
             if ($isPickup && ! $isDelivery && $pickup === null) {
                 $pickup = $places[0]['label'];
                 $pickupAt = $i;
-                if (isset($places[1]) && $delivery === null && ! self::samePlace($places[0], $places[1])) {
-                    $delivery = $places[1]['label']; // "Çorlu yükler- Muğla Menteşe"
+                // "Çorlu yükler- Muğla Menteşe": ikinci yer varış; "GEBZE+TUZLA YÜKLER": ikinci yer alternatif kalkış, varış değil
+                if (isset($places[1]) && $delivery === null && ! self::samePlace($places[0], $places[1]) && count(SeriesAd::alternativePickups($line, $places)) < 2) {
+                    $delivery = $places[1]['label'];
                     $deliveryAt = $i;
                 }
             } elseif ($isDelivery && $delivery === null) {
