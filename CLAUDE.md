@@ -99,6 +99,11 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "PAZAR GÜNÜ / Çarşamba sabahı" gibi gün ifadeleri yer sanılmaz (`TurkishLocations::stripDayPhrases`; "Rize Pazar", "Samsun Çarşamba"
   il ile yazılınca çözülür); "-nden/-ndan" ekli ilçe ("Mecitözünden") çözülür; "3 ARABA" = 3 araç; "çekirdek" tarım ürünü.
   Parça / komple yük ayrımı (load_kind). Fiyat ton başına olabilir (price_unit).
+  **Dördüncü biçim (2026-10-02, Engin Abi):** "GEBZE+TUZLA YÜKLER" başlığı + "ANKARA 2 YER KAPALI TIR" satırları: "+"/"/"/"veya" ile
+  bağlı iki kalkış **seçenektir** (`SeriesAd::alternativePickups`), her varış satırı her kalkıştan ayrı ilan olur (metne "Kalkış: …" satırı
+  eklenir ki tekrar sayılmasın); varış satırındaki araç/kasa/adet sözcükleri (`VEHICLE_FILLER`) yer satırını bozmaz; başlık dışındaki her
+  yer satırı varışsa iki nokta yeter. **Kalkışsız varış listesi** ("SAMSUN KAPALI TIR / İZMİR KAPALI TIR / …", kalkış fiili ve bağlaç yok):
+  satırlar birbirine rota diye bağlanmaz, `pickup_missing` gerekçesiyle elenir (canlı akışta "Kalkış yeri yazmıyor"); altın set `no_pickup`.
 - **Eksik bilgili ilanlar**: karar puanı otomatik ret sınırı (%25) ile `scraper_incomplete_max_score` (%60) arasında kalan,
   kalkış-varış ili ve telefonu belli adaylar kuyrukta beklemez; `is_incomplete=true` ile yayınlanır. Şoför tarafında dış kaynak
   sekmesinin "Eksik bilgili ilanlar" bölümünde (araç filtresi uygulanmaz), genel bakış ve dönüş yükü taramasında görünmez

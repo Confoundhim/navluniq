@@ -120,5 +120,9 @@
   {"id": "hal-eki-yon", "message": "İzmire gidecek Bursadan 24 ton tenteli 0532 111 22 33",
    "expect": {"ads": 1, "routes": [["Bursa", "İzmir"]]}},
   {"id": "yazim-hatasi-son-care", "message": "Hatası yok Konya Bursa 24 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya", "Bursa"]]}}
+   "expect": {"ads": 1, "routes": [["Konya", "Bursa"]]}},
+  {"id": "iki-kalkisli-seri", "message": "GEBZE+TUZLA YÜKLER\n\nANKARA 2 YER KAPALI TIR\nANTALYA 2 YER KAPALI TIR\n\nAD SOYAD\n05341112233\nFİRMA LOJİSTİK",
+   "expect": {"ads": 4, "routes": [["Kocaeli Gebze", "Ankara"], ["İstanbul Tuzla", "Ankara"], ["Kocaeli Gebze", "Antalya"], ["İstanbul Tuzla", "Antalya"]], "each": true, "vehicle": "tir", "body": ["kapali"], "count": 2}},
+  {"id": "kalkissiz-varis-listesi", "message": "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\nİZMİR ÖDEMİŞ KAPALI KAMYON\n\n☎️ AD 0538 111 22 33",
+   "expect": {"filtered": "no_pickup"}}
 ]

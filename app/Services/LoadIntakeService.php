@@ -182,6 +182,11 @@ class LoadIntakeService
             $results = [];
             $pending = [];
             foreach ($segments as $i => $segment) {
+                if (! empty($segment['pickup_missing'])) {
+                    $results[$i] = $this->result(200, false, 'filtered', 'Kalkış yeri yazmıyor; yalnız varış ve araç listesi.', null, 'pickup_missing') + ['excerpt' => $segment['text']];
+
+                    continue;
+                }
                 $parsed = $this->parser->parseCheap($segment['text']);
                 if (($parsed['sender_phone'] ?? null) === null && $segment['phones'] !== []) {
                     $parsed['sender_phone'] = $segment['phones'][0];
@@ -558,6 +563,16 @@ class LoadIntakeService
         // "Tek yükleme, çok boşaltma noktası" serisi: her "X boşaltır" satırı ayrı araçlık ilan (bkz. SeriesAd).
         if (($series = SeriesAd::segments($prepared, $fallbackPhone)) !== null) {
             return $series;
+        }
+        // "SAMSUN KAPALI TIR / İZMİR KAPALI TIR / ÇANAKKALE TENTELİ KAMYON": yalnız varış + araç listesi, kalkış yazmıyor.
+        // Satırlar birbirine rota diye bağlanmaz ("Samsun → İzmir" uydurulmaz); tek parça, kalkış eksik gerekçesiyle elenir.
+        if (SeriesAd::isDestinationListWithoutPickup($prepared)) {
+            $phones = AiParserService::phonesIn($raw);
+            if ($fallbackPhone !== null && ! in_array($fallbackPhone, $phones, true)) {
+                $phones[] = $fallbackPhone;
+            }
+
+            return [['text' => $raw, 'phones' => $phones, 'index' => 0, 'count' => 1, 'pickup_missing' => true]];
         }
         $units = [];
         $carryHeader = null; // varışı olmayan başlık ("Çorlu yükler") boş satırdan sonraki bloklara taşınır
