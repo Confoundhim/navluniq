@@ -31,6 +31,7 @@
 
     <!-- Sayfa özelinde kafa (head) kısmına eklenecek ekstra scriptler için slot -->
     {{ $head ?? '' }}
+    <style>[x-cloak] { display: none !important; }</style>
 </head>
 
 <body

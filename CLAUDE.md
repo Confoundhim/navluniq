@@ -178,6 +178,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   yazar (`parse_metadata.relocated_from`); detay `docs/OGRENME_CEMBERI.md`. Tekrar/tazelik: `last_seen_at` modelde hiç boş kalmaz
   (`ScrapedLoad::booted`), eş ilan tazelenir (`noteSighting`), reddedilmiş kayıt tekrar sayılmaz, parça anahtarları hata halinde bırakılır.
   Testler: `LocationAuditTest` (60+ örnek), altın sette 10 yeni örnek.
+- **İstek sınırları (2026-10-03, Engin Abi'nin telefonunda sınama "429" veriyordu, Facebook dökümleri gitmiyordu):** Laravel'in sayısal
+  `throttle:N,1` sınırı aynı IP için **tüm rotalarda tek sayaç** tutar (`resolveRequestSignature` = alan adı + IP); çok grubu olan telefon
+  dakikada 30'dan fazla WhatsApp mesajı yollayınca sınama ucu (30/dk) doluyor, dökümler bekliyordu. Artık her uç adlı sınırlayıcıyla
+  kendi sayacında (`AppServiceProvider`: `intake` 600/dk, `intake-ping` 30/dk, `intake-version` 60/dk, `scraper-webhook` 60/dk).
+  Uygulama v1.5 (versionCode 6): 429'da sunucunun `Retry-After` süresi kadar (15-120 sn) bekler, hata sayacını büyütmez; sınama 429
+  mesajı açıklayıcı; telefon kuyruğu 400 paket. Test: `IntakeRateLimitTest`. Yeni uç eklerken sayısal throttle değil adlı sınırlayıcı kullan.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

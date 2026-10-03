@@ -32,7 +32,7 @@ public final class Uploader {
     private static final long[] BACKOFF = {20, 60, 120, 300, 900};
     private static int failures = 0;
     private static java.util.concurrent.ScheduledFuture<?> scheduled;
-    private static final int MAX_QUEUE = 120;
+    private static final int MAX_QUEUE = 400;
     private static final Pattern PROCESSED = Pattern.compile("\"processed\"\\s*:\\s*(\\d+)");
     private static final Pattern SKIPPED = Pattern.compile("\"reason\"\\s*:\\s*\"([^\"]{0,60})\"");
 
@@ -96,6 +96,7 @@ public final class Uploader {
             }
             int code;
             String response;
+            String conn429Header = null;
             try {
                 HttpURLConnection conn = (HttpURLConnection) new URL(Prefs.url(c) + "/api/v1/webhook/notification").openConnection();
                 conn.setConnectTimeout(15000);
@@ -117,6 +118,7 @@ public final class Uploader {
                 os.write(bytes);
                 os.close();
                 code = conn.getResponseCode();
+                conn429Header = conn.getHeaderField("Retry-After");
                 InputStream is = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
                 response = is == null ? "" : readAll(is);
                 conn.disconnect();
@@ -138,7 +140,14 @@ public final class Uploader {
                 AppLog.add(c, "Anahtar hatalı (401): panelden anahtarı kopyalayıp yeniden girin.");
                 Prefs.recordSend(c, false, "Anahtar hatalı (401)");
                 return; // anahtar düzelince dosyalar gider
-            } else if (code == 429 || code >= 500) {
+            } else if (code == 429) {
+                // İstek sınırı: sunucunun söylediği süre kadar bekle (en az 15, en çok 120 sn); ağ arızası gibi uzun uzun geri çekilme
+                long wait = retryAfterSeconds(response, conn429Header);
+                AppLog.add(c, "Sunucu istek sınırı (429): " + wait + " sn sonra yeniden denenecek (bekleyen paket: " + pending(c) + ").");
+                Prefs.recordSend(c, false, "HTTP 429 · istek sınırı");
+                scheduleRetry(c, wait);
+                return;
+            } else if (code >= 500) {
                 AppLog.add(c, "Sunucu meşgul (" + code + "), sonra yeniden denenecek.");
                 Prefs.recordSend(c, false, "HTTP " + code);
                 scheduleRetry(c);
@@ -151,10 +160,27 @@ public final class Uploader {
         }
     }
 
+    /** Sunucunun "Retry-After" başlığı (saniye); yoksa 30 sn. 15-120 sn aralığına sıkıştırılır. */
+    private static long retryAfterSeconds(String response, String header) {
+        long wait = 30;
+        try {
+            if (header != null && header.trim().length() > 0) {
+                wait = Long.parseLong(header.trim());
+            }
+        } catch (NumberFormatException ignored) {
+        }
+        return Math.max(15, Math.min(120, wait));
+    }
+
     /** Ağ/sunucu hatasından sonra 20 sn, 1 dk, 2 dk, 5 dk, 15 dk sonra kendiliğinden yeniden dener; kullanıcı düğmeye basmak zorunda kalmaz. */
     private static synchronized void scheduleRetry(final Context c) {
         long delay = BACKOFF[Math.min(failures, BACKOFF.length - 1)];
         failures++;
+        scheduleRetry(c, delay);
+    }
+
+    /** Belirli bir süre sonra yeniden dener (istek sınırı: sunucunun söylediği süre; hata sayacı büyümez). */
+    private static synchronized void scheduleRetry(final Context c, long delay) {
         if (scheduled != null && !scheduled.isDone()) {
             return;
         }

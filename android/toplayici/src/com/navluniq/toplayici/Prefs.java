@@ -5,8 +5,8 @@ import android.content.SharedPreferences;
 
 /** Ayarlar: sunucu adresi, anahtar, açık/kapalı seçenekler, son gönderim durumu. Yalnız bu telefonda durur. */
 public final class Prefs {
-    public static final int VERSION_CODE = 5;
-    public static final String VERSION_NAME = "1.4";
+    public static final int VERSION_CODE = 6;
+    public static final String VERSION_NAME = "1.5";
     private static final String FILE = "toplayici";
 
     private Prefs() {}

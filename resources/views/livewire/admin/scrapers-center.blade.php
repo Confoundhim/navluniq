@@ -1015,8 +1015,13 @@ new class extends Component {
     @endif
 
     @if($activeTab === 'sources')
-        <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs" x-data="{ copied: '' , copy(text, key) { navigator.clipboard.writeText(text).then(() => { this.copied = key; setTimeout(() => this.copied = '', 2000); }); } }">
+        <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs" x-data="{ open: false, copied: '' , copy(text, key) { navigator.clipboard.writeText(text).then(() => { this.copied = key; setTimeout(() => this.copied = '', 2000); }); } }">
+            <div class="flex items-center justify-between gap-3">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Telefon bağlantısı (bildirim iletici)</h2>
+                <button type="button" @click="open = !open" class="text-[11px] font-semibold text-brand-600 hover:underline shrink-0" x-text="open ? 'Kurulum adımlarını gizle' : 'Kurulum adımlarını göster'"></button>
+            </div>
+            {{-- Kurulum metinleri ve adresler varsayılan gizli: sayfa kaynak listesine ayrılır; gerekince tek dokunuşla açılır --}}
+            <div x-show="open" x-cloak class="space-y-3">
             <p class="text-[11px] text-neutral-400">Aşağıdaki adres ve alanlar hangi telefondaki bildirim iletici uygulamasına yazılırsa o telefon sunucuya ilan iletmeye başlar; anahtar alanların içinde hazırdır, sunucu tarafında telefon başına ayar yoktur. Adım adım kurulum: <span class="font-mono">docs/BILDIRIM_ILETICI_KURULUM.md</span>.</p>
 
             <div class="flex flex-wrap items-center gap-3 p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40">
@@ -1119,6 +1124,7 @@ new class extends Component {
                     <li>Gönderiler Canlı akışta satır satır görünür; yeni gruplar aşağıda <span class="font-mono">fb:grup-adi</span> tanımlayıcısıyla pasif açılır, <strong>Aktif et</strong> deyince işlenir. Aynı ilan WhatsApp'ta da geldiyse ikinci kayıt açılmaz.</li>
                     <li>Facebook ekran düzenini değiştirirse kaydırma ayarı güncellenir. Kısaltılmış gönderiler "… diğer" ile kesik gelir (dokunma adımı makroyu durdurduğu için yok).</li>
                 </ul>
+            </div>
             </div>
         </div>
 

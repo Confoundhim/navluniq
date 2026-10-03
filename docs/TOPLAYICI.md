@@ -88,3 +88,12 @@ Uygulama ekranında "açılan gönderi" sayacı mekanizmanın çalıştığını
 
 Android SDK gerekmez. Ubuntu: `apt-get install -y aapt zipalign apksigner dalvik-exchange` ve JDK 17+. `android.jar` (API 34)
 `android/.tools/` altına indirilir (build.sh indirir). Java 8 söz dizimi, lambda yok (dx lambda çevirmez).
+
+## Sürüm 1.5 (2026-10-03): istek sınırı (429)
+
+Sunucudaki istek sınırı eskiden telefonun IP'si için tüm adreslerde tek sayaçtı; çok grubu olan bir telefon dakikada 30'dan fazla
+WhatsApp mesajı yollayınca "Sunucuyu sına" düğmesi "429" diyor, Facebook dökümleri de kuyrukta bekliyordu. Sunucu tarafında her
+adres kendi sayacını tutar (mesaj ucu 600/dk). Uygulama 429 aldığında sunucunun söylediği süre kadar (15-120 sn) bekleyip yeniden
+dener, ağ arızası gibi 15 dakikaya kadar geri çekilmez; kuyruk 400 pakete çıktı. Yeni sürüm telefona yan yükleme ile kurulur
+(uygulama açılışta "yeni sürüm var" der; aynı imza, verileri silmeden üstüne kurulur).
+
