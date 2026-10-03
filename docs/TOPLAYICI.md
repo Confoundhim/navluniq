@@ -97,3 +97,9 @@ adres kendi sayacını tutar (mesaj ucu 600/dk). Uygulama 429 aldığında sunuc
 dener, ağ arızası gibi 15 dakikaya kadar geri çekilmez; kuyruk 400 pakete çıktı. Yeni sürüm telefona yan yükleme ile kurulur
 (uygulama açılışta "yeni sürüm var" der; aynı imza, verileri silmeden üstüne kurulur).
 
+## Facebook Lite desteklenmez (2026-10-03)
+
+Engin Abi'nin telefonunda tüm izinler açıkken "Facebook ekranı: 0" kaldı; neden Facebook Lite kullanmasıydı. Lite ekranı kendi
+çizer ve metinleri erişilebilirlik ağacına vermez; uygulama okuyacak düğüm bulamaz. Tarayıcıdaki facebook.com da okunmaz (paket adı
+com.facebook.* değil). Çözüm: normal Facebook uygulaması. Panel kurulum adımlarına bu not eklendi.
+
