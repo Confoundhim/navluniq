@@ -184,6 +184,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   kendi sayacında (`AppServiceProvider`: `intake` 600/dk, `intake-ping` 30/dk, `intake-version` 60/dk, `scraper-webhook` 60/dk).
   Uygulama v1.5 (versionCode 6): 429'da sunucunun `Retry-After` süresi kadar (15-120 sn) bekler, hata sayacını büyütmez; sınama 429
   mesajı açıklayıcı; telefon kuyruğu 400 paket. Test: `IntakeRateLimitTest`. Yeni uç eklerken sayısal throttle değil adlı sınırlayıcı kullan.
+  Aynı gün ikinci bulgu: Engin Abi **Facebook Lite** kullanıyordu; Lite metinleri erişilebilirlik ağacına vermez, "Facebook ekranı: 0"
+  kalır. Yalnız normal Facebook uygulaması okunur (tarayıcı da okunmaz); panel adımlarına ve `docs/TOPLAYICI.md`'ye yazıldı.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
