@@ -45,4 +45,18 @@ class IntakeEvent extends Model
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;
     }
+
+    /** Elenme / tekrar gerekçelerinin Türkçe karşılığı (canlı akış ve günlük özet). */
+    public const REASON_LABELS = [
+        'phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi',
+        'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'pickup_missing' => 'kalkış yeri yazmıyor (yalnız varış listesi)', 'ai_not_load' => 'yapay zeka: yük ilanı değil',
+        'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'foreign_script' => 'yabancı alfabe (Rusça/Arapça)',
+        'not_load_pattern' => 'ilan değil: boş araç / şoför ilanı / reklam / satılık', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok',
+        'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama',
+    ];
+
+    public static function reasonLabel(?string $reason): ?string
+    {
+        return $reason === null || $reason === '' ? null : (self::REASON_LABELS[$reason] ?? $reason);
+    }
 }

@@ -703,6 +703,14 @@ new class extends Component {
                 'received' => (clone $todayEvents)->count(),
                 'created' => (clone $todayEvents)->where('status', 'created')->count(),
                 'filtered' => (clone $todayEvents)->whereIn('status', ['filtered', 'skipped'])->count(),
+                // Günün ayrıntısı: aynı ilanın başka gruplardan gelen kopyaları (tekrar), bugün yeniden paylaşıldığı için tazelenen eski ilanlar
+                // (yeni yayın sayılmaz), Facebook ekran paketleri ve en sık elenme nedenleri. "Gelen istek" çoğunlukla tekrardır (650+ grup aynı ilanı taşır).
+                'duplicate' => (clone $todayEvents)->where('status', 'duplicate')->count(),
+                'screens' => (clone $todayEvents)->where('status', 'screen')->count(),
+                'refreshed' => ScrapedLoad::query()->where('visibility', 'public')->where('last_seen_at', '>=', now()->startOfDay())->where('published_at', '<', now()->startOfDay())->count(),
+                'reasons' => (clone $todayEvents)->whereIn('status', ['filtered', 'skipped'])->whereNotNull('reason')->selectRaw('reason, COUNT(*) AS c')->groupBy('reason')->orderByDesc('c')->limit(5)->get()
+                    ->map(fn ($r) => ['label' => IntakeEvent::reasonLabel($r->reason), 'count' => (int) $r->c])->all(),
+                'published_facebook' => ScrapedLoad::withTrashed()->where('published_at', '>=', now()->startOfDay())->whereIn('scraper_id', fn ($q) => $q->select('id')->from('scrapers')->where('type', 'facebook'))->count(),
                 'pending' => ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')->count(),
                 'published' => ScrapedLoad::query()->where('visibility', 'public')->count(),
                 'rejected' => ScrapedLoad::query()->where('status', 'rejected')->count(),
@@ -786,16 +794,20 @@ new class extends Component {
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün gelen istek</span><span class="text-xl font-black text-neutral-900 dark:text-white">{{ $stats['received'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $stats['created'] }} kuyruğa · {{ $stats['filtered'] }} elendi</span></div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün gelen istek</span><span class="text-xl font-black text-neutral-900 dark:text-white">{{ $stats['received'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $stats['created'] }} kuyruğa · {{ $stats['duplicate'] }} tekrar · {{ $stats['filtered'] }} elendi{{ $stats['screens'] > 0 ? ' · '.$stats['screens'].' Facebook paketi' : '' }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Onay bekleyen</span><span class="text-xl font-black text-amber-600">{{ $stats['pending'] }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Yayında</span><span class="text-xl font-black text-emerald-600">{{ $stats['published'] }}</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Reddedilen</span><span class="text-xl font-black text-neutral-500">{{ $stats['rejected'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $rejectedRetention }} gün sonra silinir</span></div>
     </div>
 
+    @if($stats['reasons'] !== [])
+        <p class="text-[11px] text-neutral-400 -mt-1">Bugün en sık elenme nedenleri: @foreach($stats['reasons'] as $i => $r){{ $i > 0 ? ' · ' : '' }}{{ $r['label'] }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($r['count'], 0, ',', '.') }}</span>@endforeach</p>
+    @endif
+
     {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugüne kadar yayınlanan</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_total'], 0, ',', '.') }}</span>@if($lifetime['external_since'])<span class="text-[10px] text-neutral-400 block">{{ $lifetime['external_since'] }}'den beri</span>@endif</div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün yayınlanan</span><span class="text-xl font-black text-brand-500 tabular-nums">{{ number_format($lifetime['external_today'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">son 7 gün {{ number_format($lifetime['external_7d'], 0, ',', '.') }} · son 30 gün {{ number_format($lifetime['external_30d'], 0, ',', '.') }}</span></div>
+        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün yayınlanan</span><span class="text-xl font-black text-brand-500 tabular-nums">{{ number_format($lifetime['external_today'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">son 7 gün {{ number_format($lifetime['external_7d'], 0, ',', '.') }} · son 30 gün {{ number_format($lifetime['external_30d'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">Facebook {{ number_format($stats['published_facebook'], 0, ',', '.') }} · WhatsApp {{ number_format(max(0, $lifetime['external_today'] - $stats['published_facebook']), 0, ',', '.') }} · ayrıca {{ number_format($stats['refreshed'], 0, ',', '.') }} eski ilan bugün yeniden paylaşıldı (yeni sayılmaz)</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Günlük ortalama</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_daily_avg'], 1, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">ilan / gün</span></div>
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">En çok ilan çıkan iller (30 gün)</span><span class="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 block leading-relaxed">{{ $lifetime['top_provinces'] === [] ? '—' : implode(' · ', array_map(fn ($p) => $p['name'].' '.$p['count'], $lifetime['top_provinces'])) }}</span></div>
     </div>
@@ -1000,7 +1012,7 @@ new class extends Component {
                             <tr class="align-top">
                                 <td class="p-3 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $e->created_at->format('d.m H:i:s') }}</td>
                                 <td class="p-3" data-label="Kaynak">{{ $e->source_name ?: ($e->title ?: '—') }}</td>
-                                <td class="p-3" data-label="Sonuç"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ ['phone_missing' => 'telefon numarası yok', 'no_logistics_signal' => 'rota/tonaj/araç/yük işareti yok', 'route_missing' => 'kalkış-varış çözülemedi', 'regex_required_fields_missing' => 'kalkış-varış çözülemedi', 'ai_not_load' => 'yapay zeka: yük ilanı değil', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'lexicon_not_load' => 'sözlük: "ilan değil" ifadesi', 'foreign_script' => 'yabancı alfabe (Rusça/Arapça)', 'not_load_pattern' => 'ilan değil: boş araç / şoför ilanı / reklam / satılık', 'template_not_load' => 'şablon: gönderenin bu kalıbı ilan değil', 'local_not_load' => 'yerel sınıflandırıcı: ilan değil', 'token_missing' => 'istekte anahtar yok', 'token_mismatch' => 'anahtar sunucudakiyle uyuşmuyor', 'summary_notification' => 'özet bildirim (N yeni mesaj)', 'empty' => 'başlık ya da metin boş', 'not_whatsapp' => 'WhatsApp dışı uygulama'][$e->reason] ?? $e->reason }}</div>@endif</td>
+                                <td class="p-3" data-label="Sonuç"><span class="badge {{ $tone }}">{{ $e->statusLabel() }}</span>@if($e->reason)<div class="text-[11px] text-neutral-400 mt-1">{{ \App\Models\IntakeEvent::reasonLabel($e->reason) }}</div>@endif</td>
                                 <td class="p-3 max-w-md text-neutral-600 dark:text-neutral-300 tc-block" data-label="Mesaj"><x-clamp-text :text="$e->excerpt" lines="2" /></td>
                                 <td class="p-3 whitespace-nowrap" data-label="Aday">@if($e->scraped_load_id)<button type="button" wire:click="$set('search', '#{{ $e->scraped_load_id }}'); $set('activeTab', 'queue')" class="text-brand-500 font-semibold">#{{ $e->scraped_load_id }}</button>@else —@endif</td>
                             </tr>
