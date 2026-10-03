@@ -57,6 +57,13 @@ class IntakeEvent extends Model
 
     public static function reasonLabel(?string $reason): ?string
     {
-        return $reason === null || $reason === '' ? null : (self::REASON_LABELS[$reason] ?? $reason);
+        if ($reason === null || $reason === '') {
+            return null;
+        }
+        // "summary_notification (json_repaired)" gibi ek bilgili gerekçeler: asıl kod etiketlenir, ek parantezde kalır
+        $base = trim((string) strtok($reason, ' ('));
+        $extra = trim(mb_substr($reason, mb_strlen($base)));
+
+        return (self::REASON_LABELS[$base] ?? $base).($extra !== '' ? ' '.$extra : '');
     }
 }
