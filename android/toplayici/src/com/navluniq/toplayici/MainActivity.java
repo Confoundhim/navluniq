@@ -241,7 +241,9 @@ public class MainActivity extends Activity {
                     conn.setRequestProperty("X-Intake-App", "toplayici/" + Prefs.VERSION_NAME);
                     int code = conn.getResponseCode();
                     result = code == 200 ? "Sunucuya ulaşıldı, anahtar doğru. Canlı akışta \"Bağlantı sınaması\" satırı görünmeli."
-                        : code == 401 ? "Sunucuya ulaşıldı ama anahtar hatalı (401)." : "Sunucu " + code + " döndü.";
+                        : code == 401 ? "Sunucuya ulaşıldı ama anahtar hatalı (401)."
+                        : code == 429 ? "Sunucuya ulaşıldı ama istek sınırına takıldı (429): bu telefon dakikada çok mesaj yolluyor. Anahtar denetlenemedi; bir dakika sonra yeniden deneyin."
+                        : "Sunucu " + code + " döndü.";
                     conn.disconnect();
                 } catch (Exception e) {
                     result = "Sunucuya ulaşılamadı: " + e.getClass().getSimpleName() + " " + (e.getMessage() == null ? "" : e.getMessage());

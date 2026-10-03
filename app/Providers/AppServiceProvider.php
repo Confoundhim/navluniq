@@ -5,7 +5,10 @@ namespace App\Providers;
 use App\Livewire\PausePollWhileInteracting;
 use App\Payments\GatewayManager;
 use App\Support\RuntimeMailConfig;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Livewire\ComponentHookRegistry;
 
@@ -40,5 +43,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(function ($user, $ability) {
             return $user->hasRole('super_admin') ? true : null;
         });
+
+        // Telefon alım uçlarının istek sınırları. Sayısal "throttle:N,1" sınırı aynı IP için TÜM rotalarda tek sayaç tutar:
+        // çok grubu olan bir telefon dakikada 30'dan fazla WhatsApp mesajı yollayınca sınama ucu (30/dk) ve Facebook dökümleri
+        // 429 alıyordu (2026-10-03, Engin Abi). Her uç kendi sayacını tutar; mesaj ucu bir telefonun en yoğun dakikasına yeter.
+        RateLimiter::for('intake', fn (Request $r) => Limit::perMinute(600)->by('intake|'.$r->ip()));
+        RateLimiter::for('intake-ping', fn (Request $r) => Limit::perMinute(30)->by('ping|'.$r->ip()));
+        RateLimiter::for('intake-version', fn (Request $r) => Limit::perMinute(60)->by('version|'.$r->ip()));
+        RateLimiter::for('scraper-webhook', fn (Request $r) => Limit::perMinute(60)->by('scraper|'.$r->ip()));
     }
 }
