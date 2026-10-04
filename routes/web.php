@@ -62,8 +62,22 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
     return view('frontend.contract-page', ['activeContract' => $slug]);
 })->name('contracts');
 
-// Bildirim iletici (MacroDroid) kurulum sayfası: gizli kodu bilen telefon sahibi kendi kurar.
-Route::middleware('throttle:30,1')->group(function () {});
+// Arama motorları: yalnız herkese açık tanıtım ve sözleşme sayfaları (panel, giriş, ödeme adresleri robots.txt ile kapalı).
+Route::get('/sitemap.xml', function () {
+    $pages = [
+        ['home', 'daily', '1.0'], ['about', 'monthly', '0.6'], ['for-cargo-owners', 'monthly', '0.9'], ['for-drivers', 'monthly', '0.9'],
+        ['how-it-works', 'monthly', '0.8'], ['subscription', 'monthly', '0.7'], ['services', 'monthly', '0.6'], ['contact', 'monthly', '0.5'],
+    ];
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+    foreach ($pages as [$name, $freq, $prio]) {
+        $xml .= '  <url><loc>'.e(route($name)).'</loc><changefreq>'.$freq.'</changefreq><priority>'.$prio.'</priority></url>'."\n";
+    }
+    foreach (['kvkk', 'kullanici-sozlesmesi', 'gizlilik-politikasi', 'mesafeli-satis', 'iade-politikasi'] as $slug) {
+        $xml .= '  <url><loc>'.e(route('contracts', $slug)).'</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>'."\n";
+    }
+
+    return response($xml.'</urlset>', 200, ['Content-Type' => 'application/xml; charset=UTF-8']);
+})->name('sitemap');
 
 // Giriş, kayıt ve şifre sıfırlama (yalnız oturumu olmayan ziyaretçiler)
 Route::middleware('guest')->group(function () {

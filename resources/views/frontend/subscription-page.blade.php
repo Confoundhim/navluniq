@@ -19,7 +19,7 @@
     ];
 @endphp
 
-<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ">
+<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ" description="NavlunIQ Premium: sistem ilanlarına erken erişim, gruplardan derlenen dış kaynak ilanları ve dönüş yükü bildirimleri.">
     <div class="max-w-6xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in">
 
         <!-- Giriş -->

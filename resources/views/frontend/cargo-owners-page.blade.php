@@ -1,4 +1,4 @@
-<x-layouts.frontend title="Yük Sahipleri İçin - NavlunIQ Akıllı Taşımacılık">
+<x-layouts.frontend title="Yük Sahipleri İçin - NavlunIQ Akıllı Taşımacılık" description="Yük sahipleri için NavlunIQ: ilanınızı verin, doğrulanmış şoförlerden teklif alın, ödemeyi teslimat onayıyla yapın.">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">

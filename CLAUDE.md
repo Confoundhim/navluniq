@@ -186,6 +186,13 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   mesajı açıklayıcı; telefon kuyruğu 400 paket. Test: `IntakeRateLimitTest`. Yeni uç eklerken sayısal throttle değil adlı sınırlayıcı kullan.
   Aynı gün ikinci bulgu: Engin Abi **Facebook Lite** kullanıyordu; Lite metinleri erişilebilirlik ağacına vermez, "Facebook ekranı: 0"
   kalır. Yalnız normal Facebook uygulaması okunur (tarayıcı da okunmaz); panel adımlarına ve `docs/TOPLAYICI.md`'ye yazıldı.
+- **Paket A — yayın engelleyiciler (2026-10-04, `docs/YAYIN_ONCESI_DENETIM.md` §7):** para güvenliği (`LoadService::cancel` son 15 dk'da
+  güncellenen bekleyen ödeme emri varsa iptal etmez, `PaymentService::handleWebhook` iptal edilmiş ilana gelen parayı kendiliğinden iade eder,
+  tutar uyuşmazlığı emri "başarısız" yapar ve bildirir, iade reddi `refund_pending` + finans ekranında elle "İade yapıldı",
+  yönetici "İptal et ve iade et", uyuşmazlık kararında sağlayıcı çağrıları kilit dışında ve "iade edildi" yalnız başarıda); akış
+  (ödeme süresi `offer_payment_hours`, şoför "Vazgeç", `loads:expire`, sıfır gecikmede premium bildirimi, "İade ile kapandı" etiketi);
+  işletim (`deploy/update.sh` hata halinde önceki commit'e döner, Türkçe hata sayfaları `resources/views/errors/`, `robots.txt`,
+  `/sitemap.xml`, frontend düzeninde `description`/`noindex` prop'ları). Paket B (KVKK/güven) ve C (ölçek/muhasebe) bekliyor.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
@@ -293,7 +300,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 8. Zamanlanmış görevler (routes/console.php)
 
-`offers:expire` (saatlik), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
+`offers:expire` (saatlik), `loads:expire` (saatlik; yükleme tarihi `load_expiry_grace_days` kadar geçmiş aktif ilanı kapatır),
+`loads:expire-unpaid` (30 dk; teklif kabulünden `offer_payment_hours` içinde ödenmeyen ilanı havuza döndürür, yarısında hatırlatır), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),

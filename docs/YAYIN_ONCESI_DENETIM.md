@@ -22,6 +22,8 @@ kapanınca buradan işaretlenir.
 
 ## 2. Para kaybettiren / çıkmaza sokan hatalar (yayın engelleyici)
 
+**Durum (2026-10-04): P1-P8'in tümü Paket A ile kapatıldı; ayrıntı §7.**
+
 | # | Bulgu | Nerede | Ne olur |
 |---|---|---|---|
 | P1 | **İptal ile ödeme bildirimi yarışı.** Yük sahibi ödeme sayfasında 3D ile öder; sağlayıcının bildirimi gelmeden "İptal et"e basarsa ilan iptal olur, para gelince ilan `iptal + havuzda ödendi` kalır. İade eden kod yok. | `LoadService::cancel` açık ödeme emrine bakmıyor; `PaymentService::handleWebhook` ilan durumuna bakmıyor | Yük sahibinden para çekilir, kimse iade edemez |
@@ -96,4 +98,46 @@ kapanınca buradan işaretlenir.
 - **Paket C (ölçek ve muhasebe):** e-postaların kuyruğa alınması, sağlayıcı çağrılarının kilit dışına çıkması, defterde hizmet bedeli,
   premium bildirim düzeltmesi, iyzico sandbox ucu testi, Netgsm'in giriş yedeği olarak bağlanması, e-fatura sağlayıcı seçimi.
 
-Testler: mevcut 505 test mutlu yolu korur; yukarıdaki hataların hiçbiri testle korunmuyor; her düzeltme kendi testiyle gelir.
+Testler: denetim günü 505 test yalnız mutlu yolu koruyordu; Paket A sonrası 520 test, para güvenliği ve akış çıkmazları kendi
+testleriyle korunur (`tests/Feature/Payments/MoneySafetyTest`, `tests/Feature/Loads/PaymentDeadlineAndExpiryTest`,
+`tests/Feature/Launch/LaunchPagesTest`).
+
+## 7. Paket A tamamlandı (2026-10-04)
+
+Üç parça halinde birleştirildi; hepsi yönetici paneli ayarlarıyla çalışır, `.env` gerekmez.
+
+**Para güvenliği (P1, P2, P3, P4, P5, P6):**
+- İptal ile ödeme bildirimi yarışı: son 15 dakikada güncellenmiş bekleyen ödeme emri varsa ilan iptal edilemez ("ödeme sürüyor");
+  daha eski açık emirler iptalle birlikte kapanır. İptal edilmiş ilana yine de para gelirse (sahipsiz ödeme) defter kaydı tutulur,
+  **kendiliğinden iade** edilir ve yük sahibine bildirilir.
+- Tutar uyuşmazlığı: sağlayıcı farklı tutar bildirirse emir "başarısız" olur, neden `failure_message`'a yazılır, yöneticiye ve yük
+  sahibine bildirim gider; ödeme kabul edilmez.
+- Yönetici "İptal et ve iade et" (operasyon merkezi, atanmış + ödenmiş ilan): ilan iptal, sefer kapanır, iade sağlayıcıya gider,
+  iki tarafa bildirim.
+- İade reddedilirse emir `refund_pending` olur, yöneticiye "elle yapılmalı" bildirimi gider; finans ekranında "İade yapıldı" düğmesi
+  (banka referansı ile) iadeyi tamamlar, ilan havuzu "iade edildi" olur, yük sahibine bildirilir. İade olay kimliği artık benzersiz.
+- Uyuşmazlık kararı: durumlar kilit altında, sağlayıcı çağrıları (hakediş/iade) kilit dışında; "iade edildi" yalnız iade gerçekten
+  başarılıysa yazılır; bildirim bağlantıları ilgili tarafın uyuşmazlık sayfasına gider.
+- Belge yüklendi bildirimleri (şoföre ve yöneticiye) artık gidiyor.
+- Yolda uyuşmazlık açılsa da şoför teslim kanıtı yükleyebilir (uyuşmazlık açık kalır, otomatik onay işlemez). Hakediş yalnız
+  "serbest bırakma onaylandı" havuz durumunda açılır.
+
+**Akış çıkmazları (P7, P8):**
+- Teklif kabulünde ödeme süresi başlar (`offer_payment_hours`, varsayılan 24 sa); yarısında yük sahibine hatırlatma, süre dolunca ilan
+  havuza döner, şoföre ve yük sahibine bildirim (`loads:expire-unpaid`, 30 dk'da bir). Yük sahibi listesinde "Ödeme için son" görünür.
+- Şoför ödeme gelmeden "Vazgeç" diyebilir (İşlerim kartı); ilan havuza döner.
+- Yükleme tarihi geçen ilanlar kapanır (`loads:expire`, saatlik, `load_expiry_grace_days` varsayılan 1 gün); bekleyen teklifler
+  biter; havuz sorgusu geçmiş tarihli ilanı göstermez; geçmiş tarihe teklif verilemez/kabul edilemez.
+- Sıfır gecikmede premium bildirimi de gider; "herkese aç" penceresi 14 gün.
+- İade ile kapanan ilan "İade ile kapandı" yazar; istatistikte teslimat sayılmaz, puan verilemez.
+- "Tekrar yayınla" kasa tipini ve yük biçimini kopyalar.
+
+**İşletim:**
+- Güncelleme betiği yarıda hata alırsa önceki commit'e geri döner (`git reset --hard`, composer, önbellek temizliği), sonra bakım
+  modundan çıkar; günlükte hangi adımda kaldığı yazar.
+- Türkçe 404/403/419/429/500/503 sayfaları (veritabanısız, telefona uygun, koyu tema; 503 15 sn'de, 429 60 sn'de kendini yeniler).
+- `robots.txt` panel/yönetici/API/giriş/ödeme adreslerini kapatır; `/sitemap.xml` yalnız tanıtım ve sözleşme sayfalarını listeler;
+  tanıtım sayfalarında meta description, canonical ve OG etiketleri; giriş/kayıt/şifre sayfaları ile panel ve yönetici düzeni `noindex`.
+
+**Paket A'da bilerek yapılmayanlar:** §3'teki KVKK/güven maddeleri (Paket B) ve ölçek/muhasebe maddeleri (Paket C) duruyor;
+iyzico alt üye TC sorunu ve e-posta kuyruğu Paket C'de.

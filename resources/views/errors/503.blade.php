@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 503, 'title' => 'Kısa bir bakım molası', 'message' => 'NavlunIQ şu anda güncelleniyor; genellikle 1-2 dakika sürer. Bu sayfa kendiliğinden yenilenir.', 'refresh' => 15])

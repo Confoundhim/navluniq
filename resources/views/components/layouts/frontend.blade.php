@@ -1,4 +1,4 @@
-@props(['title' => 'NavlunIQ - Akıllı Lojistik Ağı'])
+@props(['title' => 'NavlunIQ - Akıllı Lojistik Ağı', 'description' => 'NavlunIQ: yük sahipleri ile belgeleri doğrulanmış şoförleri buluşturan navlun pazaryeri. İlan ver, teklif al, güvenli ödeme ile taşıt.', 'noindex' => false])
 @php
     $whatsappNumber = preg_replace('/\D/', '', (string) \App\Models\CmsContent::getVal('contact_whatsapp', \App\Support\Company::get('phone')));
     $whatsappNumber = $whatsappNumber !== '' ? (str_starts_with($whatsappNumber, '90') ? $whatsappNumber : '90'.ltrim($whatsappNumber, '0')) : null;
@@ -11,6 +11,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#f97316">
     <title>{{ $title }}</title>
+    <meta name="description" content="{{ $description }}">
+    @if($noindex)<meta name="robots" content="noindex, nofollow">@else<link rel="canonical" href="{{ url()->current() }}">@endif
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="NavlunIQ">
+    <meta property="og:title" content="{{ $title }}">
+    <meta property="og:description" content="{{ $description }}">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ asset_v('/apple-touch-icon.png') }}">
+    <meta property="og:locale" content="tr_TR">
+    <meta name="twitter:card" content="summary">
     <script>
         // Tema tercihini Alpine yüklenmeden uygular; açılışta beyaz yanıp sönmeyi önler.
         (function () {

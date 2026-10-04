@@ -1,4 +1,4 @@
-<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi">
+<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi" description="NavlunIQ nasıl çalışır: ilan, teklif, kabul, güvenli ödeme, teslimat kanıtı ve onay adım adım.">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in text-xs">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">
