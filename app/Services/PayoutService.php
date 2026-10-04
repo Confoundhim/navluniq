@@ -34,6 +34,9 @@ class PayoutService
         if ($existing) {
             return $existing;
         }
+        if ($load->escrow_status !== Load::ESCROW_RELEASE_APPROVED) {
+            throw new RuntimeException('Hakediş yalnız ödemesi alınmış ve serbest bırakılması onaylanmış sevkiyat için açılabilir.');
+        }
 
         $total = round((float) $load->price, 2);
         $rate = $driver->commissionRate();

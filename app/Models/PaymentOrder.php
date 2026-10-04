@@ -29,6 +29,7 @@ class PaymentOrder extends Model
         'paid_at',
         'failed_at',
         'refunded_at',
+        'failure_message',
     ];
 
     protected $casts = [

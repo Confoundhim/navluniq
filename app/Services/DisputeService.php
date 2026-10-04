@@ -104,6 +104,8 @@ class DisputeService
             throw new RuntimeException('Geçersiz karar.');
         }
 
+        // Durumlar kilit altında yazılır; ödeme kuruluşu çağrıları (hakediş aktarımı, iade) kilit DIŞINDA yapılır:
+        // yavaş sağlayıcı ilan/uyuşmazlık satırlarını kilitli tutmasın, para hareketi veritabanı geri alınırken kaybolmasın.
         DB::transaction(function () use ($dispute, $admin, $resolution, $notes): void {
             $locked = Dispute::query()->lockForUpdate()->findOrFail($dispute->id);
             if ($locked->status !== 'open') {
@@ -123,26 +125,40 @@ class DisputeService
             if ($resolution === 'driver_paid') {
                 $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_RELEASE_APPROVED]);
                 $load->shipment()->update(['status' => Shipment::STATUS_COMPLETED, 'owner_approved_at' => now()]);
-                $this->payouts->createForLoad($load->fresh());
             } else {
-                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_REFUNDED]);
+                // İade sonucu gelene kadar havuz "askıda" kalır; iade başarılıysa "iade edildi" olur, reddedilirse finans ekibi tamamlar.
+                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_ON_HOLD]);
                 $load->shipment()->update(['status' => Shipment::STATUS_COMPLETED, 'owner_rejected_at' => now()]);
-                $order = $load->paymentOrders()->where('status', 'paid')->latest()->first();
-                if ($order) {
-                    $this->payments->refund($order, (float) $order->amount, 'Uyuşmazlık kararı #'.$locked->id);
-                }
             }
 
             ActivityLog::record('dispute.resolved', "Uyuşmazlık #{$locked->id}: {$resolution}", $admin->id, $locked);
         });
 
         $load = $dispute->cargoLoad?->fresh();
+        $refunded = null;
+        if ($load && $resolution === 'driver_paid') {
+            $this->payouts->createForLoad($load);
+        } elseif ($load) {
+            $order = $load->paymentOrders()->where('status', 'paid')->latest()->first();
+            $refunded = $order ? $this->payments->refund($order, (float) $order->amount, 'Uyuşmazlık kararı #'.$dispute->id) : false;
+            if ($refunded) {
+                $load->update(['escrow_status' => Load::ESCROW_REFUNDED]);
+            }
+        }
         if ($shipment = $load?->shipment) {
             app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
         }
-        foreach (array_filter([$load?->cargoOwnerProfile?->user, $load?->driverProfile?->user]) as $user) {
+        $ownerUser = $load?->cargoOwnerProfile?->user;
+        foreach (array_filter([$ownerUser, $load?->driverProfile?->user]) as $user) {
+            $isOwner = $user->id === $ownerUser?->id;
+            $line = match (true) {
+                $resolution === 'driver_paid' => 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.',
+                $refunded === true => 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli yük sahibine iade edildi (bankaya göre 1-10 iş günü).',
+                default => 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedelinin iadesi finans ekibi tarafından tamamlanacak.',
+            };
             $this->notifications->notify($user, 'Uyuşmazlık karara bağlandı',
-                [$resolution === 'driver_paid' ? 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.' : 'Hakem kararı yük sahibi lehine sonuçlandı; navlun bedeli iade edilecek.', 'Karar notu: '.mb_substr($notes, 0, 300)], 'dispute');
+                [$line, 'Karar notu: '.mb_substr($notes, 0, 300)],
+                route($isOwner ? 'cargo-owner.disputes.index' : 'driver.disputes.index'), 'Uyuşmazlığı görüntüle', 'dispute');
         }
     }
 }

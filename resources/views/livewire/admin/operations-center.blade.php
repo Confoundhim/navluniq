@@ -72,6 +72,7 @@ new class extends Component {
                 if ($locked->escrow_status !== Load::ESCROW_PENDING || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
                     throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
                 }
+                \App\Services\LoadService::closeOpenOrders($locked); // ödeme ekranı yeni açılmışsa iptal reddedilir, eski açık emirler kapanır
 
                 $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
                 $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
@@ -95,6 +96,33 @@ new class extends Component {
 
             $this->suspendReason = '';
             session()->flash('success_message', 'İlan iptal edildi, bekleyen teklifler reddedildi.');
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
+    }
+
+    /** Ödemesi alınmış ama yükü henüz alınmamış sevkiyat: iptal + yük sahibine iade (destek işlemi). */
+    public function cancelPaid(): void
+    {
+        if (! auth()->user()->can('manage operations')) {
+            session()->flash('error_message', 'Bu işlem için "manage operations" izni gerekir.');
+
+            return;
+        }
+        $this->validate(['suspendReason' => 'required|string|min:5|max:1000'], [
+            'suspendReason.required' => 'İptal gerekçesi zorunludur.',
+            'suspendReason.min' => 'Gerekçe en az 5 karakter olmalıdır.',
+        ]);
+        $load = Load::query()->find($this->selectedId);
+        if (! $load) {
+            session()->flash('error_message', 'İlan bulunamadı.');
+
+            return;
+        }
+        try {
+            $refunded = app(\App\Services\LoadService::class)->cancelPaid($load, auth()->user(), $this->suspendReason);
+            $this->suspendReason = '';
+            session()->flash('success_message', $refunded ? 'Sevkiyat iptal edildi, navlun bedeli iade edildi.' : 'Sevkiyat iptal edildi; iade ödeme kuruluşunda yapılamadı, Finans → Ödeme emirleri sekmesinde "İade yapıldı" ile tamamlanmalı.');
         } catch (\RuntimeException $e) {
             session()->flash('error_message', $e->getMessage());
         }
@@ -353,8 +381,15 @@ new class extends Component {
                                 @error('suspendReason') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                                 <button type="button" wire:click="suspend" wire:confirm="İlan iptal edilecek ve bekleyen teklifler reddedilecek. Devam edilsin mi?" wire:loading.attr="disabled" class="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold">Askıya al</button>
                             </div>
+                        @elseif($selected->escrow_status === \App\Models\Load::ESCROW_PAID && $selected->status === \App\Models\Load::STATUS_ASSIGNED)
+                            <div class="space-y-2">
+                                <label class="form-label">İptal et ve navlun bedelini iade et (yük henüz alınmadı)</label>
+                                <textarea wire:model="suspendReason" rows="2" placeholder="Gerekçe (iki tarafa iletilir)" class="{{ $input }}"></textarea>
+                                @error('suspendReason') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                                <button type="button" wire:click="cancelPaid" wire:confirm="Sevkiyat iptal edilecek, navlun bedeli yük sahibine iade edilecek ve şoförün işi kapanacak. Devam edilsin mi?" wire:loading.attr="disabled" class="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold">İptal et ve iade et</button>
+                            </div>
                         @else
-                            <p class="text-[11px] text-neutral-400">Ödemesi alınmış veya yola çıkmış ilanlar buradan iptal edilemez; havuz bakiyesi yalnız uyuşmazlık kararıyla değişir.</p>
+                            <p class="text-[11px] text-neutral-400">Yola çıkmış sevkiyatlar buradan iptal edilemez; havuz bakiyesi yalnız uyuşmazlık kararıyla değişir.</p>
                         @endif
                     </div>
                 @endif

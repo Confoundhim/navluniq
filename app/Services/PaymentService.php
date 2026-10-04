@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Load;
 use App\Models\PaymentEvent;
 use App\Models\PaymentOrder;
@@ -189,11 +190,13 @@ class PaymentService
 
         $payloadJson = json_encode($result->payload, JSON_UNESCAPED_UNICODE) ?: '{}';
 
-        $processed = DB::transaction(function () use ($order, $result, $payloadJson): bool {
+        // Sonuç: 'paid' (olağan), 'mismatch' (tutar uyuşmadı; ödeme kabul edilmedi), 'orphan' (ilan bu arada iptal edilmiş; para
+        // geldi, iade edilecek) ya da null (tekrar/başarısız bildirim).
+        $outcome = DB::transaction(function () use ($order, $result, $payloadJson): ?string {
             $locked = PaymentOrder::query()->lockForUpdate()->findOrFail($order->id);
 
             if (PaymentEvent::query()->where('payment_order_id', $locked->id)->where('provider_event_id', $result->eventId)->exists()) {
-                return false;
+                return null;
             }
 
             PaymentEvent::create([
@@ -207,20 +210,29 @@ class PaymentService
                 'failure_message' => $result->failureMessage,
             ]);
 
-            if ($locked->status === 'paid') {
-                return false;
+            if (in_array($locked->status, ['paid', 'refunded', 'refund_pending'], true)) {
+                return null;
             }
 
             if ($result->status !== 'success') {
-                $locked->update(['status' => 'failed', 'failed_at' => now()]);
+                if ($locked->status !== 'cancelled') {
+                    $locked->update(['status' => 'failed', 'failed_at' => now()]);
+                }
 
-                return false;
+                return null;
             }
 
+            // Tutar uyuşmazlığı (eksik tahsilat, kur/yuvarlama, kurcalanmış tutar): ödeme KABUL EDİLMEZ; sipariş "failed" kalır,
+            // kayıt saklanır, yönetici ve yük sahibi bilgilendirilir. Eksik tahsilatla şoföre tam ödeme yapılmaz.
             if ($result->paidAmount !== null && abs($result->paidAmount - (float) $locked->amount) > 0.01) {
                 Log::critical('Ödeme tutar uyuşmazlığı.', ['order' => $locked->id, 'expected' => $locked->amount, 'paid' => $result->paidAmount]);
+                $locked->update(['status' => 'failed', 'failed_at' => now(), 'provider_reference' => $result->providerReference,
+                    'failure_message' => mb_substr('Tutar uyuşmazlığı: beklenen '.number_format((float) $locked->amount, 2, ',', '.').' ₺, bildirilen '.number_format($result->paidAmount, 2, ',', '.').' ₺', 0, 500)]);
+
+                return 'mismatch';
             }
 
+            $wasCancelled = $locked->status === 'cancelled';
             $locked->update([
                 'status' => 'paid',
                 'paid_at' => now(),
@@ -229,19 +241,60 @@ class PaymentService
 
             if ($locked->purpose === self::PURPOSE_ESCROW) {
                 $load = Load::query()->lockForUpdate()->find($locked->load_id);
-                if ($load && $load->escrow_status === Load::ESCROW_PENDING) {
+                // İlan bu arada iptal edilmiş ya da sipariş iptal edilmişse para havuza girmez; iade yoluna gider.
+                if (! $load || $load->status === Load::STATUS_CANCELLED || $wasCancelled) {
+                    return 'orphan';
+                }
+                if ($load->escrow_status === Load::ESCROW_PENDING) {
                     $load->update(['escrow_status' => Load::ESCROW_PAID]);
                 }
             }
 
-            return true;
+            return 'paid';
         }, 3);
 
-        if ($processed) {
-            $this->afterPaid($order->fresh());
-        }
+        match ($outcome) {
+            'paid' => $this->afterPaid($order->fresh()),
+            'mismatch' => $this->afterMismatch($order->fresh(), $result),
+            'orphan' => $this->afterOrphanPayment($order->fresh()),
+            default => null,
+        };
 
-        return [$result->ackBody, 200, $this->resultRedirect($result, $order, $result->status === 'success')];
+        return [$result->ackBody, 200, $this->resultRedirect($result, $order, $outcome === 'paid')];
+    }
+
+    /** Tutar uyuşmayan bildirim: yönetici ve yük sahibi haberdar edilir; para havuza alınmaz. */
+    private function afterMismatch(PaymentOrder $order, WebhookResult $result): void
+    {
+        $this->notifications->notifyAdmins('manage payouts', 'Ödeme tutarı uyuşmuyor',
+            ["Sipariş {$order->merchant_oid}: beklenen ".number_format((float) $order->amount, 2, ',', '.').' ₺, sağlayıcı '.number_format((float) $result->paidAmount, 2, ',', '.').' ₺ bildirdi. Ödeme kabul edilmedi; sağlayıcı panelinden tahsilatı kontrol edin.'],
+            route('admin.finance'), 'Finans ekranı', 'admin');
+        if ($payer = $order->user) {
+            $this->notifications->notify($payer, 'Ödemeniz doğrulanamadı',
+                ['Ödeme sağlayıcısından gelen tutar sipariş tutarıyla uyuşmadı; ödeme kabul edilmedi. Hesabınızdan çekim olduysa destek ekibi sizinle iletişime geçecek.'],
+                $order->load_id ? route('cargo-owner.shipments.show', $order->load_id) : route('home'), 'Sevkiyatı görüntüle', 'payment');
+        }
+    }
+
+    /** İptal edilmiş ilana ödeme geldi: para geldiği için muhasebeye yazılır, hemen iade yoluna sokulur. */
+    private function afterOrphanPayment(PaymentOrder $order): void
+    {
+        try {
+            $this->ledger->post('escrow_in', 'Navlun tahsilatı (iptal edilmiş ilan) #'.$order->load_id, [
+                ['account_code' => 'escrow_cash', 'direction' => 'debit', 'amount' => $order->amount],
+                ['account_code' => 'escrow_liability', 'direction' => 'credit', 'amount' => $order->amount],
+            ], PaymentOrder::class, $order->id);
+        } catch (\Throwable $e) {
+            Log::error('Navlun tahsilatı muhasebeye yazılamadı.', ['order' => $order->id, 'error' => $e->getMessage()]);
+        }
+        $refunded = $this->refund($order, (float) $order->amount, 'İptal edilmiş ilana gelen ödeme');
+        if ($payer = $order->user) {
+            $this->notifications->notify($payer, $refunded ? 'Ödemeniz iade edildi' : 'Ödemeniz iade sürecinde',
+                [$refunded
+                    ? 'İlan ödeme tamamlanmadan iptal edildiği için navlun bedeli kartınıza iade edildi; bankanıza göre 1-10 iş günü içinde hesabınızda görünür.'
+                    : 'İlan ödeme tamamlanmadan iptal edildi. Navlun bedelinin iadesi finans ekibi tarafından tamamlanacak; sonuç size bildirilecek.'],
+                route('cargo-owner.loads.index'), 'İlanlarım', 'payment');
+        }
     }
 
     private function resultRedirect(WebhookResult $result, ?PaymentOrder $order, bool $ok): ?string
@@ -304,7 +357,7 @@ class PaymentService
         if ($result !== null) {
             PaymentEvent::create([
                 'payment_order_id' => $order->id,
-                'provider_event_id' => 'refund:'.now()->timestamp,
+                'provider_event_id' => 'refund:'.$order->id.':'.uniqid('', true), // aynı saniyede iki iade çakışmasın
                 'event_type' => 'refund',
                 'status' => $succeeded ? 'success' : 'failed',
                 'payload_hash' => hash('sha256', $result->rawResponse),
@@ -325,11 +378,47 @@ class PaymentService
                 Log::error('İade muhasebeye yazılamadı.', ['order' => $order->id, 'error' => $e->getMessage()]);
             }
         } else {
-            $order->update(['status' => 'refund_pending']);
+            $order->update(['status' => 'refund_pending', 'failure_message' => mb_substr((string) ($result?->failureMessage ?: 'Ödeme kuruluşu iadeyi yapamadı ya da yapılandırılmamış.'), 0, 500)]);
             Log::warning('İade manuel olarak tamamlanmalı.', ['order' => $order->id, 'amount' => $amount, 'reason' => $reason]);
+            // Sessiz kalmaz: finans ekibi iadeyi sağlayıcı panelinden yapıp Finans ekranında "İade yapıldı" der.
+            $this->notifications->notifyAdmins('manage payouts', 'İade tamamlanamadı, elle yapılmalı',
+                ["Sipariş {$order->merchant_oid} (".number_format($amount, 2, ',', '.').' ₺) için iade ödeme kuruluşunda yapılamadı: '.($result?->failureMessage ?: 'kuruluş yapılandırılmamış').'. Gerekçe: '.$reason,
+                    'İadeyi sağlayıcı panelinden yapın, sonra Finans → Ödeme emirleri sekmesinde "İade yapıldı" deyin.'],
+                route('admin.finance'), 'Finans ekranı', 'admin');
         }
 
         return $succeeded;
+    }
+
+    /**
+     * Finans ekibi iadeyi sağlayıcı panelinden elle yaptı: sipariş "refunded" olur, defter ve ilan havuz durumu düzelir,
+     * yük sahibine haber verilir. Yalnız "refund_pending" siparişler için.
+     */
+    public function markRefundedManually(PaymentOrder $order, User $admin, string $reference): void
+    {
+        if ($order->status !== 'refund_pending') {
+            throw new RuntimeException('Yalnız iadesi bekleyen siparişler işaretlenebilir.');
+        }
+        $order->update(['status' => 'refunded', 'refunded_at' => now(), 'failure_message' => null, 'provider_reference' => mb_substr('iade:'.trim($reference), 0, 120)]);
+        try {
+            $this->ledger->post('refund', 'Elle iade #'.$order->load_id.' '.$reference, [
+                ['account_code' => 'escrow_liability', 'direction' => 'debit', 'amount' => $order->amount],
+                ['account_code' => 'escrow_cash', 'direction' => 'credit', 'amount' => $order->amount],
+            ], PaymentOrder::class, $order->id);
+        } catch (\Throwable $e) {
+            Log::error('Elle iade muhasebeye yazılamadı.', ['order' => $order->id, 'error' => $e->getMessage()]);
+        }
+        if ($load = $order->cargoLoad) {
+            if (in_array($load->escrow_status, [Load::ESCROW_PAID, Load::ESCROW_ON_HOLD], true)) {
+                $load->update(['escrow_status' => Load::ESCROW_REFUNDED]);
+            }
+        }
+        ActivityLog::record('payment.refunded_manually', "Sipariş {$order->merchant_oid} elle iade edildi ({$reference})", $admin->id, $order);
+        if ($payer = $order->user) {
+            $this->notifications->notify($payer, 'İadeniz tamamlandı',
+                [number_format((float) $order->amount, 2, ',', '.').' ₺ tutarındaki navlun bedeli iade edildi; bankanıza göre 1-10 iş günü içinde hesabınızda görünür. Referans: '.trim($reference)],
+                $order->load_id ? route('cargo-owner.shipments.show', $order->load_id) : route('cargo-owner.loads.index'), 'Görüntüle', 'payment');
+        }
     }
 
     private function merchantOid(string $prefix): string
