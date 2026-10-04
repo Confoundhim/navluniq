@@ -71,10 +71,16 @@ class LoadStandardizer
         $vehicle = VehicleClassifier::analyze($raw, $weight);
         $vehicleType = $vehicle['type'];
         $vehicleSource = $vehicle['source'];
-        $aiType = VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null)) ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
-        if ($aiType !== null && ($vehicleType === null || $vehicle['confidence'] !== 'high')) {
-            $vehicleType = $aiType;
-            $vehicleSource = 'ai';
+        // Dış kaynaktan (yapay zeka, gönderen şablonu, yönetici) gelen araç tipi yalnız kaynağı öyle işaretliyse dış sayılır. Eski sürüm
+        // kuralın kendi okuduğu aracı da ($parsed['vehicle_type'] kural ayrıştırmasından gelir) sınıflandırıcı "high" demediğinde
+        // "ai" kaynaklı yazıyordu; karar puanı ve filtre bu kayıtları tahmin gibi görüyordu (hâlbuki "tenteli" açıkça yazılmıştı).
+        $parsedSource = $parsed['vehicle_type_source'] ?? null;
+        $externalType = in_array($parsedSource, ['ai', 'template', 'admin', 'keyword'], true) && VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null))
+            ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
+        // Kuralın kendi "keyword" okuması yalnız sınıflandırıcı hiçbir şey bulamadıysa taşınır (aynı metin, aynı kaynak adı).
+        if ($externalType !== null && ($vehicleType === null || ($vehicle['confidence'] !== 'high' && $parsedSource !== 'keyword'))) {
+            $vehicleType = $externalType;
+            $vehicleSource = $parsedSource;
         }
         // "Araç fark etmez": açıkça araç adı yazılmadıysa tip boş kalır, ilan her araca açık sayılır.
         $vehicleAny = ! empty($parsed['vehicle_any']) && ($parsed['vehicle_type_source'] ?? null) === 'admin';
@@ -90,7 +96,7 @@ class LoadStandardizer
         }
         if ($vehicleType === null && ! $vehicleAny) {
             $warnings[] = 'vehicle_unresolved';
-        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai'], true)) {
+        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai', 'template', 'admin'], true)) {
             $warnings[] = 'vehicle_inferred';
         }
 
@@ -175,7 +181,8 @@ class LoadStandardizer
             'price' => $load->price,
             'price_unit' => $load->price_unit,
             'currency' => $load->currency,
-            'vehicle_type' => $load->vehicle_type_source === 'ai' ? $load->vehicle_type : null,
+            'vehicle_type' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type : null,
+            'vehicle_type_source' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type_source : null,
             'body_types' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_types : null,
             'body_type_source' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_type_source : null,
             'load_kind' => $load->load_kind,

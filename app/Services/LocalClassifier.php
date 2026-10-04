@@ -190,9 +190,24 @@ class LocalClassifier
         return ['docs_load' => $l, 'docs_other' => $o, 'tokens' => $tokens, 'ready' => $l >= self::MIN_DOCS && $o >= self::MIN_DOCS];
     }
 
+    /** Reddedilmiş kayıt "ilan değil" örneği mi: kendiliğinden ret, tekrar ve "ilan değil" dışı yönetici gerekçesi değildir. */
+    public static function isNegativeExample(ScrapedLoad $load): bool
+    {
+        if ($load->status !== 'rejected') {
+            return false;
+        }
+        $meta = (array) ($load->parse_metadata ?? []);
+        if (! empty($meta['auto_rejected']) || ! empty($meta['duplicate_of']) || ! empty($meta['superseded_by'])) {
+            return false;
+        }
+        $reason = $meta['reject_reason'] ?? null;
+
+        return $reason === null || $reason === 'not_load';
+    }
+
     /**
-     * Sayaçları sıfırlayıp geçmişten yeniden öğrenir: yayınlanmış adaylar ilan, reddedilenler ve yapay zekanın
-     * yüksek güvenle "ilan değil" dedikleri ilan-değil örneğidir.
+     * Sayaçları sıfırlayıp geçmişten yeniden öğrenir: yayınlanmış adaylar ilan, yöneticinin "ilan değil" diye reddettikleri
+     * ve sözlükteki "ilan değil" ifadeleri ilan-değil örneğidir.
      *
      * @return array{load:int, other:int}
      */
@@ -213,14 +228,19 @@ class LocalClassifier
                     $load++;
                 }
             });
+        // Olumsuz örnek: yöneticinin "ilan değil" reddi ve sözlükteki "ilan değil" ifadesi. Kendiliğinden reddedilen (puan/yaş),
+        // tekrar diye kapatılan ve "tekrar / eski / yanlış rota" gerekçeli yönetici retleri gerçek yük ilanıdır; onları "ilan değil"
+        // diye öğretmek sınıflandırıcıyı ilan metnine karşı zehirliyordu. Yapay zekanın "ilan değil" dediği metinler de alınmaz:
+        // o karar da kesin değildir ve çoğu zaten yük mesajına benzer.
         ScrapedLoad::withTrashed()->where('status', 'rejected')->orderBy('id')->chunk(200, function ($rows) use (&$other): void {
             foreach ($rows as $row) {
+                if (! self::isNegativeExample($row)) {
+                    continue;
+                }
                 $this->train((string) $row->raw_message, false);
                 $other++;
             }
         });
-        // Olumsuz örnek: yönetici reddi ve sözlükteki "ilan değil" ifadesi. Yapay zekanın "ilan değil" dediği metinler alınmaz:
-        // o karar da kesin değildir ve çoğu zaten yük mesajına benzer (sınıflandırıcıyı yanıltır).
         IntakeEvent::query()->where('status', 'filtered')->where('reason', 'lexicon_not_load')->whereNotNull('excerpt')->orderBy('id')->chunk(200, function ($rows) use (&$other): void {
             foreach ($rows as $row) {
                 $this->train((string) $row->excerpt, false);

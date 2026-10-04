@@ -115,6 +115,7 @@ class ScrapedLoadAutomationTest extends TestCase
     {
         Settings::set('scraper_auto_approve', '1');
         Settings::set('scraper_auto_approve_require_price', '1');
+        Settings::set('scraper_incomplete_publish', '0'); // fiyatsız adaylar eksik bilgili yayına gitmesin; engelli kalsınlar
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
@@ -126,12 +127,16 @@ class ScrapedLoadAutomationTest extends TestCase
         $this->assertSame(1, $service->autoApproveDue());
         $this->assertSame('public', $eligible->fresh()->visibility);
 
-        // Kuyrukta 48 saatten uzun bekleyen engelli aday kendiliğinden reddedilir (ilan güncelliğini yitirdi).
-        $stale = $this->candidate($source, ['price' => null]);
+        // Kuyrukta 48 saatten uzun bekleyen aday yalnız rotası/ili çözülemiyorsa kendiliğinden reddedilir; fiyat/puan gibi yumuşak
+        // engelle bekleyen aday ilan olmaktan çıkmaz (2026-10-04: puan bandındaki adaylar 48 saatte boşuna reddediliyordu).
+        $softStale = $this->candidate($source, ['price' => null]);
+        $softStale->forceFill(['created_at' => now()->subHours(50)])->save();
+        $stale = $this->candidate($source, ['price' => 45000, 'delivery_location' => 'Bilinmeyenköy', 'delivery_province_code' => null]);
         $stale->forceFill(['created_at' => now()->subHours(50)])->save();
         $this->assertSame(0, $service->autoApproveDue());
         $this->assertSame('rejected', $stale->fresh()->status);
         $this->assertStringContainsString('48 saatten uzun', $stale->fresh()->meta('auto_rejected')['reason']);
+        $this->assertSame('parsed_success', $softStale->fresh()->status, 'yumuşak engelli aday yaşla reddedilmez');
         $this->assertSame(0, Settings::int('ai_local_docs_other'), 'Otomatik ret sınıflandırıcıya "ilan değil" diye öğretilmez');
 
         // Onay sırasında hata çıkarsa aday "uygun" görünmez; neden kayda yazılır, başarılı onay temizler.
