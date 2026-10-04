@@ -11,7 +11,7 @@ class ReviewService
 {
     public function submit(Load $load, User $reviewer, int $rating, ?string $comment = null): Review
     {
-        if (! in_array($load->status, [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED], true)) {
+        if (! in_array($load->status, [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED], true) || $load->isClosedWithRefund()) {
             throw new RuntimeException('Değerlendirme yalnız teslim edilmiş sevkiyatlar için yapılabilir.');
         }
 

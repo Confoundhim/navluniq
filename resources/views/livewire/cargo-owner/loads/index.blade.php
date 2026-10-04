@@ -206,6 +206,7 @@ class extends Component {
                                 İptal et
                             </button>
                         @elseif($pendingPayment)
+                            @if($load->payment_due_at)<span class="text-[11px] text-amber-600 self-center">Ödeme için son: {{ $load->payment_due_at->format('d.m H:i') }}</span>@endif
                             <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center">
                                 Ödemeye git
                             </a>

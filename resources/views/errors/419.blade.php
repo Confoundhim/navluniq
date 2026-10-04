@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 419, 'title' => 'Oturum süresi doldu', 'message' => 'Sayfa uzun süre açık kaldığı için güvenlik anahtarı eskidi. Sayfayı yenileyip işlemi tekrar deneyin; girdiğiniz bilgiler gönderilmemiştir.', 'primary' => [str_starts_with((string) url()->previous(), url('/')) ? url()->previous() : '/', 'Geri dön ve yenile']])

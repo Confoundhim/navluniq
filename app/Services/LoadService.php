@@ -2,12 +2,16 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\CargoOwnerProfile;
 use App\Models\Load;
+use App\Models\PaymentOrder;
 use App\Models\Shipment;
+use App\Models\User;
 use App\Support\BodyTypes;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -61,7 +65,7 @@ class LoadService
             ]);
 
             if ($eIrsaliyeFile) {
-                $path = $eIrsaliyeFile->storeAs('loads/'.$load->id, 'e-irsaliye-'.$load->id.'.'.$eIrsaliyeFile->getClientOriginalExtension(), 'private');
+                $path = $eIrsaliyeFile->storeAs('loads/'.$load->id, 'e-irsaliye-'.$load->id.'.'.UploadName::extension($eIrsaliyeFile), 'private');
                 $load->update(['e_irsaliye_path' => $path]);
             }
 
@@ -81,7 +85,8 @@ class LoadService
             throw new RuntimeException('Bu ilan size ait değil.');
         }
 
-        $data = $source->only(['pickup_location', 'delivery_location', 'pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng', 'vehicle_type', 'goods_type', 'weight', 'volume', 'price']);
+        // Kasa tipi, yük biçimi ve teslim noktaları da taşınır; aksi halde "tenteli / 13.60" şartı kaybolup yanlış şoförlere bildirim giderdi.
+        $data = $source->only(['pickup_location', 'delivery_location', 'pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng', 'vehicle_type', 'goods_type', 'weight', 'volume', 'price', 'body_types', 'load_kind']);
         $data['pickup_date'] = now()->addDay()->startOfDay();
         $data['delivery_date'] = $source->delivery_date && $source->pickup_date
             ? $data['pickup_date']->copy()->addDays(max(0, $source->pickup_date->diffInDays($source->delivery_date)))
@@ -90,7 +95,10 @@ class LoadService
         return $this->publish($owner, $data);
     }
 
-    /** Ödeme alınmamış bir ilanı iptal eder; bekleyen teklifler reddedilir. */
+    /** Ödeme ekranı açılmış (sipariş "pending") ilan bu kadar dakika iptal edilemez: sağlayıcı sonucu gelmeden iptal, parayı havada bırakırdı. */
+    public const PAYMENT_GRACE_MINUTES = 15;
+
+    /** Ödeme alınmamış bir ilanı iptal eder; bekleyen teklifler reddedilir, açık ödeme emirleri kapatılır. */
     public function cancel(Load $load, CargoOwnerProfile $owner, ?string $reason = null): void
     {
         $affected = collect();
@@ -107,6 +115,7 @@ class LoadService
             if (! $cancellable) {
                 throw new RuntimeException('Ödemesi yapılmış veya yola çıkmış bir sevkiyat buradan iptal edilemez. Lütfen destek ekibiyle iletişime geçin.');
             }
+            self::closeOpenOrders($locked);
 
             $affected = $locked->offers()->with('driverProfile.user')->whereIn('status', ['pending', 'accepted'])->get();
             $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
@@ -129,6 +138,115 @@ class LoadService
                     route('driver.loads.index'), 'İlan havuzuna git', 'load');
             }
         }
+    }
+
+    /**
+     * Açık ödeme emirlerini kapatır. Ödeme ekranı yeni açılmış bir sipariş varsa (sağlayıcı sonucu daha gelmemiş olabilir) iptal
+     * reddedilir; daha eski açık emirler "cancelled" olur. Sonradan yine de "başarılı" bildirimi gelirse PaymentService bunu
+     * iptal edilmiş ilana gelen ödeme sayıp iadeye sokar.
+     */
+    public static function closeOpenOrders(Load $locked): void
+    {
+        $open = PaymentOrder::query()->where('load_id', $locked->id)->where('purpose', PaymentService::PURPOSE_ESCROW)->whereIn('status', ['created', 'pending'])->get();
+        foreach ($open as $order) {
+            if ($order->status === 'pending' && $order->updated_at?->gt(now()->subMinutes(self::PAYMENT_GRACE_MINUTES))) {
+                throw new RuntimeException('Bu ilan için ödeme işlemi başlatılmış; sağlayıcının sonucu gelmeden iptal edilemez. Ödemeyi tamamlamadıysanız '.self::PAYMENT_GRACE_MINUTES.' dakika sonra yeniden deneyin.');
+            }
+        }
+        PaymentOrder::query()->whereIn('id', $open->pluck('id'))->update(['status' => 'cancelled', 'failed_at' => now()]);
+    }
+
+    /**
+     * Yönetici (destek) iptali: ödemesi alınmış ama yükü henüz alınmamış sevkiyat iptal edilir, navlun bedeli yük sahibine iade
+     * edilir (kuruluş reddederse iade finans ekibine düşer), şoförün işi kapanır, iki taraf bilgilendirilir. Yola çıkmış sevkiyat
+     * buradan iptal edilmez (uyuşmazlık süreci).
+     */
+    public function cancelPaid(Load $load, User $admin, string $reason): bool
+    {
+        $driverUser = null;
+        DB::transaction(function () use ($load, $admin, $reason, &$driverUser): void {
+            $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
+            if ($locked->status !== Load::STATUS_ASSIGNED || $locked->escrow_status !== Load::ESCROW_PAID) {
+                throw new RuntimeException('Yalnız ödemesi alınmış ve henüz yola çıkmamış sevkiyatlar iade ile iptal edilebilir.');
+            }
+            $driverUser = $locked->driverProfile?->user;
+            $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
+            $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
+            $locked->update([
+                'status' => Load::STATUS_CANCELLED,
+                'rejection_reason' => 'Yönetici kararı: '.mb_substr($reason, 0, 900),
+                'cancelled_at' => now(),
+                'visibility' => 'private',
+            ]);
+            ActivityLog::record('load.cancelled_paid', "İlan #{$locked->id} ödeme sonrası yönetici tarafından iptal edildi: {$reason}", $admin->id, $locked);
+        });
+        app(DriverTripService::class)->closeForLoad($load->id);
+
+        // İade kilit dışında: sağlayıcı çağrısı yavaşsa veritabanı satırları beklemesin.
+        $order = $load->paymentOrders()->where('status', 'paid')->latest()->first();
+        $refunded = $order ? app(PaymentService::class)->refund($order, (float) $order->amount, 'Yönetici iptali #'.$load->id.': '.$reason) : false;
+        if ($refunded) {
+            $load->update(['escrow_status' => Load::ESCROW_REFUNDED]);
+        }
+
+        $notifications = app(NotificationService::class);
+        if ($owner = $load->cargoOwnerProfile?->user) {
+            $notifications->notify($owner, 'Sevkiyat iptal edildi, navlun bedeli iade ediliyor',
+                ["#{$load->id} numaralı sevkiyat destek ekibi tarafından iptal edildi. Gerekçe: ".mb_substr($reason, 0, 300),
+                    $refunded ? 'Navlun bedeli kartınıza iade edildi; bankanıza göre 1-10 iş günü içinde hesabınızda görünür.' : 'Navlun bedelinin iadesi finans ekibi tarafından tamamlanacak; sonuç size bildirilecek.'],
+                route('cargo-owner.loads.index'), 'İlanlarım', 'load');
+        }
+        if ($driverUser) {
+            $notifications->notify($driverUser, 'Sevkiyat iptal edildi',
+                ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı destek ekibi tarafından iptal edildi; iş kaydınız kapandı.", 'Gerekçe: '.mb_substr($reason, 0, 300)],
+                route('driver.loads.index'), 'İlan havuzuna git', 'load');
+        }
+
+        return $refunded;
+    }
+
+    /**
+     * Yükleme tarihi geçmiş, hâlâ teklif bekleyen ilanları kapatır (zamanlanmış görev): bekleyen teklifler kapanır,
+     * yük sahibine "Tekrar yayınla" bağlantısıyla haber verilir. Havuzda geçmiş tarihli ilan kalmaz.
+     */
+    public function expireStale(): int
+    {
+        $grace = max(0, Settings::int('load_expiry_grace_days'));
+        $count = 0;
+        Load::query()->with(['cargoOwnerProfile.user', 'offers.driverProfile.user'])
+            ->where('status', Load::STATUS_ACTIVE)->whereNotNull('pickup_date')
+            ->where('pickup_date', '<', today()->subDays($grace))
+            ->orderBy('id')->limit(200)->get()
+            ->each(function (Load $load) use (&$count): void {
+                $pending = $load->offers->where('status', 'pending');
+                DB::transaction(function () use ($load): void {
+                    $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
+                    if ($locked->status !== Load::STATUS_ACTIVE) {
+                        return;
+                    }
+                    $locked->offers()->where('status', 'pending')->update(['status' => 'expired', 'responded_at' => now()]);
+                    $locked->update(['status' => Load::STATUS_CANCELLED, 'rejection_reason' => 'Yükleme tarihi geçti; ilan kendiliğinden kapandı.', 'cancelled_at' => now(), 'visibility' => 'private']);
+                });
+                $count++;
+                $notifications = app(NotificationService::class);
+                if ($owner = $load->cargoOwnerProfile?->user) {
+                    $notifications->notify($owner, 'İlanınızın yükleme tarihi geçti',
+                        ["{$load->pickup_location} → {$load->delivery_location} ilanı yükleme tarihi geçtiği için kapandı.", 'Yük hâlâ taşınacaksa ilanı yeni tarihle tek dokunuşla tekrar yayınlayabilirsiniz.'],
+                        route('cargo-owner.loads.index'), 'Tekrar yayınla', 'load');
+                }
+                foreach ($pending as $offer) {
+                    if ($driverUser = $offer->driverProfile?->user) {
+                        $notifications->notify($driverUser, 'İlan kapandı, teklifiniz düştü',
+                            ["{$load->pickup_location} → {$load->delivery_location} ilanı yükleme tarihi geçtiği için kapandı."],
+                            route('driver.loads.index'), 'İlan havuzuna git', 'offer', sendMail: false);
+                    }
+                }
+            });
+        if ($count > 0) {
+            app(LoadStatsService::class)->forget();
+        }
+
+        return $count;
     }
 
     public function eIrsaliyeExists(Load $load): bool

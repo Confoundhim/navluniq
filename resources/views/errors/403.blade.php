@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 403, 'title' => 'Bu sayfaya erişim yetkiniz yok', 'message' => 'Bu içerik hesabınızın yetkisi dışında. Yanlış hesapla giriş yaptıysanız çıkış yapıp doğru hesapla girin.', 'primary' => ['/giris', 'Giriş yap']])

@@ -126,7 +126,7 @@ class DriverTrip extends Model
             Load::STATUS_ON_THE_WAY => 'Yolda',
             Load::STATUS_DELIVERED => 'Teslim edildi, onay bekleniyor',
             Load::STATUS_DISPUTED => 'Uyuşmazlık',
-            Load::STATUS_COMPLETED => 'Tamamlandı',
+            Load::STATUS_COMPLETED => $load->isClosedWithRefund() ? 'İade ile kapandı' : 'Tamamlandı',
             Load::STATUS_CANCELLED => 'İptal edildi',
             default => $load->statusLabel(),
         };

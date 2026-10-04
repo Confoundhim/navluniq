@@ -18,6 +18,7 @@ new class extends Component {
         'system_maintenance_note' => 'Bakım duyurusu',
         'review_login_emails' => 'İnceleme (test) hesapları: e-postalar (virgülle)',
         'review_login_code' => 'İnceleme hesapları için sabit doğrulama kodu (6 hane)',
+        'review_login_until' => 'Sabit kodun son geçerlilik tarihi (YYYY-AA-GG SS:DD; boşsa süresiz, yöneticiler canlıda bu kodla giremez)',
     ];
 
     public const LIMIT_LABELS = [
@@ -25,6 +26,8 @@ new class extends Component {
         'commission_cargo_owner' => 'Yük sahibi hizmet bedeli (%)',
         'delivery_auto_approval_hours' => 'Teslimat sonrası otomatik onay süresi (saat)',
         'offer_validity_days' => 'Teklif geçerlilik süresi (gün)',
+        'offer_payment_hours' => 'Teklif kabulünden sonra ödeme süresi (saat)',
+        'load_expiry_grace_days' => 'Yükleme tarihi geçen ilanın kapanma süresi (gün)',
         'premium_monthly_price' => 'Premium abonelik aylık ücreti (₺)',
         'min_load_price' => 'Asgari navlun bedeli (₺)',
         'return_load_radius_km' => 'Dönüş yükü arama yarıçapı (km)',
@@ -43,6 +46,7 @@ new class extends Component {
     public const SCRAPER_KEYS = [
         'scraper_free_delay_minutes' => 'Premium öncelik süresi (dakika)',
         'scraper_list_days' => 'Dış kaynak ilanının listede kalma süresi (gün)',
+        'intake_event_days' => 'Canlı akış kayıtlarının saklama süresi (gün)',
         'scraper_contact_message' => 'Dış kaynak ilanında WhatsApp hazır mesajı',
         'scraper_auto_approve' => 'Otomatik onay',
         'scraper_auto_approve_require_price' => 'Otomatik onay için fiyat zorunlu',
@@ -337,7 +341,7 @@ new class extends Component {
     {
         $raw = str_replace(',', '.', trim($raw));
 
-        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days', 'return_load_radius_km', 'return_load_mail_hours', 'trip_auto_close_days'], true)
+        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days', 'offer_payment_hours', 'load_expiry_grace_days', 'return_load_radius_km', 'return_load_mail_hours', 'trip_auto_close_days'], true)
             ? (string) (int) $raw
             : number_format((float) $raw, 2, '.', '');
     }
@@ -374,6 +378,7 @@ new class extends Component {
             'general.system_maintenance_note' => 'nullable|string|max:500',
             'general.review_login_emails' => ['nullable', 'string', 'max:500', 'regex:/^[^,\s]+@[^,\s]+(\s*,\s*[^,\s]+@[^,\s]+)*$/'],
             'general.review_login_code' => ['nullable', 'regex:/^\d{6}$/'],
+            'general.review_login_until' => ['nullable', 'date'],
         ], [
             'general.review_login_emails.regex' => 'E-postaları virgülle ayırarak yazın.',
             'general.review_login_code.regex' => 'Kod 6 haneli olmalıdır.',
@@ -407,6 +412,8 @@ new class extends Component {
             'limits.commission_cargo_owner' => 'required|numeric|min:0|max:100',
             'limits.delivery_auto_approval_hours' => 'required|integer|min:1|max:720',
             'limits.offer_validity_days' => 'required|integer|min:1|max:60',
+            'limits.offer_payment_hours' => 'required|integer|min:1|max:720',
+            'limits.load_expiry_grace_days' => 'required|integer|min:0|max:30',
             'limits.premium_monthly_price' => 'required|numeric|min:0|max:1000000',
             'limits.min_load_price' => 'required|numeric|min:0|max:10000000',
             'limits.return_load_radius_km' => 'required|integer|min:0|max:1000',
@@ -436,6 +443,7 @@ new class extends Component {
         $this->validate([
             'scraper.scraper_free_delay_minutes' => 'required|integer|min:0|max:1440',
             'scraper.scraper_list_days' => 'required|integer|min:1|max:365',
+            'scraper.intake_event_days' => 'required|integer|min:1|max:90',
             'scraper.scraper_contact_message' => 'nullable|string|max:600',
             'scraper.telegram_bot_token' => ['nullable', 'string', 'max:120', 'regex:/^\d+:[A-Za-z0-9_-]+$/'],
             'scraper.telegram_channel_id' => ['nullable', 'string', 'max:120', 'regex:/^(@[A-Za-z0-9_]{4,}|-?\d+)$/'],
@@ -489,7 +497,7 @@ new class extends Component {
             if (in_array($key, self::SCRAPER_TOGGLES, true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
-            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes', 'ai_suggest_auto_approve_hits', 'ai_audit_daily_count'], true)) {
+            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'intake_event_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes', 'ai_suggest_auto_approve_hits', 'ai_audit_daily_count'], true)) {
                 $value = (string) (int) $value;
                 $old = (string) Settings::int($key);
             } else {

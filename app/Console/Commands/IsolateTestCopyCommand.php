@@ -48,6 +48,9 @@ class IsolateTestCopyCommand extends Command
         // Yöneticiler e-posta beklemeden girer.
         Settings::set('review_login_emails', implode(', ', $emails));
         Settings::set('review_login_code', $code);
+        Settings::set('review_login_until', '');
+        // Deneme kopyası işareti: yöneticiler yalnız bu işaret varken sabit kodla girebilir (canlı sunucuda asla).
+        Settings::set('deneme_mode', 1);
 
         $this->info('Deneme kopyası yalıtıldı: e-posta ve Telegram gönderimi kapalı, ödeme sağlayıcısı boş.');
         $this->line('  Sabit kodla giriş: '.implode(', ', $emails).' · kod '.$code);

@@ -6,6 +6,7 @@ use App\Models\ScrapedLoad;
 use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
+use App\Support\SeriesAd;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
@@ -71,10 +72,16 @@ class LoadStandardizer
         $vehicle = VehicleClassifier::analyze($raw, $weight);
         $vehicleType = $vehicle['type'];
         $vehicleSource = $vehicle['source'];
-        $aiType = VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null)) ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
-        if ($aiType !== null && ($vehicleType === null || $vehicle['confidence'] !== 'high')) {
-            $vehicleType = $aiType;
-            $vehicleSource = 'ai';
+        // Dış kaynaktan (yapay zeka, gönderen şablonu, yönetici) gelen araç tipi yalnız kaynağı öyle işaretliyse dış sayılır. Eski sürüm
+        // kuralın kendi okuduğu aracı da ($parsed['vehicle_type'] kural ayrıştırmasından gelir) sınıflandırıcı "high" demediğinde
+        // "ai" kaynaklı yazıyordu; karar puanı ve filtre bu kayıtları tahmin gibi görüyordu (hâlbuki "tenteli" açıkça yazılmıştı).
+        $parsedSource = $parsed['vehicle_type_source'] ?? null;
+        $externalType = in_array($parsedSource, ['ai', 'template', 'admin', 'keyword'], true) && VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null))
+            ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
+        // Kuralın kendi "keyword" okuması yalnız sınıflandırıcı hiçbir şey bulamadıysa taşınır (aynı metin, aynı kaynak adı).
+        if ($externalType !== null && ($vehicleType === null || ($vehicle['confidence'] !== 'high' && $parsedSource !== 'keyword'))) {
+            $vehicleType = $externalType;
+            $vehicleSource = $parsedSource;
         }
         // "Araç fark etmez": açıkça araç adı yazılmadıysa tip boş kalır, ilan her araca açık sayılır.
         $vehicleAny = ! empty($parsed['vehicle_any']) && ($parsed['vehicle_type_source'] ?? null) === 'admin';
@@ -90,7 +97,7 @@ class LoadStandardizer
         }
         if ($vehicleType === null && ! $vehicleAny) {
             $warnings[] = 'vehicle_unresolved';
-        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai'], true)) {
+        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai', 'template', 'admin'], true)) {
             $warnings[] = 'vehicle_inferred';
         }
 
@@ -175,7 +182,8 @@ class LoadStandardizer
             'price' => $load->price,
             'price_unit' => $load->price_unit,
             'currency' => $load->currency,
-            'vehicle_type' => $load->vehicle_type_source === 'ai' ? $load->vehicle_type : null,
+            'vehicle_type' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type : null,
+            'vehicle_type_source' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type_source : null,
             'body_types' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_types : null,
             'body_type_source' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_type_source : null,
             'load_kind' => $load->load_kind,
@@ -197,6 +205,10 @@ class LoadStandardizer
         }
         if ($load->status === 'parsed_partial' && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
             $changes['status'] = 'parsed_success'; // iki uç da çözüldü: aday artık eksik değil
+        }
+        // Konum değiştiyse rota anahtarı da yenilenir; eski anahtar yanlış rotanın tekrar denetimine takılıyordu.
+        if (isset($changes['pickup_location']) || isset($changes['delivery_location'])) {
+            $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
         }
         $changes['parse_metadata'] = array_merge($meta, $std['metadata']);
         $load->forceFill($changes)->save();
@@ -300,6 +312,19 @@ class LoadStandardizer
         $prepared = TextPrep::prepare($raw);
         foreach (preg_split('/\n/u', $prepared) ?: [] as $line) {
             if (! preg_match('/\p{L}[\p{L} ().]*\s*\+\s*\p{L}/u', $line)) {
+                // "İstanbul Hadımköy yükleme, Ankara, Konya boşaltma tenteli": araç adedi yazmayan virgüllü boşaltma listesi = tek araç, sıralı teslim
+                $comma = SeriesAd::parseCommaListLine($line);
+                if ($comma !== null && ! $comma['header'] && (BodyTypes::detectVehicleCount(VehicleClassifier::normalize($raw)) ?? 1) < 2) {
+                    $stops = array_values(array_filter($comma['destinations'], fn ($s) => $s !== $pickupLabel));
+                    if (count($stops) >= 2) {
+                        if ($deliveryLabel !== null && in_array($deliveryLabel, $stops, true)) {
+                            $stops = array_values(array_unique(array_merge([$deliveryLabel], $stops)));
+                        }
+
+                        return $stops;
+                    }
+                }
+
                 continue;
             }
             // Satırın "+" zinciri: "GÖNEN+MERKEZ – TIR – 26 TON" → ["GÖNEN", "MERKEZ – TIR – 26 TON"]

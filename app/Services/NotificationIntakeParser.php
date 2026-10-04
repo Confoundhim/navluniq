@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Support\GoodsCatalog;
 use App\Support\TurkishCities;
 use App\Support\TurkishText;
+use App\Support\VehicleClassifier;
 
 /**
  * Android bildirim iletici (MacroDroid vb.) ile gelen WhatsApp bildirimini ilan mesajlarına ayırır.
@@ -20,21 +22,44 @@ use App\Support\TurkishText;
  */
 final class NotificationIntakeParser
 {
+    /** Özet / sistem bildirimi: başlıkta ya da metinde ("12 mesaj 3 sohbet", "5 new messages"). */
     private const SUMMARY_PATTERNS = [
         '/^\s*\d+\s+(?:yeni\s+)?mesaj/iu',
         '/\d+\s+sohbet(?:ten)?\b/iu',
         '/^\s*\d+\s+new\s+messages?/iu',
         '/^\s*(?:whatsapp|whatsapp business)\s*$/iu',
         '/mesaj(?:lar)?ınız var/iu',
-        '/yedekleme|backup|arama|call|görüşme|kaçırılan/iu',
     ];
+
+    /**
+     * Yedekleme / arama bildirimleri: yalnız BAŞLIKTA ve tam sözcük olarak bakılır. Eski sürüm bu sözcükleri metinde de
+     * sınırsız arıyordu; "fiyat görüşmeli", "yük arıyoruz", "görüşmek için arayın" yazan gerçek ilanlar özet sanılıp eleniyordu.
+     */
+    private const SYSTEM_TITLE_PATTERN = '/(?<!\p{L})(?:yedekleme|backup|arama|call|görüşme|kaçırılan|cevapsız)(?!\p{L})/iu';
+
+    /** Kısa metinde (40 karakterden az) sistem bildirimi: "Yedekleme tamamlandı", "Cevapsız arama". "arama/görüşme" tek başına yetmez. */
+    private const SYSTEM_SHORT_TEXT_PATTERN = '/(?<!\p{L})(?:yedekleme|backup|kaçırılan|cevapsız)(?!\p{L})/iu';
+
+    /**
+     * "Etiket: değer" biçimli ilan satırlarının etiket sözcükleri: bu sözcüklerden oluşan önek gönderen adı DEĞİLDİR
+     * ("Kalkış: Ankara", "Yükleme yeri: Gebze", "İletişim: 0532…"). Eski sürüm 11 sözcük dışındaki her öneki gönderen sayıp
+     * etiketli ilanı 3-4 parçaya bölüyor, parçaların hepsi eleniyordu.
+     */
+    private const LABEL_WORDS = ['kalkış', 'kalkis', 'varış', 'varis', 'çıkış', 'cikis', 'boşaltma', 'bosaltma', 'yükleme', 'yukleme', 'yeri', 'yer', 'noktası', 'noktasi', 'nokta',
+        'irtibat', 'iletişim', 'iletisim', 'nereden', 'nereye', 'ödeme', 'odeme', 'tarih', 'tarihi', 'kasa', 'adres', 'fiyat', 'fiyatı', 'fiyati', 'tonaj', 'not', 'notlar',
+        'araç', 'arac', 'yük', 'yuk', 'yükü', 'yuku', 'tel', 'telefon', 'rota', 'teslim', 'teslimat', 'güzergah', 'guzergah', 'güzergâh', 'navlun', 'ücret', 'ucret', 'miktar',
+        'ağırlık', 'agirlik', 'saat', 'numara', 'gsm', 'cep', 'whatsapp', 'firma', 'cinsi', 'tipi', 'türü', 'turu', 'dorse', 'bilgi', 'detay', 'açıklama', 'aciklama',
+        'malzeme', 'ürün', 'urun', 'mal', 'adet', 'palet', 'kg', 'ton', 'km', 'nakliye', 'taşıma', 'tasima', 'hedef', 'başlangıç', 'baslangic', 'bitiş', 'bitis', 'kişi', 'kisi',
+        'isim', 'ad', 'yetkili', 'sahibi', 'ilan', 'ilanı', 'ilani', 'lazım', 'lazim', 'aranıyor', 'araniyor', 'acil', 'önemli', 'onemli', 'dikkat', 'zaman', 'gün', 'gun',
+        'sevk', 'sevkiyat', 'tır', 'tir', 'kamyon', 'kamyonet', 'tenteli', 'frigo', 'damper', 'damperli', 'panelvan', 'kırkayak', 'kirkayak', 'uyarı', 'uyari', 'mesaj',
+        'konum', 'il', 'ilçe', 'ilce', 'şehir', 'sehir', 'depo', 'fabrika', 'liman', 'alıcı', 'alici', 'gönderici', 'gonderici', 'müşteri', 'musteri', 've', 'ile'];
 
     /** Facebook ekran dökümünde arayüz satırları (düğme, sayaç, zaman, rozet); gönderi metni değildir. */
     private const SCREEN_NOISE = [
         '/^(?:gruplar|groups|ana sayfa|home|ara|search|bildirimler|notifications|menü|menu|facebook|akış|feed|sizin için|for you|keşfet|discover|gönderi oluştur|create post|aklınızda ne var\??|what\'s on your mind\??|hikayeler?|reels|videolar|video|pazar yeri|marketplace|arkadaşlar|friends|profil|profile|gruplarınız|your groups|en son|latest|popüler|popular|tümünü gör|see all)$/iu',
         '/^(?:beğen|yorum yap|paylaş|gönder|devamını gör|daha az gör|daha fazla|katıl|takip et|takibi bırak|yönetici|moderatör|öne çıkan|yeni üye|grup uzmanı|en çok katkıda bulunan|yorum yaz|yorum yazın|tüm yorumları gör|diğer yorumları gör|en alakalı|çeviriyi gör|çevirisine bak|gönderiyi gör|gönderiyi görüntüle|görüntüle|yazın|like|comment|share|send|see more|see translation|join|follow|top contributor|admin|moderator)\b.{0,20}$/iu',
-        '/^\d+\s*(?:yorum|paylaşım|görüntüleme|beğeni|kişi|comments?|shares?|views?|likes?)?\s*$/iu',
-        '/^[\p{So}\p{Sk}\p{P}\s\d]+$/u',
+        '/^\d+\s*(?:yorum|paylaşım|görüntüleme|beğeni|kişi|comments?|shares?|views?|likes?)\s*$/iu', // sayaç satırı: birim sözcüğü şart ("24" tek başına tonaj olabilir)
+        '/^(?=.*[\p{So}\p{Sk}\p{P}])[\p{So}\p{Sk}\p{P}\s\d]+$/u', // yalnız süs/noktalama (en az bir işaret; salt sayı satırı gövdeden düşmez)
         '/^(?:az önce|şimdi|just now|dün(?:\s.*)?|yesterday.*|\d+\s*(?:sn|dk|sa|g|hafta|ay|yıl|s|m|h|d|w)\b.*|\d{1,2}\s+(?:ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\b.*)$/iu',
         '/^(?:yorum(?:unuzu)? yaz(?:ın)?|bir yorum yaz(?:ın)?|write a comment)\W*$/iu',
     ];
@@ -66,7 +91,13 @@ final class NotificationIntakeParser
     private const A11Y_BODY_NOISE = '/^(?:fotoğraf(?:\s+\d+\s*\/\s*\d+.*)?|.*fotoğrafı genişlet|reels videosu|mevcut reels videosunu oynat|sesini aç|\+\d+|paylaşılan bağlantı:.*|bağlantı görseli paylaşıldı|bu içerik hakkında|.*arka plan(?: görseli)?|diğer|daha fazla|geri|facebook logosu|oluştur,.*|.+, \\d+ \\/ \\d+|.+, tab \\d+ of \\d+|üyelik araçları için daha fazla seçenek|grup gönderileri|grupların|senin için|senin hareketlerin|keşfet|grup ara|tümünü gör|grup kur|ayarlar|yöneticinin onaylaması bekleniyor.*|öne çıkanlar|sen|rehberler|fotoğraflar)$/iu';
 
     /** Facebook'ta ilan olmayan bildirimler (yorum, beğeni, arkadaşlık, etkinlik…). */
-    private const FACEBOOK_SKIP = '/yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|doğum\s+gün|hatırlat|canlı\s+yayın|etkinlik|anı(?:nız|ları)|commented|reacted|liked|friend\s+request|tagged|mentioned|birthday|memories|is\s+live/iu';
+    private const FACEBOOK_SKIP = '/(?<!\p{L})(?:yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|commented|reacted|liked|friend\s+request|tagged|mentioned)(?!\p{L})/iu';
+
+    /**
+     * Etkinlik / hatırlatma / doğum günü / anı bildirimleri: yalnız başlıkta ya da metnin BAŞINDA aranır. Eski sürüm "hatırlat" ve
+     * "etkinlik" parçalarını gönderinin her yerinde arıyordu; "etkinlik malzemesi taşınacak" yazan ilan eleniyordu.
+     */
+    private const FACEBOOK_SKIP_EVENT = '/(?<!\p{L})(?:doğum\s+gün\p{L}*|hatırlatma\p{L}*|canlı\s+yayın\p{L}*|etkinli[kğ]\p{L}*|anı(?:nız|ları)|birthday|memories|is\s+live)(?!\p{L})/iu';
 
     /**
      * @param  array{title?:?string, text?:?string, text_big?:?string, ticker?:?string, app?:?string}  $payload
@@ -99,6 +130,9 @@ final class NotificationIntakeParser
                 return self::skip('summary_notification');
             }
         }
+        if (preg_match(self::SYSTEM_TITLE_PATTERN, $title) || (mb_strlen($text) < 40 && preg_match(self::SYSTEM_SHORT_TEXT_PATTERN, $text))) {
+            return self::skip('summary_notification');
+        }
 
         // Başlık biçimleri: "Grup", "Grup (3 mesaj)", "Grup (3 mesaj): Gönderen", "Grup: Gönderen", "Gönderen @ Grup".
         [$group, $titleSender] = self::splitTitle($title);
@@ -109,13 +143,21 @@ final class NotificationIntakeParser
             // (aksi halde "Ankara: İzmir 24 ton" gibi satırlar gönderen sanılır).
             $messages[] = ['sender' => $titleSender, 'phone' => self::phoneFrom($titleSender), 'text' => $text];
         } else {
+            // "Gönderen: mesaj" satırları yalnız İLK satır gönderen önekiyle başlıyorsa bölünür (gruplanmış bildirim biçimi).
+            // İlk satır etiketle ("Kalkış: Ankara") ya da öneksiz başlıyorsa metnin tamamı tek mesajdır; sonraki "Varış: İzmir",
+            // "İletişim: 0532…" satırları devam satırıdır.
+            $grouped = null;
+            $seenSenders = [];
             foreach (preg_split('/\R/u', $text) ?: [] as $line) {
                 $line = trim($line);
                 if ($line === '') {
                     continue;
                 }
-                if (preg_match('/^([^:\n]{1,40}?):\s+(.+)$/su', $line, $m) && ! preg_match('/^(?:yük|yuk|fiyat|tonaj|rota|tel|telefon|not|yükleme|teslim|araç|arac)$/iu', trim($m[1]))) {
+                $isSenderLine = preg_match('/^([^:\n]{1,40}?):\s+(.+)$/su', $line, $m) === 1 && self::looksLikeSenderPrefix(trim($m[1]), $seenSenders);
+                $grouped ??= $isSenderLine;
+                if ($grouped && $isSenderLine) {
                     $sender = trim($m[1]);
+                    $seenSenders[] = TurkishText::lower($sender);
                     $messages[] = ['sender' => $sender, 'phone' => self::phoneFrom($sender), 'text' => trim($m[2])];
                 } elseif ($messages !== []) {
                     $last = array_key_last($messages);
@@ -131,6 +173,49 @@ final class NotificationIntakeParser
         }
 
         return ['skipped' => null, 'group' => $group, 'platform' => 'whatsapp', 'messages' => $messages];
+    }
+
+    /**
+     * "X: metin" satırındaki X bir gönderen adı mı? Gönderen: telefon numarası, ya da en çok 3 sözcüklük, rakamsız,
+     * yalnız harf/nokta/kesme içeren, ilan etiketi olmayan ve yer adına çözülmeyen bir ad ("Ahmet Usta", "Mehmet Y.").
+     * Daha önce görülen gönderen adı her zaman gönderendir. "Kalkış", "Yükleme yeri", "Araç", "Ankara" gönderen değildir.
+     *
+     * @param  list<string>  $seenSendersLower
+     */
+    public static function looksLikeSenderPrefix(string $prefix, array $seenSendersLower = []): bool
+    {
+        $prefix = trim($prefix);
+        if ($prefix === '') {
+            return false;
+        }
+        if (self::phoneFrom($prefix) !== null) {
+            return true; // numarayla kayıtlı gönderen
+        }
+        $lower = TurkishText::lower($prefix);
+        if (in_array($lower, $seenSendersLower, true)) {
+            return true;
+        }
+        if (preg_match('/\d/u', $prefix) || preg_match('/[^\p{L}\s.\'’\-]/u', $prefix)) {
+            return false; // rakam ya da emoji/işaret: etiket, saat, ölçü
+        }
+        $words = array_values(array_filter(preg_split('/\s+/u', $lower) ?: [], fn ($w) => $w !== ''));
+        if ($words === [] || count($words) > 3) {
+            return false;
+        }
+        $labelWords = 0;
+        foreach ($words as $w) {
+            if (in_array(trim($w, ".'’-"), self::LABEL_WORDS, true)) {
+                $labelWords++;
+            }
+        }
+        if ($labelWords === count($words)) {
+            return false; // "Kalkış", "Yükleme yeri", "Araç tipi", "İletişim"
+        }
+        if (LoadIntakeService::isNotLoadPattern($prefix) || GoodsCatalog::detect(VehicleClassifier::normalize($prefix)) !== null) {
+            return false; // "Boş araç", "Mermer": lojistik sözcüğü, ad değil
+        }
+
+        return AiParserService::placesIn($prefix, 1) === []; // "Ankara: İzmir 24 ton" gönderen değil, rota satırı
     }
 
     /**
@@ -151,7 +236,7 @@ final class NotificationIntakeParser
         if ($text === '') {
             return self::skip('empty');
         }
-        if (preg_match(self::FACEBOOK_SKIP, $title.' '.mb_substr($text, 0, 160))) {
+        if (preg_match(self::FACEBOOK_SKIP, $title.' '.mb_substr($text, 0, 160)) || preg_match(self::FACEBOOK_SKIP_EVENT, $title.' | '.mb_substr($text, 0, 40))) {
             return self::skip('facebook_not_post');
         }
         $titleIsApp = $title === '' || preg_match('/^facebook(?:\s+lite)?$/iu', $title) === 1;
@@ -171,7 +256,7 @@ final class NotificationIntakeParser
         } elseif (! $titleIsApp) {
             $group = $title;
             $body = $text;
-            if (preg_match('/^(?<s>[^:\n]{1,60}?)\s*(?:gönderi\s+paylaştı|paylaştı)?\s*:\s+(?<t>.+)$/su', $text, $m) && ! preg_match('/^(?:yük|yuk|fiyat|tonaj|rota|tel|telefon|not|yükleme|teslim|araç|arac)$/iu', trim($m['s']))) {
+            if (preg_match('/^(?<s>[^:\n]{1,60}?)\s*(?:gönderi\s+paylaştı|paylaştı)?\s*:\s+(?<t>.+)$/su', $text, $m) && self::looksLikeSenderPrefix(trim($m['s']))) {
                 $sender = trim($m['s']);
                 $body = trim($m['t']);
             }
@@ -477,6 +562,42 @@ final class NotificationIntakeParser
         }
 
         return AiParserService::placesIn($line, 1) === [];
+    }
+
+    /**
+     * Tanı amacıyla saklanan ham ekran dökümünden yazar adlarını siler (KVKK): çapa satırı "Ad'in gönderisi için diğer seçenekler",
+     * başlık "Ad•3s•Paylaşılanlar: …" ve yazarla başlayan satırlar ("Ad profil resmi") "Yazar" ile değiştirilir; döküm yapısı korunur.
+     */
+    public static function redactAuthors(string $dump): string
+    {
+        $authors = [];
+        $lines = preg_split('/\R/u', $dump) ?: [];
+        foreach ($lines as $line) {
+            if (preg_match(self::A11Y_ANCHOR, trim($line), $m)) {
+                $authors[] = trim($m[1]);
+            }
+        }
+        $authors = array_values(array_unique(array_filter($authors, fn ($a) => mb_strlen($a) >= 2)));
+        usort($authors, fn ($a, $b) => mb_strlen($b) <=> mb_strlen($a)); // uzun ad önce ("Ali Veli" içindeki "Ali" yarım kalmasın)
+        $out = [];
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (preg_match(self::A11Y_ANCHOR, $trimmed)) {
+                $line = 'Yazar\'ın gönderisi için diğer seçenekler';
+            } elseif (preg_match(self::A11Y_SHARED, $trimmed)) {
+                $line = 'Yazar'.preg_replace('/^.*?(?=•)/u', '', $trimmed);
+            } else {
+                foreach ($authors as $author) {
+                    if (mb_stripos($trimmed, $author) === 0) {
+                        $line = 'Yazar'.mb_substr($trimmed, mb_strlen($author));
+                        break;
+                    }
+                }
+            }
+            $out[] = $line;
+        }
+
+        return implode("\n", $out);
     }
 
     /** Grup ilan kaynağı için sabit tanımlayıcı: aynı grup adı her zaman aynı kaynağa düşer (Facebook: fb:, WhatsApp: notif:). */

@@ -16,6 +16,7 @@
 <html lang="tr" class="h-full">
 <head>
     <meta charset="UTF-8">
+    <meta name="robots" content="noindex, nofollow">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#f97316">
@@ -138,6 +139,14 @@
         </header>
 
         <main class="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8">
+            @if($user?->isAdminPanelUser())
+                <div class="mb-4 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-xs text-amber-800 dark:text-amber-200 flex flex-wrap items-center gap-2">
+                    <span class="font-semibold">Yönetici görünümü.</span> Bu profil istatistik, bildirim ve kullanıcı listelerinde sayılmaz.
+                    <a href="{{ route('admin.dashboard') }}" class="ml-auto font-semibold underline">Yönetim paneline dön</a>
+                </div>
+            @elseif($user && ! \App\Models\UserConsent::upToDate($user))
+                <livewire:reconsent-modal />
+            @endif
             {{ $slot }}
         </main>
 

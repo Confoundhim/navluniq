@@ -123,6 +123,33 @@ new class extends Component {
         }
     }
 
+    /** İadesi ödeme kuruluşunda yapılamayan sipariş, finans ekibi sağlayıcı panelinden iade edince burada kapatılır. */
+    public function markRefunded(int $orderId): void
+    {
+        if (! $this->requireManage()) {
+            return;
+        }
+        $reference = trim((string) ($this->reference['order-'.$orderId] ?? ''));
+        if (mb_strlen($reference) < 3) {
+            $this->addError('reference.order-'.$orderId, 'İade referansı zorunludur.');
+
+            return;
+        }
+        $order = \App\Models\PaymentOrder::query()->find($orderId);
+        if (! $order) {
+            session()->flash('error_message', 'Sipariş bulunamadı.');
+
+            return;
+        }
+        try {
+            app(\App\Services\PaymentService::class)->markRefundedManually($order, auth()->user(), $reference);
+            unset($this->reference['order-'.$orderId]);
+            session()->flash('success_message', "Sipariş {$order->merchant_oid} iade edildi olarak işaretlendi.");
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
+    }
+
     public function markFailed(int $payoutId): void
     {
         if (! $this->requireManage()) {
@@ -359,7 +386,7 @@ new class extends Component {
         <div class="apple-glass p-3 rounded-2xl">
             <select wire:model.live="orderStatus" class="{{ $input }} sm:w-56">
                 <option value="all">Tüm durumlar</option>
-                @foreach(['created' => 'Oluşturuldu', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => 'Başarısız', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi'] as $value => $label)
+                @foreach(['created' => 'Oluşturuldu', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => 'Başarısız', 'cancelled' => 'İptal edildi', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi'] as $value => $label)
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </select>
@@ -385,7 +412,16 @@ new class extends Component {
                                 <td class="p-4" data-label="Ödeyen">{{ $order->user?->full_name ?? '—' }}</td>
                                 <td class="p-4 whitespace-nowrap font-semibold" data-label="Tutar">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">Hizmet bedeli {{ number_format((float) $order->service_fee_amount, 2, ',', '.') }} ₺</div></td>
                                 <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->status }}</span></td>
-                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}</td>
+                                <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}
+                                    @if($order->failure_message)<div class="text-[11px] text-red-600 whitespace-normal">{{ $order->failure_message }}</div>@endif
+                                    @if($order->status === 'refund_pending' && $canManage)
+                                        <div class="mt-2 space-y-1 tc-actions">
+                                            <input type="text" wire:model="reference.order-{{ $order->id }}" placeholder="Sağlayıcı iade referansı" class="{{ $input }} text-[11px]">
+                                            @error('reference.order-'.$order->id) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
+                                            <button type="button" wire:click="markRefunded({{ $order->id }})" wire:confirm="İade sağlayıcı panelinden yapıldı mı? Sipariş iade edildi olarak işaretlenecek." wire:loading.attr="disabled" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold">İade yapıldı</button>
+                                        </div>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Ödeme emri yok.</td></tr>

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\KycDocument;
 use App\Models\User;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -47,7 +48,7 @@ class KycService
             throw new RuntimeException('Geçersiz belge türü.');
         }
 
-        return DB::transaction(function () use ($user, $role, $type, $file, $expiresAt): KycDocument {
+        $document = DB::transaction(function () use ($user, $role, $type, $file, $expiresAt): KycDocument {
             KycDocument::query()->where('user_id', $user->id)->where('document_type', $type)
                 ->whereIn('status', ['pending', 'rejected'])->get()->each(function (KycDocument $old): void {
                     Storage::disk($old->storage_disk)->delete($old->storage_path);
@@ -56,7 +57,7 @@ class KycService
 
             $path = $file->storeAs(
                 'users/'.$user->id,
-                $type.'-'.Str::lower(Str::random(12)).'.'.strtolower($file->getClientOriginalExtension()),
+                $type.'-'.Str::lower(Str::random(12)).'.'.UploadName::extension($file),
                 self::DISK
             );
 
@@ -85,6 +86,8 @@ class KycService
                 [$user->full_name.' ('.($role === 'driver' ? 'şoför' : 'yük sahibi').') gerekli belgelerinin tamamını yükledi.', 'KYC Evrak Merkezi\'nden belgeleri inceleyip onaylayın ya da gerekçesiyle reddedin.'],
                 route('admin.kyc'), 'KYC Evrak Merkezi', 'admin');
         }
+
+        return $document;
     }
 
     /** Gerekli belgelerin tamamı yüklendiyse profili "pending" (inceleme) durumuna alır. */

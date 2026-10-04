@@ -15,12 +15,15 @@ new class extends Component {
 
         $email = mb_strtolower(trim($this->email));
         $key = 'password-reset:'.hash('sha256', $email.'|'.request()->ip());
-        if (RateLimiter::tooManyAttempts($key, 3)) {
+        $ipKey = 'password-reset-ip:'.hash('sha256', (string) request()->ip());
+        // Aynı adrese 3/10 dk; aynı IP'den farklı adreslere toplam 10/10 dk (gönderici itibarını koruyan sınır).
+        if (RateLimiter::tooManyAttempts($key, 3) || RateLimiter::tooManyAttempts($ipKey, 10)) {
             $this->addError('email', 'Çok fazla istek gönderildi. Lütfen 10 dakika sonra tekrar deneyin.');
 
             return;
         }
         RateLimiter::hit($key, 600);
+        RateLimiter::hit($ipKey, 600);
 
         // Hesabın var olup olmadığını dışarı sızdırmamak için sonuç ne olursa olsun aynı mesaj gösterilir.
         Password::sendResetLink(['email' => $email]);

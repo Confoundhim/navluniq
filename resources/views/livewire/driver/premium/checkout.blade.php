@@ -70,7 +70,7 @@ class extends Component {
     /** wire:poll: sunucu bildirimi geldiyse sonuç sayfasına geç. */
     public function checkStatus(): void
     {
-        $order = $this->orderId ? PaymentOrder::query()->find($this->orderId) : null;
+        $order = $this->orderId ? PaymentOrder::query()->whereKey($this->orderId)->where('user_id', Auth::id())->first() : null;
         if ($order && $order->status === 'paid') {
             $this->redirect(route('payment.result', ['order' => $order->public_id, 'outcome' => 'basarili']), navigate: true);
         }

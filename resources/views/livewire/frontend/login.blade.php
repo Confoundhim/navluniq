@@ -19,6 +19,9 @@ new class extends Component {
 
     public int $step = 1;
 
+    /** Bu cihazda oturumu açık tut (hatırlama çerezi). */
+    public bool $remember = true;
+
     #[Locked]
     public ?int $tempUserId = null;
 
@@ -31,7 +34,9 @@ new class extends Component {
 
         $rawIdentifier = trim($this->identifier);
         $loginKey = 'login:'.hash('sha256', Str::lower($rawIdentifier).'|'.request()->ip());
-        if (RateLimiter::tooManyAttempts($loginKey, 5)) {
+        // Aynı IP'den çok sayıda farklı hesaba deneme (şifre serpme) için ikinci sayaç.
+        $ipKey = 'login-ip:'.hash('sha256', (string) request()->ip());
+        if (RateLimiter::tooManyAttempts($loginKey, 5) || RateLimiter::tooManyAttempts($ipKey, 30)) {
             $this->addError('identifier', 'Çok fazla giriş denemesi yapıldı. Lütfen bir dakika bekleyin.');
 
             return;
@@ -43,20 +48,16 @@ new class extends Component {
         }
         $user = $query->first();
 
+        // Hatalı şifre, yönetici hesabı, yasaklı ya da askıya alınmış hesap: hepsi aynı mesajı alır (hesap durumu sızmaz).
         if (
             ! $user || ! Hash::check($this->password, $user->password) ||
             in_array($user->current_role, ['admin', 'super_admin'], true) ||
-            $user->banned_at !== null
+            $user->banned_at !== null ||
+            (! $user->is_active && $user->email_verified_at !== null)
         ) {
             RateLimiter::hit($loginKey, 60);
+            RateLimiter::hit($ipKey, 60);
             $this->addError('identifier', 'Giriş bilgileri hatalı veya hesabın erişimi kapalı.');
-
-            return;
-        }
-
-        if (! $user->is_active && $user->email_verified_at !== null) {
-            RateLimiter::hit($loginKey, 60);
-            $this->addError('identifier', 'Hesabınız askıya alınmış. Lütfen destek ekibiyle iletişime geçin.');
 
             return;
         }
@@ -118,8 +119,8 @@ new class extends Component {
             'last_login_at' => now(),
         ])->save();
 
-        Auth::login($user, true);
-        request()->session()->regenerate();
+        Auth::login($user, $this->remember);
+        session()->regenerate();
 
         return $this->redirect(route('panel'), navigate: true);
     }
@@ -162,6 +163,11 @@ new class extends Component {
                         class="form-input">
                     @error('password') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
+
+                <label class="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 select-none">
+                    <input type="checkbox" wire:model="remember" class="rounded border-neutral-300 dark:border-neutral-700 text-brand-500 focus:ring-brand-500">
+                    Bu cihazda oturumum açık kalsın
+                </label>
 
                 <button type="submit"
                     class="btn-primary w-full py-3">

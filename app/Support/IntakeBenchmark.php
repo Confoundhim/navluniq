@@ -241,6 +241,14 @@ final class IntakeBenchmark
             if (! empty($e['phone']) && ($ad['phones'][0] ?? null) !== $e['phone']) {
                 $errors[] = "ilan {$i} telefon: beklenen {$e['phone']}, bulunan ".($ad['phones'][0] ?? '—');
             }
+            // stops: sıralı teslim noktaları (il düzeyinde, sırayla)
+            if (! empty($e['stops'])) {
+                $got = array_map(fn ($s) => TurkishLocations::resolve((string) $s)['province'] ?? $s, (array) ($ad['delivery_stops'] ?? []));
+                $want = array_map(fn ($s) => TurkishLocations::resolve((string) $s)['province'] ?? $s, (array) $e['stops']);
+                if ($got !== $want) {
+                    $errors[] = "ilan {$i} teslim noktaları: beklenen ".implode('+', $want).', bulunan '.(implode('+', $got) ?: '—');
+                }
+            }
         }
 
         return $errors;

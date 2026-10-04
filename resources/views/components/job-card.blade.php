@@ -36,6 +36,9 @@
                     <a href="{{ route('driver.jobs.show', $trip->load_id) }}#teslimat" wire:navigate class="load-card-action">Teslim ettim</a>
                 @endif
                 <a href="{{ route('driver.jobs.show', $trip->load_id) }}" wire:navigate class="load-card-action-ghost">{{ $trip->isOpen() ? 'Ayrıntı ve teslimat' : 'Ayrıntı' }}</a>
+                @if($trip->isOpen() && $load && $load->status === \App\Models\Load::STATUS_ASSIGNED && ! $load->isPaid())
+                    <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
+                @endif
             @else
                 @if(in_array($trip->status, ['planned', 'on_the_way'], true))<button type="button" wire:click="setStatus({{ $trip->id }}, 'delivered')" class="load-card-action-ghost">Teslim ettim</button>@endif
                 @if($trip->canCloseManually())<button type="button" wire:click="setStatus({{ $trip->id }}, 'closed')" wire:confirm="İş kapatılsın mı? Dönüş yükü bildirimi durur." class="load-card-action-ghost text-neutral-500">Kapat</button>@endif

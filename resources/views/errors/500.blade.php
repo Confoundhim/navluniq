@@ -1,0 +1,1 @@
+@include('errors.layout', ['code' => 500, 'title' => 'Bir şeyler ters gitti', 'message' => 'Sunucuda beklenmeyen bir hata oluştu; ekibimiz otomatik olarak bilgilendirildi. Birkaç dakika sonra tekrar deneyin.', 'primary' => [str_starts_with((string) url()->previous(), url('/')) ? url()->previous() : '/', 'Geri dön']])

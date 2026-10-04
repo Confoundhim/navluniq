@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Android bildirim iletici ucu. Telefondaki MacroDroid benzeri bir uygulama, WhatsApp
@@ -70,11 +71,15 @@ class NotificationWebhookController extends Controller
         // Başlık ya da gövde alanı; bazı otomasyon uygulamaları özel başlık gönderemez.
         $providedToken = (string) ($request->header('X-Scraper-Token') ?: $request->input('token', ''));
         if ($providedToken === '' || ! hash_equals($expectedToken, $providedToken)) {
-            IntakeEvent::record('unauthorized', [
-                'title' => (string) $request->input('title', ''),
-                'excerpt' => (string) ($request->input('text') ?: 'Gelen gövde: '.mb_substr(trim($raw) !== '' ? $raw : http_build_query($request->all()), 0, 200)),
-                'reason' => $providedToken === '' ? 'token_missing' : 'token_mismatch',
-            ]);
+            // Anahtarsız istek yabancı olabilir: başlık ve gövde saklanmaz (KVKK), yalnız gerekçe, IP ve alan adları/boyutu
+            // (teşhis: telefon "token" alanını mı unutmuş). Aynı IP'den dakikada en çok 10 kayıt düşer; tablo şişmez.
+            if (RateLimiter::attempt('intake-unauthorized:'.$request->ip(), 10, fn () => true, 60)) {
+                $fields = implode(', ', array_keys(array_filter($request->all(), fn ($v) => is_string($v) && $v !== '')));
+                IntakeEvent::record('unauthorized', [
+                    'excerpt' => 'Gelen gövde: '.mb_strlen(trim($raw) !== '' ? $raw : http_build_query($request->all())).' karakter'.($fields !== '' ? ', alanlar: '.$fields : ', alan yok'),
+                    'reason' => $providedToken === '' ? 'token_missing' : 'token_mismatch',
+                ]);
+            }
 
             return response()->json(['error' => 'Yetkisiz erişim.'], 401);
         }
@@ -90,8 +95,9 @@ class NotificationWebhookController extends Controller
         ]);
 
         $parsed = NotificationIntakeParser::parse($validated);
+        $groupOnly = NotificationIntakeParser::splitTitle((string) ($validated['title'] ?? ''))[0] ?: null; // gönderen adı canlı akışa yazılmaz (KVKK)
         if ($parsed['skipped'] !== null) {
-            IntakeEvent::record('skipped', ['title' => $validated['title'] ?? null, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped'].($repaired ? ' (json_repaired)' : '')]);
+            IntakeEvent::record('skipped', ['title' => $groupOnly, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped'].($repaired ? ' (json_repaired)' : '')]);
 
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
@@ -99,15 +105,16 @@ class NotificationWebhookController extends Controller
         // Ekran dökümü (Facebook, tek dokunuş): isteğin sunucuya ulaştığı canlı akışta hemen görünsün; kuyruk beklese de
         // "geldi mi" sorusu buradan cevaplanır. Gönderiler ayrıca kendi satırlarıyla işlenir.
         if (($validated['kind'] ?? null) === 'screen') {
-            // Tanı: son 3 ham döküm 48 saat önbellekte durur, panelden indirilir (ayrıştırıcı yanlış grup/satır çıkarınca gerçek biçim görülür).
-            $dumps = array_slice(array_merge([['at' => now()->toDateTimeString(), 'app' => (string) $request->header('X-Intake-App', ''), 'text' => mb_substr((string) ($validated['text'] ?? ''), 0, 120000)]], (array) Cache::get('fb:last_dumps', [])), 0, 3);
-            Cache::put('fb:last_dumps', $dumps, now()->addHours(48));
+            // Tanı: son 3 ham döküm 6 saat önbellekte durur, panelden indirilir (ayrıştırıcı yanlış grup/satır çıkarınca gerçek biçim görülür).
+            // Yazar adları dökümden silinir (KVKK); gönderi gövdeleri ve grup adları kalır.
+            $dumps = array_slice(array_merge([['at' => now()->toDateTimeString(), 'app' => (string) $request->header('X-Intake-App', ''), 'text' => NotificationIntakeParser::redactAuthors(mb_substr((string) ($validated['text'] ?? ''), 0, 120000))]], (array) Cache::get('fb:last_dumps', [])), 0, 3);
+            Cache::put('fb:last_dumps', $dumps, now()->addHours(6));
             // Toplayıcı uygulaması kullanıcı kaydırdıkça aynı gönderiyi birkaç kez gösterir; 24 saat içinde görülen gönderi kuyruğa
             // bir daha girmez (canlı akış "tekrar" satırlarıyla dolmaz). Önbellek anahtarı grup + metin özetidir.
             $total = count($parsed['messages']);
             $parsed['messages'] = array_values(array_filter($parsed['messages'], fn (array $m) => Cache::add('fb:seen:'.sha1(($m['group'] ?? '').'|'.$m['text']), 1, now()->addDay())));
             $app = (string) $request->header('X-Intake-App', '');
-            IntakeEvent::record('screen', ['source_name' => $parsed['group'], 'title' => $validated['title'] ?? null,
+            IntakeEvent::record('screen', ['source_name' => $parsed['group'], 'title' => $groupOnly,
                 'excerpt' => $total.' gönderi ayrıştırıldı, '.count($parsed['messages']).' yeni, '.mb_strlen((string) ($validated['text'] ?? '')).' karakter döküm'.($app !== '' ? ' · '.mb_substr($app, 0, 40) : '')]);
             if ($parsed['messages'] === []) {
                 return response()->json(['success' => true, 'status' => 'skipped', 'reason' => 'already_seen', 'processed' => 0, 'seen' => $total]);

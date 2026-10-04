@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Auth;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -22,6 +23,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->append(FirewallMiddleware::class);
+        // Şifre değişince diğer cihazlardaki oturumlar düşer (oturumda şifre özeti tutulur).
+        $middleware->web(append: [AuthenticateSession::class]);
+        // Yalnız APP_URL alan adı (ve www gibi alt alanları) kabul edilir: sahte Host başlığıyla üretilen
+        // şifre sıfırlama bağlantısı saldırganın alanına gidemez. Yerel/test ortamında Laravel bu denetimi uygulamaz.
+        $middleware->trustHosts(at: fn () => array_filter([parse_url((string) config('app.url'), PHP_URL_HOST)]), subdomains: true);
         // Yavaş istekler (varsayılan 3 sn ve üstü) laravel.log'a yol, süre ve sorgu bilgisiyle yazılır.
         $middleware->prepend(LogSlowRequests::class);
 

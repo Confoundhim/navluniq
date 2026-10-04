@@ -371,6 +371,7 @@ class extends Component {
             ->with('cargoOwnerProfile.user')
             ->where('status', Load::STATUS_ACTIVE)
             ->where('visibility', 'public')
+            ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', today())) // yükleme tarihi geçmiş ilan havuzda görünmez
             ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
             ->openTo($this->profile())
             ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))

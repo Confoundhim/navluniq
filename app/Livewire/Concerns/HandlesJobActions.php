@@ -3,7 +3,9 @@
 namespace App\Livewire\Concerns;
 
 use App\Models\DriverTrip;
+use App\Models\Offer;
 use App\Services\DriverTripService;
+use App\Services\OfferService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -50,6 +52,25 @@ trait HandlesJobActions
             return;
         }
         session()->flash('success_message', 'İş durumu: '.$trip->displayStatusLabel());
+    }
+
+    /** NavlunIQ işi: yük sahibi ödemeyi yapmadıysa şoför beklemekten vazgeçer; ilan yeniden havuza döner. */
+    public function withdrawJob(int $id, OfferService $offers): void
+    {
+        $trip = $this->jobsQuery()->with(['cargoLoad', 'shipment'])->whereKey($id)->first();
+        $profile = Auth::user()->driverProfile;
+        $offer = $trip?->shipment?->accepted_offer_id ? Offer::query()->find($trip->shipment->accepted_offer_id) : null;
+        if (! $trip || ! $profile || ! $offer) {
+            session()->flash('error_message', 'İş bulunamadı.');
+
+            return;
+        }
+        try {
+            $offers->withdrawAccepted($offer, $profile);
+            session()->flash('success_message', 'Vazgeçtiniz; ilan yeniden havuza döndü.');
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
     }
 
     public function toggleNotify(int $id): void

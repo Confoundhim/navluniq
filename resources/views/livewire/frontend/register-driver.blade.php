@@ -9,6 +9,7 @@ use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
@@ -18,6 +19,10 @@ new class extends Component {
 
     #[Locked]
     public ?int $registeredUserId = null;
+
+    /** Doğrulanmış bir hesaba şoför rolü ekleniyor: profil ancak kod doğrulanınca açılır. */
+    #[Locked]
+    public bool $roleAddPending = false;
 
     public string $otp = '';
 
@@ -66,6 +71,15 @@ new class extends Component {
         $email = mb_strtolower(trim($this->email));
         $phone = Phone::normalize($this->phone);
 
+        // Aynı IP'den saatte en çok 10 kayıt denemesi: taslak hesap ve kod e-postası bombardımanı kesilir.
+        $registerKey = 'register:'.hash('sha256', (string) request()->ip());
+        if (RateLimiter::tooManyAttempts($registerKey, 10)) {
+            $this->addError('email', 'Çok fazla kayıt denemesi yapıldı. Lütfen bir süre sonra tekrar deneyin.');
+
+            return;
+        }
+        RateLimiter::hit($registerKey, 3600);
+
         $userByEmail = User::withTrashed()->where('email', $email)->first();
         $userByPhone = User::withTrashed()->whereIn('phone', Phone::variants($phone))->first();
 
@@ -86,11 +100,20 @@ new class extends Component {
         $isDraft = $existingUser && $existingUser->email_verified_at === null && ! $existingUser->is_active;
 
         if ($existingUser && ! $isDraft) {
+            // Kayıt formu bir şifre deneme kapısı olmasın: giriş ekranıyla aynı sayaç (5 deneme/dk, hesap+IP).
+            $loginKey = 'login:'.hash('sha256', mb_strtolower((string) $existingUser->email).'|'.request()->ip());
+            if (RateLimiter::tooManyAttempts($loginKey, 5)) {
+                $this->addError('password', 'Çok fazla deneme yapıldı. Lütfen bir dakika bekleyin.');
+
+                return;
+            }
             if (! Hash::check($this->password, $existingUser->password)) {
+                RateLimiter::hit($loginKey, 60);
                 $this->addError('password', 'Bu bilgiler sistemde kayıtlı. Şoför rolü eklemek için mevcut şifrenizi girin.');
 
                 return;
             }
+            RateLimiter::clear($loginKey);
             if ($existingUser->banned_at !== null || ! $existingUser->is_active || in_array($existingUser->current_role, ['admin', 'super_admin'], true)) {
                 $this->addError('email', 'Bu hesaba yeni rol eklenemez.');
 
@@ -103,10 +126,17 @@ new class extends Component {
             }
         }
 
+        if ($existingUser && ! $isDraft) {
+            // Doğrulanmış hesap: şifre bilinse bile profil/araç yalnız e-posta kodu doğrulanınca açılır.
+            $this->roleAddPending = true;
+            $this->registeredUserId = $existingUser->id;
+            $this->sendOtp($existingUser);
+
+            return;
+        }
+
         $user = DB::transaction(function () use ($existingUser, $isDraft, $firstName, $lastName, $email, $phone) {
-            if ($existingUser && ! $isDraft) {
-                $user = $existingUser;
-            } elseif ($isDraft) {
+            if ($isDraft) {
                 $user = $existingUser;
                 if ($profile = $user->driverProfile) {
                     $profile->vehicles()->withTrashed()->forceDelete();
@@ -132,37 +162,33 @@ new class extends Component {
                 ]);
             }
 
-            $driverProfile = DriverProfile::create([
-                'user_id' => $user->id,
-                'kyc_status' => 'unsubmitted',
-            ]);
-
-            DriverVehicle::create([
-                'driver_profile_id' => $driverProfile->id,
-                'plate' => $this->plate,
-                'vehicle_type' => $this->vehicleType,
-                'is_active' => true,
-            ]);
-
-            $user->syncRoles(array_unique([...$user->getRoleNames()->all(), 'driver']));
-
-            foreach (['terms', 'kvkk'] as $consent) {
-                UserConsent::create([
-                    'user_id' => $user->id,
-                    'consent_type' => $consent,
-                    'document_version' => (string) config('company.legal_document_version', '1.0'),
-                    'granted' => true,
-                    'recorded_at' => now(),
-                    'ip_address' => request()->ip(),
-                    'user_agent' => mb_substr((string) request()->userAgent(), 0, 1000),
-                ]);
-            }
+            $this->attachDriverRole($user);
 
             return $user;
         });
 
         $this->registeredUserId = $user->id;
         $this->sendOtp($user);
+    }
+
+    /** Şoför profili, ilk araç, rol ve sözleşme onayları (işlem içinde çağrılır). */
+    private function attachDriverRole(User $user): void
+    {
+        $driverProfile = DriverProfile::create([
+            'user_id' => $user->id,
+            'kyc_status' => 'unsubmitted',
+        ]);
+
+        DriverVehicle::create([
+            'driver_profile_id' => $driverProfile->id,
+            'plate' => $this->plate,
+            'vehicle_type' => $this->vehicleType,
+            'is_active' => true,
+        ]);
+
+        $user->syncRoles(array_unique([...$user->getRoleNames()->all(), 'driver']));
+
+        UserConsent::recordRegistration($user);
     }
 
     /** Taslak (doğrulanmamış) hesaplara ait şoför profilleri; plaka benzersizliğinde hariç tutulur. */
@@ -212,6 +238,15 @@ new class extends Component {
             return;
         }
 
+        if ($this->roleAddPending && ! $user->driverProfile()->exists()) {
+            if (DriverVehicle::query()->where('plate', $this->plate)->whereNotIn('driver_profile_id', $this->draftProfileIds())->exists()) {
+                $this->addError('otp', 'Bu plaka bu arada başka bir hesaba kayıt edildi. Lütfen formu yeniden doldurun.');
+
+                return;
+            }
+            DB::transaction(fn () => $this->attachDriverRole($user));
+        }
+
         $user->forceFill([
             'is_active' => true,
             'email_verified_at' => $user->email_verified_at ?? now(),
@@ -220,10 +255,10 @@ new class extends Component {
         ])->save();
 
         Auth::login($user, true);
-        request()->session()->regenerate();
+        session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
             ['Şoför hesabınız doğrulandı. Teklif verebilmek için ehliyet, SRC, psikoteknik, ruhsat ve kimlikli selfie belgelerinizi yükleyin; ekibimiz genellikle 24 saat içinde inceler.',
-             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilirsiniz; premium ile yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alırsınız.'],
+             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilirsiniz; premium ile yeni ilanları herkesten '.(($lead = app(\App\Services\LoadReleaseService::class)->delayMinutes()) > 0 ? $lead.' dakika' : 'aynı anda').' önce görür ve anında bildirim alırsınız.'],
             route('driver.profile.index'), 'Belgelerimi yükle', 'welcome');
         session()->flash('success', 'Şoför hesabınız doğrulandı.');
 
@@ -232,7 +267,7 @@ new class extends Component {
 
     public function backToForm(): void
     {
-        $this->reset(['otp']);
+        $this->reset(['otp', 'roleAddPending', 'registeredUserId']);
         $this->step = 1;
     }
 }; ?>

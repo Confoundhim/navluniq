@@ -13,6 +13,7 @@ use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
 use App\Support\VehicleClassifier;
 use App\Support\VehicleTypes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -118,12 +119,16 @@ class AiParserService
         return $parsed;
     }
 
-    /** Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz). */
-    public function parseCheap(string $message): array
+    /**
+     * Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz).
+     *
+     * @param  ?string  $fallbackPhone  bildirim başlığındaki gönderen numarası: gövdede numara yoksa ilanın numarası sayılır
+     */
+    public function parseCheap(string $message, ?string $fallbackPhone = null): array
     {
         $message = trim(mb_substr($message, 0, 8000));
 
-        return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message);
+        return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message, $fallbackPhone);
     }
 
     public function mode(): string
@@ -356,10 +361,16 @@ class AiParserService
         return rtrim((string) (self::PROVIDERS[$provider]['base'] ?? ''), '/');
     }
 
-    /** Yerel model işlemcide yavaş çalışır; ona daha uzun süre tanınır. */
+    /** Yerel model işlemcide yavaş çalışır; ona daha uzun süre tanınır. Uzak sağlayıcı 15 sn'de cevap vermediyse vermez (eski 45 sn her ölü sağlayıcıda bekliyordu). */
     private function timeout(string $provider): int
     {
-        return ! empty(self::PROVIDERS[$provider]['local']) ? 180 : 45;
+        return ! empty(self::PROVIDERS[$provider]['local']) ? 180 : 15;
+    }
+
+    /** Bağlantı kurma süresi (sn): uzak sağlayıcı 5 sn'de bağlanmazsa sıradakine geçilir. */
+    private function connectTimeout(string $provider): int
+    {
+        return ! empty(self::PROVIDERS[$provider]['local']) ? 10 : 5;
     }
 
     public function isEnabled(): bool
@@ -422,42 +433,143 @@ class AiParserService
      */
     public function enrich(string $message, array $parsed = [], bool $manual = false): array
     {
-        $message = trim(mb_substr($message, 0, 8000));
+        // Yapay zekaya en çok ~3.000 karakter gider: ilan metni bundan uzunsa kalanı imza/reklam ya da kuralın zaten böldüğü seri listedir.
+        $message = trim(mb_substr($message, 0, self::AI_MESSAGE_CHARS));
         if ($message === '' || ! $this->isConfigured() || (! $manual && ! $this->isEnabled())) {
             return ['status' => 'skipped', 'data' => null];
+        }
+        // Aynı metin için yapay zeka sonucu 7 gün önbellekte: alım, kuyruk ve denetim aynı mesaja ikinci kez kota harcamaz;
+        // yarım kalan iş yeniden denendiğinde çağrı tekrarlanmaz (idempotent).
+        $cacheKey = self::resultCacheKey($message);
+        if (is_array($cached = Cache::get($cacheKey))) {
+            return ['status' => 'done', 'data' => $cached, 'cached' => true];
         }
         $exhausted = $this->exhaustedToday();
         $anyRetryable = false;
         $tried = 0;
+        $started = microtime(true);
         foreach ($this->chain() as $provider) {
             if (in_array($provider, $exhausted, true) && ! $manual) {
                 $anyRetryable = true;
 
                 continue;
             }
+            // Devre kesici: art arda 3 zaman aşımı / 5xx veren sağlayıcı 10 dakika atlanır; her mesajda 45 sn beklenmez.
+            if (! $manual && $this->coolingDownUntil($provider) !== null) {
+                $anyRetryable = true;
+
+                continue;
+            }
+            // Mesaj başına duvar bütçesi: en çok 2 sağlayıcı ve ~20 sn; kalanı kuyruk (ai-enrich) tamamlar. Yönetici düğmesinde sınır yok.
+            if (! $manual && ($tried >= self::AI_MAX_PROVIDERS_PER_MESSAGE || microtime(true) - $started > self::AI_WALL_BUDGET_SECONDS)) {
+                $anyRetryable = true;
+                break;
+            }
             $tried++;
             try {
                 $data = $this->callWithModelRepair($message, $provider);
                 $this->recordUsage($provider, true, false, $data['_usage'] ?? []);
                 $this->rememberError($provider, null);
+                $this->noteProviderSuccess($provider);
                 unset($data['_usage']);
+                $normalized = $this->normalizeAi($data, $provider);
+                Cache::put($cacheKey, $normalized, now()->addDays(self::AI_RESULT_CACHE_DAYS));
 
-                return ['status' => 'done', 'data' => $this->normalizeAi($data, $provider)];
+                return ['status' => 'done', 'data' => $normalized];
             } catch (Throwable $exception) {
                 $msg = $exception->getMessage();
                 $billing = self::isBillingError($msg);
                 $quota = $billing || str_contains($msg, '429') || str_contains(strtolower($msg), 'quota');
-                $retryable = $quota || str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection');
+                $infrastructure = str_contains($msg, 'provider_http_5') || str_contains($msg, 'cURL') || str_contains($msg, 'timed out') || str_contains($msg, 'Connection');
+                $retryable = $quota || $infrastructure;
                 $anyRetryable = $anyRetryable || $retryable;
                 // Bakiye yok / günlük kota: gün boyu bu sağlayıcıya dönülmez; dakikalık sınır: mesajdaki süre kadar.
                 $cooldown = $billing ? 86400 : (self::isDailyQuota($msg) ? self::secondsUntilDailyReset($provider) : ($provider === 'mistral' ? 15 : self::cooldownSeconds($msg)));
                 $this->recordUsage($provider, false, $quota, [], $quota ? $cooldown : null);
                 $this->rememberError($provider, $msg);
+                if ($infrastructure) {
+                    $this->noteInfrastructureFailure($provider);
+                }
                 Log::warning('Yapay zeka çözümlemesi başarısız; sıradaki sağlayıcı denenecek.', ['provider' => $provider, 'model' => $this->model($provider), 'error' => $msg, 'retry' => $retryable]);
             }
         }
 
         return ['status' => $anyRetryable || $tried === 0 ? 'pending' : 'failed', 'data' => null];
+    }
+
+    /** Yapay zekaya giden metnin azami uzunluğu (karakter). */
+    public const AI_MESSAGE_CHARS = 3000;
+
+    /** Bir mesaj için art arda en çok bu kadar sağlayıcı denenir (zamanlanmış/alım yolunda). */
+    public const AI_MAX_PROVIDERS_PER_MESSAGE = 2;
+
+    /** Bir mesajın yapay zeka çağrıları toplamda yaklaşık bu kadar saniyeyi aşmaz. */
+    public const AI_WALL_BUDGET_SECONDS = 20;
+
+    /** Aynı metnin yapay zeka sonucu bu kadar gün saklanır. */
+    public const AI_RESULT_CACHE_DAYS = 7;
+
+    /** Devre kesici: art arda bu kadar altyapı hatası (zaman aşımı, 5xx, bağlantı) → sağlayıcı bekletilir. */
+    public const BREAKER_FAILURES = 3;
+
+    public const BREAKER_COOLDOWN_MINUTES = 10;
+
+    public static function resultCacheKey(string $message): string
+    {
+        return 'ai:result:'.hash('sha256', LoadIntakeService::normalizeText(mb_substr($message, 0, self::AI_MESSAGE_CHARS)));
+    }
+
+    /** Sağlayıcı devre kesicide bekliyorsa bitiş zamanı, değilse null. */
+    public function coolingDownUntil(string $provider): ?Carbon
+    {
+        $until = Cache::get('ai:breaker:until:'.$provider);
+
+        return is_numeric($until) && (int) $until > now()->timestamp ? Carbon::createFromTimestamp((int) $until, config('app.timezone')) : null;
+    }
+
+    private function noteInfrastructureFailure(string $provider): void
+    {
+        $key = 'ai:breaker:fails:'.$provider;
+        $fails = (int) Cache::get($key, 0) + 1;
+        Cache::put($key, $fails, now()->addMinutes(30));
+        if ($fails >= self::BREAKER_FAILURES) {
+            Cache::put('ai:breaker:until:'.$provider, now()->addMinutes(self::BREAKER_COOLDOWN_MINUTES)->timestamp, now()->addMinutes(self::BREAKER_COOLDOWN_MINUTES + 1));
+            Cache::forget($key);
+            Log::warning('Yapay zeka sağlayıcısı art arda yanıt vermedi; 10 dakika bekletiliyor.', ['provider' => $provider]);
+        }
+    }
+
+    private function noteProviderSuccess(string $provider): void
+    {
+        Cache::forget('ai:breaker:fails:'.$provider);
+        Cache::forget('ai:breaker:until:'.$provider);
+    }
+
+    /**
+     * Zincirdeki her sağlayıcının anlık durumu (panel kart satırı): ok | cooldown (devre kesici, bitiş) | exhausted (kota, sıfırlanma).
+     *
+     * @return array<string, array{state:string, until:?string}>
+     */
+    public function providerStatus(): array
+    {
+        $exhausted = $this->exhaustedToday();
+        $out = [];
+        foreach ($this->chain() as $provider) {
+            if (in_array($provider, $exhausted, true)) {
+                $until = null;
+                try {
+                    $until = AiProviderUsage::query()->where('provider', $provider)->whereDate('usage_date', now()->toDateString())->value('quota_resets_at');
+                } catch (Throwable) {
+                }
+                $out[$provider] = ['state' => 'exhausted', 'until' => $until ? Carbon::parse($until)->format('H:i') : null];
+            } elseif (($cool = $this->coolingDownUntil($provider)) !== null) {
+                $out[$provider] = ['state' => 'cooldown', 'until' => $cool->format('H:i')];
+            } else {
+                $out[$provider] = ['state' => 'ok', 'until' => null];
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -821,6 +933,25 @@ Bilinmeyen alanları null bırak, uydurma.
 TXT;
     }
 
+    /**
+     * İstemde kullanılan kısa alan listesi (OpenAI uyumlu uçlar ve Gemini). Tam JSON şeması (~2.000 jeton) her çağrıda gidiyordu;
+     * bu özet aynı alanları ~300 jetonla anlatır. Claude kendi yapılandırılmış çıktı şemasını kullanır (outputSchema).
+     */
+    public static function compactSchema(): string
+    {
+        $vehicles = implode('|', array_keys(VehicleTypes::TYPES));
+        $goods = implode('|', array_keys(GoodsCatalog::labels()));
+        $bodies = implode('|', array_keys(BodyTypes::TYPES));
+
+        return '{"post_type":"load|vehicle_available|other","confidence":0-1,"notes":metin|null,"ads":[{'
+            .'"post_type":"load|vehicle_available|other","confidence":0-1,"phones":["5xxxxxxxxx"],"excerpt":metin|null,'
+            .'"pickup":{"province":il|null,"district":ilçe|null}|null,"delivery":{"province":il|null,"district":ilçe|null}|null,'
+            .'"vehicle_type":"'.$vehicles.'"|null,"vehicle_flexible":bool,"weight_kg":tam sayı|null,"price_try":sayı|null,"price_per_ton":bool,'
+            .'"goods":metin|null,"goods_category":"'.$goods.'"|null,"urgent":bool,"pickup_date_text":metin|null,'
+            .'"body_types":["'.$bodies.'"],"load_kind":"komple|parca"|null,"vehicle_count":tam sayı|null,'
+            .'"delivery_stops":[{"province":il,"district":ilçe|null}],"notes":metin|null}]}';
+    }
+
     /** @return array<string, mixed> JSON şeması (Claude yapılandırılmış çıktı): mesaj geneli + her ilan için "ads" öğesi */
     public static function outputSchema(): array
     {
@@ -973,7 +1104,7 @@ TXT;
             $headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
         }
 
-        $response = Http::timeout(45)->withHeaders($headers)->post('https://api.anthropic.com/v1/messages', $body);
+        $response = Http::timeout($this->timeout($provider))->connectTimeout($this->connectTimeout($provider))->withHeaders($headers)->post('https://api.anthropic.com/v1/messages', $body);
         if ($response->status() === 429) {
             throw new RuntimeException('quota_429: '.mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
@@ -1016,13 +1147,13 @@ TXT;
             'max_tokens' => 4096,
             'response_format' => ['type' => 'json_object'],
             'messages' => [
-                ['role' => 'system', 'content' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun tek bir JSON nesnesi olarak ver, başka metin yazma: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)],
+                ['role' => 'system', 'content' => self::systemPrompt()."\nYanıtı yalnız şu biçimde tek bir JSON nesnesi olarak ver, başka metin yazma:\n".self::compactSchema()],
                 // Yerel model (Qwen3): "/no_think" düşünme kipini kapatır; işlemcide dakikalar süren akıl yürütme metni üretilmez.
                 ['role' => 'user', 'content' => "İlan mesajı:\n".$message.(! empty(self::PROVIDERS[$provider]['local']) ? "\n/no_think" : '')],
             ],
         ];
         $this->paceRequests($provider);
-        $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+        $response = Http::timeout($this->timeout($provider))->connectTimeout($this->connectTimeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
         if ($response->status() === 429 || $response->status() === 402) {
             throw new RuntimeException(($response->status() === 402 ? 'provider_http_402: ' : 'quota_429: ').mb_substr((string) data_get($response->json(), 'error.message', $response->body()), 0, 300));
         }
@@ -1033,7 +1164,7 @@ TXT;
             $decoded = self::decodeLenient($failed);
             if ($decoded === null) {
                 unset($body['response_format']);
-                $response = Http::timeout($this->timeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
+                $response = Http::timeout($this->timeout($provider))->connectTimeout($this->connectTimeout($provider))->acceptJson()->withHeaders($headers)->post($base.'/chat/completions', $body);
             }
         }
         if ($decoded === null) {
@@ -1069,10 +1200,10 @@ TXT;
     private function callGemini(string $message, string $provider = 'gemini', ?string $model = null): array
     {
         $model ??= $this->model($provider);
-        $response = Http::timeout(45)->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey($provider)])->post(
+        $response = Http::timeout($this->timeout($provider))->connectTimeout($this->connectTimeout($provider))->acceptJson()->withHeaders(['x-goog-api-key' => $this->apiKey($provider)])->post(
             'https://generativelanguage.googleapis.com/v1beta/models/'.$model.':generateContent',
             [
-                'systemInstruction' => ['parts' => [['text' => self::systemPrompt()."\nYanıtı yalnız şu JSON şemasına uygun ver: ".json_encode(self::outputSchema(), JSON_UNESCAPED_UNICODE)]]],
+                'systemInstruction' => ['parts' => [['text' => self::systemPrompt()."\nYanıtı yalnız şu biçimde ver:\n".self::compactSchema()]]],
                 'contents' => [['parts' => [['text' => "İlan mesajı:\n".$message]]]],
                 'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0, 'maxOutputTokens' => 4096],
             ]
@@ -1126,10 +1257,13 @@ TXT;
         return $found;
     }
 
-    private function parseWithRegex(string $message): array
+    private function parseWithRegex(string $message, ?string $fallbackPhone = null): array
     {
         // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
         $phones = self::phonesIn($message);
+        if ($phones === [] && $fallbackPhone !== null && preg_match('/^5\d{9}$/', $fallbackPhone) === 1) {
+            $phones = [$fallbackPhone]; // gönderen numarası bildirim başlığından geldi
+        }
         $phone = $phones[0] ?? null;
 
         // Biçim işaretleri, emoji oklar, süs satırları temizlenir; kesme işaretleri rota eşlemesini bozmasın.
@@ -1186,7 +1320,14 @@ TXT;
             }
         }
         if (! $phone || ! $pickup || ! $delivery) {
-            return $this->failure('regex_required_fields_missing');
+            // Yarım çözüm kaybolmaz: çözülen uç ve numaralar döner ki yapay zeka ulaşılamazsa eksik kayıt açılabilsin (alım) ve
+            // yapay zeka yalnız boş kalan ucu doldursun (merge). Çözülemeyen uç null kalır.
+            return array_merge($this->failure('regex_required_fields_missing'), [
+                'sender_phone' => $phone,
+                'phones' => $phones,
+                'pickup_location' => $resolvable($pickup) ? $pickup : null,
+                'delivery_location' => $resolvable($delivery) ? $delivery : null,
+            ]);
         }
 
         // "45.000 TL", "45000₺", "1.250,50 TL" ve "12,5 ton" gibi Türkçe sayı yazımları tanınır.
@@ -1273,7 +1414,16 @@ TXT;
         $word = '(?:\p{L}\.)?\p{L}{2,}(?:\.\p{L}+)*'; // "M.Kemalpaşa" tek sözcük; tek harf ("İ.", "B.") başına eklenmedikçe sayılmaz
         // Ek bağlaç: sözcüğe bitişik ("Ankaradan", en az 3 harften sonra) ya da ayrı yazılmış ("Diyarbakr dan"); "MADEN" gibi sözcük içi "den" sayılmaz.
         $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
-        if (! preg_match_all($pattern, $text, $all, PREG_SET_ORDER)) {
+        // Eşlemeler satır satır: kalıp satır aşmaz, satırın tamamı ("çıkışlı:" başlığı, fiil, yer sayısı) virgül kararını belirler.
+        $all = [];
+        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+            if (preg_match_all($pattern, $line, $hits, PREG_SET_ORDER)) {
+                foreach ($hits as $hit) {
+                    $all[] = $hit + ['line' => $line];
+                }
+            }
+        }
+        if ($all === []) {
             return [];
         }
         $out = [];
@@ -1284,6 +1434,16 @@ TXT;
             $delivery = self::tidyLocation($m[4], $dative);
             if ($pickup === null || $delivery === null) {
                 continue;
+            }
+            // Virgül yalnız düz bir satırda rota bağlacıdır ("Mersin Tarsus, Kayseri 20 ton"): satırda kalkış/varış fiili, "-dan" ekli yer
+            // ya da ikiden çok yer varsa ("İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa") virgül liste ayracıdır, rota değil (SeriesAd::commaList bakar).
+            if ($connector === ',') {
+                $lineLower = TurkishCities::lower($m['line']);
+                $hasVerb = preg_match(self::PICKUP_VERBS, $lineLower) === 1 || preg_match(self::DELIVERY_VERBS, $lineLower) === 1
+                    || preg_match('/(?<!\p{L})\p{L}{3,}(?:dan|den|tan|ten)(?!\p{L})/u', preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower) === 1;
+                if ($hasVerb || count(self::placesIn($m['line'], 3)) !== 2) {
+                    continue;
+                }
             }
             // "/" ve "," zayıf bağlaçtır ("ANKARA/SİNCAN" il/ilçe): yalnız iki uç da FARKLI yer olarak çözülüyorsa rota sayılır.
             if (in_array($connector, ['/', ','], true)) {
@@ -1706,7 +1866,8 @@ TXT;
             'günü', 'gunu', 'saat', 'kadar', 'km', 'usd', 'tl', 'kdv', 'peşin', 'pesin', 'nokta', 'yer', 'civarı', 'civari', 'depo', 'depodan', 'depoma',
             'osb', 'sanayi', 'termik', 'santral', 'liman', 'limanı', 'limani', 'fabrika', 'merkez', 'basar', 'tonaj', 'tonajlı', 'tonajli', 'uzun', 'kısa', 'kisa',
             'adet', 'parça', 'parca', 'koli', 'hafif', 'ağır', 'agir', 'yüksek', 'yuksek', 'yan', 'tekstil', 'dorseli', 'tırlar', 'tirlar', 'boş', 'bos',
-            'yerde', 'yerinde', 'yerin', 'ödeme', 'odeme', 'sevkiyat', 'sevkiyatları', 'sevkiyatlari', 'sevkiyatlarımız', 'fatura', 'faturalı', 'faturali', 'kira', 'dolgun', 'günlük', 'gunluk', 'kotalı', 'kotali'];
+            'yerde', 'yerinde', 'yerin', 'ödeme', 'odeme', 'sevkiyat', 'sevkiyatları', 'sevkiyatlari', 'sevkiyatlarımız', 'fatura', 'faturalı', 'faturali', 'kira', 'dolgun', 'günlük', 'gunluk', 'kotalı', 'kotali',
+            'kalkış', 'kalkis', 'üzeri', 'uzeri', 'üzerinden', 'uzerinden', 'gidiş', 'gidis', 'dönüş', 'donus', 'çıkışlı', 'cikisli'];
         $value = str_replace(['(', ')', '+', '/'], ' ', $value);
         $words = array_values(array_filter(preg_split('/\s+/u', $value) ?: [], fn ($w) => $w !== ''));
         $isStop = fn (string $w) => in_array(TurkishCities::lower($w), $stop, true) || preg_match('/^\d/u', $w) === 1;

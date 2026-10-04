@@ -188,10 +188,11 @@ new class extends Component {
             'users' => $users,
             'docCounts' => $docCounts,
             'stats' => [
-                'drivers' => DriverProfile::query()->count(),
-                'owners' => \App\Models\CargoOwnerProfile::query()->count(),
-                'pending' => DriverProfile::query()->where('kyc_status', 'pending')->count() + \App\Models\CargoOwnerProfile::query()->where('kyc_status', 'pending')->count(),
-                'premium' => DriverProfile::query()->where('premium_until', '>', now())->count(),
+                // Yönetici görünümü profilleri (is_staff_view) gerçek kullanıcı sayılmaz.
+                'drivers' => DriverProfile::query()->where('is_staff_view', false)->count(),
+                'owners' => \App\Models\CargoOwnerProfile::query()->where('is_staff_view', false)->count(),
+                'pending' => DriverProfile::query()->where('is_staff_view', false)->where('kyc_status', 'pending')->count() + \App\Models\CargoOwnerProfile::query()->where('is_staff_view', false)->where('kyc_status', 'pending')->count(),
+                'premium' => DriverProfile::query()->where('is_staff_view', false)->where('premium_until', '>', now())->count(),
             ],
             'kycLabels' => ['approved' => 'Onaylı', 'pending' => 'İnceleniyor', 'rejected' => 'Reddedildi', 'unsubmitted' => 'Belge yok'],
             'kycBadge' => ['approved' => 'bg-emerald-500/10 text-emerald-600', 'pending' => 'bg-amber-500/10 text-amber-600', 'rejected' => 'bg-red-500/10 text-red-600', 'unsubmitted' => 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'],

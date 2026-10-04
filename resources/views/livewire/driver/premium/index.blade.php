@@ -45,9 +45,13 @@ class extends Component {
 
 <div class="space-y-6">
 
+    @php
+        $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes();
+        $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
+    @endphp
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten 20 dakika önce görür, anında bildirim alır ve yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görür.</p>
+        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür, anında bildirim alır ve yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görür.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -96,8 +100,8 @@ class extends Component {
                 <h3 class="section-title">Premium avantajları</h3>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">20 dakika önce görürsünüz</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Yük sahiplerinin açtığı sistem ilanları önce premium üyelere açılır; diğer üyeler 20 dakika sonra görür.</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">{{ $leadText }} önce görürsünüz</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Yük sahiplerinin açtığı sistem ilanları önce premium üyelere açılır; diğer üyeler {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür.</div>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Anında bildirim</div>

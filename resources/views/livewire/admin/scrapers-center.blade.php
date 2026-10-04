@@ -661,6 +661,33 @@ new class extends Component {
         return md5(implode('|', array_map(fn ($v) => (string) $v, $parts)));
     }
 
+    /**
+     * Hat karnesi (ucuz toplu sorgular; aday başına karar hesabı yok): bekleyenlerin kaba engel dağılımı, bugün yaşla reddedilen,
+     * bugün yayınlananların açılış→yayın medyan süresi, sağlayıcı durumu (devre kesici / kota).
+     *
+     * @return array{pending_by:array<string,int>, age_rejected_today:int, median_minutes:?int, providers:array<string,array{state:string,until:?string}>}
+     */
+    private function scorecard(AiParserService $parser): array
+    {
+        $pending = ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected');
+        $aiPending = (clone $pending)->where('ai_status', 'pending')->count();
+        $unresolved = (clone $pending)->where('ai_status', '!=', 'pending')->where(fn ($q) => $q->whereNull('pickup_province_code')->orWhereNull('delivery_province_code'))->count();
+        $noPhone = (clone $pending)->where('ai_status', '!=', 'pending')->whereNotNull('pickup_province_code')->whereNotNull('delivery_province_code')->whereNull('encrypted_sender_phone')->whereNull('sender_phone')->count();
+        $total = (clone $pending)->count();
+        $ageRejected = ScrapedLoad::query()->where('status', 'rejected')->where('updated_at', '>=', now()->startOfDay())
+            ->whereNotNull('parse_metadata->auto_rejected')->where('parse_metadata->auto_rejected->reason', 'like', 'kuyrukta%')->count();
+        $minutes = ScrapedLoad::query()->where('published_at', '>=', now()->startOfDay())->limit(2000)->get(['created_at', 'published_at'])
+            ->map(fn ($l) => $l->created_at && $l->published_at ? max(0, (int) round($l->created_at->diffInMinutes($l->published_at, true))) : null)->filter(fn ($m) => $m !== null)->sort()->values();
+        $median = $minutes->isEmpty() ? null : (int) $minutes->get(intdiv($minutes->count(), 2));
+
+        return [
+            'pending_by' => ['yapay zeka bekliyor' => $aiPending, 'il/rota çözülemedi' => $unresolved, 'telefon yok' => $noPhone, 'puan / elle kontrol' => max(0, $total - $aiPending - $unresolved - $noPhone)],
+            'age_rejected_today' => $ageRejected,
+            'median_minutes' => $median,
+            'providers' => $parser->isConfigured() ? $parser->providerStatus() : [],
+        ];
+    }
+
     /** wire:poll: veri değişmediyse ekran çizilmez (ağır sayaç ve karar hesapları atlanır). */
     public function tick(): void
     {
@@ -716,6 +743,7 @@ new class extends Component {
                 'rejected' => ScrapedLoad::query()->where('status', 'rejected')->count(),
             ],
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
+            'scorecard' => $this->scorecard($parser),
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
@@ -803,6 +831,16 @@ new class extends Component {
     @if($stats['reasons'] !== [])
         <p class="text-[11px] text-neutral-400 -mt-1">Bugün en sık elenme nedenleri: @foreach($stats['reasons'] as $i => $r){{ $i > 0 ? ' · ' : '' }}{{ $r['label'] }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($r['count'], 0, ',', '.') }}</span>@endforeach</p>
     @endif
+
+    {{-- Hat karnesi: bekleyenler neden bekliyor, yaşla ret, açılış→yayın süresi, sağlayıcı durumu --}}
+    <p class="text-[11px] text-neutral-400 -mt-1">
+        Bekleyen: @foreach(array_filter($scorecard['pending_by']) as $label => $n){{ ! $loop->first ? ' · ' : '' }}{{ $label }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($n, 0, ',', '.') }}</span>@endforeach{{ array_filter($scorecard['pending_by']) === [] ? 'yok' : '' }}
+        · Bugün yaşla reddedilen <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['age_rejected_today'] }}</span>
+        · Açılış → yayın medyan <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['median_minutes'] === null ? '—' : $scorecard['median_minutes'].' dk' }}</span>
+        @if($scorecard['providers'] !== [])
+            · Sağlayıcı: @foreach($scorecard['providers'] as $provider => $state){{ ! $loop->first ? ', ' : '' }}{{ \App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider }} <span class="font-semibold {{ $state['state'] === 'ok' ? 'text-emerald-600' : 'text-amber-600' }}">{{ match($state['state']) { 'ok' => 'çalışıyor', 'cooldown' => 'bekletiliyor'.($state['until'] ? ' ('.$state['until'].' kadar)' : ''), default => 'kota doldu'.($state['until'] ? ' ('.$state['until'].' sıfırlanır)' : '') } }}</span>@endforeach
+        @endif
+    </p>
 
     {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">

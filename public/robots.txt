@@ -1,2 +1,13 @@
 User-agent: *
-Disallow:
+Disallow: /adminsystem
+Disallow: /panel
+Disallow: /api
+Disallow: /giris
+Disallow: /kayit
+Disallow: /odeme
+Disallow: /dosya
+Disallow: /sifremi-unuttum
+Disallow: /sifre-sifirla
+Allow: /
+
+Sitemap: https://navluniq.com/sitemap.xml

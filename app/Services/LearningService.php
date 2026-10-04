@@ -50,7 +50,10 @@ class LearningService
     public function onRejected(ScrapedLoad $load): void
     {
         try {
-            $this->classifier->train((string) $load->raw_message, false);
+            // Yalnız "ilan değil" kararı olumsuz örnektir; tekrar / eski / yanlış rota gerekçeli ret ya da kendiliğinden ret öğretmez.
+            if (LocalClassifier::isNegativeExample($load)) {
+                $this->classifier->train((string) $load->raw_message, false);
+            }
             $templateId = (int) (((array) $load->meta('ai', []))['template_id'] ?? 0);
             if ($templateId > 0) {
                 $this->templates->forget($templateId); // kalıp yanlış çözmüş: bir daha uygulanmasın

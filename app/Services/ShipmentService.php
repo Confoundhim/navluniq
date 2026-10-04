@@ -9,6 +9,7 @@ use App\Models\Shipment;
 use App\Models\ShipmentEvidence;
 use App\Models\User;
 use App\Support\Settings;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -63,13 +64,15 @@ class ShipmentService
             if ($locked->driver_profile_id !== $driver->id) {
                 throw new RuntimeException('Bu sevkiyat size atanmamış.');
             }
-            if ($locked->status !== Shipment::STATUS_IN_TRANSIT || $load->status !== Load::STATUS_ON_THE_WAY) {
+            // Yoldaki sevkiyat; yük sahibi yolda uyuşmazlık açtıysa da kanıt yüklenebilir (uyuşmazlık açık kalır, kanıt hakeme gider).
+            $disputedInTransit = $locked->status === Shipment::STATUS_DISPUTED && $load->status === Load::STATUS_DISPUTED && $locked->delivered_at === null;
+            if (! $disputedInTransit && ($locked->status !== Shipment::STATUS_IN_TRANSIT || $load->status !== Load::STATUS_ON_THE_WAY)) {
                 throw new RuntimeException('Teslimat kanıtı yalnız yoldaki sevkiyatlar için yüklenebilir.');
             }
 
             $path = $proof->storeAs(
                 'evidence/'.$locked->id,
-                'pod-'.now()->format('YmdHis').'.'.strtolower($proof->getClientOriginalExtension()),
+                'pod-'.now()->format('YmdHis').'.'.UploadName::extension($proof),
                 'private'
             );
 
@@ -84,6 +87,11 @@ class ShipmentService
                 'captured_at' => now(),
             ]);
 
+            if ($disputedInTransit) {
+                $locked->update(['delivered_at' => now()]); // durum "uyuşmazlık" kalır; otomatik onay işlemez
+
+                return $evidence;
+            }
             $hours = max(1, Settings::int('delivery_auto_approval_hours'));
             $locked->update([
                 'status' => Shipment::STATUS_DELIVERED,
@@ -94,6 +102,9 @@ class ShipmentService
 
             return $evidence;
         });
+        if ($shipment->fresh()->status === Shipment::STATUS_DISPUTED) {
+            return $evidence; // uyuşmazlık sürerken sefer durumu değişmez, yük sahibine "onayla" denmez
+        }
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_DELIVERED);
 
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
@@ -128,9 +139,9 @@ class ShipmentService
 
             $locked->update(['status' => Shipment::STATUS_COMPLETED, 'owner_approved_at' => now()]);
             $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_RELEASE_APPROVED]);
-
-            $this->payouts->createForLoad($load->fresh());
         });
+        // Hakediş ve ödeme kuruluşu aktarımı kilit dışında (yavaş sağlayıcı satırları kilitlemesin); ilan başına tek hakediş zaten korunur.
+        $this->payouts->createForLoad($shipment->cargoLoad()->firstOrFail()->fresh());
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
         app(LoadStatsService::class)->forget();
 

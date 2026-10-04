@@ -8,6 +8,7 @@ use App\Models\DriverVehicle;
 use App\Models\User;
 use App\Models\UserConsent;
 use App\Support\Phone;
+use App\Support\Settings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -34,6 +35,11 @@ class DemoResetCommand extends Command
 
     public function handle(): int
     {
+        if (app()->isProduction() && ! Settings::bool('deneme_mode')) {
+            $this->error('Bu komut canlı sunucuda çalışmaz (deneme kopyası değil). Önce `php artisan deneme:izole` ile kopyayı yalıtın.');
+
+            return self::FAILURE;
+        }
         $emails = array_values(array_unique(array_filter(array_map(fn ($e) => mb_strtolower(trim((string) $e)), (array) $this->option('email')))));
         $phones = array_values(array_unique(array_filter(array_map(fn ($p) => Phone::normalize((string) $p), (array) $this->option('phone')))));
         $demoEmail = mb_strtolower(trim((string) $this->option('demo-email')));
@@ -68,7 +74,7 @@ class DemoResetCommand extends Command
         });
 
         $this->info('Tamamlandı.');
-        $this->line("  Giriş: {$demoEmail} / ".$this->option('demo-password')."  (kod e-postaya gelir)");
+        $this->line("  Giriş: {$demoEmail} / ".$this->option('demo-password').'  (kod e-postaya gelir)');
         $this->line('  Roller: yük sahibi + şoför (panelde sol alttaki rol değiştirici ile geçilir)');
 
         return self::SUCCESS;

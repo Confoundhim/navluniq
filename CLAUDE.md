@@ -186,6 +186,32 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   mesajı açıklayıcı; telefon kuyruğu 400 paket. Test: `IntakeRateLimitTest`. Yeni uç eklerken sayısal throttle değil adlı sınırlayıcı kullan.
   Aynı gün ikinci bulgu: Engin Abi **Facebook Lite** kullanıyordu; Lite metinleri erişilebilirlik ağacına vermez, "Facebook ekranı: 0"
   kalır. Yalnız normal Facebook uygulaması okunur (tarayıcı da okunmaz); panel adımlarına ve `docs/TOPLAYICI.md`'ye yazıldı.
+- **Paket A — yayın engelleyiciler (2026-10-04, `docs/YAYIN_ONCESI_DENETIM.md` §7):** para güvenliği (`LoadService::cancel` son 15 dk'da
+  güncellenen bekleyen ödeme emri varsa iptal etmez, `PaymentService::handleWebhook` iptal edilmiş ilana gelen parayı kendiliğinden iade eder,
+  tutar uyuşmazlığı emri "başarısız" yapar ve bildirir, iade reddi `refund_pending` + finans ekranında elle "İade yapıldı",
+  yönetici "İptal et ve iade et", uyuşmazlık kararında sağlayıcı çağrıları kilit dışında ve "iade edildi" yalnız başarıda); akış
+  (ödeme süresi `offer_payment_hours`, şoför "Vazgeç", `loads:expire`, sıfır gecikmede premium bildirimi, "İade ile kapandı" etiketi);
+  işletim (`deploy/update.sh` hata halinde önceki commit'e döner, Türkçe hata sayfaları `resources/views/errors/`, `robots.txt`,
+  `/sitemap.xml`, frontend düzeninde `description`/`noindex` prop'ları). Paket B (KVKK/güven) ve C (ölçek/muhasebe) bekliyor.
+- **Paket B — güven ve KVKK (2026-10-04, `docs/YAYIN_ONCESI_DENETIM.md` §8):** `trustHosts` (yalnız APP_URL alanı), sabit inceleme kodu
+  yöneticilere canlıda işlemez (`OtpService::isReviewAccount`: yalnız `local` ya da `deneme_mode` ayarı; `review_login_until` ile biter;
+  sağlık ekranı uyarır), kayıt formu şifre deneme kapısı değil (giriş sayacı + IP başına 10 kayıt/saat), var olan hesaba rol ekleme
+  kod doğrulanınca (`roleAddPending`), OTP sayacı kullanıcı bazlı, `AuthenticateSession` + `ManagesAccountSecurity::endOtherSessions`
+  (şifre değişince diğer cihazlar düşer), e-posta değişikliği `pending_email` + yeni adrese kod + eski adrese haber, telefon/e-posta
+  değişikliği şifre ister (ortak trait `App\Livewire\Concerns\ManagesAccountSecurity` + `components/account-security-forms`),
+  hesap silme belge/konum/TC/plaka temizler, "verilerimi indir" JSON, konum yalnız yoldaki sevkiyatta ve 90 gün (`privacy:purge`),
+  sözleşme sürümü `legal_document_version` (CMS → Sözleşmeler → "Sürümü artır") → panelde `reconsent-modal` yeniden onay,
+  yedek indirme yalnız süper yönetici, yönetici panel görünümü `is_staff_view` (bildirim/sayım dışı), dosya uzantısı `UploadName`,
+  "20 dakika" yazıları `LoadReleaseService::delayMinutes()`'tan. SMS telefon doğrulaması Netgsm anahtarı gelince (Paket C).
+- **İlan hattı denetimi (2026-10-04, `docs/YAYIN_ONCESI_DENETIM.md` §9):** "fiyat görüşmeli" içeren mesajlar özet bildirim sanılıp
+  düşüyordu ve "Kalkış:/Varış:" etiketli ilanlar satır satır parçalanıyordu (`NotificationIntakeParser::looksLikeSenderPrefix`, sistem
+  kalıpları yalnız başlıkta); kuralın okuduğu araç `vehicle_type_source='ai'` yazılmıyor; %60-75 bandı eksik bilgili yayınlanır,
+  yaşla ret yalnız rota/il çözülemeyende (`isAgeRejectable`); `ruleStrong` yapay zekasız yayın, yapay zeka beklerken `parsed_partial`
+  kayıt; sağlayıcı devre kesici (`ai:breaker:*`), 15 sn zaman aşımı, mesaj başına 2 sağlayıcı, sonuç önbelleği `ai:result:{hash}` 7 gün;
+  `SeriesAd::commaList/roundTrip` (virgüllü varış listesi, "-DAN:" başlığı, gidiş-dönüş), `MAX_ADS_PER_MESSAGE=40`;
+  `materiallyDifferent` → `supersedes` (değişen ilan eskisinin yerine geçer); `LoadFilterService::EXACT_VEHICLE_SOURCES` (kesin
+  kaynaklı araç yalnız aynı sınıf + bir alt); `reject($load,$userId,$reason)` ve sınıflandırıcı yalnız "ilan değil" retinden öğrenir;
+  canlı akışta gönderen adı yok, numara maskeli, `intake_event_days`. Dış kaynak özetinde hat karnesi (`scorecard()`).
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
@@ -293,11 +319,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 8. Zamanlanmış görevler (routes/console.php)
 
-`offers:expire` (saatlik), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
+`offers:expire` (saatlik), `loads:expire` (saatlik; yükleme tarihi `load_expiry_grace_days` kadar geçmiş aktif ilanı kapatır),
+`loads:expire-unpaid` (30 dk; teklif kabulünden `offer_payment_hours` içinde ödenmeyen ilanı havuza döndürür, yarısında hatırlatır), `subscriptions:expire` (saatlik), `subscriptions:remind` (09:00), `notifications:retry-mail`
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (günlük), `system:backup` (03:30), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz.
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
@@ -323,6 +350,9 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - Volt bileşen dosyasında aynı metod iki kez tanımlanırsa PHP fatal verir; trait'e taşınan metodları dosyadan sil.
 - MySQL/MariaDB'de DDL işlemsel değildir; yarım kalan migration ikinci çalıştırmada "already exists" der → `hasTable` koruması.
 - `STDERR` sabiti `php artisan serve` altında yoktur; hata ayıklama için `Log` kullan.
+- Blade'de `@php($x = app(\App\X::class)->y())` tek satır biçimi `::class` ile bozulur (derleyici parantezi yanlış keser); `@php ... @endphp`
+  bloğu kullan. Volt bileşeninde `request()->session()` Livewire testinde "Session store not set" verir; `session()` yardımcısını kullan.
+  Volt bileşeninin kök öğesinden önce yazılan `@php` satırları derlenmez; değişkenleri kök `<div>` içinde tanımla.
 - Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
   Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
 

@@ -144,11 +144,14 @@ class LocalLearningTest extends TestCase
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
-        // Yeni aday: yapay zeka cevabı kısa süre beklenir.
-        $pending = $this->candidate($source, ['ai_status' => 'pending', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'weight' => 24000]);
+        // Yeni aday (araç tonajdan çıkarılmış, kural tamam değil): yapay zeka cevabı kısa süre beklenir.
+        $pending = $this->candidate($source, ['ai_status' => 'pending', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'weight', 'weight' => 24000]);
         $this->assertSame('yapay zeka doğrulaması bekleniyor', $service->autoApprovalBlocker($pending));
+        // Kural tamam (iki il + telefon + açık araç adı): yapay zeka beklenmez, hemen yayın (2026-10-04: kısayol beklemeden önce değerlendirilir).
+        $complete = $this->candidate($source, ['ai_status' => 'pending', 'vehicle_type' => 'tir', 'vehicle_type_source' => 'keyword', 'weight' => 24000]);
+        $this->assertNull($service->autoApprovalBlocker($complete));
 
-        // Bekleme süresi dolunca kural puanıyla karar: il çifti + telefon + araç adı + tonaj = %90 → yayın.
+        // Bekleme süresi dolunca kural puanıyla karar: il çifti + telefon + çıkarılan araç + tonaj = %83 → yayın.
         ScrapedLoad::whereKey($pending->id)->update(['created_at' => now()->subMinutes(20)]);
         $d = $service->decision($pending->fresh());
         $this->assertFalse($d['wait']);
@@ -192,7 +195,8 @@ class LocalLearningTest extends TestCase
         Http::fake(['127.0.0.1:11434/*' => Http::response(['choices' => [['message' => ['content' => "<think>kısa düşünce</think>\n".json_encode(['post_type' => 'load', 'confidence' => 0.9, 'notes' => null, 'ads' => [$ad]])]]], 'usage' => ['prompt_tokens' => 900, 'completion_tokens' => 120]])]);
 
         $this->source();
-        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var tır lazım 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
+        // Araç adı yazmıyor (kural kesin değil) → yapay zekaya gider; açık araç adlı kesin ilan "Her ilanda" kipinde bile yapay zekaya gitmez.
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
 
         $this->assertSame('created', $r['status']);
         Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b' && str_ends_with($req['messages'][1]['content'], '/no_think'));
@@ -250,9 +254,9 @@ class LocalLearningTest extends TestCase
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
-        // il çifti + telefon = kural %65; yerel %50 ile puan %57,5 → ret (25) ile eksik üst sınırı (60) arasında: eksik bilgili yayın
+        // il çifti + telefon = kural %65; yerel %50 ile puan %57,5 → ret (25) ile yayın eşiği (75) arasında: eksik bilgili yayın
         $mid = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
-        // yerel yoksa puan %65 → 60-75 arası: kuyrukta kalır, sistemi eğitir
+        // yerel yoksa puan %65 → eskiden 60-75 bandı kuyrukta bekleyip 48 saatte reddediliyordu; artık o da eksik bilgili yayınlanır
         $queue = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null]);
         // varış ili çözülemeyen aday puanı ne olursa olsun eksik bilgili yayınlanmaz
         $noRoute = $this->candidate($source, ['ai_status' => 'skipped', 'delivery_location' => 'Bilinmeyenköy', 'delivery_province_code' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
@@ -261,13 +265,13 @@ class LocalLearningTest extends TestCase
         Settings::set('scraper_auto_reject_max_score', '35');
 
         $this->assertTrue($service->incompleteEligible($mid));
-        $this->assertFalse($service->incompleteEligible($queue));
+        $this->assertTrue($service->incompleteEligible($queue));
         $this->assertFalse($service->incompleteEligible($noRoute));
         $this->assertFalse($service->incompleteEligible($low));
 
         $service->autoApproveDue();
         $this->assertSame(['public', true], [$mid->fresh()->visibility, $mid->fresh()->is_incomplete]);
-        $this->assertSame(['private', false], [$queue->fresh()->visibility, $queue->fresh()->is_incomplete]);
+        $this->assertSame(['public', true], [$queue->fresh()->visibility, $queue->fresh()->is_incomplete]);
         $this->assertSame('private', $noRoute->fresh()->visibility);
         $this->assertSame('rejected', $low->fresh()->status);
 
@@ -283,7 +287,7 @@ class LocalLearningTest extends TestCase
         $admin->syncRoles(['super_admin']);
         $this->actingAs($admin->fresh());
         Volt::test('admin.scrapers-center')->set('activeTab', 'queue')->assertSee('Eksik bilgili yayına gidecek')
-            ->set('activeTab', 'published')->set('flag', 'incomplete')->assertSee('Eksik bilgili')->assertSee('#'.$mid->id)->assertDontSee('#'.$queue->id)
+            ->set('activeTab', 'published')->set('flag', 'incomplete')->assertSee('Eksik bilgili')->assertSee('#'.$mid->id)->assertDontSee('#'.$noRoute->id)
             ->call('startEdit', $mid->id)->set('edit.vehicle_type', 'tir')->call('saveEdit')->assertHasNoErrors();
         $this->assertSame([false, 'admin', 'tir'], [$mid->fresh()->is_incomplete, $mid->fresh()->completed_by, $mid->fresh()->vehicle_type]);
     }

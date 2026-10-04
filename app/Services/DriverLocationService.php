@@ -28,6 +28,10 @@ class DriverLocationService
                 ->where('status', Shipment::STATUS_IN_TRANSIT)->first();
         }
         $shipment ??= Shipment::query()->where('driver_profile_id', $driver->id)->where('status', Shipment::STATUS_IN_TRANSIT)->latest('id')->first();
+        if (! $shipment) {
+            // KVKK metni: konum yalnız aktif (yoldaki) sevkiyat süresince işlenir; tarayıcı yine de gönderirse kaydedilmez.
+            return null;
+        }
 
         return DriverLocation::create([
             'driver_profile_id' => $driver->id,
@@ -50,5 +54,11 @@ class DriverLocationService
             'latest' => $points->last(),
             'trail' => $points->map(fn (DriverLocation $p) => [(float) $p->latitude, (float) $p->longitude])->all(),
         ];
+    }
+
+    /** Saklama süresi dolan konum izlerini siler (günlük görev); varsayılan 90 gün. */
+    public function purgeOld(int $days = 90): int
+    {
+        return DriverLocation::query()->where('recorded_at', '<', now()->subDays(max(1, $days)))->delete();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\AiParserService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -34,11 +35,30 @@ class IntakeEvent extends Model
 
     public static function record(string $status, array $attributes = []): self
     {
+        // KVKK: canlı akış alıntısında telefon numaraları maskelenir (ilk 4 hane kalır); numara yalnız adayın şifreli kolonundadır.
+        if (is_string($attributes['excerpt'] ?? null)) {
+            $attributes['excerpt'] = self::maskPhones($attributes['excerpt']);
+        }
+
         return self::create(array_merge([
             'status' => $status,
             'created_at' => now(),
             'ip' => request()?->ip(),
         ], array_map(fn ($v) => is_string($v) ? mb_substr($v, 0, 300) : $v, $attributes)));
+    }
+
+    /** Metindeki cep numaralarını "0532…" biçimine indirger. */
+    public static function maskPhones(string $text): string
+    {
+        return preg_replace_callback(AiParserService::PHONE_PATTERN, function (array $m): string {
+            $digits = preg_replace('/\D+/', '', $m[0]) ?? '';
+            if (str_starts_with($digits, '90') && strlen($digits) === 12) {
+                $digits = substr($digits, 2);
+            }
+            $digits = ltrim($digits, '0');
+
+            return '0'.substr($digits, 0, 3).'…';
+        }, $text) ?? $text;
     }
 
     public function statusLabel(): string

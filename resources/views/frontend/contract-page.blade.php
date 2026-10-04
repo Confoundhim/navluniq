@@ -10,6 +10,11 @@
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 NavlunIQ platformunun kullanım şartları, veri güvenliği protokolleri ve tüketici hakları taahhütleri.
             </p>
+            @php
+                $legalVersion = \App\Models\UserConsent::currentVersion();
+                $legalDate = \App\Support\Settings::string('legal_effective_date');
+            @endphp
+            <p class="text-[11px] text-neutral-400">Sürüm {{ $legalVersion }}{{ $legalDate ? ' · Yürürlük: '.$legalDate : '' }}</p>
         </div>
 
         <!-- 5 Sözleşme Sekme Seçicisi -->

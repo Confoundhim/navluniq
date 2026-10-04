@@ -22,7 +22,22 @@ ok()  { printf '\033[1;32m✔ %s\033[0m\n' "$*"; }
 git config --global --add safe.directory "$APP_DIR" >/dev/null 2>&1 || true
 cd "$APP_DIR"
 BEFORE="$(git rev-parse --short HEAD)"
-trap 'php artisan up --quiet >/dev/null 2>&1 || true; rm -f "$0"' EXIT
+# Betik herhangi bir adımda hata verirse site yarım kodla açılmaz: kod ve bağımlılıklar güncelleme öncesine döndürülür,
+# önbellek temizlenir, sonra bakım modu kaldırılır. (Migration'lar geri alınmaz; hepsi yeniden çalıştırılabilir yazılır.)
+finish() {
+    local status=$?
+    if [[ $status -ne 0 ]]; then
+        printf '\n\033[1;31m✘ Güncelleme %s. adımda hata verdi (çıkış kodu %s); %s sürümüne geri dönülüyor\033[0m\n' "${STEP:-?}" "$status" "$BEFORE"
+        git reset --quiet --hard "$BEFORE" || true
+        composer install --no-dev --optimize-autoloader --no-interaction --quiet || true
+        runuser -u www-data -- php artisan optimize:clear --quiet || true
+        printf '\033[1;31m✘ Site %s sürümüyle yeniden açıldı; günlüğü inceleyip güncellemeyi tekrar başlatın.\033[0m\n' "$BEFORE"
+    fi
+    php artisan up --quiet >/dev/null 2>&1 || true
+    rm -f "$0"
+}
+trap finish EXIT
+STEP="bakım modu"
 
 log "Bakım modu"
 php artisan down --retry=15 --quiet || true
@@ -33,6 +48,7 @@ for PHP_FPM in $(systemctl list-units --type=service --state=running 'php*-fpm*'
     systemctl restart "$PHP_FPM" || true
 done
 
+STEP="kod"
 log "Kod (${APP_BRANCH})"
 git fetch --quiet origin "$APP_BRANCH"
 git checkout --quiet "$APP_BRANCH"
@@ -46,11 +62,13 @@ if [[ -f /etc/sudoers.d/navluniq-update ]]; then
     bash "$APP_DIR/deploy/install-update-button.sh" >/dev/null 2>&1 && ok "Panel güncelleme düğmesi yenilendi" || echo "  ! Panel düğmesi yenilenemedi (bash deploy/install-update-button.sh)"
 fi
 
+STEP="bağımlılıklar ve derleme"
 log "Bağımlılıklar ve derleme"
 composer install --no-dev --optimize-autoloader --no-interaction --quiet
 npm ci --silent --no-audit --no-fund
 npm run build --silent
 
+STEP="veritabanı"
 log "Veritabanı"
 # Bakım modunda bile açık kalmış işlemler (uyuyan bağlantıdaki yarım işlem) tablo kilidini tutar; migrate en çok
 # 120 sn bekler (lock_wait_timeout). Önce 60 sn'den eski açık işlemler kapatılır, sonra migrate çalışır.
@@ -67,6 +85,7 @@ fi
 # Araç tipi boş kalmış dış kaynak ilanlarını sınıflandırıcıyla doldur (yalnız boş olanlar; tekrar çalıştırmak güvenli).
 php artisan scraped-loads:classify --no-interaction || true
 
+STEP="roller ve izinler"
 log "Roller ve izinler"
 php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder --quiet
 # Sözleşme metinleri: künye yer tutucusu taşımayan eski biçim varsa güncel şablonla bir kez yenilenir; sonrası panelden.
@@ -74,6 +93,7 @@ php artisan legal:refresh --if-stale --no-interaction || true
 # SSS: ödeme kuruluşu kurallarına aykırı eski ifade (cüzdan/havuz/bloke/escrow) içeren metin varsa güncel seed ile yenilenir.
 php artisan faq:refresh --if-stale --no-interaction || true
 
+STEP="php sınırları"
 log "PHP sınırları"
 PHP_VER="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')"
 PHP_INI_OK=1
@@ -123,6 +143,7 @@ log "Gece yedeği (03:00)"
 ensure_cron root "deploy/backup.sh" "0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
 ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
 
+STEP="izinler ve önbellekler"
 log "İzinler ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private
 chown -R www-data:www-data "$APP_DIR"
@@ -138,4 +159,5 @@ for PHP_FPM in $(systemctl list-units --type=service --state=running 'php*-fpm*'
     systemctl restart "$PHP_FPM" || true
 done
 
+STEP="tamamlandı"
 ok "Güncelleme tamamlandı (${AFTER})"

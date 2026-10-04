@@ -49,6 +49,9 @@ new class extends Component {
                     'otp_expires_at' => null,
                 ])->save();
 
+                // Sıfırlama sonrası açık kalan hiçbir oturum geçerli olmaz (çalınan oturum da düşer).
+                \App\Livewire\Concerns\ManagesAccountSecurity::endOtherSessions($user, $password);
+
                 event(new PasswordReset($user));
                 app(\App\Services\NotificationService::class)->notify($user, 'Şifreniz değiştirildi',
                     ['Hesabınızın şifresi az önce sıfırlama bağlantısıyla değiştirildi ('.now()->format('d.m.Y H:i').').',

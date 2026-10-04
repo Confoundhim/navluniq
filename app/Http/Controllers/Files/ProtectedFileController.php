@@ -67,6 +67,7 @@ class ProtectedFileController extends Controller
     {
         abort_unless(Storage::disk($disk)->exists($path), 404);
 
-        return Storage::disk($disk)->response($path, basename($path), ['Cache-Control' => 'private, no-store']);
+        // nosniff: tarayıcı dosyayı sunulan türün dışında yorumlamaz (ör. resim adıyla gelen betik çalışmaz).
+        return Storage::disk($disk)->response($path, basename($path), ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 }

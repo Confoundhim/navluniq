@@ -1,4 +1,4 @@
-<x-layouts.frontend title="Şoförler İçin - NavlunIQ Akıllı Lojistik">
+<x-layouts.frontend title="Şoförler İçin - NavlunIQ Akıllı Lojistik" description="Şoförler için NavlunIQ: ilan havuzu, WhatsApp ve Facebook gruplarından derlenen yükler, dönüş yükü bildirimi, güvenli ödeme. Belgelerinizi yükleyin, teklif vermeye başlayın.">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">

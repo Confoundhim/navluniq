@@ -157,7 +157,7 @@ class PremiumReleaseTest extends TestCase
         $load = $this->publish();
         $this->assertNotNull($load->fresh()->released_at);
         $this->assertSame(1, UserNotification::where('user_id', $this->free->id)->count());
-        $this->assertSame(0, UserNotification::where('user_id', $this->premium->id)->count(), 'Gecikme yoksa yalnız herkese açılış bildirimi (ücretsiz)');
+        $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count(), 'Gecikme sıfırken de premium şoför yayın anında haber alır (eskiden hiç almıyordu)');
         Http::assertNothingSent();
     }
 
