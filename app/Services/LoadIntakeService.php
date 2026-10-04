@@ -167,11 +167,11 @@ class LoadIntakeService
                 return $this->result(200, false, 'filtered', 'İlan değil (boş araç, şoför/eleman ilanı, reklam).', null, 'not_load_pattern');
             }
             $aiFirst = $this->parser->aiFirst();
-            // Yapay zeka öncelikli kipte ("Her ilanda") ilan mı sohbet mi kararını yapay zeka verir; kural ön eleme yalnız
-            // yapay zeka kapalıyken/anahtarsızken uygulanır.
+            // Ucuz ön eleme her kipte: telefon + en az bir lojistik işaret (rota, tonaj, fiyat, araç/yük sözcüğü) yoksa yapay zekaya
+            // da gitmez (eski "Her ilanda" kipi telefonu olan her sohbeti yapay zekaya yolluyordu; kota ve gecikme).
             // Bildirim başlığından gelen gönderen numarası ($fallbackPhone) da telefon sayılır: gövdede numara yazmayan ilan
             // eskiden "phone_missing" ile düşüyordu.
-            if (! $aiFirst && ! self::looksLikeLoad($raw, $fallbackPhone)) {
+            if (! self::looksLikeLoad($raw, $fallbackPhone)) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw, $fallbackPhone));
             }
 
@@ -231,6 +231,13 @@ class LoadIntakeService
 
                         continue;
                     }
+                }
+                // Kural kesin (iki il katalogda birebir, telefon, açık araç adı): yapay zeka öncelikli kipte bile kota harcanmaz;
+                // yapay zeka yalnız kuralın eksik ya da zayıf bıraktığı parçalara bakar.
+                if ($aiFirst && ! $mayHoldSeveral && self::ruleStrong($parsed, $segment['text'])) {
+                    $results[$i] = $this->processSegment($segment + ['parsed' => $parsed, 'rule_strong' => true], $ctx);
+
+                    continue;
                 }
                 $pending[$i] = $segment + ['parsed' => $parsed];
             }
@@ -326,8 +333,8 @@ class LoadIntakeService
             // Şablon hafızası: aynı gönderenin doğrulanmış kalıbı; yapay zeka doğrulaması sayılır.
             $ai = ['status' => 'done', 'data' => ['provider' => 'template', 'model' => null, 'is_load' => true, 'confidence' => (float) $segment['template']->confidence,
                 'notes' => 'Aynı gönderenin daha önce doğrulanmış ilan kalıbı', 'template_id' => $segment['template']->id]];
-        } elseif (! empty($segment['skip_ai'])) {
-            // Seri ilan: kalkış, varış ve numara kuraldan kesin; yapay zeka kotası harcanmaz.
+        } elseif (! empty($segment['skip_ai']) || ! empty($segment['rule_strong'])) {
+            // Seri ilan ya da kesin kural (iki il + telefon + açık araç adı): yapay zeka kotası harcanmaz.
         } elseif (isset($segment['ai'])) {
             // Yapay zeka öncelikli kip: bu ilanın alanları mesajın tamamına yapılan çağrıdan geldi.
             $ai = ['status' => 'done', 'data' => $segment['ai']];
@@ -368,14 +375,17 @@ class LoadIntakeService
         }
         $parsed['sender_phone'] = $phone;
         $parsed['success'] = ! empty($parsed['pickup_location']) && ! empty($parsed['delivery_location']);
-        if ($parsed['success'] !== true) {
+        // Yapay zeka ulaşılamadı (kota/ağ) ve kural rotanın yalnız bir ucunu çözdü: parça kaybolmasın; eksik kayıt olarak açılır
+        // (status parsed_partial, ai_status pending) ve kuyruk (ai-enrich) yapay zeka gelince tamamlar. Eski sürüm "route_missing" ile eliyordu.
+        $partialPending = $parsed['success'] !== true && $ai['status'] === 'pending' && $this->resolvesOneEnd($parsed);
+        if ($parsed['success'] !== true && ! $partialPending) {
             return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, $parsed['reason'] ?? 'route_missing') + ['excerpt' => $text];
         }
 
         // 6) Aynı numara aynı rotayı kısa aralıkla farklı sözcüklerle paylaşmışsa tek ilan kalır.
         $isSeries = isset($segment['series']);
         $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $isSeries);
-        if ($sameRoute = $this->recentSameRoute($parsed, $phone, $isSeries)) {
+        if (! $partialPending && ($sameRoute = $this->recentSameRoute($parsed, $phone, $isSeries))) {
             $this->noteSighting($sameRoute, $groupName);
 
             return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $text];
@@ -444,6 +454,9 @@ class LoadIntakeService
         ]);
 
         $this->messageIds[] = $scrapedLoad->id;
+        if ($partialPending) {
+            return $this->result(201, true, 'created', 'Rotanın bir ucu çözüldü; yapay zeka sırada, kayıt eksik olarak açıldı.', $scrapedLoad->id) + ['excerpt' => $text];
+        }
 
         // Öğrenme çemberi: yapay zekanın çözdüğü, kuralın çözemediği yazımlar sözlük ekranına öneri olur (onayla → kural öğrenir).
         if ($ai['status'] === 'done' && $ai['data'] !== null) {
@@ -905,6 +918,40 @@ class LoadIntakeService
             'phones' => array_values(array_unique(array_merge($a['phones'], $b['phones']))),
             'route' => $a['route'] || $b['route'],
         ];
+    }
+
+    /**
+     * Kural kesin mi: telefon var, rota bağlaçla yazılmış ("X - Y", "Xden Yye"; yön kesin), kalkış ve varış katalogda birebir
+     * çözülüyor (sözlük/yakın eşleme değil) ve araç açık adıyla yazılmış (sınıflandırıcı "keyword" + "high"). Böyle bir parça
+     * yapay zeka öncelikli kipte bile yapay zekaya gitmez. Etiketli/satır rollü yazımlar ("Varış: … / Çıkış: …") yapay zekaya gider.
+     */
+    public static function ruleStrong(array $parsed, string $text): bool
+    {
+        if (($parsed['success'] ?? false) !== true || empty($parsed['sender_phone']) || AiParserService::connectorPair($text) === null) {
+            return false;
+        }
+        foreach (['pickup_location', 'delivery_location'] as $key) {
+            $value = $parsed[$key] ?? null;
+            if (! is_string($value) || $value === '' || TurkishLocations::resolveCatalog($value) === null) {
+                return false;
+            }
+        }
+        $vehicle = VehicleClassifier::analyze($text);
+
+        return $vehicle['type'] !== null && $vehicle['source'] === 'keyword' && $vehicle['confidence'] === 'high';
+    }
+
+    /** Kural rotanın en az bir ucunu bir ile çözdü mü (eksik kayıt açmaya değer)? */
+    private function resolvesOneEnd(array $parsed): bool
+    {
+        foreach (['pickup_location', 'delivery_location'] as $key) {
+            $value = $parsed[$key] ?? null;
+            if (is_string($value) && $value !== '' && TurkishLocations::resolve($value) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return list<string> */

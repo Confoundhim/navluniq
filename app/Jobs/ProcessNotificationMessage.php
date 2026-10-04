@@ -5,8 +5,10 @@ namespace App\Jobs;
 use App\Models\IntakeEvent;
 use App\Services\LoadIntakeService;
 use App\Services\NotificationIntakeParser;
+use App\Support\TextPrep;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -19,10 +21,16 @@ class ProcessNotificationMessage implements ShouldQueue
 {
     use Queueable;
 
-    /** Yapay zeka çağrısı tekrar edilmez; başarısız olursa canlı akışa "işlenemedi" düşer. */
-    public int $tries = 1;
+    /**
+     * Altyapı hatasında (veritabanı/önbellek kopması, zaman aşımı) bir kez daha denenir; yapay zeka sonucu 7 gün önbellekte
+     * olduğundan (AiParserService::enrich) ikinci deneme aynı çağrıyı tekrarlamaz, kayıtlar content_hash ile tekrar sayılır.
+     */
+    public int $tries = 2;
 
-    public int $timeout = 150;
+    public int $backoff = 30;
+
+    /** Yapay zeka duvar bütçesi (~20 sn) + kilit beklemesi (25 sn) + kayıt; 150 sn'lik eski sınır ölü sağlayıcılarda işçiyi kilitliyordu. */
+    public int $timeout = 120;
 
     /**
      * @param  array{text:string, phone:?string, sender?:?string}  $message
@@ -70,6 +78,8 @@ class ProcessNotificationMessage implements ShouldQueue
 
     public function failed(?Throwable $e): void
     {
+        // İş yarıda öldüyse (zaman aşımı) "görüldü" anahtarı 24 saat kilitli kalmasın; aynı mesaj yeniden gelince işlensin.
+        Cache::forget('intake:seen:'.hash('sha256', LoadIntakeService::normalizeText(trim(TextPrep::foldFonts((string) $this->message['text'])))));
         IntakeEvent::record('failed', ['source_name' => $this->group, 'title' => $this->eventTitle(), 'excerpt' => $this->message['text'],
             'reason' => $e ? mb_substr(get_class($e).': '.$e->getMessage(), 0, 300) : 'unknown', 'ip' => $this->ip]);
     }

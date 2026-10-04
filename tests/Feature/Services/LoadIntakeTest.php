@@ -383,7 +383,8 @@ class LoadIntakeTest extends TestCase
         $ad = ['post_type' => 'load', 'confidence' => 0.9, 'phones' => ['5321234567'], 'excerpt' => null, 'pickup' => ['province' => 'Ankara', 'district' => null], 'delivery' => ['province' => 'İzmir', 'district' => null], 'goods' => null, 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false, 'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'notes' => null];
         Http::fake(['api.groq.com/*' => Http::response(['error' => ['message' => 'Failed to validate JSON. Please adjust your prompt.', 'type' => 'invalid_request_error', 'code' => 'json_validate_failed', 'failed_generation' => "```json\n".json_encode(['post_type' => 'load', 'confidence' => 0.9, 'notes' => null, 'ads' => [$ad]])."\n```"]], 400)]);
 
-        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Ostimden Aliağaya tır lazım 0532 123 45 67', 'message_id' => 'g400', 'source_jid' => '1203630000001@g.us']);
+        // Araç adı yok (kural kesin değil): yapay zekaya gider. "… tır lazım" yazsaydı kural kesin sayılır, yapay zeka çağrılmazdı.
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Test Grubu', 'raw_message' => 'Ostimden Aliağaya yük var 0532 123 45 67', 'message_id' => 'g400', 'source_jid' => '1203630000001@g.us']);
 
         $this->assertSame('created', $r['status']);
         $this->assertSame(['done', 'Ankara Yenimahalle', 'İzmir Aliağa'], [ScrapedLoad::first()->ai_status, ScrapedLoad::first()->pickup_location, ScrapedLoad::first()->delivery_location]); // kural ilçe/semti de çözer

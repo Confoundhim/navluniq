@@ -195,7 +195,8 @@ class LocalLearningTest extends TestCase
         Http::fake(['127.0.0.1:11434/*' => Http::response(['choices' => [['message' => ['content' => "<think>kısa düşünce</think>\n".json_encode(['post_type' => 'load', 'confidence' => 0.9, 'notes' => null, 'ads' => [$ad]])]]], 'usage' => ['prompt_tokens' => 900, 'completion_tokens' => 120]])]);
 
         $this->source();
-        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var tır lazım 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
+        // Araç adı yazmıyor (kural kesin değil) → yapay zekaya gider; açık araç adlı kesin ilan "Her ilanda" kipinde bile yapay zekaya gitmez.
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => 'Ostimden Aliağaya palet yükümüz var 0532 123 45 67', 'message_id' => 'o1', 'source_jid' => 'notif:grup-a']);
 
         $this->assertSame('created', $r['status']);
         Http::assertSent(fn ($req) => str_starts_with($req->url(), 'http://127.0.0.1:11434/v1/chat/completions') && $req['model'] === 'qwen3:4b' && str_ends_with($req['messages'][1]['content'], '/no_think'));
