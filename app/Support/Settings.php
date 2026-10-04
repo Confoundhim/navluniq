@@ -17,6 +17,8 @@ final class Settings
         'commission_cargo_owner' => 0.0,        // Yük sahibi hizmet bedeli (%)
         'delivery_auto_approval_hours' => 72,   // Teslimat sonrası otomatik onay süresi (saat)
         'offer_validity_days' => 2,             // Teklif geçerlilik süresi (gün)
+        'offer_payment_hours' => 24,            // Teklif kabulünden sonra yük sahibinin ödeme süresi (saat); dolunca ilan yeniden havuza döner
+        'load_expiry_grace_days' => 1,          // Yükleme tarihi bu kadar gün geçmiş, hâlâ teklif bekleyen ilan kapatılır
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
         'return_load_radius_km' => 150,         // Dönüş yükü: varış noktasına bu kadar km içinden çıkan ilanlar bildirilir (aynı il her zaman)

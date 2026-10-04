@@ -30,12 +30,12 @@ class LoadReleaseService
     /** Yayın anı: premium şoförlere bildirim; gecikme sıfırsa doğrudan herkese açılır. */
     public function onPublished(Load $load): void
     {
+        // Premium şoförler her durumda yayın anında haber alır; gecikme sıfırsa aynı anda herkese açılır (eskiden
+        // sıfır gecikmede premium hiç bildirim almıyordu).
+        $this->notifyDrivers($load, premium: true);
         if ($load->isAvailableToFree()) {
             $this->release($load);
-
-            return;
         }
-        $this->notifyDrivers($load, premium: true);
     }
 
     /** Süresi dolan ilanları herkese açar; işlenen sayısını döndürür (her dakika çalışır). */
@@ -46,7 +46,7 @@ class LoadReleaseService
             ->where('status', Load::STATUS_ACTIVE)->where('visibility', 'public')
             ->whereNull('released_at')
             ->where(fn ($q) => $q->whereNull('available_to_free_at')->orWhere('available_to_free_at', '<=', now()))
-            ->where('published_at', '>=', now()->subDays(3))
+            ->where('published_at', '>=', now()->subDays(14)) // zamanlayıcı bir süre durduysa kaçan ilanlar da açılır; eskiler loads:expire ile kapanır
             ->orderBy('id')->limit(50)->get()
             ->each(function (Load $load) use (&$count): void {
                 $this->release($load);
@@ -138,7 +138,7 @@ class LoadReleaseService
         Load::query()->where('status', Load::STATUS_ACTIVE)->where('visibility', 'public')
             ->whereNotNull('released_at')->whereNull('telegram_posted_at')
             ->where('telegram_attempts', '>', 0)->where('telegram_attempts', '<', TelegramPublisher::MAX_ATTEMPTS)
-            ->where('published_at', '>=', now()->subDays(3))
+            ->where('published_at', '>=', now()->subDays(14))
             ->orderBy('id')->limit(20)->get()
             ->each(function (Load $load) use (&$sent): void {
                 $this->postToTelegram($load);

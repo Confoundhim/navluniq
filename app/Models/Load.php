@@ -106,6 +106,8 @@ class Load extends Model
         'telegram_posted_at',
         'telegram_attempts',
         'cancelled_at',
+        'payment_due_at',
+        'payment_reminded_at',
     ];
 
     protected $casts = [
@@ -116,6 +118,8 @@ class Load extends Model
         'released_at' => 'datetime',
         'telegram_posted_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'payment_due_at' => 'datetime',
+        'payment_reminded_at' => 'datetime',
         'price' => 'decimal:2',
         'body_types' => 'array',
         'delivery_stops' => 'array',
@@ -202,7 +206,17 @@ class Load extends Model
 
     public function statusLabel(): string
     {
+        if ($this->isClosedWithRefund()) {
+            return 'İade ile kapandı';
+        }
+
         return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    /** Uyuşmazlık ya da destek iptali sonucu navlun yük sahibine iade edilerek kapanan sevkiyat: teslimat sayılmaz, puanlanmaz. */
+    public function isClosedWithRefund(): bool
+    {
+        return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CANCELLED], true) && $this->escrow_status === self::ESCROW_REFUNDED;
     }
 
     public function escrowLabel(): string

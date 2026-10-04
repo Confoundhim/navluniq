@@ -204,6 +204,50 @@ class LoadService
         return $refunded;
     }
 
+    /**
+     * Yükleme tarihi geçmiş, hâlâ teklif bekleyen ilanları kapatır (zamanlanmış görev): bekleyen teklifler kapanır,
+     * yük sahibine "Tekrar yayınla" bağlantısıyla haber verilir. Havuzda geçmiş tarihli ilan kalmaz.
+     */
+    public function expireStale(): int
+    {
+        $grace = max(0, Settings::int('load_expiry_grace_days'));
+        $count = 0;
+        Load::query()->with(['cargoOwnerProfile.user', 'offers.driverProfile.user'])
+            ->where('status', Load::STATUS_ACTIVE)->whereNotNull('pickup_date')
+            ->where('pickup_date', '<', today()->subDays($grace))
+            ->orderBy('id')->limit(200)->get()
+            ->each(function (Load $load) use (&$count): void {
+                $pending = $load->offers->where('status', 'pending');
+                DB::transaction(function () use ($load): void {
+                    $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
+                    if ($locked->status !== Load::STATUS_ACTIVE) {
+                        return;
+                    }
+                    $locked->offers()->where('status', 'pending')->update(['status' => 'expired', 'responded_at' => now()]);
+                    $locked->update(['status' => Load::STATUS_CANCELLED, 'rejection_reason' => 'Yükleme tarihi geçti; ilan kendiliğinden kapandı.', 'cancelled_at' => now(), 'visibility' => 'private']);
+                });
+                $count++;
+                $notifications = app(NotificationService::class);
+                if ($owner = $load->cargoOwnerProfile?->user) {
+                    $notifications->notify($owner, 'İlanınızın yükleme tarihi geçti',
+                        ["{$load->pickup_location} → {$load->delivery_location} ilanı yükleme tarihi geçtiği için kapandı.", 'Yük hâlâ taşınacaksa ilanı yeni tarihle tek dokunuşla tekrar yayınlayabilirsiniz.'],
+                        route('cargo-owner.loads.index'), 'Tekrar yayınla', 'load');
+                }
+                foreach ($pending as $offer) {
+                    if ($driverUser = $offer->driverProfile?->user) {
+                        $notifications->notify($driverUser, 'İlan kapandı, teklifiniz düştü',
+                            ["{$load->pickup_location} → {$load->delivery_location} ilanı yükleme tarihi geçtiği için kapandı."],
+                            route('driver.loads.index'), 'İlan havuzuna git', 'offer', sendMail: false);
+                    }
+                }
+            });
+        if ($count > 0) {
+            app(LoadStatsService::class)->forget();
+        }
+
+        return $count;
+    }
+
     public function eIrsaliyeExists(Load $load): bool
     {
         return $load->e_irsaliye_path && Storage::disk('private')->exists($load->e_irsaliye_path);

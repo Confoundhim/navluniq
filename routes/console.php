@@ -5,6 +5,7 @@ use App\Models\ScrapedLoad;
 use App\Services\AccountService;
 use App\Services\DriverTripService;
 use App\Services\LoadReleaseService;
+use App\Services\LoadService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
@@ -22,6 +23,15 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('offers:expire', function (OfferService $offers) {
     $this->info('Süresi dolan teklif sayısı: '.$offers->expireStale());
 })->purpose('Süresi geçmiş bekleyen teklifleri kapatır');
+
+Artisan::command('loads:expire', function (LoadService $loads) {
+    $this->info('Yükleme tarihi geçtiği için kapanan ilan: '.$loads->expireStale());
+})->purpose('Yükleme tarihi geçmiş, teklif bekleyen ilanları kapatır');
+
+Artisan::command('loads:expire-unpaid', function (OfferService $offers) {
+    $r = $offers->expireUnpaid();
+    $this->info("Ödeme süresi dolup havuza dönen ilan: {$r['released']} · hatırlatma: {$r['reminded']}");
+})->purpose('Teklif kabulünden sonra ödenmeyen ilanları yeniden havuza alır, süresi yaklaşan yük sahibine hatırlatır');
 
 Artisan::command('shipments:auto-approve', function (ShipmentService $shipments) {
     $this->info('Otomatik onaylanan teslimat sayısı: '.$shipments->autoApproveDue());
@@ -96,6 +106,8 @@ Artisan::command('trips:auto-close', function (DriverTripService $trips) {
 })->purpose('Teslimden sonra süresi dolan seferleri kapatır');
 
 Schedule::command('offers:expire')->hourly();
+Schedule::command('loads:expire')->hourly()->withoutOverlapping();
+Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping();
 Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping();
 Schedule::command('trips:auto-close')->dailyAt('04:10');
 Schedule::command('subscriptions:expire')->hourly();

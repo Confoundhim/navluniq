@@ -25,6 +25,8 @@ new class extends Component {
         'commission_cargo_owner' => 'Yük sahibi hizmet bedeli (%)',
         'delivery_auto_approval_hours' => 'Teslimat sonrası otomatik onay süresi (saat)',
         'offer_validity_days' => 'Teklif geçerlilik süresi (gün)',
+        'offer_payment_hours' => 'Teklif kabulünden sonra ödeme süresi (saat)',
+        'load_expiry_grace_days' => 'Yükleme tarihi geçen ilanın kapanma süresi (gün)',
         'premium_monthly_price' => 'Premium abonelik aylık ücreti (₺)',
         'min_load_price' => 'Asgari navlun bedeli (₺)',
         'return_load_radius_km' => 'Dönüş yükü arama yarıçapı (km)',
@@ -337,7 +339,7 @@ new class extends Component {
     {
         $raw = str_replace(',', '.', trim($raw));
 
-        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days', 'return_load_radius_km', 'return_load_mail_hours', 'trip_auto_close_days'], true)
+        return in_array($key, ['delivery_auto_approval_hours', 'offer_validity_days', 'offer_payment_hours', 'load_expiry_grace_days', 'return_load_radius_km', 'return_load_mail_hours', 'trip_auto_close_days'], true)
             ? (string) (int) $raw
             : number_format((float) $raw, 2, '.', '');
     }
@@ -407,6 +409,8 @@ new class extends Component {
             'limits.commission_cargo_owner' => 'required|numeric|min:0|max:100',
             'limits.delivery_auto_approval_hours' => 'required|integer|min:1|max:720',
             'limits.offer_validity_days' => 'required|integer|min:1|max:60',
+            'limits.offer_payment_hours' => 'required|integer|min:1|max:720',
+            'limits.load_expiry_grace_days' => 'required|integer|min:0|max:30',
             'limits.premium_monthly_price' => 'required|numeric|min:0|max:1000000',
             'limits.min_load_price' => 'required|numeric|min:0|max:10000000',
             'limits.return_load_radius_km' => 'required|integer|min:0|max:1000',
