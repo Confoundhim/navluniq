@@ -34,3 +34,6 @@ Thumbs.db
 
 /android/.build
 /android/.tools
+
+# Yapay zeka oturumunun yalıtılmış çalışma kopyaları (depoya girmez)
+/.claude/worktrees/
