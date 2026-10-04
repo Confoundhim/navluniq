@@ -166,4 +166,57 @@ class PaymentDeadlineAndExpiryTest extends TestCase
         $this->expectException(RuntimeException::class);
         app(ReviewService::class)->submit($load->fresh(), $owner, 5, 'olmadı');
     }
+
+    /** Durum makinesi denetimi V1: ödenmeyen kabul geri açılınca ilan ikinci bir şoföre atanabilmeli (sevkiyat satırı yeniden kullanılır). */
+    public function test_load_can_be_reassigned_after_withdrawal_and_after_unpaid_expiry(): void
+    {
+        $owner = User::factory()->create();
+        $driverA = $this->driver();
+        $driverB = $this->driver();
+        $load = $this->publish($owner);
+        $offers = app(OfferService::class);
+
+        $offerA = $offers->submit($driverA->driverProfile, $load, 10000);
+        $offers->accept($load, $offerA, $owner->id);
+        $offers->withdrawAccepted($offerA->fresh(), $driverA->driverProfile);
+        $this->assertSame(Load::STATUS_ACTIVE, $load->fresh()->status);
+
+        $offerB = $offers->submit($driverB->driverProfile, $load->fresh(), 9500);
+        $offers->accept($load->fresh(), $offerB, $owner->id);
+        $load->refresh();
+        $this->assertSame(Load::STATUS_ASSIGNED, $load->status);
+        $this->assertSame($driverB->driverProfile->id, $load->driver_profile_id);
+        $this->assertSame(1, Shipment::query()->where('load_id', $load->id)->count(), 'ilan başına tek sevkiyat satırı');
+        $this->assertSame([Shipment::STATUS_AWAITING_PICKUP, $driverB->driverProfile->id], [$load->shipment->status, $load->shipment->driver_profile_id]);
+
+        // Ödeme süresi dolar, ilan havuza döner, üçüncü kabul de sorunsuz
+        $load->forceFill(['payment_due_at' => now()->subMinute()])->save();
+        $this->assertSame(1, app(OfferService::class)->expireUnpaid()['released']);
+        $offerA2 = $offers->submit($driverA->driverProfile, $load->fresh(), 9000);
+        $offers->accept($load->fresh(), $offerA2, $owner->id);
+        $this->assertSame($driverA->driverProfile->id, $load->fresh()->driver_profile_id);
+        $this->assertSame(1, Shipment::query()->where('load_id', $load->id)->count());
+    }
+
+    /** V5: kabul edilmiş teklif geri çekilemez/reddedilemez ve süresi dolmuş sayılmaz (koşullu yazım). */
+    public function test_accepted_offer_cannot_be_withdrawn_rejected_or_expired(): void
+    {
+        $owner = User::factory()->create();
+        $driver = $this->driver();
+        $load = $this->publish($owner);
+        $offers = app(OfferService::class);
+        $offer = $offers->submit($driver->driverProfile, $load, 10000);
+        $offers->accept($load, $offer, $owner->id);
+
+        foreach ([fn () => $offers->withdraw($offer->fresh(), $driver->driverProfile), fn () => $offers->reject($offer->fresh(), $owner->id)] as $attempt) {
+            try {
+                $attempt();
+                $this->fail('kabul edilmiş teklif değiştirilmemeliydi');
+            } catch (RuntimeException) {
+            }
+        }
+        $offer->forceFill(['expires_at' => now()->subHour()])->save();
+        $this->assertSame(0, $offers->expireStale());
+        $this->assertSame('accepted', $offer->fresh()->status);
+    }
 }

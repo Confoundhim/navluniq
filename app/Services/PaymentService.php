@@ -78,9 +78,12 @@ class PaymentService
         $existing = PaymentOrder::query()->where('load_id', $load->id)->where('purpose', self::PURPOSE_ESCROW)
             ->whereIn('status', ['created', 'pending'])->latest()->first();
 
-        if ($existing && (float) $existing->amount === $amounts['total']) {
+        if ($existing && abs((float) $existing->amount - $amounts['total']) < 0.005) {
             return $existing;
         }
+        // Tutar değişti (ör. hizmet bedeli ayarı): eski açık emirler kapanır ki iki ödeme bağlantısı aynı anda yaşamasın.
+        PaymentOrder::query()->where('load_id', $load->id)->where('purpose', self::PURPOSE_ESCROW)
+            ->whereIn('status', ['created', 'pending'])->update(['status' => 'cancelled', 'failed_at' => now()]);
 
         return PaymentOrder::create([
             'load_id' => $load->id,
@@ -245,9 +248,14 @@ class PaymentService
                 if (! $load || $load->status === Load::STATUS_CANCELLED || $wasCancelled) {
                     return 'orphan';
                 }
-                if ($load->escrow_status === Load::ESCROW_PENDING) {
-                    $load->update(['escrow_status' => Load::ESCROW_PAID]);
+                // Havuz zaten dolu (başka bir emirle ödenmiş) ya da ilan ödeme aşamasında değil: ikinci tahsilat yetimdir, iade edilir.
+                if ($load->escrow_status !== Load::ESCROW_PENDING || $load->status !== Load::STATUS_ASSIGNED) {
+                    return 'orphan';
                 }
+                $load->update(['escrow_status' => Load::ESCROW_PAID]);
+                // Aynı ilanın diğer açık emirleri kapanır (ikinci ödeme bağlantısı kalmasın).
+                PaymentOrder::query()->where('load_id', $load->id)->where('purpose', self::PURPOSE_ESCROW)->whereKeyNot($locked->id)
+                    ->whereIn('status', ['created', 'pending'])->update(['status' => 'cancelled', 'failed_at' => now()]);
             }
 
             return 'paid';

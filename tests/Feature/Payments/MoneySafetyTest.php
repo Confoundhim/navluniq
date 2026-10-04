@@ -24,6 +24,7 @@ use App\Services\KycService;
 use App\Services\LoadService;
 use App\Services\OfferService;
 use App\Services\PaymentService;
+use App\Services\PayoutService;
 use App\Services\ShipmentService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -312,5 +313,48 @@ class MoneySafetyTest extends TestCase
         $load = $this->assignedLoad($owner, $this->driver());
         $again = app(LoadService::class)->repeat($load, $owner->cargoOwnerProfile);
         $this->assertSame([['tenteli'], 'komple'], [$again->body_types, $again->load_kind]);
+    }
+
+    /** V4: aynı ilan için ikinci bir emrin "başarılı" bildirimi havuzu ikinci kez doldurmaz; para iade edilir. */
+    public function test_second_successful_order_for_an_already_paid_load_is_refunded_not_double_counted(): void
+    {
+        $owner = User::factory()->create();
+        $driver = $this->driver();
+        $load = $this->assignedLoad($owner, $driver);
+        $first = $this->pay($load, $owner);
+        $this->assertSame(['paid', Load::ESCROW_PAID], [$first->status, $load->fresh()->escrow_status]);
+
+        $second = PaymentOrder::create([
+            'load_id' => $load->id, 'user_id' => $owner->id, 'purpose' => 'escrow', 'provider' => 'fake',
+            'merchant_oid' => 'NQ'.$load->id.'-IKINCI', 'amount' => $first->amount, 'currency' => 'TRY', 'service_fee_amount' => 0, 'status' => 'pending',
+        ]);
+        $this->post('/odeme/bildirim/fake', ['merchant_oid' => $second->merchant_oid, 'status' => 'success', 'sig' => 'ok'])->assertOk();
+        $this->assertSame('refunded', $second->fresh()->status);
+        $this->assertSame(1, $this->gateway->refunds);
+        $this->assertSame(Load::ESCROW_PAID, $load->fresh()->escrow_status);
+        $this->assertSame('paid', $first->fresh()->status);
+    }
+
+    /** V3: ödenmiş hakediş "başarısız" olarak işaretlenemez. */
+    public function test_paid_payout_cannot_be_marked_failed(): void
+    {
+        $owner = User::factory()->create();
+        $driver = $this->driver();
+        $load = $this->assignedLoad($owner, $driver);
+        $payout = Payout::create([
+            'load_id' => $load->id, 'user_id' => $driver->id, 'driver_profile_id' => $driver->driverProfile->id,
+            'total_amount' => 10000, 'commission_amount' => 500, 'net_amount' => 9500, 'status' => 'paid', 'channel' => 'manual', 'paid_at' => now(), 'available_at' => now(),
+        ]);
+        try {
+            app(PayoutService::class)->markFailed($payout, $this->admin, 'IBAN hatalı');
+            $this->fail('ödenmiş hakediş başarısız olmamalıydı');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Yalnız bekleyen', $e->getMessage());
+        }
+        $this->assertSame('paid', $payout->fresh()->status);
+
+        $payout->forceFill(['status' => 'pending', 'paid_at' => null])->save();
+        app(PayoutService::class)->markFailed($payout->fresh(), $this->admin, 'IBAN hatalı');
+        $this->assertSame(['failed', 'IBAN hatalı'], [$payout->fresh()->status, $payout->fresh()->failure_reason]);
     }
 }

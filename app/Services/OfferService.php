@@ -92,7 +92,11 @@ class OfferService
             throw new RuntimeException('Yalnızca değerlendirme aşamasındaki kendi teklifinizi geri çekebilirsiniz.');
         }
 
-        $offer->update(['status' => 'withdrawn', 'responded_at' => now()]);
+        // Koşullu yazım: aynı anda kabul edilen teklif "geri çekildi"ye dönmez (0 satır etkilenirse durum değişmiştir).
+        if (Offer::query()->whereKey($offer->id)->where('status', 'pending')->update(['status' => 'withdrawn', 'responded_at' => now()]) === 0) {
+            throw new RuntimeException('Teklif bu arada yanıtlandı; geri çekilemez.');
+        }
+        $offer->refresh();
 
         if ($ownerUser = $offer->cargoLoad?->cargoOwnerProfile?->user) {
             $load = $offer->cargoLoad;
@@ -108,7 +112,10 @@ class OfferService
             throw new RuntimeException('Bu teklif reddedilemez.');
         }
 
-        $offer->update(['status' => 'rejected', 'responded_at' => now()]);
+        if (Offer::query()->whereKey($offer->id)->where('status', 'pending')->update(['status' => 'rejected', 'responded_at' => now()]) === 0) {
+            throw new RuntimeException('Teklif bu arada yanıtlandı; reddedilemez.');
+        }
+        $offer->refresh();
 
         if ($driverUser = $offer->driverProfile?->user) {
             $load = $offer->cargoLoad;
@@ -119,73 +126,98 @@ class OfferService
     }
 
     /** Teklif kabulü: şoför atanır, diğer teklifler reddedilir, sevkiyat ve mesajlaşma kaydı açılır. */
+    /** Kabul sırasında süresi dolmuş bulunan teklif; işlem geri alındığından durum sonradan yazılır. */
+    private ?int $expiredOnAccept = null;
+
     public function accept(Load $load, Offer $offer, int $ownerUserId): Shipment
     {
-        $shipment = DB::transaction(function () use ($load, $offer, $ownerUserId): Shipment {
-            $lockedLoad = Load::query()->lockForUpdate()->findOrFail($load->id);
-            $lockedOffer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
+        try {
+            $shipment = DB::transaction(function () use ($load, $offer, $ownerUserId): Shipment {
+                $lockedLoad = Load::query()->lockForUpdate()->findOrFail($load->id);
+                $lockedOffer = Offer::query()->lockForUpdate()->findOrFail($offer->id);
 
-            if ($lockedLoad->status !== Load::STATUS_ACTIVE || $lockedOffer->status !== 'pending' || $lockedOffer->load_id !== $lockedLoad->id) {
-                throw new RuntimeException('Teklif artık kabul edilebilir durumda değil.');
+                if ($lockedLoad->status !== Load::STATUS_ACTIVE || $lockedOffer->status !== 'pending' || $lockedOffer->load_id !== $lockedLoad->id) {
+                    throw new RuntimeException('Teklif artık kabul edilebilir durumda değil.');
+                }
+
+                if ($lockedLoad->cargoOwnerProfile?->user_id !== $ownerUserId) {
+                    throw new RuntimeException('Bu ilan size ait değil.');
+                }
+
+                $driver = $lockedOffer->driverProfile;
+                if (! $driver || ! $driver->isKycApproved()) {
+                    throw new RuntimeException('Şoförün belge doğrulaması tamamlanmadığı için teklif kabul edilemez.');
+                }
+
+                if ($lockedOffer->expires_at && $lockedOffer->expires_at->isPast()) {
+                    // Fırlatma işlemi geri alacağından "süresi doldu" yazımı ayrı bağlantıda değil, sonradan yapılır (bkz. aşağıda).
+                    $this->expiredOnAccept = $lockedOffer->id;
+                    throw new RuntimeException('Teklifin süresi dolmuş.');
+                }
+                if ($lockedLoad->pickup_date && $lockedLoad->pickup_date->lt(today())) {
+                    throw new RuntimeException('İlanın yükleme tarihi geçmiş; önce ilanı yeni tarihle tekrar yayınlayın.');
+                }
+
+                $lockedOffer->update(['status' => 'accepted', 'responded_at' => now()]);
+                $others = Offer::query()->with('driverProfile.user')->where('load_id', $lockedLoad->id)->whereKeyNot($lockedOffer->id)->where('status', 'pending')->get();
+                Offer::query()->whereIn('id', $others->pluck('id'))->update(['status' => 'rejected', 'responded_at' => now()]);
+                $this->pendingLosers = $others;
+
+                $lockedLoad->update([
+                    'driver_profile_id' => $lockedOffer->driver_profile_id,
+                    'price' => $lockedOffer->amount,
+                    'status' => Load::STATUS_ASSIGNED,
+                    'escrow_status' => Load::ESCROW_PENDING,
+                    'visibility' => 'private',
+                    // Ödeme için son tarih: dolunca ilan yeniden havuza döner (şoför sonsuza kadar beklemez)
+                    'payment_due_at' => now()->addHours(max(1, Settings::int('offer_payment_hours'))),
+                    'payment_reminded_at' => null,
+                ]);
+
+                // İlan başına tek sevkiyat satırı (UNIQUE load_id): ödenmeyen bir kabul geri açılmışsa iptal edilmiş satır
+                // yerinde yeni şoföre sıfırlanır; yoksa açılır. Aksi halde ikinci kabul benzersizlik hatasıyla düşerdi.
+                $shipmentData = [
+                    'accepted_offer_id' => $lockedOffer->id,
+                    'driver_profile_id' => $lockedOffer->driver_profile_id,
+                    'vehicle_id' => $driver->activeVehicle?->id,
+                    'status' => Shipment::STATUS_AWAITING_PICKUP,
+                    'pickup_confirmed_at' => null, 'in_transit_at' => null, 'delivered_at' => null,
+                    'owner_approved_at' => null, 'owner_rejected_at' => null, 'auto_approval_due_at' => null,
+                ];
+                $shipment = Shipment::query()->where('load_id', $lockedLoad->id)->lockForUpdate()->first();
+                if ($shipment) {
+                    if ($shipment->status !== Shipment::STATUS_CANCELLED) {
+                        throw new RuntimeException('Bu ilanın açık bir sevkiyatı var; teklif kabul edilemez.');
+                    }
+                    $shipment->update($shipmentData);
+                } else {
+                    $shipment = Shipment::create($shipmentData + ['load_id' => $lockedLoad->id]);
+                }
+
+                $conversation = Conversation::query()->firstOrCreate(['load_id' => $lockedLoad->id], ['shipment_id' => $shipment->id, 'opened_at' => now()]);
+                ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNotIn('user_id', [$ownerUserId, (int) $driver->user_id])->delete();
+                foreach (array_unique([$ownerUserId, (int) $driver->user_id]) as $userId) {
+                    ConversationParticipant::query()->firstOrCreate(['conversation_id' => $conversation->id, 'user_id' => $userId]);
+                }
+
+                OutboxEvent::create([
+                    'event_id' => (string) Str::uuid(),
+                    'aggregate_type' => 'shipment',
+                    'aggregate_id' => (string) $shipment->id,
+                    'event_type' => 'offer.accepted',
+                    'payload' => ['load_id' => $lockedLoad->id, 'offer_id' => $lockedOffer->id],
+                    'available_at' => now(),
+                ]);
+
+                return $shipment;
+            }, 3);
+        } catch (RuntimeException $e) {
+            if ($this->expiredOnAccept !== null) {
+                Offer::query()->whereKey($this->expiredOnAccept)->where('status', 'pending')->update(['status' => 'expired', 'responded_at' => now()]);
+                $this->expiredOnAccept = null;
             }
-
-            if ($lockedLoad->cargoOwnerProfile?->user_id !== $ownerUserId) {
-                throw new RuntimeException('Bu ilan size ait değil.');
-            }
-
-            $driver = $lockedOffer->driverProfile;
-            if (! $driver || ! $driver->isKycApproved()) {
-                throw new RuntimeException('Şoförün belge doğrulaması tamamlanmadığı için teklif kabul edilemez.');
-            }
-
-            if ($lockedOffer->expires_at && $lockedOffer->expires_at->isPast()) {
-                $lockedOffer->update(['status' => 'expired', 'responded_at' => now()]);
-                throw new RuntimeException('Teklifin süresi dolmuş.');
-            }
-            if ($lockedLoad->pickup_date && $lockedLoad->pickup_date->lt(today())) {
-                throw new RuntimeException('İlanın yükleme tarihi geçmiş; önce ilanı yeni tarihle tekrar yayınlayın.');
-            }
-
-            $lockedOffer->update(['status' => 'accepted', 'responded_at' => now()]);
-            $others = Offer::query()->with('driverProfile.user')->where('load_id', $lockedLoad->id)->whereKeyNot($lockedOffer->id)->where('status', 'pending')->get();
-            Offer::query()->whereIn('id', $others->pluck('id'))->update(['status' => 'rejected', 'responded_at' => now()]);
-            $this->pendingLosers = $others;
-
-            $lockedLoad->update([
-                'driver_profile_id' => $lockedOffer->driver_profile_id,
-                'price' => $lockedOffer->amount,
-                'status' => Load::STATUS_ASSIGNED,
-                'escrow_status' => Load::ESCROW_PENDING,
-                'visibility' => 'private',
-                // Ödeme için son tarih: dolunca ilan yeniden havuza döner (şoför sonsuza kadar beklemez)
-                'payment_due_at' => now()->addHours(max(1, Settings::int('offer_payment_hours'))),
-                'payment_reminded_at' => null,
-            ]);
-
-            $shipment = Shipment::create([
-                'load_id' => $lockedLoad->id,
-                'accepted_offer_id' => $lockedOffer->id,
-                'driver_profile_id' => $lockedOffer->driver_profile_id,
-                'vehicle_id' => $driver->activeVehicle?->id,
-                'status' => Shipment::STATUS_AWAITING_PICKUP,
-            ]);
-
-            $conversation = Conversation::create(['load_id' => $lockedLoad->id, 'shipment_id' => $shipment->id, 'opened_at' => now()]);
-            foreach (array_unique([$ownerUserId, (int) $driver->user_id]) as $userId) {
-                ConversationParticipant::create(['conversation_id' => $conversation->id, 'user_id' => $userId]);
-            }
-
-            OutboxEvent::create([
-                'event_id' => (string) Str::uuid(),
-                'aggregate_type' => 'shipment',
-                'aggregate_id' => (string) $shipment->id,
-                'event_type' => 'offer.accepted',
-                'payload' => ['load_id' => $lockedLoad->id, 'offer_id' => $lockedOffer->id],
-                'available_at' => now(),
-            ]);
-
-            return $shipment;
-        }, 3);
+            throw $e;
+        }
 
         try {
             app(DriverTripService::class)->fromShipment($shipment);
@@ -319,7 +351,8 @@ class OfferService
             return 0;
         }
 
-        $count = Offer::query()->whereIn('id', $stale->pluck('id'))->update(['status' => 'expired', 'responded_at' => now()]);
+        // Yalnız hâlâ bekleyenler: okuma ile yazma arasında kabul edilen teklif "süresi doldu" olmaz.
+        $count = Offer::query()->whereIn('id', $stale->pluck('id'))->where('status', 'pending')->update(['status' => 'expired', 'responded_at' => now()]);
 
         foreach ($stale as $offer) {
             $load = $offer->cargoLoad;

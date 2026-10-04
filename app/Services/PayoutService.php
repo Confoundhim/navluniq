@@ -217,8 +217,16 @@ class PayoutService
 
     public function markFailed(Payout $payout, User $admin, string $reason): void
     {
-        $payout->update(['status' => 'failed', 'reference_no' => mb_substr(trim($reason), 0, 120)]);
-        ActivityLog::record('payout.failed', "Hakediş #{$payout->id} başarısız: {$reason}", $admin->id, $payout);
+        // Yalnız bekleyen/işlemdeki hakediş "başarısız" olur; ödenmiş hakediş geri alınamaz (para gitmiştir).
+        DB::transaction(function () use ($payout, $reason): void {
+            $locked = Payout::query()->lockForUpdate()->findOrFail($payout->id);
+            if (! in_array($locked->status, ['pending', 'processing'], true)) {
+                throw new RuntimeException('Yalnız bekleyen ya da işlemdeki hakediş başarısız olarak işaretlenebilir.');
+            }
+            $locked->update(['status' => 'failed', 'failure_reason' => mb_substr(trim($reason), 0, 500)]);
+        });
+        $payout->refresh();
+        ActivityLog::record('payout.failed', "Hakediş #{$payout->id} başarısız: {$reason}", $admin->id, $payout, ['amount' => (string) $payout->net_amount]);
 
         if ($driverUser = $payout->user) {
             $this->notifications->notify($driverUser, 'Ödemeniz yapılamadı',
