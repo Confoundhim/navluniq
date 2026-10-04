@@ -114,9 +114,10 @@ class ScrapedLoadService
         return $count;
     }
 
-    /** Canlı akış (telefondan gelen her istek) kayıtları: belirtilen günden eskiler silinir; tablo şişmez. */
-    public function purgeIntakeEvents(int $olderThanDays = 30): int
+    /** Canlı akış (telefondan gelen her istek) kayıtları: ayarlı günden (`intake_event_days`, varsayılan 7) eskiler silinir; tablo şişmez, kişisel veri birikmez. */
+    public function purgeIntakeEvents(?int $olderThanDays = null): int
     {
+        $olderThanDays ??= max(1, Settings::int('intake_event_days'));
         $total = 0;
         do {
             $n = IntakeEvent::query()->where('created_at', '<', now()->subDays($olderThanDays))->orderBy('id')->limit(5000)->delete();
@@ -153,7 +154,8 @@ class ScrapedLoadService
         $done = 0;
         ScrapedLoad::query()->where('ai_status', 'pending')->where('visibility', 'private')->where('status', '!=', 'rejected')
             ->orderBy('id')->limit($limit)->get()->each(function (ScrapedLoad $load) use ($parser, &$done): void {
-                if ($this->reparseWithAi($load, $parser)) {
+                // Zamanlanmış iş: kotası dolmuş sağlayıcılar atlanır (manual=false); eski sürüm her 5 dakikada tükenmiş sağlayıcıları dövüyordu.
+                if ($this->reparseWithAi($load, $parser, manual: false)) {
                     $done++;
                 }
             });
@@ -164,8 +166,10 @@ class ScrapedLoadService
     /**
      * Adayı yapay zeka ile yeniden çözümler ve alanları birleştirir (yönetici düzenlemesi korunur).
      * Başarıda true; kota/ağ hatasında ai_status "pending" kalır ve false döner.
+     *
+     * @param  bool  $manual  yönetici düğmesi: kotası dolmuş sağlayıcı da denenir; zamanlanmış işte false
      */
-    public function reparseWithAi(ScrapedLoad $load, ?AiParserService $parser = null, bool $force = false): bool
+    public function reparseWithAi(ScrapedLoad $load, ?AiParserService $parser = null, bool $force = false, bool $manual = true): bool
     {
         $parser ??= app(AiParserService::class);
         if (! $parser->isConfigured()) {
@@ -193,7 +197,7 @@ class ScrapedLoadService
             'vehicle_any' => (bool) $load->vehicle_any,
             'parsed_by_llm' => $load->parsed_by_llm,
         ];
-        $ai = $parser->enrich((string) $load->raw_message, $current, true);
+        $ai = $parser->enrich((string) $load->raw_message, $current, $manual);
         if ($ai['data'] === null) {
             $load->forceFill(['ai_status' => $ai['status'], 'ai_checked_at' => $ai['status'] === 'failed' ? now() : null])->save();
 
@@ -239,10 +243,15 @@ class ScrapedLoadService
         if (! $load->pickup_location || ! $load->delivery_location) {
             throw new RuntimeException('Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
         }
-        // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz.
+        // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz;
+        // alımda "değişmiş ilan" diye işaretlenen aday (supersedes) eskisinin yerine geçer.
         if ($twin = $this->publishedDuplicateOf($load)) {
-            $this->markDuplicate($load, $twin, $userId);
-            throw new RuntimeException("Aynı ilan zaten yayında (#{$twin->id}); bu aday tekrar olarak işaretlendi.");
+            if ((int) $load->meta('supersedes') === $twin->id && $twin->normalized_hash !== $load->normalized_hash) {
+                $this->retireSuperseded($twin, $load);
+            } else {
+                $this->markDuplicate($load, $twin, $userId);
+                throw new RuntimeException("Aynı ilan zaten yayında (#{$twin->id}); bu aday tekrar olarak işaretlendi.");
+            }
         }
         // Yayın öncesi son standartlaştırma: eski kayıtlar ve sonradan iyileşen sözlükler için.
         app(LoadStandardizer::class)->restandardize($load);
@@ -278,12 +287,23 @@ class ScrapedLoadService
         app(LearningService::class)->onApproved($load, byAdmin: ! $auto, bulk: $bulk);
     }
 
-    public function reject(ScrapedLoad $load, ?int $userId = null): void
+    /** Yönetici ret gerekçeleri: yalnız "ilan değil" sınıflandırıcıya olumsuz örnek olur; tekrar / eski / yanlış rota ilan metnini "ilan değil" diye öğretmez. */
+    public const REJECT_REASONS = ['not_load' => 'İlan değil (sohbet, satılık, boş araç, reklam)', 'duplicate' => 'Tekrar', 'stale' => 'Eski / güncelliğini yitirdi', 'wrong_route' => 'Yanlış çözülmüş rota', 'other' => 'Diğer'];
+
+    /**
+     * @param  ?string  $reason  REJECT_REASONS anahtarı; boşsa "ilan değil" sayılır (eski tek düğme davranışı)
+     */
+    public function reject(ScrapedLoad $load, ?int $userId = null, ?string $reason = null): void
     {
-        $load->update(['status' => 'rejected', 'visibility' => 'private']);
-        ActivityLog::record('scraped_load.rejected', "Dış kaynak ilanı #{$load->id} reddedildi", $userId, $load);
-        if ($userId !== null) {
-            app(LearningService::class)->onRejected($load); // yalnız insan kararı eğitir
+        $reason = array_key_exists((string) $reason, self::REJECT_REASONS) ? $reason : null;
+        $meta = (array) ($load->parse_metadata ?? []);
+        if ($reason !== null) {
+            $meta['reject_reason'] = $reason;
+        }
+        $load->update(['status' => 'rejected', 'visibility' => 'private', 'parse_metadata' => $meta]);
+        ActivityLog::record('scraped_load.rejected', "Dış kaynak ilanı #{$load->id} reddedildi".($reason ? ' ('.self::REJECT_REASONS[$reason].')' : ''), $userId, $load);
+        if ($userId !== null && ($reason === null || $reason === 'not_load')) {
+            app(LearningService::class)->onRejected($load); // yalnız insanın "ilan değil" kararı eğitir
         }
     }
 
@@ -306,8 +326,22 @@ class ScrapedLoadService
         })->orderBy('id')->first();
     }
 
+    /**
+     * Alımda aynı numara + rota ama fiyat/tonaj/araç/yük/tarih değişmiş yeni parça geldi: yayındaki eski kayıt yeni aday
+     * yayınlanınca arşivlenir (autoApprovalBlocker / approve "supersedes" işaretine bakar); henüz yayınlanmamış eski aday hemen arşivlenir.
+     */
+    public function supersede(ScrapedLoad $old, ScrapedLoad $new): void
+    {
+        if ($old->visibility === 'public') {
+            return; // şoförler ilanı görmeye devam eder; yeni aday yayınlanınca eskisi onun yerini bırakır
+        }
+        $old->forceFill(['content_hash' => null, 'parse_metadata' => array_merge((array) $old->parse_metadata, ['superseded_by' => $new->id])])->saveQuietly();
+        $old->delete();
+        ActivityLog::record('scraped_load.superseded', "Dış kaynak adayı #{$old->id} değişmiş yeni paylaşım #{$new->id} ile değişti; eski arşivlendi", null, $old);
+    }
+
     /** Yayındaki eski ikiz, yeni adayın yayınına yer açar (arşiv): aynı numara + rota ama metin değişmiş (fiyat, araç, tarih). */
-    private function retireSuperseded(ScrapedLoad $twin, ScrapedLoad $load): void
+    public function retireSuperseded(ScrapedLoad $twin, ScrapedLoad $load): void
     {
         $sources = array_values(array_unique(array_filter(array_merge((array) ($twin->seen_sources ?? []), (array) ($load->seen_sources ?? [])))));
         $load->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'sighting_count' => max(1, (int) $load->sighting_count, (int) $twin->sighting_count)])->saveQuietly();
@@ -339,12 +373,13 @@ class ScrapedLoadService
         }
         if ($twin = $this->publishedDuplicateOf($load)) {
             $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
-            if ($sameText || ($twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
+            $supersedes = ! $sameText && (int) $load->meta('supersedes') === $twin->id; // alımda fiyat/tonaj/araç değişti diye açıldı
+            if ($sameText || (! $supersedes && $twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
                 $this->markDuplicate($load, $twin, null);
 
                 return "tekrar (#{$twin->id} yayında)";
             }
-            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ve metin farklı: yeni paylaşım onun yerine geçer
+            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ya da içerik değişmiş: yeni paylaşım onun yerine geçer
         }
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
@@ -382,15 +417,15 @@ class ScrapedLoadService
             return null; // yönetici düzeltip kaydettiyse karar puanı aranmaz
         }
         $d = $this->decision($load);
+        // Kural tamamsa (iki il, telefon, kesin araç tipi) yapay zeka cevabı BEKLENMEZ ve yerel sınıflandırıcının kuşkusu ilanı
+        // "eksik bilgili"ye düşüremez; yalnız yapay zeka açıkça "ilan değil" derse ya da puan ret sınırının altındaysa yayınlanmaz
+        // (Engin Abi: araç yazılı ama eksikte). Kesin araç: açık ad / yönetici / şablon / şoför, ya da güçlü kasa ipucu
+        // ("tenteli", "dorse", "13.60", tonajla birleşen "frigo"): sınıflandırıcı bunlara "medium" güven verir.
+        if (self::ruleComplete($load) && $d['score'] > self::pct('scraper_auto_reject_max_score') && ($d['ai'] === null || $d['ai'] >= 0.5)) {
+            return null;
+        }
         if ($d['wait']) {
             return 'yapay zeka doğrulaması bekleniyor';
-        }
-        // Kural tamamsa (iki il, telefon, araç tipi) yerel sınıflandırıcının kuşkusu ilanı "eksik bilgili"ye düşüremez; yalnız
-        // yapay zeka açıkça "ilan değil" derse ya da puan ret sınırının altındaysa yayınlanmaz (Engin Abi: araç yazılı ama eksikte).
-        $vehicleCertain = $load->vehicle_any || ($load->vehicle_type && in_array($load->vehicle_type_source, ['keyword', 'admin', 'template'], true));
-        $ruleComplete = $load->pickup_province_code && $load->delivery_province_code && $vehicleCertain && ($load->encrypted_sender_phone || $load->sender_phone);
-        if ($ruleComplete && $d['score'] > self::pct('scraper_auto_reject_max_score') && ($d['ai'] === null || $d['ai'] >= 0.5)) {
-            return null;
         }
         $pct = (int) round($d['score'] * 100);
         if ($d['score'] >= self::pct('scraper_auto_approve_min_confidence')) {
@@ -409,10 +444,38 @@ class ScrapedLoadService
         return max(0, min(100, Settings::int($key))) / 100;
     }
 
+    /** Araç tipi kesin mi: açık ad / yönetici / şablon / şoför, "fark etmez", ya da güçlü kasa ipucu (sınıflandırıcı güveni "medium"). */
+    public static function vehicleCertain(ScrapedLoad $load): bool
+    {
+        if ($load->vehicle_any) {
+            return true;
+        }
+        if (! $load->vehicle_type) {
+            return false;
+        }
+        if (in_array($load->vehicle_type_source, ['keyword', 'admin', 'template', 'driver'], true)) {
+            return true;
+        }
+
+        return $load->vehicle_type_source === 'hint' && ($load->meta('vehicle_confidence') ?? null) === 'medium';
+    }
+
+    /** Kural tamam: iki il çözülmüş, telefon var, araç tipi kesin. */
+    public static function ruleComplete(ScrapedLoad $load): bool
+    {
+        return $load->pickup_province_code && $load->delivery_province_code && self::vehicleCertain($load) && ($load->encrypted_sender_phone || $load->sender_phone);
+    }
+
+    /** Yalnız puan bandı ya da yapay zeka beklemesi yüzünden kuyrukta kalan aday: zamanla reddedilmez (ilan güncelliğini değil, kimsenin bakmadığını gösterir). */
+    public static function isAgeRejectable(string $blocker): bool
+    {
+        return in_array($blocker, ['rota eksik', 'il çözülemedi'], true);
+    }
+
     /**
      * Birleşik karar puanı (0-1). Üç kaynak birleşir:
-     * - kural kanıtı: il çifti (0,55) + telefon (0,10) + açık araç adı / şablon / yönetici (0,15) + tonaj (0,10) + fiyat (0,10)
-     *   + yük türü (0,05) + doğrulanmış gönderen şablonu (0,15); en çok 1,0
+     * - kural kanıtı: il çifti (0,55) + telefon (0,10) + açık araç adı / şablon / yönetici (0,15; ipucu/tonaj/yükten çıkarılan araç 0,08)
+     *   + tonaj (0,10) + fiyat (0,10) + yük türü (0,05) + doğrulanmış gönderen şablonu (0,15); en çok 1,0
      * - yapay zeka güveni (baktıysa)
      * - yerel sınıflandırıcı olasılığı (yeterince öğrendiyse)
      * Yapay zeka baktıysa puan = (kural + yapay zeka) / 2; bakmadıysa yerel varsa (kural + yerel) / 2; yoksa kural.
@@ -423,8 +486,10 @@ class ScrapedLoadService
      */
     /**
      * Eksik bilgili yayın: kalkış-varış ili ve telefon belli, kural/yapay zeka çelişmiyor, yapay zeka beklenmiyor;
-     * karar puanı otomatik ret sınırının üstünde ve "eksik bilgili" üst sınırının altında. Araç, kasa, yük, tonaj,
-     * fiyat eksik olabilir; şoför arayıp sorar. Üst sınırın üstündekiler kuyrukta kalır (sistemi eğitir).
+     * karar puanı otomatik ret sınırının üstünde ve otomatik yayın eşiğinin altında. Araç, kasa, yük, tonaj, fiyat eksik
+     * olabilir; şoför arayıp sorar ("Aradım, araç:"). Eski sürümde %60-%75 bandı "sistemi eğitsin" diye kuyrukta bekliyordu;
+     * kimse bakmadığı için 48 saat sonra kendiliğinden reddediliyordu (2026-10-04 denetimi). Artık bant yayın eşiğine kadar
+     * uzanır; `scraper_incomplete_max_score` yalnız yayın eşiğinden yüksekse üst sınır olur (daha dar bant istenirse yayın eşiği düşürülür).
      */
     public function incompleteEligible(ScrapedLoad $load, ?string $blocker = null): bool
     {
@@ -440,10 +505,11 @@ class ScrapedLoadService
             return false; // durum, kaynak, rota, il, telefon, çelişki, bekleme: bunlar eksik bilgiyle kapatılamaz
         }
         $d = $this->decision($load);
+        $upper = max(self::pct('scraper_incomplete_max_score'), self::pct('scraper_auto_approve_min_confidence'));
 
         return ! $d['wait']
             && $d['score'] > self::pct('scraper_auto_reject_max_score')
-            && $d['score'] <= self::pct('scraper_incomplete_max_score')
+            && $d['score'] <= $upper
             && $d['score'] < self::pct('scraper_auto_approve_min_confidence');
     }
 
@@ -496,7 +562,11 @@ class ScrapedLoadService
         if ($pickupOk && $deliveryOk) {
             $rule = 0.55;
             $rule += ($load->encrypted_sender_phone || $load->sender_phone) ? 0.10 : 0.0;
-            $rule += in_array($load->vehicle_type_source, ['keyword', 'admin', 'template'], true) ? 0.15 : 0.0;
+            if (in_array($load->vehicle_type_source, ['keyword', 'admin', 'template', 'driver'], true)) {
+                $rule += 0.15; // açık araç adı / yönetici / şablon / şoför
+            } elseif ($load->vehicle_type && in_array($load->vehicle_type_source, ['hint', 'weight', 'goods', 'pallet', 'volume'], true)) {
+                $rule += 0.08; // kasa ipucu / tonaj / yük türünden çıkarılan araç: kısmi kanıt
+            }
             $rule += (int) $load->weight > 0 ? 0.10 : 0.0;
             $rule += (float) $load->price > 0 ? 0.10 : 0.0;
             $rule += $load->goods_type ? 0.05 : 0.0;
@@ -603,11 +673,16 @@ class ScrapedLoadService
         if ($changedAt && $changedAt->gt($recheckBefore)) {
             $recheckBefore = $changedAt->copy()->addSecond(); // ayar anında ya da öncesinde bakılanlar yeniden
         }
+        // Yapay zeka bekleme süresi bu dakika dolan adaylar (ai_status hâlâ pending) hemen yeniden değerlendirilir; 10 dakikalık
+        // olağan dönüşü beklemezler (bekleme biter bitmez kural/yerel puanla karar).
+        $waitMinutes = max(1, Settings::int('scraper_ai_wait_minutes'));
+        $waitWindow = [now()->subMinutes($waitMinutes + self::AUTO_RECHECK_MINUTES), now()->subMinutes($waitMinutes)];
         ScrapedLoad::query()->with('scraper')
             ->where('visibility', 'private')->where('status', '!=', 'rejected')
             ->where('created_at', '>=', now()->subDays(self::AUTO_APPROVE_MAX_AGE_DAYS))
             // Yeni, değişmiş (yapay zeka sonucu, yönetici düzenlemesi) ya da son bakıştan bu yana süre geçmiş adaylar
-            ->where(fn ($q) => $q->whereNull('auto_checked_at')->orWhere('auto_checked_at', '<', $recheckBefore)->orWhereColumn('updated_at', '>', 'auto_checked_at'))
+            ->where(fn ($q) => $q->whereNull('auto_checked_at')->orWhere('auto_checked_at', '<', $recheckBefore)->orWhereColumn('updated_at', '>', 'auto_checked_at')
+                ->orWhere(fn ($w) => $w->where('ai_status', 'pending')->whereBetween('created_at', $waitWindow)->where('auto_checked_at', '<', now()->subMinute())))
             ->chunkById(200, function ($loads) use (&$approved, $started): bool {
                 foreach ($loads as $load) {
                     if ($approved >= self::AUTO_APPROVE_BATCH || microtime(true) - $started > self::AUTO_APPROVE_BUDGET_SECONDS) {
@@ -628,9 +703,11 @@ class ScrapedLoadService
                         continue;
                     }
                     if ($blocker !== null) {
+                        // Yaşa bağlı ret yalnız çözülemeyen il / eksik rota için: puan bandında ya da yapay zeka beklemesinde kalan aday
+                        // ilan değil diye değil, kimse bakmadığı için bekliyordu; onu reddetmek yayın oranını düşürüyordu.
                         if (str_starts_with($blocker, 'karar puanı çok düşük')) {
                             $this->autoReject($load, $blocker);
-                        } elseif ($load->created_at && $load->created_at->lt(now()->subHours(max(1, Settings::int('scraper_queue_max_age_hours'))))) {
+                        } elseif (self::isAgeRejectable($blocker) && $load->created_at && $load->created_at->lt(now()->subHours(max(1, Settings::int('scraper_queue_max_age_hours'))))) {
                             $this->autoReject($load, 'kuyrukta '.Settings::int('scraper_queue_max_age_hours').' saatten uzun bekledi; ilan güncelliğini yitirdi ('.$blocker.')');
                         }
 

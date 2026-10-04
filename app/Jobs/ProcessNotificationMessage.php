@@ -5,8 +5,10 @@ namespace App\Jobs;
 use App\Models\IntakeEvent;
 use App\Services\LoadIntakeService;
 use App\Services\NotificationIntakeParser;
+use App\Support\TextPrep;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -19,10 +21,16 @@ class ProcessNotificationMessage implements ShouldQueue
 {
     use Queueable;
 
-    /** Yapay zeka çağrısı tekrar edilmez; başarısız olursa canlı akışa "işlenemedi" düşer. */
-    public int $tries = 1;
+    /**
+     * Altyapı hatasında (veritabanı/önbellek kopması, zaman aşımı) bir kez daha denenir; yapay zeka sonucu 7 gün önbellekte
+     * olduğundan (AiParserService::enrich) ikinci deneme aynı çağrıyı tekrarlamaz, kayıtlar content_hash ile tekrar sayılır.
+     */
+    public int $tries = 2;
 
-    public int $timeout = 150;
+    public int $backoff = 30;
+
+    /** Yapay zeka duvar bütçesi (~20 sn) + kilit beklemesi (25 sn) + kayıt; 150 sn'lik eski sınır ölü sağlayıcılarda işçiyi kilitliyordu. */
+    public int $timeout = 120;
 
     /**
      * @param  array{text:string, phone:?string, sender?:?string}  $message
@@ -49,17 +57,30 @@ class ProcessNotificationMessage implements ShouldQueue
         ]);
         // Mesaj birden çok ilan barındırıyorsa her ilan canlı akışta ayrı satır olur (kendi sonucu ve adayıyla).
         $parts = count($result['segments'] ?? []) > 1 ? $result['segments'] : [$result + ['excerpt' => $this->message['text']]];
+        $truncated = ! empty($result['truncated_ads']) ? ' · mesajda '.$result['truncated_ads'].' ilan daha vardı, sınır aşıldı' : '';
         foreach ($parts as $part) {
-            IntakeEvent::record($part['status'], ['source_name' => $this->group, 'title' => $this->title, 'excerpt' => $part['excerpt'] ?? $this->message['text'],
+            IntakeEvent::record($part['status'], ['source_name' => $this->group, 'title' => $this->eventTitle(), 'excerpt' => ($part['excerpt'] ?? $this->message['text']).$truncated,
                 'reason' => $part['reason'] ?? null, 'scraped_load_id' => $part['scraped_load_id'] ?? null, 'ip' => $this->ip]);
         }
 
         return $result;
     }
 
+    /** Canlı akışa yalnız grup adı yazılır; bildirim başlığındaki gönderen adı saklanmaz (KVKK). */
+    private function eventTitle(): ?string
+    {
+        if ($this->title === null || $this->title === '') {
+            return $this->group;
+        }
+
+        return NotificationIntakeParser::splitTitle($this->title)[0] ?: $this->group;
+    }
+
     public function failed(?Throwable $e): void
     {
-        IntakeEvent::record('failed', ['source_name' => $this->group, 'title' => $this->title, 'excerpt' => $this->message['text'],
+        // İş yarıda öldüyse (zaman aşımı) "görüldü" anahtarı 24 saat kilitli kalmasın; aynı mesaj yeniden gelince işlensin.
+        Cache::forget('intake:seen:'.hash('sha256', LoadIntakeService::normalizeText(trim(TextPrep::foldFonts((string) $this->message['text'])))));
+        IntakeEvent::record('failed', ['source_name' => $this->group, 'title' => $this->eventTitle(), 'excerpt' => $this->message['text'],
             'reason' => $e ? mb_substr(get_class($e).': '.$e->getMessage(), 0, 300) : 'unknown', 'ip' => $this->ip]);
     }
 }

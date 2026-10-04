@@ -173,7 +173,13 @@ class LoadFilterService
         }, $codes));
     }
 
-    /** Aracıma uygun tipler: aktif aracın kapasitesini aşmayan tüm tipler. */
+    /** İlanın araç tipi kesin: açık ad, yönetici, yapay zeka, gönderen şablonu ya da şoförün "Aradım, araç:" cevabı. */
+    public const EXACT_VEHICLE_SOURCES = ['keyword', 'admin', 'ai', 'template', 'driver'];
+
+    /** İlanın kasa tipi kesin: açık sözcük, sözlük, yönetici, yapay zeka (yükten çıkarılan kasa şoförü eleyemez). */
+    public const EXACT_BODY_SOURCES = ['keyword', 'lexicon', 'admin', 'ai'];
+
+    /** Aracıma uygun tipler: aktif aracın kapasitesini aşmayan tüm tipler (araç tipi tahminle çıkarılmış ilanlar için). */
     public static function typesForVehicle(?string $vehicleType): array
     {
         if (! VehicleTypes::isValid($vehicleType)) {
@@ -181,6 +187,21 @@ class LoadFilterService
         }
 
         return array_values(array_filter(array_keys(VehicleTypes::TYPES), fn ($t) => VehicleTypes::canCarry($vehicleType, $t)));
+    }
+
+    /**
+     * İlan açıkça araç tipi yazıyorsa: aynı sınıf ya da bir alt sınıf. TIR şoförüne "kamyonet" yazan ilan gösterilmez (fiyatı ve
+     * yükü ona göre değil); "tır" yazana kırkayak bakabilir. Tahminle çıkarılan araç (yük/tonaj/ipucu) için typesForVehicle geçerlidir.
+     */
+    public static function exactTypesForVehicle(?string $vehicleType): array
+    {
+        if (! VehicleTypes::isValid($vehicleType)) {
+            return array_keys(VehicleTypes::TYPES);
+        }
+        $ordered = array_keys(VehicleTypes::TYPES); // kapasiteye göre büyükten küçüğe
+        $index = array_search($vehicleType, $ordered, true);
+
+        return array_values(array_slice($ordered, $index, 2));
     }
 
     public function applyToLoads(Builder $q, array $f, ?DriverProfile $profile): Builder
@@ -205,27 +226,39 @@ class LoadFilterService
 
     private function applyCommon(Builder $q, array $f, ?DriverProfile $profile, bool $allowUnknownVehicle): void
     {
+        $isScraped = $q->getModel()->getTable() === 'scraped_loads';
+        $driverType = $f['vehicle_mode'] === 'mine' ? $profile?->activeVehicle()->value('vehicle_type') : null;
         $types = match ($f['vehicle_mode']) {
             'any' => null,
             'custom' => $f['vehicle_types'] ?: null,
-            default => self::typesForVehicle($profile?->activeVehicle()->value('vehicle_type')),
+            default => self::typesForVehicle($driverType),
         };
         if ($types !== null) {
-            $q->where(function (Builder $w) use ($types, $allowUnknownVehicle): void {
-                $w->whereIn('vehicle_type', $types);
+            $exact = $f['vehicle_mode'] === 'mine' ? self::exactTypesForVehicle($driverType) : $types;
+            $q->where(function (Builder $w) use ($types, $exact, $allowUnknownVehicle, $isScraped): void {
+                if ($isScraped && $exact !== $types) {
+                    // Açık araç adı yazan ilan: aynı sınıf ya da bir alt sınıf; tahminle çıkarılan (yük/tonaj/ipucu): taşıyabildiği her tip
+                    $w->where(fn (Builder $x) => $x->whereIn('vehicle_type', $exact)->whereIn('vehicle_type_source', self::EXACT_VEHICLE_SOURCES))
+                        ->orWhere(fn (Builder $x) => $x->whereIn('vehicle_type', $types)->where(fn (Builder $y) => $y->whereNull('vehicle_type_source')->orWhereNotIn('vehicle_type_source', self::EXACT_VEHICLE_SOURCES)));
+                } else {
+                    $w->whereIn('vehicle_type', $types); // platform ilanı / seçtiklerim: kapasiteye göre
+                }
                 if ($allowUnknownVehicle) {
                     $w->orWhereNull('vehicle_type'); // dış kaynakta tip çözülemediyse gizlenmez
                 }
             });
         }
-        // Kasa: "Aracıma uygun" kipinde şoförün aracının kasası; "Seçtiklerim"de seçilen kasalar. Kasa belirtmeyen ilan gizlenmez.
+        // Kasa: "Aracıma uygun" kipinde şoförün aracının kasası; "Seçtiklerim"de seçilen kasalar. Kasa belirtmeyen ilan gizlenmez;
+        // dış kaynakta yükten çıkarılan kasa (body_type_source goods) da elemez, yalnız açıkça yazılan kasa eler.
         // JSON listede arama LIKE ile yapılır ('"tenteli"'), her veritabanında çalışır.
         $vehicle = $f['vehicle_mode'] === 'mine' ? $profile?->activeVehicle()->first() : null;
+        $softBody = fn (Builder $w) => $isScraped ? $w->orWhereNotIn('body_type_source', self::EXACT_BODY_SOURCES)->orWhereNull('body_type_source') : $w;
         if ($vehicle && $vehicle->body_type && BodyTypes::isValid($vehicle->body_type)) {
             $body = $vehicle->body_type;
             $length = $vehicle->trailer_length;
-            $q->where(function (Builder $w) use ($body): void {
+            $q->where(function (Builder $w) use ($body, $softBody): void {
                 $w->whereNull('body_types')->orWhere('body_types', 'like', '%"'.$body.'"%');
+                $softBody($w);
                 // Yalnız uzunluk yazan ilan ("13.60") her kasaya açıktır
                 $w->orWhere(function (Builder $k): void {
                     foreach (BodyTypes::KINDS as $kind) {
@@ -244,11 +277,12 @@ class LoadFilterService
             $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"liftli"%'));
         }
         if ($f['body_types'] !== []) {
-            $q->where(function (Builder $w) use ($f): void {
+            $q->where(function (Builder $w) use ($f, $softBody): void {
                 $w->whereNull('body_types');
                 foreach ($f['body_types'] as $b) {
                     $w->orWhere('body_types', 'like', '%"'.$b.'"%');
                 }
+                $softBody($w);
             });
         }
         if ($f['load_kind'] !== '') {

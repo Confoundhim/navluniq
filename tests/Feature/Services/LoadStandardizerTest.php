@@ -54,15 +54,18 @@ class LoadStandardizerTest extends TestCase
     public function test_explicit_vehicle_beats_ai_and_unknown_place_is_flagged(): void
     {
         $s = app(LoadStandardizer::class);
-        $std = $s->standardize('Tenteli tır lazım Ankara Bilinmeyenköy 24 ton', ['pickup_location' => 'Ankara', 'delivery_location' => 'Bilinmeyenköy', 'vehicle_type' => 'kamyonet']);
+        $std = $s->standardize('Tenteli tır lazım Ankara Bilinmeyenköy 24 ton', ['pickup_location' => 'Ankara', 'delivery_location' => 'Bilinmeyenköy', 'vehicle_type' => 'kamyonet', 'vehicle_type_source' => 'ai']);
         $this->assertSame('tir', $std['vehicle_type']);
         $this->assertSame('keyword', $std['vehicle_type_source']);
         $this->assertContains('delivery_unresolved', $std['warnings']);
         $this->assertSame('Bilinmeyenköy', $std['delivery_location']);
 
-        $std = $s->standardize('Koli var Bursa İzmir', ['pickup_location' => 'Bursa', 'delivery_location' => 'İzmir', 'vehicle_type' => 'kamyonet']);
+        $std = $s->standardize('Koli var Bursa İzmir', ['pickup_location' => 'Bursa', 'delivery_location' => 'İzmir', 'vehicle_type' => 'kamyonet', 'vehicle_type_source' => 'ai']);
         $this->assertSame('kamyonet', $std['vehicle_type']); // yapay zeka, zayıf çıkarıma üstün
         $this->assertSame('ai', $std['vehicle_type_source']);
+        // Kaynağı "ai" diye işaretlenmemiş araç (kuralın kendi okuması) yapay zeka sayılmaz: sınıflandırıcının çıkarımı ve kaynağı kalır.
+        $std = $s->standardize('Koli var Bursa İzmir', ['pickup_location' => 'Bursa', 'delivery_location' => 'İzmir', 'vehicle_type' => 'kamyonet']);
+        $this->assertNotSame('ai', $std['vehicle_type_source']);
 
         $this->assertSame(45000.0, $s->priceFromText(' 45bin tl '));
         $this->assertSame(45000.0, $s->priceFromText(' fiyat: 45.000 '));

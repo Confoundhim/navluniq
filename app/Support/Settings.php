@@ -38,9 +38,9 @@ final class Settings
         'scraper_auto_approve_require_ai' => 1,      // 1: yapay zeka bakmadan / yeterli güven vermeden aday otomatik onaylanmaz
         'scraper_auto_approve_min_confidence' => 75, // karar puanı (yüzde) bu değerin üstündeyse otomatik yayın
         'scraper_auto_reject_max_score' => 25,       // karar puanı (yüzde) bu değerin altındaysa otomatik ret
-        'scraper_incomplete_publish' => 1,           // 1: ret ile eksik-üst-sınır arasındaki, rotası ve telefonu belli adaylar "eksik bilgili" yayınlanır
-        'scraper_incomplete_max_score' => 60,        // karar puanı (yüzde) bu değere kadar eksik bilgili yayın; üstü onay kuyruğu (sistemi eğitir)
-        'scraper_queue_max_age_hours' => 48,         // kuyrukta bu kadar saatten uzun bekleyen aday kendiliğinden reddedilir
+        'scraper_incomplete_publish' => 1,           // 1: ret sınırı ile otomatik yayın eşiği arasındaki, rotası ve telefonu belli adaylar "eksik bilgili" yayınlanır (şoför "Aradım, araç:" ile tamamlar)
+        'scraper_incomplete_max_score' => 60,        // eksik bilgili yayın bandının üst sınırı YALNIZ yayın eşiğinden (min_confidence) yüksekse etkilidir; aksi halde bant yayın eşiğine kadar uzanır (2026-10-04: %60-75 bandı kuyrukta bekleyip 48 saatte reddediliyordu)
+        'scraper_queue_max_age_hours' => 48,         // kuyrukta bu kadar saatten uzun bekleyen ve rotası/ili çözülemeyen aday kendiliğinden reddedilir (puan bandı / yapay zeka beklemesi yüzünden bekleyen reddedilmez)
         'scraper_ai_wait_minutes' => 15,             // yapay zeka zorunluyken cevap için en çok bu kadar beklenir
         'scraper_local_enabled' => 1,                // 1: yerel öğrenen sınıflandırıcı (dış servisten bağımsız) devrede
         'scraper_local_min_confidence' => 90,        // dış yapay zeka ulaşılamazsa yerel güven (yüzde) bu değerin üstündeyse otomatik onay
@@ -50,6 +50,7 @@ final class Settings
         // Bildirim iletici (telefon) bağlantı anahtarı: boşsa .env SCRAPER_API_TOKEN; o da boşsa panel üretir
         'scraper_api_token' => '',
         'scraper_rejected_retention_days' => 7, // Reddedilen adaylar bu kadar gün sonra silinir
+        'intake_event_days' => 7,               // Canlı akış kayıtları (telefondan gelen her isteğin sonucu, alıntı maskeli) bu kadar gün sonra silinir (KVKK)
 
         // Yapay zeka ile ilan çözümleme
         'ai_suggest_auto_approve_hits' => 0,    // öğrenme çemberi: aynı öneri bu kadar ayrı ilanda görülürse kendiliğinden sözlüğe girer (0: yalnız elle onay)
