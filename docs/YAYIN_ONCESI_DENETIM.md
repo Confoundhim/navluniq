@@ -195,3 +195,53 @@ Testler: `tests/Feature/Security/PackageBTest` (15 test).
 
 **Bilerek ertelenenler (Paket C):** SMS telefon doğrulaması (Netgsm anahtarı), yönetici oturumu için ayrı kısa süre / IP izni,
 CSP (Livewire/Alpine satır içi betik gerektiriyor; önce rapor modunda denenir), yedek zip şifreleme.
+
+## 9. İlan derleme hattı iyileştirmeleri (2026-10-04)
+
+Osman'ın "istek çok, yayın az" gözlemi için hat baştan sona kodda denetlendi (ayrıştırıcılar gerçek örneklerle çalıştırılarak);
+25 bulgu düzeltildi. Testler: `tests/Feature/Intake/*` (+28), altın set 231 örnek (%100), toplam 563 test.
+
+**Volume kaybı (en büyük iki neden)**
+- "fiyat görüşmeli", "yük arıyoruz", "görüşmek için arayın" içeren mesajlar **özet bildirim** sanılıp hiç hatta girmiyordu
+  (`NotificationIntakeParser` arama/görüşme kalıbı metne de bakıyordu). Artık sistem kalıpları yalnız başlıkta ya da 40 karakterden
+  kısa metinde, tam sözcük olarak aranır.
+- "Kalkış: … / Varış: … / İletişim: …" biçimli etiketli ilanlar satır satır "gönderen: metin" diye parçalanıp elenerek kayboluyordu.
+  Satır bölme yalnız gerçek gönderen önekinde (≤3 sözcük, rakamsız, yük/yer/etiket sözcüğü değil) yapılır.
+
+**Karar puanı ve kuyruk**
+- Kuralın okuduğu araç tipi `vehicle_type_source='ai'` yazılıyordu → 0,15 puan kaybı ve "kural tam" kısayolu işlemiyordu; düzeltildi.
+- %60-75 bandı (iki il + telefon + yük, araç çıkarımla) kuyrukta 48 saat çürüyüp yaşla reddediliyordu. Artık bu bant **eksik
+  bilgili** olarak yayınlanır (şoför "Aradım, araç:" ile tamamlar); yaşla ret yalnız "rota eksik / il çözülemedi" için.
+- Kural tamken yapay zeka beklenmez; bekleme süresi dolan adaylar o dakika yeniden değerlendirilir.
+- Yerel sınıflandırıcı yalnız "ilan değil" gerekçeli yönetici retlerinden öğrenir (tekrar/eski/yanlış rota retleri ve otomatik retler
+  olumsuz örnek değildir); `reject()` gerekçe alır.
+
+**Yapay zeka kullanımı ve gecikme**
+- "Her ilanda" kipinde bile ucuz kapı (`looksLikeLoad`) ve kesin kural (`ruleStrong`) yapay zekasız yayınlar; kota yalnız gerçekten
+  belirsiz mesajlara harcanır. Yapay zeka beklerken kuralın bir ucu çözdüğü ilan `parsed_partial` olarak kaydedilir ve kuyruk görevi
+  sonradan tamamlar (önceden kayboluyordu).
+- Sağlayıcı zaman aşımı/5xx için devre kesici (3 hata → 10 dk), uzak sağlayıcı 15 sn zaman aşımı, mesaj başına en çok 2 sağlayıcı
+  ~20 sn; iş `tries=2`. İstem şeması kısaltıldı, mesaj 3.000 karaktere kırpılır, aynı metin için yapay zeka sonucu 7 gün önbellekte.
+- Kuyruk görevi kota dolmuş sağlayıcıyı 5 dakikada bir dövmez.
+
+**Ayırma ve yanlış şehir**
+- "İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa" → üç ayrı ilan (eskiden Ankara→İzmir yayınlanıyordu); "İSTANBULDAN:" başlığı tanınır;
+  "A yükleme, B, C, D boşaltma 3 araç" → üç ilan, adet yoksa çok teslim noktası; "Ankara-İstanbul / İstanbul-Ankara gidiş dönüş"
+  → iki ilan; seri etiketlerinde araç sözcüğü kalmaz ("Ankara Tır" yok); mesaj başına 40 ilan (kesilirse canlı akışta not).
+- Virgül yalnız fiilsiz, tam iki yerli satırda bağlaçtır; "kalkış, üzeri, üzerinden, gidiş, dönüş" durak listesinde.
+- Yapay zeka kuraldan az ilan dönerse kural parçaları korunur. Yük sahibi dili ("boş araç arıyorum … yük var", "boşta tır var mı")
+  elenmez; nakliyeci dili ("kamyonum boş", "aracım yük bekliyor", "müsait araç") elenir.
+- Aynı numara + aynı il çifti 48 saat içinde ama fiyat/tonaj/araç/yük/gün **farklıysa** yeni ilan eskisinin yerine geçer (eski arşive);
+  otomatik reddedilmiş/tekrar sayılmış kayıt yeniden paylaşımı engellemez (yönetici reddi engeller). Konum değişince rota anahtarı yenilenir.
+
+**Şoför tarafı**
+- Kesin kaynaklı araç tipi (keyword/admin/ai/template) olan ilan yalnız aynı sınıf ve bir alt sınıfa gösterilir ("kamyonet lazım"
+  TIR şoförüne çıkmaz); çıkarımla bulunan araçta eski "ve üzeri" kuralı. Kasa filtresi yalnız kesin kaynaklı kasada eler.
+
+**Panel**
+- Dış kaynak özetinde hat karnesi: bekleyen dağılımı (yapay zeka bekliyor / il-rota çözülemedi / telefon yok / elle kontrol), bugün
+  yaşla reddedilen, açılış→yayın medyan dakika, sağlayıcı durumu (çalışıyor / bekletiliyor / kota doldu).
+- Canlı akışta gönderen adı saklanmaz, alıntıdaki numaralar maskelenir, saklama `intake_event_days` (7 gün, Ayarlar → Dış kaynak);
+  anahtarsız istekler içerik taşımaz ve 10/dk ile sınırlıdır.
+
+**Ertelenen:** gönderen başına "numara sonraki mesajda" birleştirme (10 dk pencere); panelde ret gerekçesi seçimi (API hazır).

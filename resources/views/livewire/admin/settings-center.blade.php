@@ -46,6 +46,7 @@ new class extends Component {
     public const SCRAPER_KEYS = [
         'scraper_free_delay_minutes' => 'Premium öncelik süresi (dakika)',
         'scraper_list_days' => 'Dış kaynak ilanının listede kalma süresi (gün)',
+        'intake_event_days' => 'Canlı akış kayıtlarının saklama süresi (gün)',
         'scraper_contact_message' => 'Dış kaynak ilanında WhatsApp hazır mesajı',
         'scraper_auto_approve' => 'Otomatik onay',
         'scraper_auto_approve_require_price' => 'Otomatik onay için fiyat zorunlu',
@@ -442,6 +443,7 @@ new class extends Component {
         $this->validate([
             'scraper.scraper_free_delay_minutes' => 'required|integer|min:0|max:1440',
             'scraper.scraper_list_days' => 'required|integer|min:1|max:365',
+            'scraper.intake_event_days' => 'required|integer|min:1|max:90',
             'scraper.scraper_contact_message' => 'nullable|string|max:600',
             'scraper.telegram_bot_token' => ['nullable', 'string', 'max:120', 'regex:/^\d+:[A-Za-z0-9_-]+$/'],
             'scraper.telegram_channel_id' => ['nullable', 'string', 'max:120', 'regex:/^(@[A-Za-z0-9_]{4,}|-?\d+)$/'],
@@ -495,7 +497,7 @@ new class extends Component {
             if (in_array($key, self::SCRAPER_TOGGLES, true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
-            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes', 'ai_suggest_auto_approve_hits', 'ai_audit_daily_count'], true)) {
+            } elseif (in_array($key, ['scraper_free_delay_minutes', 'scraper_list_days', 'intake_event_days', 'scraper_rejected_retention_days', 'scraper_auto_approve_min_confidence', 'scraper_local_min_confidence', 'scraper_auto_reject_max_score', 'scraper_incomplete_max_score', 'scraper_queue_max_age_hours', 'scraper_ai_wait_minutes', 'ai_suggest_auto_approve_hits', 'ai_audit_daily_count'], true)) {
                 $value = (string) (int) $value;
                 $old = (string) Settings::int($key);
             } else {

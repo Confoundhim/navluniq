@@ -203,6 +203,15 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   sözleşme sürümü `legal_document_version` (CMS → Sözleşmeler → "Sürümü artır") → panelde `reconsent-modal` yeniden onay,
   yedek indirme yalnız süper yönetici, yönetici panel görünümü `is_staff_view` (bildirim/sayım dışı), dosya uzantısı `UploadName`,
   "20 dakika" yazıları `LoadReleaseService::delayMinutes()`'tan. SMS telefon doğrulaması Netgsm anahtarı gelince (Paket C).
+- **İlan hattı denetimi (2026-10-04, `docs/YAYIN_ONCESI_DENETIM.md` §9):** "fiyat görüşmeli" içeren mesajlar özet bildirim sanılıp
+  düşüyordu ve "Kalkış:/Varış:" etiketli ilanlar satır satır parçalanıyordu (`NotificationIntakeParser::looksLikeSenderPrefix`, sistem
+  kalıpları yalnız başlıkta); kuralın okuduğu araç `vehicle_type_source='ai'` yazılmıyor; %60-75 bandı eksik bilgili yayınlanır,
+  yaşla ret yalnız rota/il çözülemeyende (`isAgeRejectable`); `ruleStrong` yapay zekasız yayın, yapay zeka beklerken `parsed_partial`
+  kayıt; sağlayıcı devre kesici (`ai:breaker:*`), 15 sn zaman aşımı, mesaj başına 2 sağlayıcı, sonuç önbelleği `ai:result:{hash}` 7 gün;
+  `SeriesAd::commaList/roundTrip` (virgüllü varış listesi, "-DAN:" başlığı, gidiş-dönüş), `MAX_ADS_PER_MESSAGE=40`;
+  `materiallyDifferent` → `supersedes` (değişen ilan eskisinin yerine geçer); `LoadFilterService::EXACT_VEHICLE_SOURCES` (kesin
+  kaynaklı araç yalnız aynı sınıf + bir alt); `reject($load,$userId,$reason)` ve sınıflandırıcı yalnız "ilan değil" retinden öğrenir;
+  canlı akışta gönderen adı yok, numara maskeli, `intake_event_days`. Dış kaynak özetinde hat karnesi (`scorecard()`).
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 

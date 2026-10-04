@@ -89,7 +89,6 @@ final class Settings
         'review_login_code' => '',              // 6 haneli sabit kod; boşsa özellik kapalı
         'review_login_until' => '',             // Y-m-d H:i:s; geçince sabit kod kendiliğinden kapanır (review:accounts 30 gün yazar)
         'deneme_mode' => 0,                     // 1: yalıtılmış deneme kopyası (deneme:izole yazar); yöneticiler sabit kodla girebilir
-        'intake_event_days' => 7,               // Canlı akış kayıtları (telefon mesajı özetleri) bu kadar gün sonra silinir
         'legal_document_version' => '',         // Sözleşme/KVKK metni sürümü (boşsa config/company LEGAL_DOCUMENT_VERSION); artınca kullanıcılar panelde yeniden onaylar
         'legal_effective_date' => '',           // Sürümün yürürlük tarihi (Y-m-d)
 
