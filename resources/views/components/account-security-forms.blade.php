@@ -33,13 +33,13 @@
     @if($emailChangePending)
         <div class="rounded-xl border border-brand-200 dark:border-brand-900/60 bg-brand-50 dark:bg-brand-900/10 p-4 space-y-3 text-xs">
             <p class="text-neutral-700 dark:text-neutral-200">Yeni e-posta adresinize 6 haneli doğrulama kodu gönderildi. Kod girilince yeni adres geçerli olur; o zamana kadar mevcut adres kullanılır.</p>
-            <div class="flex flex-wrap gap-2 items-start">
-                <div class="flex-1 min-w-[140px]">
-                    <input type="text" inputmode="numeric" autocomplete="one-time-code" wire:model="email_change_otp" maxlength="6" placeholder="000000" class="form-input tracking-[0.4em] text-center font-bold">
-                    @error('email_change_otp') <span class="form-error">{{ $message }}</span> @enderror
+            <div class="space-y-2">
+                <input type="text" inputmode="numeric" autocomplete="one-time-code" wire:model="email_change_otp" maxlength="6" placeholder="000000" class="form-input tracking-[0.4em] text-center font-bold">
+                @error('email_change_otp') <span class="form-error">{{ $message }}</span> @enderror
+                <div class="flex gap-2">
+                    <button type="button" wire:click="confirmEmailChange" class="btn-primary py-2 text-xs flex-1">Kodu doğrula</button>
+                    <button type="button" wire:click="cancelEmailChange" class="btn-secondary py-2 text-xs">Vazgeç</button>
                 </div>
-                <button type="button" wire:click="confirmEmailChange" class="btn-primary py-2 text-xs">Kodu doğrula</button>
-                <button type="button" wire:click="cancelEmailChange" class="btn-secondary py-2 text-xs">Vazgeç</button>
             </div>
         </div>
     @endif
