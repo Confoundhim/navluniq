@@ -6,6 +6,7 @@ use App\Models\ScrapedLoad;
 use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
+use App\Support\SeriesAd;
 use App\Support\TextPrep;
 use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
@@ -205,6 +206,10 @@ class LoadStandardizer
         if ($load->status === 'parsed_partial' && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
             $changes['status'] = 'parsed_success'; // iki uç da çözüldü: aday artık eksik değil
         }
+        // Konum değiştiyse rota anahtarı da yenilenir; eski anahtar yanlış rotanın tekrar denetimine takılıyordu.
+        if (isset($changes['pickup_location']) || isset($changes['delivery_location'])) {
+            $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        }
         $changes['parse_metadata'] = array_merge($meta, $std['metadata']);
         $load->forceFill($changes)->save();
 
@@ -307,6 +312,19 @@ class LoadStandardizer
         $prepared = TextPrep::prepare($raw);
         foreach (preg_split('/\n/u', $prepared) ?: [] as $line) {
             if (! preg_match('/\p{L}[\p{L} ().]*\s*\+\s*\p{L}/u', $line)) {
+                // "İstanbul Hadımköy yükleme, Ankara, Konya boşaltma tenteli": araç adedi yazmayan virgüllü boşaltma listesi = tek araç, sıralı teslim
+                $comma = SeriesAd::parseCommaListLine($line);
+                if ($comma !== null && ! $comma['header'] && (BodyTypes::detectVehicleCount(VehicleClassifier::normalize($raw)) ?? 1) < 2) {
+                    $stops = array_values(array_filter($comma['destinations'], fn ($s) => $s !== $pickupLabel));
+                    if (count($stops) >= 2) {
+                        if ($deliveryLabel !== null && in_array($deliveryLabel, $stops, true)) {
+                            $stops = array_values(array_unique(array_merge([$deliveryLabel], $stops)));
+                        }
+
+                        return $stops;
+                    }
+                }
+
                 continue;
             }
             // Satırın "+" zinciri: "GÖNEN+MERKEZ – TIR – 26 TON" → ["GÖNEN", "MERKEZ – TIR – 26 TON"]

@@ -1414,7 +1414,16 @@ TXT;
         $word = '(?:\p{L}\.)?\p{L}{2,}(?:\.\p{L}+)*'; // "M.Kemalpaşa" tek sözcük; tek harf ("İ.", "B.") başına eklenmedikçe sayılmaz
         // Ek bağlaç: sözcüğe bitişik ("Ankaradan", en az 3 harften sonra) ya da ayrı yazılmış ("Diyarbakr dan"); "MADEN" gibi sözcük içi "den" sayılmaz.
         $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
-        if (! preg_match_all($pattern, $text, $all, PREG_SET_ORDER)) {
+        // Eşlemeler satır satır: kalıp satır aşmaz, satırın tamamı ("çıkışlı:" başlığı, fiil, yer sayısı) virgül kararını belirler.
+        $all = [];
+        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+            if (preg_match_all($pattern, $line, $hits, PREG_SET_ORDER)) {
+                foreach ($hits as $hit) {
+                    $all[] = $hit + ['line' => $line];
+                }
+            }
+        }
+        if ($all === []) {
             return [];
         }
         $out = [];
@@ -1425,6 +1434,16 @@ TXT;
             $delivery = self::tidyLocation($m[4], $dative);
             if ($pickup === null || $delivery === null) {
                 continue;
+            }
+            // Virgül yalnız düz bir satırda rota bağlacıdır ("Mersin Tarsus, Kayseri 20 ton"): satırda kalkış/varış fiili, "-dan" ekli yer
+            // ya da ikiden çok yer varsa ("İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa") virgül liste ayracıdır, rota değil (SeriesAd::commaList bakar).
+            if ($connector === ',') {
+                $lineLower = TurkishCities::lower($m['line']);
+                $hasVerb = preg_match(self::PICKUP_VERBS, $lineLower) === 1 || preg_match(self::DELIVERY_VERBS, $lineLower) === 1
+                    || preg_match('/(?<!\p{L})\p{L}{3,}(?:dan|den|tan|ten)(?!\p{L})/u', preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower) === 1;
+                if ($hasVerb || count(self::placesIn($m['line'], 3)) !== 2) {
+                    continue;
+                }
             }
             // "/" ve "," zayıf bağlaçtır ("ANKARA/SİNCAN" il/ilçe): yalnız iki uç da FARKLI yer olarak çözülüyorsa rota sayılır.
             if (in_array($connector, ['/', ','], true)) {
@@ -1847,7 +1866,8 @@ TXT;
             'günü', 'gunu', 'saat', 'kadar', 'km', 'usd', 'tl', 'kdv', 'peşin', 'pesin', 'nokta', 'yer', 'civarı', 'civari', 'depo', 'depodan', 'depoma',
             'osb', 'sanayi', 'termik', 'santral', 'liman', 'limanı', 'limani', 'fabrika', 'merkez', 'basar', 'tonaj', 'tonajlı', 'tonajli', 'uzun', 'kısa', 'kisa',
             'adet', 'parça', 'parca', 'koli', 'hafif', 'ağır', 'agir', 'yüksek', 'yuksek', 'yan', 'tekstil', 'dorseli', 'tırlar', 'tirlar', 'boş', 'bos',
-            'yerde', 'yerinde', 'yerin', 'ödeme', 'odeme', 'sevkiyat', 'sevkiyatları', 'sevkiyatlari', 'sevkiyatlarımız', 'fatura', 'faturalı', 'faturali', 'kira', 'dolgun', 'günlük', 'gunluk', 'kotalı', 'kotali'];
+            'yerde', 'yerinde', 'yerin', 'ödeme', 'odeme', 'sevkiyat', 'sevkiyatları', 'sevkiyatlari', 'sevkiyatlarımız', 'fatura', 'faturalı', 'faturali', 'kira', 'dolgun', 'günlük', 'gunluk', 'kotalı', 'kotali',
+            'kalkış', 'kalkis', 'üzeri', 'uzeri', 'üzerinden', 'uzerinden', 'gidiş', 'gidis', 'dönüş', 'donus', 'çıkışlı', 'cikisli'];
         $value = str_replace(['(', ')', '+', '/'], ' ', $value);
         $words = array_values(array_filter(preg_split('/\s+/u', $value) ?: [], fn ($w) => $w !== ''));
         $isStop = fn (string $w) => in_array(TurkishCities::lower($w), $stop, true) || preg_match('/^\d/u', $w) === 1;

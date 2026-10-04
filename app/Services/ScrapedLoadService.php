@@ -243,10 +243,15 @@ class ScrapedLoadService
         if (! $load->pickup_location || ! $load->delivery_location) {
             throw new RuntimeException('Kalkış ve varış bilgisi olmayan aday yayınlanamaz.');
         }
-        // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz.
+        // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz;
+        // alımda "değişmiş ilan" diye işaretlenen aday (supersedes) eskisinin yerine geçer.
         if ($twin = $this->publishedDuplicateOf($load)) {
-            $this->markDuplicate($load, $twin, $userId);
-            throw new RuntimeException("Aynı ilan zaten yayında (#{$twin->id}); bu aday tekrar olarak işaretlendi.");
+            if ((int) $load->meta('supersedes') === $twin->id && $twin->normalized_hash !== $load->normalized_hash) {
+                $this->retireSuperseded($twin, $load);
+            } else {
+                $this->markDuplicate($load, $twin, $userId);
+                throw new RuntimeException("Aynı ilan zaten yayında (#{$twin->id}); bu aday tekrar olarak işaretlendi.");
+            }
         }
         // Yayın öncesi son standartlaştırma: eski kayıtlar ve sonradan iyileşen sözlükler için.
         app(LoadStandardizer::class)->restandardize($load);
@@ -321,8 +326,22 @@ class ScrapedLoadService
         })->orderBy('id')->first();
     }
 
+    /**
+     * Alımda aynı numara + rota ama fiyat/tonaj/araç/yük/tarih değişmiş yeni parça geldi: yayındaki eski kayıt yeni aday
+     * yayınlanınca arşivlenir (autoApprovalBlocker / approve "supersedes" işaretine bakar); henüz yayınlanmamış eski aday hemen arşivlenir.
+     */
+    public function supersede(ScrapedLoad $old, ScrapedLoad $new): void
+    {
+        if ($old->visibility === 'public') {
+            return; // şoförler ilanı görmeye devam eder; yeni aday yayınlanınca eskisi onun yerini bırakır
+        }
+        $old->forceFill(['content_hash' => null, 'parse_metadata' => array_merge((array) $old->parse_metadata, ['superseded_by' => $new->id])])->saveQuietly();
+        $old->delete();
+        ActivityLog::record('scraped_load.superseded', "Dış kaynak adayı #{$old->id} değişmiş yeni paylaşım #{$new->id} ile değişti; eski arşivlendi", null, $old);
+    }
+
     /** Yayındaki eski ikiz, yeni adayın yayınına yer açar (arşiv): aynı numara + rota ama metin değişmiş (fiyat, araç, tarih). */
-    private function retireSuperseded(ScrapedLoad $twin, ScrapedLoad $load): void
+    public function retireSuperseded(ScrapedLoad $twin, ScrapedLoad $load): void
     {
         $sources = array_values(array_unique(array_filter(array_merge((array) ($twin->seen_sources ?? []), (array) ($load->seen_sources ?? [])))));
         $load->forceFill(['seen_sources' => $sources, 'duplicate_count' => max(1, count($sources)), 'sighting_count' => max(1, (int) $load->sighting_count, (int) $twin->sighting_count)])->saveQuietly();
@@ -354,12 +373,13 @@ class ScrapedLoadService
         }
         if ($twin = $this->publishedDuplicateOf($load)) {
             $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
-            if ($sameText || ($twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
+            $supersedes = ! $sameText && (int) $load->meta('supersedes') === $twin->id; // alımda fiyat/tonaj/araç değişti diye açıldı
+            if ($sameText || (! $supersedes && $twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
                 $this->markDuplicate($load, $twin, null);
 
                 return "tekrar (#{$twin->id} yayında)";
             }
-            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ve metin farklı: yeni paylaşım onun yerine geçer
+            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ya da içerik değişmiş: yeni paylaşım onun yerine geçer
         }
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
