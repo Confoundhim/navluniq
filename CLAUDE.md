@@ -212,6 +212,12 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `materiallyDifferent` → `supersedes` (değişen ilan eskisinin yerine geçer); `LoadFilterService::EXACT_VEHICLE_SOURCES` (kesin
   kaynaklı araç yalnız aynı sınıf + bir alt); `reject($load,$userId,$reason)` ve sınıflandırıcı yalnız "ilan değil" retinden öğrenir;
   canlı akışta gönderen adı yok, numara maskeli, `intake_event_days`. Dış kaynak özetinde hat karnesi (`scorecard()`).
+- **Canlıya hazırlık incelemesi (2026-10-04, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md`):** altı modül denetimi; aynı gün düzeltilenler:
+  kabulde iptal edilmiş sevkiyat satırı yeniden kullanılır (`shipments.load_id` UNIQUE; Vazgeç/ödeme süresi sonrası yeniden atama),
+  aynı ilana ikinci tahsilat yetim sayılıp iade edilir ve açık emirler kapanır, `PayoutService::markFailed` yalnız pending/processing,
+  teklif withdraw/reject/expire koşullu yazım. Depo **herkese açık** ve `android/keystore/toplayici.jks` depoda (karar bekliyor).
+  Osman'ın 5 kararı belgenin §2'sinde (para akışı modeli, depo gizliliği/keystore, yük sahibi KYC zorunluluğu, iade/iptal
+  politikası, pazarlama e-postası rızası). Paket C1-C4 öncelik tabloları ve yayın günü yol haritası orada.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
