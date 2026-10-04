@@ -241,7 +241,7 @@ HTML;
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: Çerezler (Cookies) ve Çevrimiçi İzleme Teknolojileri</h3>
         <p>
-            Oturumunuzun güvenli ve kesintisiz sürdürülebilmesi adına tarayıcınızda geçici çerezler saklanır. Bu çerezler platform içi tercihlerinizi, oturum anahtarlarınızı ve dil seçimlerinizi hafızada tutar. Oturum süresi güvenlik yapılandırmasına göre <strong>1440 dakikaya (24 saate)</strong> kadar belirlenebilir. Süre dolduğunda veya güvenlik gerektirdiğinde oturum sonlandırılabilir; çerezlerin saklanması tarayıcı ve kullanıcı tercihlerine göre değişebilir.
+            Oturumunuzun güvenli ve kesintisiz sürdürülebilmesi adına tarayıcınızda geçici çerezler saklanır. Bu çerezler platform içi tercihlerinizi, oturum anahtarlarınızı ve dil seçimlerinizi hafızada tutar. Oturum, hareketsiz kalınan <strong>120 dakika</strong> sonunda kapanır; girişte "Bu cihazda oturumum açık kalsın" seçilirse yalnız o cihazda hatırlama çerezi tutulur ve şifre değişince geçersiz olur. Süre dolduğunda veya güvenlik gerektirdiğinde oturum sonlandırılabilir; çerezlerin saklanması tarayıcı ve kullanıcı tercihlerine göre değişebilir.
         </p>
     </div>
 
@@ -249,7 +249,7 @@ HTML;
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 3: Konum Bilgileri ve PWA Arka Plan Geolocation Protokolü</h3>
         <p>
-            Sürücülerin konum takibi, gerekli cihaz izniyle ve aktif navlun sevkiyatı süresince PWA konum servisleri üzerinden yapılır. Uygulama hareket ve sevkiyat durumuna göre veri iletim sıklığını azaltabilir; teslimat tamamlandığında aktif takip sonlandırılır. Toplanan konumlar yetkili ilgili göndericiye gerekli kapsamda gösterilir ve veritabanında <strong>MySQL Spatial POINT (SRID 4326)</strong> formatında erişim kontrolleri uygulanarak saklanır.
+            Sürücülerin konum takibi, gerekli cihaz izniyle ve aktif navlun sevkiyatı süresince PWA konum servisleri üzerinden yapılır. Uygulama hareket ve sevkiyat durumuna göre veri iletim sıklığını azaltabilir; teslimat tamamlandığında aktif takip sonlandırılır. Toplanan konumlar yetkili ilgili göndericiye gerekli kapsamda gösterilir ve veritabanında enlem/boylam olarak erişim kontrolleri uygulanarak saklanır ve <strong>90 gün</strong> sonra silinir.
         </p>
     </div>
 

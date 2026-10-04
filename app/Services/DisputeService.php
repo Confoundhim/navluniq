@@ -9,6 +9,7 @@ use App\Models\DriverTrip;
 use App\Models\Load;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -40,7 +41,7 @@ class DisputeService
                 throw new RuntimeException('Bu sevkiyat için zaten açık bir uyuşmazlık var.');
             }
 
-            $photoPath = $photo?->storeAs('disputes/'.$locked->id, 'claim-'.now()->format('YmdHis').'.'.strtolower($photo->getClientOriginalExtension()), 'private');
+            $photoPath = $photo?->storeAs('disputes/'.$locked->id, 'claim-'.now()->format('YmdHis').'.'.UploadName::extension($photo), 'private');
 
             $dispute = Dispute::create([
                 'load_id' => $locked->id,
@@ -78,7 +79,7 @@ class DisputeService
             throw new RuntimeException('Karara bağlanmış uyuşmazlığa savunma eklenemez.');
         }
 
-        $photoPath = $photo?->storeAs('disputes/'.$load->id, 'defense-'.now()->format('YmdHis').'.'.strtolower($photo->getClientOriginalExtension()), 'private');
+        $photoPath = $photo?->storeAs('disputes/'.$load->id, 'defense-'.now()->format('YmdHis').'.'.UploadName::extension($photo), 'private');
 
         $dispute->update([
             'driver_defense' => mb_substr(trim($defense), 0, 3000),

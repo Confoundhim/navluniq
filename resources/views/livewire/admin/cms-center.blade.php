@@ -153,6 +153,24 @@ new class extends Component {
         session()->flash('success_message', $changed > 0 ? "{$changed} sözleşme güncellendi. Betik ve olay öznitelikleri kaydedilmeden temizlendi." : 'Değişiklik yok.');
     }
 
+    /**
+     * Sözleşme/KVKK metinleri anlam değiştirdiyse sürüm artırılır: tüm kullanıcılar bir sonraki panel açılışında
+     * yeni metni onaylar (UserConsent kaydı). Yazım düzeltmelerinde sürüm artırılmaz.
+     */
+    public function bumpLegalVersion(): void
+    {
+        if (! auth()->user()?->can('manage cms')) {
+            return;
+        }
+        $current = \App\Models\UserConsent::currentVersion();
+        $parts = array_map('intval', explode('.', $current.'.0'));
+        $next = $parts[0].'.'.($parts[1] + 1);
+        \App\Support\Settings::set('legal_document_version', $next, auth()->id());
+        \App\Support\Settings::set('legal_effective_date', now()->format('Y-m-d'), auth()->id());
+        \App\Models\ActivityLog::record('legal.version_bumped', "Sözleşme sürümü {$current} → {$next}", auth()->id());
+        session()->flash('success_message', "Sözleşme sürümü {$next} oldu; kullanıcılar panele girişte yeniden onaylayacak.");
+    }
+
     public function editFaq(int $id): void
     {
         $faq = Faq::query()->find($id);
@@ -385,6 +403,17 @@ new class extends Component {
             @endforeach
             <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Sözleşmeleri kaydet</button>
         </form>
+
+        <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
+            <div class="flex flex-wrap items-center gap-3">
+                <div>
+                    <div class="font-bold text-neutral-900 dark:text-white">Sözleşme sürümü: {{ \App\Models\UserConsent::currentVersion() }}</div>
+                    <div class="text-[11px] text-neutral-400">Yürürlük: {{ \App\Support\Settings::string('legal_effective_date') ?: 'belirtilmedi' }} · Kullanıcıların onayladığı sürüm kayıt altındadır.</div>
+                </div>
+                <button type="button" wire:click="bumpLegalVersion" wire:confirm="Sürüm artırılınca tüm kullanıcılar panele girişte güncel metinleri yeniden onaylar. Devam edilsin mi?" class="btn-secondary py-2 text-xs ml-auto">Sürümü artır (yeniden onay iste)</button>
+            </div>
+            <p class="text-[11px] text-neutral-400">Metnin anlamı değiştiyse (yeni veri işleme amacı, yeni ücret, saklama süresi) sürüm artırılır; yazım düzeltmesinde gerekmez.</p>
+        </div>
     @endif
 
     @if($activeTab === 'faqs')

@@ -102,7 +102,7 @@ new class extends Component {
                             </td>
                             <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ $backup->created_at?->format('d.m.Y H:i') }}</td>
                             <td class="p-4 whitespace-nowrap space-x-3 tc-actions">
-                                @if($backup->status === 'completed')<a href="{{ route('admin.backups.download', $backup) }}" class="text-brand-600 font-semibold hover:underline">İndir</a>@endif
+                                @if($backup->status === 'completed' && auth()->user()->hasRole('super_admin'))<a href="{{ route('admin.backups.download', $backup) }}" class="text-brand-600 font-semibold hover:underline">İndir</a>@endif
                                 <button type="button" wire:click="deleteBackup({{ $backup->id }})" wire:confirm="Bu yedek sunucudan silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
                             </td>
                         </tr>

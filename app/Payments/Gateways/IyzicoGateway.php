@@ -145,7 +145,7 @@ final class IyzicoGateway implements PaymentGateway
         $data = $this->request(self::PATH_RETRIEVE, ['locale' => 'tr', 'token' => $token]);
         $oid = (string) ($data['basketId'] ?? $data['conversationId'] ?? '');
         if (($data['status'] ?? '') !== 'success' || $oid === '') {
-            Log::warning('iyzico ödeme sorgusu başarısız.', ['token' => $token, 'response' => $data]);
+            Log::warning('iyzico ödeme sorgusu başarısız.', ['status' => $data['status'] ?? null, 'error' => $data['errorMessage'] ?? ($data['errorCode'] ?? null)]); // kart sahibi/e-posta günlüğe yazılmaz
 
             return new WebhookResult(false, $oid, 'failed', null, 'iyzico:'.$token, $data, null, $data['errorMessage'] ?? 'Sorgu başarısız', 'OK', 'INVALID', $fromBrowser);
         }

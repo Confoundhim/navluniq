@@ -21,7 +21,7 @@ class UserOtpMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: 'NavlunIQ | Doğrulama kodunuz: '.$this->otpCode);
+        return new Envelope(subject: 'NavlunIQ | Doğrulama kodunuz');
     }
 
     public function content(): Content

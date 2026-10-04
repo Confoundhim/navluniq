@@ -18,6 +18,7 @@ new class extends Component {
         'system_maintenance_note' => 'Bakım duyurusu',
         'review_login_emails' => 'İnceleme (test) hesapları: e-postalar (virgülle)',
         'review_login_code' => 'İnceleme hesapları için sabit doğrulama kodu (6 hane)',
+        'review_login_until' => 'Sabit kodun son geçerlilik tarihi (YYYY-AA-GG SS:DD; boşsa süresiz, yöneticiler canlıda bu kodla giremez)',
     ];
 
     public const LIMIT_LABELS = [
@@ -376,6 +377,7 @@ new class extends Component {
             'general.system_maintenance_note' => 'nullable|string|max:500',
             'general.review_login_emails' => ['nullable', 'string', 'max:500', 'regex:/^[^,\s]+@[^,\s]+(\s*,\s*[^,\s]+@[^,\s]+)*$/'],
             'general.review_login_code' => ['nullable', 'regex:/^\d{6}$/'],
+            'general.review_login_until' => ['nullable', 'date'],
         ], [
             'general.review_login_emails.regex' => 'E-postaları virgülle ayırarak yazın.',
             'general.review_login_code.regex' => 'Kod 6 haneli olmalıdır.',

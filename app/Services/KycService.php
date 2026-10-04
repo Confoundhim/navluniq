@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\KycDocument;
 use App\Models\User;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -56,7 +57,7 @@ class KycService
 
             $path = $file->storeAs(
                 'users/'.$user->id,
-                $type.'-'.Str::lower(Str::random(12)).'.'.strtolower($file->getClientOriginalExtension()),
+                $type.'-'.Str::lower(Str::random(12)).'.'.UploadName::extension($file),
                 self::DISK
             );
 

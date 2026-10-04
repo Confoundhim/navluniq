@@ -176,6 +176,8 @@ set_env APP_ENV production
 set_env APP_DEBUG false
 set_env APP_URL "${SCHEME}://${DOMAIN}"
 set_env LOG_LEVEL error
+set_env LOG_STACK daily          # günlük dosyası her gün döner, 14 gün saklanır (tek dosya sınırsız büyümez)
+set_env LOG_DAILY_DAYS 14
 set_env DB_CONNECTION mysql
 set_env DB_HOST 127.0.0.1
 set_env DB_PORT "${DB_PORT:-3306}"
@@ -233,6 +235,7 @@ chown -R www-data:www-data "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 755 {} +
 find "$APP_DIR" -type f -exec chmod 644 {} +
 chmod -R ug+rwx storage bootstrap/cache
+chmod -R o-rwx storage/app          # kimlik belgeleri ve özel dosyalar sunucudaki başka hesaplara kapalı
 chmod 640 .env
 chmod +x deploy/*.sh
 runuser -u www-data -- php artisan optimize:clear --quiet

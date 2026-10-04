@@ -16,6 +16,7 @@ class DriverProfile extends Model
 
     protected $fillable = [
         'user_id',
+        'is_staff_view',
         'premium_until',
         'payout_provider_ref',
         'payout_provider',
@@ -36,6 +37,7 @@ class DriverProfile extends Model
     ];
 
     protected $casts = [
+        'is_staff_view' => 'boolean',
         'premium_until' => 'datetime',
         'ocr_data' => 'array',
         'preferences' => 'array',

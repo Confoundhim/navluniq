@@ -9,6 +9,7 @@ use App\Models\Shipment;
 use App\Models\ShipmentEvidence;
 use App\Models\User;
 use App\Support\Settings;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -71,7 +72,7 @@ class ShipmentService
 
             $path = $proof->storeAs(
                 'evidence/'.$locked->id,
-                'pod-'.now()->format('YmdHis').'.'.strtolower($proof->getClientOriginalExtension()),
+                'pod-'.now()->format('YmdHis').'.'.UploadName::extension($proof),
                 'private'
             );
 

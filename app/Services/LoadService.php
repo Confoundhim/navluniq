@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\BodyTypes;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
+use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -64,7 +65,7 @@ class LoadService
             ]);
 
             if ($eIrsaliyeFile) {
-                $path = $eIrsaliyeFile->storeAs('loads/'.$load->id, 'e-irsaliye-'.$load->id.'.'.$eIrsaliyeFile->getClientOriginalExtension(), 'private');
+                $path = $eIrsaliyeFile->storeAs('loads/'.$load->id, 'e-irsaliye-'.$load->id.'.'.UploadName::extension($eIrsaliyeFile), 'private');
                 $load->update(['e_irsaliye_path' => $path]);
             }
 

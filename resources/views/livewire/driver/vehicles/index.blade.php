@@ -147,7 +147,7 @@ class extends Component {
         if ($this->ruhsat) {
             $data['ruhsat_path'] = $this->ruhsat->storeAs(
                 'vehicles/'.$profileId,
-                'ruhsat-'.now()->format('YmdHis').'-'.$this->plate.'.'.strtolower($this->ruhsat->getClientOriginalExtension()),
+                'ruhsat-'.now()->format('YmdHis').'-'.$this->plate.'.'.\App\Support\UploadName::extension($this->ruhsat),
                 'private'
             );
         }

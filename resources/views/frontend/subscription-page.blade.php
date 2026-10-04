@@ -4,13 +4,15 @@
     $paymentReady = app(\App\Services\PaymentService::class)->isConfigured();
     $pct = fn (float $v) => rtrim(rtrim(number_format($v, 1, ',', '.'), '0'), ',');
     $priceText = number_format($monthlyPrice, 0, ',', '.');
+    $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes(); // panel ayarı: ücretsiz üyelere açılma gecikmesi
+    $leadText = $lead > 0 ? "{$lead} dakika" : 'aynı anda';
 
     $check = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
 
     $comparison = [
-        ['Yük sahiplerinin sistem ilanları', '20 dakika sonra', 'Yayınlandığı anda'],
-        ['Yeni ilan bildirimi', '20 dakika sonra', 'Anında'],
+        ['Yük sahiplerinin sistem ilanları', $lead > 0 ? "{$lead} dakika sonra" : 'Yayınlandığı anda', 'Yayınlandığı anda'],
+        ['Yeni ilan bildirimi', $lead > 0 ? "{$lead} dakika sonra" : 'Anında', 'Anında'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         ['Onaylı dış kaynak ilanları', 'Görünmez', 'Tamamı, ilan sahibinin numarasıyla'],
         ['Telegram kanalı (sistem ilanları)', 'Herkese açık', 'Herkese açık'],
@@ -29,7 +31,7 @@
                 Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten 20 dakika önce görür ve anında bildirim alır; standart üyeler aynı ilanları 20 dakika sonra görür.
+                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeler aynı ilanları {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
@@ -58,7 +60,7 @@
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar 20 dakika sonra görünür</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görünür</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Dış kaynak ilanları görünmez</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
@@ -83,7 +85,7 @@
                     </div>
                     <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni ilanları herkesten 20 dakika önce görün</span></li>
+                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni ilanları herkesten {{ $leadText }} önce görün</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görün (yalnız premium)</span></li>
                         <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
@@ -110,15 +112,15 @@
         <section class="max-w-4xl mx-auto">
             <div class="apple-glass rounded-3xl p-6 md:p-8 shadow-apple-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                 <div class="md:col-span-2 space-y-2">
-                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">20 dakika neden fark yaratır?</h3>
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $leadText }} neden fark yaratır?</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı 20 dakika sonra görür. Dış kaynak ilanları ise yalnız premium üyelere açıktır; standart üyeler bu ilanları hiç görmez. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
+                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür. Dış kaynak ilanları ise yalnız premium üyelere açıktır; standart üyeler bu ilanları hiç görmez. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">
                     <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-4">
                         <div class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Standart</div>
-                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">+20 dk</div>
+                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">+{{ $lead }} dk</div>
                         <div class="text-[10px] text-neutral-400 mt-0.5">gecikmeli</div>
                     </div>
                     <div class="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4">

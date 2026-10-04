@@ -86,6 +86,11 @@ final class Settings
         // Ödeme kuruluşu / mağaza incelemesi için test hesapları: listedeki e-postalar sabit kodla giriş yapar
         'review_login_emails' => '',            // virgülle ayrılmış e-postalar
         'review_login_code' => '',              // 6 haneli sabit kod; boşsa özellik kapalı
+        'review_login_until' => '',             // Y-m-d H:i:s; geçince sabit kod kendiliğinden kapanır (review:accounts 30 gün yazar)
+        'deneme_mode' => 0,                     // 1: yalıtılmış deneme kopyası (deneme:izole yazar); yöneticiler sabit kodla girebilir
+        'intake_event_days' => 7,               // Canlı akış kayıtları (telefon mesajı özetleri) bu kadar gün sonra silinir
+        'legal_document_version' => '1.0',      // Sözleşme/KVKK metni sürümü; artınca kullanıcılar panelde yeniden onaylar
+        'legal_effective_date' => '',           // Sürümün yürürlük tarihi (Y-m-d)
 
         // E-posta (SMTP) — panelden; boşsa .env MAIL_* kullanılır
         'mail_host' => 'mail.kurumsaleposta.com',

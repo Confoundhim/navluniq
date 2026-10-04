@@ -45,6 +45,7 @@ class ReviewAccountsCommand extends Command
             });
             Settings::set('review_login_emails', null);
             Settings::set('review_login_code', null);
+            Settings::set('review_login_until', null);
             $this->info('İnceleme hesapları kapatıldı ve sabit kod kaldırıldı.');
 
             return self::SUCCESS;
@@ -97,8 +98,10 @@ class ReviewAccountsCommand extends Command
         $merged = array_values(array_unique(array_merge($existing, [$ownerEmail, $driverEmail])));
         Settings::set('review_login_emails', implode(', ', $merged));
         Settings::set('review_login_code', $code);
+        // Sabit kod 30 gün sonra kendiliğinden kapanır; inceleme uzarsa komut yeniden çalıştırılır.
+        Settings::set('review_login_until', now()->addDays(30)->toDateTimeString());
 
-        $this->info('İnceleme hesapları hazır (e-posta gönderilmez; sabit kodla giriş).');
+        $this->info('İnceleme hesapları hazır (e-posta gönderilmez; sabit kodla giriş; 30 gün geçerli).');
         $this->line('  Giriş sayfası : '.rtrim((string) config('app.url'), '/').'/giris');
         $this->line("  Yük sahibi    : {$ownerEmail} / {$password} / kod {$code}");
         $this->line("  Şoför         : {$driverEmail} / {$password} / kod {$code}");

@@ -69,6 +69,7 @@ class LoadReleaseService
         $sent = 0;
         DriverProfile::query()->with(['user', 'vehicles' => fn ($q) => $q->where('is_active', true)])
             ->where('kyc_status', 'approved')
+            ->where('is_staff_view', false)
             ->when($premium, fn ($q) => $q->where('premium_until', '>', now()))
             ->when(! $premium, fn ($q) => $q->where(fn ($w) => $w->whereNull('premium_until')->orWhere('premium_until', '<=', now())))
             ->where('user_id', '!=', $load->cargoOwnerProfile?->user_id ?? 0)

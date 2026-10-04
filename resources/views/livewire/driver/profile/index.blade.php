@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Concerns\ManagesAccountSecurity;
 use App\Models\KycDocument;
 use App\Services\AccountService;
 use App\Services\KycService;
@@ -17,21 +18,7 @@ new
 #[Layout('components.layouts.driver')]
 #[Title('Profil, Belgeler ve Güvenlik')]
 class extends Component {
-    use WithFileUploads;
-
-    public string $first_name = '';
-
-    public string $last_name = '';
-
-    public string $email = '';
-
-    public string $phone = '';
-
-    public string $current_password = '';
-
-    public string $new_password = '';
-
-    public string $new_password_confirmation = '';
+    use ManagesAccountSecurity, WithFileUploads;
 
     public string $upload_type = '';
 
@@ -52,10 +39,7 @@ class extends Component {
     public function mount(): void
     {
         $user = Auth::user();
-        $this->first_name = $user->first_name;
-        $this->last_name = $user->last_name;
-        $this->email = $user->email;
-        $this->phone = Phone::format($user->phone);
+        $this->fillAccountFields($user);
         $this->upload_type = array_key_first($this->allowedTypes());
 
         $prefs = $user->driverProfile?->preferences ?? [];
@@ -75,55 +59,6 @@ class extends Component {
         ]]);
 
         session()->flash('success_message', 'Tercihleriniz kaydedildi.');
-    }
-
-    public function updateProfile(): void
-    {
-        $user = Auth::user();
-
-        $this->validate([
-            'first_name' => 'required|string|min:2|max:80',
-            'last_name' => 'required|string|min:2|max:80',
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone' => ['required', Phone::RULE],
-        ], [
-            'email.unique' => 'Bu e-posta adresi başka bir hesapta kullanılıyor.',
-            'phone.regex' => 'Geçerli bir cep telefonu numarası girin.',
-        ]);
-
-        $phone = Phone::normalize($this->phone);
-        if (\App\Models\User::query()->whereKeyNot($user->id)->whereIn('phone', Phone::variants($phone))->exists()) {
-            $this->addError('phone', 'Bu telefon numarası başka bir hesapta kullanılıyor.');
-
-            return;
-        }
-
-        $email = mb_strtolower(trim($this->email));
-        $user->update([
-            'first_name' => trim($this->first_name),
-            'last_name' => trim($this->last_name),
-            'email' => $email,
-            'phone' => $phone,
-            'email_verified_at' => $email === $user->email ? $user->email_verified_at : null,
-            'phone_verified_at' => $phone === $user->phone ? $user->phone_verified_at : null,
-        ]);
-
-        session()->flash('success_message', 'Profil bilgileriniz güncellendi.');
-    }
-
-    public function updatePassword(): void
-    {
-        $this->validate([
-            'current_password' => 'required|current_password',
-            'new_password' => 'required|string|min:12|max:255|confirmed',
-        ], [
-            'current_password.current_password' => 'Mevcut şifreniz hatalı.',
-            'new_password.confirmed' => 'Yeni şifreler birbiriyle eşleşmiyor.',
-        ]);
-
-        Auth::user()->forceFill(['password' => $this->new_password])->save();
-        $this->reset(['current_password', 'new_password', 'new_password_confirmation']);
-        session()->flash('success_message', 'Şifreniz güncellendi.');
     }
 
     public function makeDefaultPreset(int $id): void
@@ -228,64 +163,7 @@ class extends Component {
 
         <div class="lg:col-span-2 space-y-6">
 
-            <form wire:submit.prevent="updateProfile" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="section-title">Hesap bilgileri</h3>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div>
-                        <label class="form-label">Ad</label>
-                        <input type="text" wire:model="first_name" class="form-input">
-                        @error('first_name') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Soyad</label>
-                        <input type="text" wire:model="last_name" class="form-input">
-                        @error('last_name') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">E-posta adresi</label>
-                        <input type="email" wire:model="email" class="form-input">
-                        @error('email') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Cep telefonu</label>
-                        <input type="text" wire:model="phone" inputmode="tel" class="form-input tabular-nums">
-                        @error('phone') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                </div>
-
-                <p class="text-[11px] text-neutral-500">E-posta adresinizi değiştirirseniz bir sonraki girişte yeni adresinize doğrulama kodu gönderilir.</p>
-
-                <div class="pt-2 flex justify-end">
-                    <button type="submit" class="btn-primary py-2 text-xs">
-                        <span wire:loading.remove wire:target="updateProfile">Değişiklikleri kaydet</span>
-                        <span wire:loading wire:target="updateProfile">Kaydediliyor...</span>
-                    </button>
-                </div>
-            </form>
-
-            <form wire:submit.prevent="updatePassword" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-                <h3 class="section-title">Şifre değiştir</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                    <div>
-                        <label class="form-label">Mevcut şifre</label>
-                        <input type="password" wire:model="current_password" autocomplete="current-password" class="form-input">
-                        @error('current_password') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Yeni şifre (en az 12 karakter)</label>
-                        <input type="password" wire:model="new_password" autocomplete="new-password" class="form-input">
-                        @error('new_password') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
-                    <div>
-                        <label class="form-label">Yeni şifre (tekrar)</label>
-                        <input type="password" wire:model="new_password_confirmation" autocomplete="new-password" class="form-input">
-                    </div>
-                </div>
-                <div class="pt-2 flex justify-end">
-                    <button type="submit" class="btn-secondary py-2 text-xs">Şifreyi güncelle</button>
-                </div>
-            </form>
+            <x-account-security-forms :emailChangePending="$emailChangePending" />
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

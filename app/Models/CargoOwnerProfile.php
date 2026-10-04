@@ -14,6 +14,7 @@ class CargoOwnerProfile extends Model
 
     protected $fillable = [
         'user_id',
+        'is_staff_view',
         'type',
         'company_title',
         'tax_office',
@@ -30,6 +31,7 @@ class CargoOwnerProfile extends Model
     ];
 
     protected $casts = [
+        'is_staff_view' => 'boolean',
         'nvi_verified' => 'boolean',
         'gib_verified' => 'boolean',
         'kyc_submitted_at' => 'datetime',

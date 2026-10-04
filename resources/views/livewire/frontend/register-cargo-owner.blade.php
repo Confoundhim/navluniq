@@ -10,6 +10,7 @@ use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
@@ -19,6 +20,13 @@ new class extends Component {
 
     #[Locked]
     public ?int $registeredUserId = null;
+
+    /** Doğrulanmış bir hesaba yük sahibi rolü ekleniyor: profil ancak kod doğrulanınca açılır. */
+    #[Locked]
+    public bool $roleAddPending = false;
+
+    #[Locked]
+    public bool $nviVerified = false;
 
     public string $otp = '';
 
@@ -46,6 +54,14 @@ new class extends Component {
         $this->apiStatusMessage = null;
 
         if (strlen($value) === 10) {
+            // GİB sorgusu dışarıya gider: aynı IP dakikada en çok 10 sorgu (kayıt formu vergi no tarama aracı olmasın).
+            $gibKey = 'gib:'.hash('sha256', (string) request()->ip());
+            if (RateLimiter::tooManyAttempts($gibKey, 10)) {
+                $this->apiStatusMessage = 'Çok fazla sorgu yapıldı; vergi numarası kayıt sırasında kontrol edilecek.';
+
+                return;
+            }
+            RateLimiter::hit($gibKey, 60);
             $result = (new GibService)->verifyTax($value);
             $this->taxNoFormatValid = (bool) $result['is_match'];
             $this->apiStatusMessage = $this->taxNoFormatValid
@@ -84,6 +100,15 @@ new class extends Component {
             'taxNo.unique' => 'Bu vergi kimlik numarası ile zaten bir yük sahibi profili var.',
         ]);
 
+        // Aynı IP'den saatte en çok 10 kayıt denemesi (GİB/NVİ sorguları ve kod e-postaları da bu sınırın içinde kalır).
+        $registerKey = 'register:'.hash('sha256', (string) request()->ip());
+        if (RateLimiter::tooManyAttempts($registerKey, 10)) {
+            $this->addError('email', 'Çok fazla kayıt denemesi yapıldı. Lütfen bir süre sonra tekrar deneyin.');
+
+            return;
+        }
+        RateLimiter::hit($registerKey, 3600);
+
         if ($this->type === 'corporate' && ! (new GibService)->verifyTax($this->taxNo)['is_match']) {
             $this->addError('taxNo', 'Vergi kimlik numarası geçersiz.');
 
@@ -115,11 +140,20 @@ new class extends Component {
         $isDraft = $existingUser && $existingUser->email_verified_at === null && ! $existingUser->is_active;
 
         if ($existingUser && ! $isDraft) {
+            // Kayıt formu bir şifre deneme kapısı olmasın: giriş ekranıyla aynı sayaç (5 deneme/dk, hesap+IP).
+            $loginKey = 'login:'.hash('sha256', mb_strtolower((string) $existingUser->email).'|'.request()->ip());
+            if (RateLimiter::tooManyAttempts($loginKey, 5)) {
+                $this->addError('password', 'Çok fazla deneme yapıldı. Lütfen bir dakika bekleyin.');
+
+                return;
+            }
             if (! Hash::check($this->password, $existingUser->password)) {
+                RateLimiter::hit($loginKey, 60);
                 $this->addError('password', 'Bu bilgiler sistemde kayıtlı. Yük sahibi rolü eklemek için mevcut şifrenizi girin.');
 
                 return;
             }
+            RateLimiter::clear($loginKey);
             if ($existingUser->banned_at !== null || ! $existingUser->is_active || in_array($existingUser->current_role, ['admin', 'super_admin'], true)) {
                 $this->addError('email', 'Bu hesaba yeni rol eklenemez.');
 
@@ -132,15 +166,22 @@ new class extends Component {
             }
         }
 
-        $nviVerified = false;
+        $this->nviVerified = false;
         if ($this->type === 'individual') {
-            $nviVerified = (bool) ((new NviService)->verify($this->tcNo, $firstName, $lastName, $this->birthYear)['is_match'] ?? false);
+            $this->nviVerified = (bool) ((new NviService)->verify($this->tcNo, $firstName, $lastName, $this->birthYear)['is_match'] ?? false);
         }
 
-        $user = DB::transaction(function () use ($existingUser, $isDraft, $firstName, $lastName, $email, $phone, $nviVerified) {
-            if ($existingUser && ! $isDraft) {
-                $user = $existingUser;
-            } elseif ($isDraft) {
+        if ($existingUser && ! $isDraft) {
+            // Doğrulanmış hesap: şifre bilinse bile profil yalnız e-posta kodu doğrulanınca açılır.
+            $this->roleAddPending = true;
+            $this->registeredUserId = $existingUser->id;
+            $this->sendOtp($existingUser);
+
+            return;
+        }
+
+        $user = DB::transaction(function () use ($isDraft, $existingUser, $firstName, $lastName, $email, $phone) {
+            if ($isDraft) {
                 $user = $existingUser;
                 $user->cargoOwnerProfile()->withTrashed()->forceDelete();
                 $user->update([
@@ -163,37 +204,33 @@ new class extends Component {
                 ]);
             }
 
-            CargoOwnerProfile::create([
-                'user_id' => $user->id,
-                'type' => $this->type,
-                'tc_no' => $this->type === 'individual' ? $this->tcNo : null,
-                'tax_no' => $this->type === 'corporate' ? $this->taxNo : null,
-                'company_title' => $this->type === 'corporate' ? trim($this->companyTitle) : null,
-                'tax_office' => $this->type === 'corporate' ? (trim($this->taxOffice) ?: null) : null,
-                'nvi_verified' => $nviVerified,
-                'gib_verified' => false,
-                'kyc_status' => 'unsubmitted',
-            ]);
-
-            $user->syncRoles(array_unique([...$user->getRoleNames()->all(), 'cargo_owner']));
-
-            foreach (['terms', 'kvkk'] as $consent) {
-                UserConsent::create([
-                    'user_id' => $user->id,
-                    'consent_type' => $consent,
-                    'document_version' => (string) config('company.legal_document_version', '1.0'),
-                    'granted' => true,
-                    'recorded_at' => now(),
-                    'ip_address' => request()->ip(),
-                    'user_agent' => mb_substr((string) request()->userAgent(), 0, 1000),
-                ]);
-            }
+            $this->attachCargoOwnerRole($user);
 
             return $user;
         });
 
         $this->registeredUserId = $user->id;
         $this->sendOtp($user);
+    }
+
+    /** Yük sahibi profili, rol ve sözleşme onayları (işlem içinde çağrılır). */
+    private function attachCargoOwnerRole(User $user): void
+    {
+        CargoOwnerProfile::create([
+            'user_id' => $user->id,
+            'type' => $this->type,
+            'tc_no' => $this->type === 'individual' ? $this->tcNo : null,
+            'tax_no' => $this->type === 'corporate' ? $this->taxNo : null,
+            'company_title' => $this->type === 'corporate' ? trim($this->companyTitle) : null,
+            'tax_office' => $this->type === 'corporate' ? (trim($this->taxOffice) ?: null) : null,
+            'nvi_verified' => $this->nviVerified,
+            'gib_verified' => false,
+            'kyc_status' => 'unsubmitted',
+        ]);
+
+        $user->syncRoles(array_unique([...$user->getRoleNames()->all(), 'cargo_owner']));
+
+        UserConsent::recordRegistration($user);
     }
 
     /** E-posta doğrulaması yapılmamış taslak hesapların kullanıcı kimlikleri (benzersizlik kontrolünde hariç tutulur). */
@@ -245,6 +282,18 @@ new class extends Component {
             return;
         }
 
+        if ($this->roleAddPending && ! $user->cargoOwnerProfile()->exists()) {
+            $idTaken = $this->type === 'individual'
+                ? CargoOwnerProfile::query()->where('tc_no', $this->tcNo)->whereNotIn('user_id', $this->draftUserIds())->exists()
+                : CargoOwnerProfile::query()->where('tax_no', $this->taxNo)->whereNotIn('user_id', $this->draftUserIds())->exists();
+            if ($idTaken) {
+                $this->addError('otp', 'Bu kimlik/vergi numarası bu arada başka bir hesaba kayıt edildi. Lütfen formu yeniden doldurun.');
+
+                return;
+            }
+            DB::transaction(fn () => $this->attachCargoOwnerRole($user));
+        }
+
         $user->forceFill([
             'is_active' => true,
             'email_verified_at' => $user->email_verified_at ?? now(),
@@ -253,7 +302,7 @@ new class extends Component {
         ])->save();
 
         Auth::login($user, true);
-        request()->session()->regenerate();
+        session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
             ['Yük sahibi hesabınız doğrulandı. İlk ilanınızı oluşturun; belgeleri onaylı şoförlerden teklif almaya hemen başlayın.',
              'Kimlik (kurumsal hesapta vergi levhası) belgenizi profilinizden yükleyerek doğrulamanızı tamamlayın; teklif kabul ve ödeme adımı için gereklidir.'],
@@ -265,7 +314,7 @@ new class extends Component {
 
     public function backToForm(): void
     {
-        $this->reset(['otp']);
+        $this->reset(['otp', 'roleAddPending', 'registeredUserId']);
         $this->step = 1;
     }
 }; ?>

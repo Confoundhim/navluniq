@@ -135,6 +135,14 @@ new class extends Component {
             return '0 başarısız iş';
         });
 
+        $this->checks[] = $this->probe('Sabit kodla giriş', function (): string {
+            if (! \App\Services\OtpService::reviewLoginActive()) {
+                return 'Kapalı (herkes e-posta koduyla girer)';
+            }
+            $until = \App\Support\Settings::string('review_login_until');
+            throw new RuntimeException('AÇIK: '.\App\Support\Settings::string('review_login_emails').' sabit kodla giriyor'.($until !== '' ? ' (bitiş '.$until.')' : ' (süresiz)').'. İnceleme bitince Ayarlar → Genel bölümünden kodu silin.');
+        });
+
         $this->checks[] = $this->probe('Öğrenme çemberi', function (): string {
             $s = app(\App\Services\RuleFeedbackService::class)->weeklyStats();
 

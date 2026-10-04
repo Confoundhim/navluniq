@@ -25,8 +25,11 @@ class PanelSwitchController extends Controller
         abort_unless(in_array($panel, ['driver', 'cargo_owner'], true), 404);
 
         if ($panel === 'driver') {
-            $profile = DriverProfile::firstOrCreate(['user_id' => $user->id], ['kyc_status' => 'approved']);
+            $profile = DriverProfile::firstOrCreate(['user_id' => $user->id], ['kyc_status' => 'approved', 'is_staff_view' => true]);
             $changes = [];
+            if (! $profile->is_staff_view) {
+                $changes['is_staff_view'] = true; // yönetici görünümü: istatistik, bildirim ve listelerde gerçek şoför sayılmaz
+            }
             if ($profile->kyc_status !== 'approved') {
                 $changes['kyc_status'] = 'approved';
             }
@@ -37,14 +40,17 @@ class PanelSwitchController extends Controller
                 $profile->forceFill($changes)->save();
             }
             if (! $profile->vehicles()->exists()) {
-                DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => 'YONETIM', 'brand' => 'NavlunIQ', 'model' => 'Yönetici görünümü', 'vehicle_type' => 'tir', 'is_active' => true]);
+                DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => 'YONETIM'.$user->id, 'brand' => 'NavlunIQ', 'model' => 'Yönetici görünümü', 'vehicle_type' => 'tir', 'is_active' => true]);
             }
             ActivityLog::record('admin.panel_switch', 'Yönetici şoför paneline geçti', $user->id);
 
             return redirect()->route('driver.dashboard');
         }
 
-        CargoOwnerProfile::firstOrCreate(['user_id' => $user->id], ['type' => 'individual']);
+        $owner = CargoOwnerProfile::firstOrCreate(['user_id' => $user->id], ['type' => 'individual', 'is_staff_view' => true]);
+        if (! $owner->is_staff_view) {
+            $owner->forceFill(['is_staff_view' => true])->save();
+        }
         ActivityLog::record('admin.panel_switch', 'Yönetici yük sahibi paneline geçti', $user->id);
 
         return redirect()->route('cargo-owner.dashboard');
