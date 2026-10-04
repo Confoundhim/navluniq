@@ -22,7 +22,7 @@ kapanınca buradan işaretlenir.
 
 ## 2. Para kaybettiren / çıkmaza sokan hatalar (yayın engelleyici)
 
-**Durum (2026-10-04): P1-P8'in tümü Paket A ile kapatıldı; ayrıntı §7.**
+**Durum (2026-10-04): P1-P8'in tümü Paket A ile kapatıldı (§7); Paket B güven/KVKK düzeltmeleri de tamamlandı (§8).**
 
 | # | Bulgu | Nerede | Ne olur |
 |---|---|---|---|
@@ -141,3 +141,57 @@ testleriyle korunur (`tests/Feature/Payments/MoneySafetyTest`, `tests/Feature/Lo
 
 **Paket A'da bilerek yapılmayanlar:** §3'teki KVKK/güven maddeleri (Paket B) ve ölçek/muhasebe maddeleri (Paket C) duruyor;
 iyzico alt üye TC sorunu ve e-posta kuyruğu Paket C'de.
+
+## 8. Paket B tamamlandı (2026-10-04): güven ve KVKK
+
+İkinci derin denetim (kimlik doğrulama, yetki, KVKK, girdi güvenliği, işletim) 25'e yakın bulgu verdi; hepsi kapatıldı.
+Testler: `tests/Feature/Security/PackageBTest` (15 test).
+
+**Kimlik doğrulama**
+- Yalnız APP_URL alan adı (ve www) kabul edilir (`trustHosts`); sahte Host başlığıyla üretilen şifre sıfırlama bağlantısı
+  saldırganın alanına gidemez. nginx'te alan adı dışı istekler kapalı sunucuya düşer; HSTS ve Permissions-Policy eklendi.
+- Sabit inceleme kodu (`review_login_*`) yönetici hesaplarına **canlıda işlemez** (yalnız yerel ya da `deneme:izole` kopyası);
+  `review_login_until` ile kendiliğinden kapanır (`review:accounts` 30 gün yazar); her kullanım günlüğe ve işlem kaydına düşer;
+  sağlık ekranında "Sabit kodla giriş AÇIK" uyarısı.
+- Kayıt formu şifre deneme kapısı değil: var olan hesaba rol ekleme giriş ekranıyla aynı sayaçla (5/dk) sınırlı; IP başına saatte
+  10 kayıt denemesi; GİB sorgusu dakikada 10. Doğrulanmış hesaba rol/profil/araç yalnız e-posta kodu doğrulanınca açılır.
+- OTP deneme sayacı kullanıcıya bağlı (IP değiştirmek işe yaramaz; 5 yanlışta kod geçersiz); kullanıcı başına 10 dk'da 6 gönderim.
+- Girişte IP başına 30/dk ikinci sayaç (şifre serpme); askıya alınmış hesap da aynı genel mesajı alır; "Bu cihazda oturumum açık
+  kalsın" seçimli (varsayılan açık).
+- Şifre değişince / sıfırlanınca diğer cihazların oturumu düşer (`AuthenticateSession` + oturum tablosu temizliği +
+  hatırlama anahtarı yenilenir) ve güvenlik bildirimi gider. Kod e-posta konusunda yazmaz. Şifremi unuttum IP başına 10/10 dk.
+- Taslak hesaplar 2 saatte temizlenir (saatlik görev).
+
+**E-posta / telefon**
+- Değişiklik mevcut şifreyi ister. Yeni e-posta, o adrese giden kodla doğrulanmadan hesaba yazılmaz (`users.pending_email`),
+  eski adrese "değiştirildi" e-postası gider. Telefon değişince doğrulama damgası sıfırlanır. **SMS ile telefon doğrulama**
+  Netgsm anahtarı geldiğinde eklenecek (Paket C).
+
+**Yetki**
+- Yönetici "panel değiştir" profilleri `is_staff_view`: ilan bildirimlerinden, kullanıcı sayımlarından çıkar; panelde
+  "Yönetici görünümü" şeridi; plaka `YONETIM{id}`.
+- Premium ödeme durumu sorgusu yalnız kendi siparişi. Yüklenen dosyanın uzantısı içerikten türetilir (`UploadName`), özel
+  dosyalar `X-Content-Type-Options: nosniff` ile sunulur.
+
+**KVKK**
+- Hesap silme: kimlik belgeleri (dosya + kayıt), ehliyet/selfie yolları, OCR verisi, TC/vergi no/doğum yılı/unvan, konum izi,
+  banka hesabı, kayıtlı adres, plaka (`SILINDI-{id}`), destek talebi iletişim bilgisi silinir ya da anonimleşir. Fatura ve
+  ödeme kayıtları yasal süre için kalır (anonim kullanıcıya bağlı).
+- "Hesabımdaki verileri indir" (JSON, KVKK m.11) profil sayfasında.
+- Konum yalnız yoldaki sevkiyat sırasında kaydedilir; 90 günden eski izler `privacy:purge` ile silinir (04:20).
+- Sözleşme/KVKK sürümü panelden (CMS → Sözleşmeler → "Sürümü artır") artırılır; kullanıcılar panele girişte güncel metni
+  onaylamadan devam edemez (`UserConsent` sürüm kaydı, IP, tarayıcı); `/sozlesmeler` sayfasında sürüm ve yürürlük tarihi.
+- Gizlilik metni gerçeğe uyduruldu: oturum 120 dk + seçimli hatırlama çerezi; konum enlem/boylam, 90 gün.
+- Canlı akış kayıtlarında gönderen adı saklanmaz, numara maskelenir, saklama `intake_event_days` (7 gün) — ilan hattı
+  düzeltmeleriyle birlikte (bkz. §9).
+- Tam yedek (.env + belgeler) yalnız süper yönetici indirir; indirme diğer yöneticilere bildirilir.
+- Günlüklerde e-posta ve ödeme sağlayıcısı yanıtı yazılmaz; `LOG_STACK=daily` (14 gün); `storage/app` diğer sunucu
+  hesaplarına kapalı.
+
+**UI dürüstlüğü**
+- "20 dakika" sabit yazıları (abonelik sayfası, ana sayfa, premium sayfası, hoş geldin bildirimi) `scraper_free_delay_minutes`
+  ayarından okunur; 0 ise "aynı anda".
+- Hata sayfalarındaki "Geri dön" yalnız site içi adrese gider. `demo:reset` canlıda çalışmaz.
+
+**Bilerek ertelenenler (Paket C):** SMS telefon doğrulaması (Netgsm anahtarı), yönetici oturumu için ayrı kısa süre / IP izni,
+CSP (Livewire/Alpine satır içi betik gerektiriyor; önce rapor modunda denenir), yedek zip şifreleme.
