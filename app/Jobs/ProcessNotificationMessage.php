@@ -49,17 +49,28 @@ class ProcessNotificationMessage implements ShouldQueue
         ]);
         // Mesaj birden çok ilan barındırıyorsa her ilan canlı akışta ayrı satır olur (kendi sonucu ve adayıyla).
         $parts = count($result['segments'] ?? []) > 1 ? $result['segments'] : [$result + ['excerpt' => $this->message['text']]];
+        $truncated = ! empty($result['truncated_ads']) ? ' · mesajda '.$result['truncated_ads'].' ilan daha vardı, sınır aşıldı' : '';
         foreach ($parts as $part) {
-            IntakeEvent::record($part['status'], ['source_name' => $this->group, 'title' => $this->title, 'excerpt' => $part['excerpt'] ?? $this->message['text'],
+            IntakeEvent::record($part['status'], ['source_name' => $this->group, 'title' => $this->eventTitle(), 'excerpt' => ($part['excerpt'] ?? $this->message['text']).$truncated,
                 'reason' => $part['reason'] ?? null, 'scraped_load_id' => $part['scraped_load_id'] ?? null, 'ip' => $this->ip]);
         }
 
         return $result;
     }
 
+    /** Canlı akışa yalnız grup adı yazılır; bildirim başlığındaki gönderen adı saklanmaz (KVKK). */
+    private function eventTitle(): ?string
+    {
+        if ($this->title === null || $this->title === '') {
+            return $this->group;
+        }
+
+        return NotificationIntakeParser::splitTitle($this->title)[0] ?: $this->group;
+    }
+
     public function failed(?Throwable $e): void
     {
-        IntakeEvent::record('failed', ['source_name' => $this->group, 'title' => $this->title, 'excerpt' => $this->message['text'],
+        IntakeEvent::record('failed', ['source_name' => $this->group, 'title' => $this->eventTitle(), 'excerpt' => $this->message['text'],
             'reason' => $e ? mb_substr(get_class($e).': '.$e->getMessage(), 0, 300) : 'unknown', 'ip' => $this->ip]);
     }
 }

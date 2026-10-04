@@ -118,12 +118,16 @@ class AiParserService
         return $parsed;
     }
 
-    /** Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz). */
-    public function parseCheap(string $message): array
+    /**
+     * Yapay zekaya gitmeden, yalnız kalıp eşlemeyle ayrıştırır (kota harcamaz).
+     *
+     * @param  ?string  $fallbackPhone  bildirim başlığındaki gönderen numarası: gövdede numara yoksa ilanın numarası sayılır
+     */
+    public function parseCheap(string $message, ?string $fallbackPhone = null): array
     {
         $message = trim(mb_substr($message, 0, 8000));
 
-        return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message);
+        return $message === '' ? $this->failure('empty_message') : $this->parseWithRegex($message, $fallbackPhone);
     }
 
     public function mode(): string
@@ -1126,10 +1130,13 @@ TXT;
         return $found;
     }
 
-    private function parseWithRegex(string $message): array
+    private function parseWithRegex(string $message, ?string $fallbackPhone = null): array
     {
         // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
         $phones = self::phonesIn($message);
+        if ($phones === [] && $fallbackPhone !== null && preg_match('/^5\d{9}$/', $fallbackPhone) === 1) {
+            $phones = [$fallbackPhone]; // gönderen numarası bildirim başlığından geldi
+        }
         $phone = $phones[0] ?? null;
 
         // Biçim işaretleri, emoji oklar, süs satırları temizlenir; kesme işaretleri rota eşlemesini bozmasın.

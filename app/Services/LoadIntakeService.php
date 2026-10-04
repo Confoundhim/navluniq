@@ -169,8 +169,10 @@ class LoadIntakeService
             $aiFirst = $this->parser->aiFirst();
             // Yapay zeka öncelikli kipte ("Her ilanda") ilan mı sohbet mi kararını yapay zeka verir; kural ön eleme yalnız
             // yapay zeka kapalıyken/anahtarsızken uygulanır.
-            if (! $aiFirst && ! self::looksLikeLoad($raw)) {
-                return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw));
+            // Bildirim başlığından gelen gönderen numarası ($fallbackPhone) da telefon sayılır: gövdede numara yazmayan ilan
+            // eskiden "phone_missing" ile düşüyordu.
+            if (! $aiFirst && ! self::looksLikeLoad($raw, $fallbackPhone)) {
+                return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw, $fallbackPhone));
             }
 
             // 5) Mesajı ilanlara ayır. Kural: boş satır / rota satırı sınırları, ortak numara paylaşımı.
@@ -187,7 +189,7 @@ class LoadIntakeService
 
                     continue;
                 }
-                $parsed = $this->parser->parseCheap($segment['text']);
+                $parsed = $this->parser->parseCheap($segment['text'], $fallbackPhone);
                 if (($parsed['sender_phone'] ?? null) === null && $segment['phones'] !== []) {
                     $parsed['sender_phone'] = $segment['phones'][0];
                 }
@@ -312,7 +314,7 @@ class LoadIntakeService
             }
         }
 
-        $parsed = $segment['parsed'] ?? $this->parser->parseCheap($text);
+        $parsed = $segment['parsed'] ?? $this->parser->parseCheap($text, $ctx['fallback_phone']);
         $phones = array_values(array_unique(array_merge($segment['phones'], (array) ($parsed['phones'] ?? []))));
         if (($parsed['sender_phone'] ?? null) === null && $phones !== []) {
             $parsed['sender_phone'] = $phones[0];
@@ -916,9 +918,9 @@ class LoadIntakeService
     }
 
     /** looksLikeLoad() neden başarısız oldu: canlı akışta gösterilen kısa gerekçe. */
-    public static function filterReason(string $text): string
+    public static function filterReason(string $text, ?string $fallbackPhone = null): string
     {
-        return self::hasPhone($text) ? 'no_logistics_signal' : 'phone_missing';
+        return self::hasPhone($text) || $fallbackPhone !== null ? 'no_logistics_signal' : 'phone_missing';
     }
 
     /** Aynı ilan yeni bir kaynaktan görüldüyse sayacı ve kaynak listesini günceller; aynı kaynaktan tekrar sayılmaz. */
@@ -1023,9 +1025,9 @@ class LoadIntakeService
         return preg_match(self::NOT_LOAD_PATTERN, $lower) === 1;
     }
 
-    public static function looksLikeLoad(string $text): bool
+    public static function looksLikeLoad(string $text, ?string $fallbackPhone = null): bool
     {
-        if (! self::hasPhone($text)) {
+        if (! self::hasPhone($text) && $fallbackPhone === null) {
             return false;
         }
         if (Lexicon::isNotLoad($text) || TextPrep::isForeignScript($text) || self::isNotLoadPattern($text)) {

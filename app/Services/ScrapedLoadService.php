@@ -114,9 +114,10 @@ class ScrapedLoadService
         return $count;
     }
 
-    /** Canlı akış (telefondan gelen her istek) kayıtları: belirtilen günden eskiler silinir; tablo şişmez. */
-    public function purgeIntakeEvents(int $olderThanDays = 30): int
+    /** Canlı akış (telefondan gelen her istek) kayıtları: ayarlı günden (`intake_event_days`, varsayılan 7) eskiler silinir; tablo şişmez, kişisel veri birikmez. */
+    public function purgeIntakeEvents(?int $olderThanDays = null): int
     {
+        $olderThanDays ??= max(1, Settings::int('intake_event_days'));
         $total = 0;
         do {
             $n = IntakeEvent::query()->where('created_at', '<', now()->subDays($olderThanDays))->orderBy('id')->limit(5000)->delete();

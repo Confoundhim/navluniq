@@ -48,6 +48,7 @@ final class Settings
         // Bildirim iletici (telefon) bağlantı anahtarı: boşsa .env SCRAPER_API_TOKEN; o da boşsa panel üretir
         'scraper_api_token' => '',
         'scraper_rejected_retention_days' => 7, // Reddedilen adaylar bu kadar gün sonra silinir
+        'intake_event_days' => 7,               // Canlı akış kayıtları (telefondan gelen her isteğin sonucu, alıntı maskeli) bu kadar gün sonra silinir (KVKK)
 
         // Yapay zeka ile ilan çözümleme
         'ai_suggest_auto_approve_hits' => 0,    // öğrenme çemberi: aynı öneri bu kadar ayrı ilanda görülürse kendiliğinden sözlüğe girer (0: yalnız elle onay)
