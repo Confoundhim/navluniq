@@ -271,9 +271,23 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "Kiraz yüklenecek" (yüke de bağlanan biçimler) ve "Torbalı çimento yükler" yük kalır. (5) Depo gizliye alınacak: sunucuda
   `deploy/github-erisim.sh` deploy key kurar (okuma yetkili), sonra `android/keystore` yenilenir. (6) Yük sigortası elle değil API ile
   (Tamamliyo gömülü sigorta; ortak sözleşmesi Osman'da). (7) Toplayıcı yalnız grupları gezer; ana sayfa akışı eklenmez.
-  **Hâlâ bekleyen (3):** iki satırlık "İSTANBUL HADIMKÖY TENTELİ TIR / ANKARA 2 ARAÇ" (bugün `isDestinationListWithoutPickup` ile eleniyor);
-  Osman'ın ilkesi: ilk yer kalkış, ikinci yer varış; araç yoksa eksik bilgili, varış yoksa eksik bilgili, kalkış+varış yoksa ret; önce
-  mevcut hattı inceleyip öneri sunulacak. Testler: `PendingDecisionsTest`, altın sette 6 yeni örnek.
+  Testler: `PendingDecisionsTest`, altın sette 6 yeni örnek.
+- **Okuma katmanları (2026-10-05, Osman: "kaç katman varsa aç/kapa ayarı olsun, katmanlar korunarak"; `docs/OKUMA_KATMANLARI.md`):**
+  `App\Support\IntakeLayers::LAYERS` 14 katmanı (eleme / çözüm / yorum) tanımlar; Ayarlar → Dış kaynak → "Okuma katmanları" tek tek
+  aç/kapa (`intake_layer_<anahtar>`, varsayılan açık); kapanan katman yokmuş gibi davranılır, mesaj sonraki katmana iner. Aday
+  `parse_metadata.layer` taşır; hat karnesi ve ayar ekranı 7 günlük sayım gösterir. **Yeni katman = LAYERS satırı + DEFAULTS +
+  `IntakeLayers::enabled()` kapısı + `'layer'` damgası + test.** (3) numaralı karar böyle çözüldü: **iki satırlık ilan yorumu**
+  (fiilsiz tam iki "yer + araç" satırı → ilk yer kalkış, ikinci varış; `route_inferred=two_line`; yapay zeka iki ucu da verirse
+  `route_confirmed` → normal yayın, yoksa `INFERRED_ROUTE_BLOCKER` ile "bilgi eksik" yayın) ve **gönderen hafızası**
+  (`SenderPickupMemory`, tablo `sender_pickups`, `0001_01_53`): 3+ satırlık kalkışsız liste gönderenin bilinen kalkışıyla (yönetici
+  öğretti ya da son 30 günde ≥3 ilan %80 aynı il) her satır ayrı "bilgi eksik" ilan; bilinmiyorsa aday `needs_pickup` ile kuyrukta
+  bekler, yönetici "Kalkış öğret" (`ScrapedLoadService::teachPickup`) → hafıza + yeniden okuma. Yorum katmanları yalnız eskiden
+  çöpe giden mesajlara bakar; yayınlanan ilanı değiştiremez (11 bin/gün rekoru korunur, yalnız artar).
+- **Derin inceleme (2026-10-05, 100 uydurma mesajlık iki derlem):** kayıplar düzeltildi: "1500 artı" / "1050 artı kdv" fiyat
+  (`artı` = `+`; Engin Abi'nin Mersin yem ilanı %65'te "bilgi eksik"e düşüyordu, şimdi %80 normal yayın), yalnız yük adı taşıyan blok
+  ("Çuvallı yem") ortak bağlam olarak her ilana eklenir, "satılık değil / kiralık değil" olumsuzlaması elemez, muhasebe sözcüğü
+  ("e-fatura kesilir") rotalı ilanda nottur (`ACCOUNTING_TERMS`), "Konya=Ankara" tek satırda rota bağlacı, nakliyecinin "yük arıyorum",
+  "boş tırım var" mesajı ilan değil. Test: `IntakeLayersTest::test_deep_review_*`, altın set 260.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
@@ -434,9 +448,9 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   #128 derleme geri dönüşü + Dependabot, #131 axios). Sağlık ekranı: başarısız iş 0, kuyruk/zamanlayıcı/telefon akışı/yapay zeka yeşil;
   kırmızı yalnız "Ödeme kuruluşu" (iyzico anahtarı yok) ve "Sabit kodla giriş" (iyzico inceleme hesapları, bilinçli).
   Test: 710 test, altın set 250/250, pint ve composer audit temiz; npm audit'teki kalan uyarılar yalnız derleme araçlarında.
-- **Osman'ın kararları (2026-10-05, §4'te "Osman'ın 2026-10-05 kararları"):** sabit hat/0850 alınır, komisyoncu ilanı "benzer ilan"
-  rozetiyle ayrı yayınlanır, "TORBALI YÜKLER" kalkış, Toplayıcı yalnız gruplar, sigorta API ile otomatik. **Bekleyen:** (3) iki satırlık
-  "yer+araç / yer+araç" ilanı (öneri sunulacak); (5) depo gizliliği: Osman depoyu gizlemeden **önce** sunucuda `bash deploy/github-erisim.sh`
+- **Osman'ın kararları (2026-10-05, §4'te "Osman'ın 2026-10-05 kararları" ve "Okuma katmanları"):** sabit hat/0850 alınır, komisyoncu
+  ilanı "benzer ilan" rozetiyle ayrı yayınlanır, "TORBALI YÜKLER" kalkış, Toplayıcı yalnız gruplar, sigorta API ile otomatik, iki
+  satırlık ilan yorum katmanıyla + gönderen hafızası, her okuma katmanı panelden aç/kapa. **Bekleyen:** (5) depo gizliliği: Osman depoyu gizlemeden **önce** sunucuda `bash deploy/github-erisim.sh`
   çalıştırıp çıkan satırı GitHub → Settings → Deploy keys'e ekler, `--kontrol` yeşil olunca depoyu gizler; sonra keystore yenilenir
   (telefonlarda uygulama bir kez silinip kurulur); (6) Tamamliyo ortaklık/API erişimi Osman'da.
 - **Bu bulut ortamında PHP 8.3 var, proje 8.4 ister:** `composer install --ignore-platform-req=php` ile kurulur; iki test yalnız bu

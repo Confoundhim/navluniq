@@ -1569,5 +1569,68 @@
         ]
       ]
     }
+  },
+  {
+    "id": "iki-satir-yorum",
+    "message": "İSTANBUL HADIMKÖY TENTELİ TIR\nANKARA 2 ARAÇ\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Arnavutköy",
+          "Ankara"
+        ]
+      ],
+      "vehicle": "tir",
+      "count": 2
+    }
+  },
+  {
+    "id": "arti-kdv-fiyat",
+    "message": "Mersin - Isparta Şarkikaraağaç depo\n1050 artı kdv\nÇuvallı yem\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin",
+          "Isparta Şarkikaraağaç"
+        ]
+      ],
+      "price": 1050,
+      "goods": "Tarım ürünü"
+    }
+  },
+  {
+    "id": "arti-satir-sonu-fiyat",
+    "message": "Mersin/ Burdur depo\n1500 artı\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin",
+          "Burdur"
+        ]
+      ],
+      "price": 1500
+    }
+  },
+  {
+    "id": "yuk-blogu-her-ilana",
+    "message": "Mersin/ Burdur depo\n1500 artı\n\nMersin/ şarkikaraağaç depo\n1050 artı kdv\n\nÇuvallı yem\n\n0532 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Mersin",
+          "Burdur"
+        ],
+        [
+          "Mersin",
+          "Isparta Şarkikaraağaç"
+        ]
+      ],
+      "goods": "Tarım ürünü",
+      "each": true
+    }
   }
 ]

@@ -1379,9 +1379,10 @@ TXT;
         // "45.000 TL", "45000₺", "1.250,50 TL" ve "12,5 ton" gibi Türkçe sayı yazımları tanınır.
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?: \d{3})+|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
         if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv", "950+BASAR", "900+TONAJLI", "40.000 Peşin": KDV/basar tonaj hariç tutar
-            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*(?:\+\s*(?:KDV|BASAR|TONAJLI|TONAJLİ|KDV\s*HARİÇ)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+            // "artı" = "+": "1500 artı kdv", "1500 artı" (Engin Abi, 2026-10-05: Mersin yem ilanı fiyatsız kalıyordu)
+            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*(?:(?:\+|artı|arti|ARTI|ARTİ|Artı)\s*(?:KDV|kdv|Kdv|BASAR|basar|TONAJLI|TONAJLİ|tonajlı|KDV\s*HARİÇ|kdv\s*hariç)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
         }
-        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{3,5})\s*\+\s*$/mu', $message, $m)) { // "BOLU 1600+", "ORDU 1 TIR 2300+": satır sonunda "+" = KDV hariç fiyat
+        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{3,5})\s*(?:\+|artı|arti|ARTI|ARTİ|Artı)\s*$/mu', $message, $m)) { // "BOLU 1600+", "ORDU 1 TIR 2300+", "1500 artı": satır sonunda "+" = KDV hariç fiyat
             $price = [1 => $m[1]];
         }
         if (empty($price[1])) { // "28+kdv" = 28 bin (nakliyecinin "bin" düşürme alışkanlığı): 10-299 arası +kdv → ×1000
@@ -1441,7 +1442,7 @@ TXT;
         if (preg_match('/\+\s*(?:basar|tonajl[ıi])\b/u', $lower)) {
             return 'per_ton';
         }
-        if ($price < 5000 && preg_match('/\d\s*(?:tl|₺)?\s*\+\s*(?:kdv|$)/mu', $lower) && preg_match(self::BULK_GOODS_PATTERN, $lower)) {
+        if ($price < 5000 && preg_match('/\d\s*(?:tl|₺)?\s*(?:\+|artı|arti)\s*(?:kdv|$)/mu', $lower) && preg_match(self::BULK_GOODS_PATTERN, $lower)) {
             return 'per_ton';
         }
 
@@ -1462,7 +1463,8 @@ TXT;
         $text = self::unglueProvinceDistrict($text); // "ANKARA-SİNCAN - İZMİR", "İzmir/Kemalpaşa > Bursa": il-ilçe tek yerdir, rota değil
         $word = '(?:\p{L}\.)?\p{L}{2,}(?:\.\p{L}+)*'; // "M.Kemalpaşa" tek sözcük; tek harf ("İ.", "B.") başına eklenmedikçe sayılmaz
         // Ek bağlaç: sözcüğe bitişik ("Ankaradan", en az 3 harften sonra) ya da ayrı yazılmış ("Diyarbakr dan"); "MADEN" gibi sözcük içi "den" sayılmaz.
-        $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
+        // "Konya=Ankara", "Konya => Ankara" (derin inceleme 2026-10-05: "=" tek satırlık ilanda rota bağlacı değildi, ilan eleniyordu)
+        $pattern = '/('.$word.'(?:[ \t]+'.$word.'){0,2})(?:[ \t]*(->|=>|=|-|–|—|\/|,)[ \t]*|(?:(?<=\p{L}{3})|[ \t]+)(dan|den|tan|ten)[ \t]+)('.$word.'(?:[ \t]+'.$word.'){0,2})/iu';
         // Eşlemeler satır satır: kalıp satır aşmaz, satırın tamamı ("çıkışlı:" başlığı, fiil, yer sayısı) virgül kararını belirler.
         $all = [];
         foreach (preg_split('/\R/u', $text) ?: [] as $line) {

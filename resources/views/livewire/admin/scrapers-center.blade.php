@@ -203,6 +203,31 @@ new class extends Component {
     /** @var array<int|string, string> Satır başına seçilen ret gerekçesi (ScrapedLoadService::REJECT_REASONS); seçilmediyse "other". */
     public array $rejectReasons = [];
 
+    /** Kalkış bekleyen adaylar için yazılan kalkış metni (aday kimliği → "İl İlçe"). */
+    public array $teachPickup = [];
+
+    /** Kalkış bekleyen aday: gönderen hafızasına kalkış yazılır, mesaj yeniden okunur, her varış satırı ayrı ilan olur. */
+    public function teachPickup(int $loadId): void
+    {
+        $load = ScrapedLoad::query()->find($loadId);
+        if (! $load || ! $this->can()) {
+            return;
+        }
+        $text = trim((string) ($this->teachPickup[$loadId] ?? ''));
+        if ($text === '') {
+            session()->flash('error_message', 'Kalkış yerini yazın ("İl" ya da "İl İlçe").');
+
+            return;
+        }
+        try {
+            $n = app(ScrapedLoadService::class)->teachPickup($load, $text, auth()->id());
+            unset($this->teachPickup[$loadId]);
+            session()->flash('success_message', "Gönderenin kalkışı öğretildi; mesaj yeniden okundu, {$n} ilan adayı açıldı. Aynı gönderenin sonraki listeleri kendiliğinden çözülür.");
+        } catch (\Throwable $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
+    }
+
     /** Toplu "Reddet" için gerekçe; varsayılan "other" öğrenmez. */
     public string $bulkRejectReason = 'other';
 
@@ -724,11 +749,22 @@ new class extends Component {
             ->map(fn ($l) => $l->created_at && $l->published_at ? max(0, (int) round($l->created_at->diffInMinutes($l->published_at, true))) : null)->filter(fn ($m) => $m !== null)->sort()->values();
         $median = $minutes->isEmpty() ? null : (int) $minutes->get(intdiv($minutes->count(), 2));
 
+        // Okuma katmanları: son 7 günde hangi katman kaç aday açtı (parse_metadata.layer); yorumla çözülenlerin şoför/yönetici/yapay zeka doğrulaması
+        $layers = ScrapedLoad::query()->where('created_at', '>=', now()->subDays(7))->whereNotNull('parse_metadata->layer')
+            ->selectRaw("json_extract(parse_metadata, '$.layer') as layer, count(*) as n")->groupBy('layer')->pluck('n', 'layer')
+            ->mapWithKeys(fn ($n, $k) => [trim((string) $k, '"') => (int) $n])->all();
+        $inferred = ScrapedLoad::query()->where('created_at', '>=', now()->subDays(7))->whereNotNull('parse_metadata->route_inferred');
+        $inferredStats = ['toplam' => (clone $inferred)->count(), 'yayında' => (clone $inferred)->where('visibility', 'public')->count(),
+            'doğrulandı' => (clone $inferred)->where(fn ($q) => $q->whereNotNull('parse_metadata->route_confirmed')->orWhereIn('completed_by', ['driver', 'admin'])->orWhereNotNull('parse_metadata->admin_edited'))->count(),
+            'reddedildi' => (clone $inferred)->where('status', 'rejected')->count()];
+
         return [
             'pending_by' => ['yapay zeka bekliyor' => $aiPending, 'il/rota çözülemedi' => $unresolved, 'telefon yok' => $noPhone, 'puan / elle kontrol' => max(0, $total - $aiPending - $unresolved - $noPhone)],
             'age_rejected_today' => $ageRejected,
             'median_minutes' => $median,
             'providers' => $parser->isConfigured() ? $parser->providerStatus() : [],
+            'layers' => $layers,
+            'inferred' => $inferredStats,
         ];
     }
 
@@ -885,6 +921,15 @@ new class extends Component {
             · Sağlayıcı: @foreach($scorecard['providers'] as $provider => $state){{ ! $loop->first ? ', ' : '' }}{{ \App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider }} <span class="font-semibold {{ $state['state'] === 'ok' ? 'text-emerald-600' : 'text-amber-600' }}">{{ match($state['state']) { 'ok' => 'çalışıyor', 'cooldown' => 'bekletiliyor'.($state['until'] ? ' ('.$state['until'].' kadar)' : ''), default => 'kota doldu'.($state['until'] ? ' ('.$state['until'].' sıfırlanır)' : '') } }}</span>@endforeach
         @endif
     </p>
+    {{-- Okuma katmanları (son 7 gün): hangi katman kaç aday açtı; yorumla çözülen rotaların doğrulanma durumu. Aç/kapa: Ayarlar → Dış kaynak. --}}
+    @if(($scorecard['layers'] ?? []) !== [] || ($scorecard['inferred']['toplam'] ?? 0) > 0)
+        <p class="text-[11px] text-neutral-400 -mt-1">
+            Katmanlar (7 gün): @foreach($scorecard['layers'] as $layer => $n){{ ! $loop->first ? ' · ' : '' }}{{ \App\Support\IntakeLayers::LAYERS[$layer]['label'] ?? ($layer === 'blocks' ? 'Genel okuma' : $layer) }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($n, 0, ',', '.') }}</span>@endforeach
+            @if(($scorecard['inferred']['toplam'] ?? 0) > 0)
+                · Yorumla çözülen rota: toplam <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['inferred']['toplam'] }}</span>, yayında {{ $scorecard['inferred']['yayında'] }}, doğrulanan {{ $scorecard['inferred']['doğrulandı'] }}, reddedilen {{ $scorecard['inferred']['reddedildi'] }}
+            @endif
+        </p>
+    @endif
 
     {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -1010,6 +1055,17 @@ new class extends Component {
                                     @if($load->meta('duplicate_of'))<div class="text-[11px] text-neutral-400 mt-1">Tekrar: #{{ $load->meta('duplicate_of') }} yayında</div>@endif
                                     @if($load->hasSimilar())<div class="text-[11px] text-neutral-400 mt-1" title="Aynı yük başka numarayla da paylaşılmış; komisyoncu olabilir">Benzer ilan (farklı numara): {{ implode(', ', array_map(fn ($i) => '#'.$i, $load->similarIds())) }}</div>@endif
                                     @if($r = $load->meta('auto_rejected'))<div class="text-[11px] text-neutral-400 mt-1">Otomatik ret: {{ $r['reason'] ?? '' }}</div>@endif
+                                    @if($load->meta('route_inferred'))<div class="text-[11px] text-neutral-400 mt-1" title="Rota kesin kuralla değil, {{ $load->meta('route_inferred') === 'two_line' ? 'iki satırın sırasıyla' : 'gönderen hafızasıyla' }} çözüldü">Rota yorumla çözüldü{{ $load->meta('route_confirmed') ? ' · yapay zeka doğruladı' : '' }}</div>@endif
+                                    @if($load->meta('needs_pickup') && $load->status !== 'rejected' && $load->visibility !== 'public')
+                                        <div class="mt-2 text-[11px] space-y-1">
+                                            <div class="text-amber-600 font-semibold">Kalkış yazmıyor · {{ count((array) $load->meta('dest_lines', [])) }} varış satırı</div>
+                                            <div class="flex items-center gap-1">
+                                                <input type="text" wire:model="teachPickup.{{ $load->id }}" wire:keydown.enter.prevent="teachPickup({{ $load->id }})" class="form-input py-1 text-[11px] w-36" placeholder="Kalkış: İl İlçe">
+                                                <button type="button" wire:click="teachPickup({{ $load->id }})" class="text-emerald-600 font-semibold whitespace-nowrap">Kalkış öğret</button>
+                                            </div>
+                                            <div class="text-neutral-400">Bu gönderenin sonraki listeleri bu kalkışla kendiliğinden ayrılır.</div>
+                                        </div>
+                                    @endif
                                     @if($activeTab === 'queue')
                                         @if($blocker && ($incompleteEligible[$load->id] ?? false))
                                             <div class="text-[11px] mt-1 text-sky-600">{{ $autoApprove ? 'Eksik bilgili yayına gidecek' : 'Otomatik onay kapalı · eksik bilgili yayına uygun' }} · {{ $blockerLabels[$blocker] ?? $blocker }}</div>

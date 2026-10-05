@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\GoodsCatalog;
+use App\Support\IntakeLayers;
 use App\Support\Lexicon;
 use App\Support\Phone;
+use App\Support\SenderPickupMemory;
 use App\Support\SeriesAd;
 use App\Support\Settings;
 use App\Support\TextPrep;
@@ -165,15 +167,15 @@ class LoadIntakeService
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
             }
             // Kiril/Arap alfabesiyle yazılmış (Rusça, Arapça…) mesaj Türkiye ilanı değildir; kota harcamadan elenir.
-            if (TextPrep::isForeignScript($raw)) {
+            if (IntakeLayers::enabled('foreign_script') && TextPrep::isForeignScript($raw)) {
                 return $this->result(200, false, 'filtered', 'Yabancı alfabe; ilan değil.', null, 'foreign_script');
             }
             // Yöneticinin öğrettiği "ilan değil" ifadesi (satılık, iş arıyorum…) her kipte kota harcamadan eler.
-            if (Lexicon::isNotLoad($raw)) {
+            if (IntakeLayers::enabled('lexicon_not_load') && Lexicon::isNotLoad($raw)) {
                 return $this->result(200, false, 'filtered', 'Sözlük: ilan değil ifadesi.', null, 'lexicon_not_load');
             }
             // Gruplardan öğrenilen sabit kalıplar: boş araç / şoför arayan / fatura reklamı / satılık → ilan değil.
-            if (self::isNotLoadPattern($raw)) {
+            if (IntakeLayers::enabled('not_load_pattern') && self::isNotLoadPattern($raw)) {
                 return $this->result(200, false, 'filtered', 'İlan değil (boş araç, şoför/eleman ilanı, reklam).', null, 'not_load_pattern');
             }
             $aiFirst = $this->parser->aiFirst();
@@ -181,7 +183,7 @@ class LoadIntakeService
             // da gitmez (eski "Her ilanda" kipi telefonu olan her sohbeti yapay zekaya yolluyordu; kota ve gecikme).
             // Bildirim başlığından gelen gönderen numarası ($fallbackPhone) da telefon sayılır: gövdede numara yazmayan ilan
             // eskiden "phone_missing" ile düşüyordu.
-            if (! self::looksLikeLoad($raw, $fallbackPhone)) {
+            if (IntakeLayers::enabled('logistics_signal') && ! self::looksLikeLoad($raw, $fallbackPhone)) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, self::filterReason($raw, $fallbackPhone));
             }
 
@@ -196,6 +198,20 @@ class LoadIntakeService
             $pending = [];
             foreach ($segments as $i => $segment) {
                 if (! empty($segment['pickup_missing'])) {
+                    // Gönderen hafızası: bu numaranın bilinen kalkışı varsa her satır o kalkıştan "bilgi eksik" ilan olur; yoksa aday
+                    // kuyrukta "Kalkış öğret" ile bekler (yönetici bir kez öğretir, sonrası kendiliğinden).
+                    if (IntakeLayers::enabled('sender_pickup_memory') && ($memory = $this->pickupFromSenderMemory($segment, $ctx)) !== null) {
+                        foreach ($memory as $j => $sub) {
+                            $results[$i * 1000 + $j] = $this->processSegment($sub + ['parsed' => $this->seriesParsed($sub, $fallbackPhone), 'skip_ai' => true], $ctx);
+                        }
+
+                        continue;
+                    }
+                    if (IntakeLayers::enabled('sender_pickup_memory') && ($holder = $this->holdForPickup($segment, $ctx)) !== null) {
+                        $results[$i] = $holder;
+
+                        continue;
+                    }
                     $results[$i] = $this->result(200, false, 'filtered', 'Kalkış yeri yazmıyor; yalnız varış ve araç listesi.', null, 'pickup_missing') + ['excerpt' => $segment['text']];
 
                     continue;
@@ -233,7 +249,7 @@ class LoadIntakeService
                 }
                 // Şablon hafızası: aynı numaranın daha önce doğrulanmış kalıbı varsa yapay zekaya gitmeden çözülür.
                 $phone = $parsed['sender_phone'] ?? null;
-                if (is_string($phone) && ! $mayHoldSeveral) {
+                if (is_string($phone) && ! $mayHoldSeveral && IntakeLayers::enabled('template_memory')) {
                     $sig = TemplateMemory::signature($segment['text']);
                     $template = $this->templates->find($phone, $sig['hash']);
                     if ($template !== null && ! $template->is_load) {
@@ -249,7 +265,7 @@ class LoadIntakeService
                 }
                 // Kural kesin (iki il katalogda birebir, telefon, açık araç adı): yapay zeka öncelikli kipte bile kota harcanmaz;
                 // yapay zeka yalnız kuralın eksik ya da zayıf bıraktığı parçalara bakar.
-                if ($aiFirst && ! $mayHoldSeveral && self::ruleStrong($parsed, $segment['text'])) {
+                if ($aiFirst && ! $mayHoldSeveral && empty($segment['interpreted']) && IntakeLayers::enabled('rule_strong') && self::ruleStrong($parsed, $segment['text'])) {
                     $results[$i] = $this->processSegment($segment + ['parsed' => $parsed, 'rule_strong' => true], $ctx);
 
                     continue;
@@ -263,7 +279,7 @@ class LoadIntakeService
                 $aiData = $ctx['message_ai']['data'];
                 if ($aiData !== null) {
                     $ads = array_values(array_filter((array) ($aiData['ads'] ?? []), fn ($a) => is_array($a) && ($a['is_load'] ?? false)));
-                    if ($ads === [] && ($aiData['is_load'] ?? true) === false && (float) ($aiData['confidence'] ?? 0) >= 0.8) {
+                    if ($ads === [] && ($aiData['is_load'] ?? true) === false && (float) ($aiData['confidence'] ?? 0) >= 0.8 && IntakeLayers::enabled('ai_not_load')) {
                         // Gönderenin bu kalıbı "ilan değil" olarak öğrenilir; aynı kalıp bir daha yapay zekaya sorulmaz.
                         foreach ($pending as $segment) {
                             if (is_string($segment['parsed']['sender_phone'] ?? null)) {
@@ -374,9 +390,21 @@ class LoadIntakeService
             }
         }
 
+        // Yorum katmanı (iki satırlık ilan): rota kesin kuralla değil sırayla çözüldü. Yapay zeka iki ucu da verdiyse onun rotası
+        // geçerlidir ve rota "doğrulandı" sayılır; vermediyse ilan yorumla, "bilgi eksik" rozetiyle yayınlanır (autoApprovalBlocker).
+        $interpreted = $segment['interpreted'] ?? null;
+        $routeConfirmed = false;
+        if ($interpreted === 'two_line' && $ai['data'] !== null && ($ai['data']['is_load'] ?? true) !== false
+            && TurkishLocations::resolve((string) ($ai['data']['pickup_location'] ?? '')) !== null && TurkishLocations::resolve((string) ($ai['data']['delivery_location'] ?? '')) !== null) {
+            $parsed['pickup_location'] = $ai['data']['pickup_location'];
+            $parsed['delivery_location'] = $ai['data']['delivery_location'];
+            unset($parsed['ai_conflict']);
+            $routeConfirmed = true;
+        }
+
         // Yapay zeka yüksek güvenle "bu bir yük ilanı değil" dediyse (sohbet, araç satışı, iş ilanı…) elenir;
         // aynı gönderenin bu kalıbı bir daha yapay zekaya sorulmaz.
-        if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8) {
+        if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8 && IntakeLayers::enabled('ai_not_load')) {
             if (is_string($parsed['sender_phone'] ?? null)) {
                 $this->templates->learn($parsed['sender_phone'], $text, null, null, null, null, false, (float) $ai['data']['confidence']);
             }
@@ -483,6 +511,10 @@ class LoadIntakeService
                 'supersedes' => $supersedes?->id,
                 // Aynı yük başka numarayla paylaşılmış (komisyoncu olabilir): kimlikler; karşı kayıtlara da yazılır.
                 'similar_to' => $similar !== [] ? array_map(fn (ScrapedLoad $l) => $l->id, $similar) : null,
+                // Hangi okuma katmanı çözdü (panelde katman sayımı) ve rota yorumla mı çözüldü (yapay zeka doğrulamadıysa eksik bilgili yayın).
+                'layer' => $segment['layer'] ?? ($isSeries ? 'series' : (isset($segment['template']) ? 'template_memory' : (! empty($segment['rule_strong']) ? 'rule_strong' : 'blocks'))),
+                'route_inferred' => $interpreted,
+                'route_confirmed' => $routeConfirmed ? true : null,
             ])),
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30), // yayınlanmayan aday 30 gün sonra arşivlenir; yayınlananda yayın anından itibaren ayarlanır
@@ -535,6 +567,10 @@ class LoadIntakeService
             $message = count($ids) > 1 ? count($ids).' ilan adayı kaydedildi (mesajda '.$count.' ilan bulundu).' : ($count > 1 ? 'İlan adayı kaydedildi (mesajdaki diğer '.($count - 1).' ilan tekrar/elendi).' : 'İlan adayı kaydedildi.');
             if ($truncated > 0) {
                 $message .= " Mesajda {$truncated} ilan daha vardı; sınır (".self::MAX_ADS_PER_MESSAGE.') aşıldı.';
+            }
+            // Tek parça ve özel bir "kaydedildi" durumu (kalkış bekleyen aday): mesaj ve gerekçe üst sonuca taşınır (canlı akış satırı).
+            if (count($created) === 1 && $count === 1 && isset($created[0]['reason'])) {
+                return $this->result(201, true, 'created', $created[0]['message'], $ids[0], $created[0]['reason']) + ['created_ids' => $ids, 'segments' => $segments] + $extra;
             }
 
             return $this->result(201, true, 'created', $message, $ids[0]) + ['created_ids' => $ids, 'segments' => $segments] + $extra;
@@ -663,7 +699,8 @@ class LoadIntakeService
             if ($missing !== [] && $inText === []) {
                 $text .= "\n☎️ ".implode(', ', array_map(fn (string $p) => Phone::format($p), $missing));
             }
-            $out[] = ['text' => $text, 'phones' => $phones, 'ai' => $ad, 'index' => $i, 'count' => $count];
+            $out[] = ['text' => $text, 'phones' => $phones, 'ai' => $ad, 'index' => $i, 'count' => $count]
+                + (count($ruleSegments) === 1 ? array_intersect_key($ruleSegments[0], array_flip(['interpreted', 'layer'])) : []); // yorum katmanı damgası yapay zeka parçasına taşınır
         }
 
         return $out;
@@ -690,26 +727,28 @@ class LoadIntakeService
         $prepared = TextPrep::prepare($raw); // biçim işaretleri, emoji oklar ve süs satırları (blok ayırıcı) temizlenir
         self::$lastTruncated = 0;
         // "Tek yükleme, çok boşaltma noktası" serisi: her "X boşaltır" satırı ayrı araçlık ilan (bkz. SeriesAd).
-        if (($series = SeriesAd::segments($prepared, $fallbackPhone)) !== null) {
-            return $series;
+        if (IntakeLayers::enabled('series') && ($series = SeriesAd::segments($prepared, $fallbackPhone)) !== null) {
+            return self::stampLayer($series, 'series');
         }
         // "İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa …" / "… yükleme, Ankara, Konya, Kayseri boşaltma 3 araç": virgüllü varış listesi, her varış ayrı ilan.
-        if (($list = SeriesAd::commaList($prepared, $fallbackPhone)) !== null) {
-            return $list;
+        if (IntakeLayers::enabled('comma_list') && ($list = SeriesAd::commaList($prepared, $fallbackPhone)) !== null) {
+            return self::stampLayer($list, 'comma_list');
         }
         // "Ankara-İstanbul / İstanbul-Ankara gidiş dönüş": iki ilan.
-        if (($trip = SeriesAd::roundTrip($prepared, $fallbackPhone)) !== null) {
-            return $trip;
+        if (IntakeLayers::enabled('round_trip') && ($trip = SeriesAd::roundTrip($prepared, $fallbackPhone)) !== null) {
+            return self::stampLayer($trip, 'round_trip');
         }
         // "SAMSUN KAPALI TIR / İZMİR KAPALI TIR / ÇANAKKALE TENTELİ KAMYON": yalnız varış + araç listesi, kalkış yazmıyor.
         // Satırlar birbirine rota diye bağlanmaz ("Samsun → İzmir" uydurulmaz); tek parça, kalkış eksik gerekçesiyle elenir.
-        if (SeriesAd::isDestinationListWithoutPickup($prepared)) {
-            $phones = AiParserService::phonesIn($raw);
-            if ($fallbackPhone !== null && ! in_array($fallbackPhone, $phones, true)) {
-                $phones[] = $fallbackPhone;
-            }
-
-            return [['text' => $raw, 'phones' => $phones, 'index' => 0, 'count' => 1, 'pickup_missing' => true]];
+        // Yorum katmanı: fiilsiz TAM İKİ "yer + araç" satırı ("İSTANBUL HADIMKÖY TENTELİ TIR ⏎ ANKARA 2 ARAÇ"): ilk yer kalkış, ikinci yer
+        // varış (Osman, 2026-10-05). Yapay zeka doğrulamazsa "bilgi eksik" rozetiyle yayınlanır (processSegment / autoApprovalBlocker).
+        $destLines = SeriesAd::destinationOnlyLines($prepared);
+        if (count($destLines) === 2 && IntakeLayers::enabled('two_line_route')) {
+            return [['text' => $raw, 'phones' => self::withFallback(AiParserService::phonesIn($raw), $fallbackPhone), 'index' => 0, 'count' => 1, 'interpreted' => 'two_line', 'layer' => 'two_line_route']];
+        }
+        if ($destLines !== [] && IntakeLayers::enabled('no_pickup_filter')) {
+            return [['text' => $raw, 'phones' => self::withFallback(AiParserService::phonesIn($raw), $fallbackPhone), 'index' => 0, 'count' => 1, 'pickup_missing' => true,
+                'dest_lines' => array_map(fn ($d) => $d['line'], $destLines), 'notes' => self::notesOutside($prepared, array_map(fn ($d) => $d['line'], $destLines))]];
         }
         $units = [];
         $carryHeader = null; // varışı olmayan başlık ("Çorlu yükler") boş satırdan sonraki bloklara taşınır
@@ -904,7 +943,9 @@ class LoadIntakeService
                 continue;
             }
             $stripped = trim(preg_replace(AiParserService::PHONE_PATTERN, ' ', $block) ?? $block);
-            if (preg_match('/[\p{L}]{3,}/u', $stripped) && preg_match('/(?<!\p{L})(?:tır|tir|dorse|damper|tente|frigo|firgo|kapalı|kapali|açık|acik|teker|kamyon|kamyonet|panelvan|araç|arac|ton|palet|kdv|peşin|pesin|nakit|dökme|dokme|13[.,\/\- ]?60|1360|8[.,]60|uzun|kısa|kisa|basar|tonaj)(?!\p{L})/iu', $stripped)) {
+            // Yalnız yük adı taşıyan blok ("Çuvallı yem", "Torbalı çimento") da ortak bağlamdır: her ilan yükü bilsin (Engin Abi, 2026-10-05).
+            if (preg_match('/[\p{L}]{3,}/u', $stripped) && (preg_match('/(?<!\p{L})(?:tır|tir|dorse|damper|tente|frigo|firgo|kapalı|kapali|açık|acik|teker|kamyon|kamyonet|panelvan|araç|arac|ton|palet|kdv|peşin|pesin|nakit|dökme|dokme|13[.,\/\- ]?60|1360|8[.,]60|uzun|kısa|kisa|basar|tonaj)(?!\p{L})/iu', $stripped)
+                || (mb_strlen($stripped) <= 60 && GoodsCatalog::detect(VehicleClassifier::normalize($stripped)) !== null))) {
                 $shared[] = $stripped;
             }
         }
@@ -945,6 +986,117 @@ class LoadIntakeService
         self::$lastTruncated = max(0, count($out) - self::MAX_ADS_PER_MESSAGE);
 
         return array_slice($out, 0, self::MAX_ADS_PER_MESSAGE);
+    }
+
+    /** Parçalara hangi katmanın ürettiğini yazar (kayıtta parse_metadata.layer; panelde katman sayımı). */
+    private static function stampLayer(array $segments, string $layer): array
+    {
+        return array_map(fn (array $s) => $s + ['layer' => $layer], $segments);
+    }
+
+    /** Listedeki yer satırları ve numaralar dışında kalan satırlar (araç, kasa, yük, tarih notları): her noktaya taşınır. */
+    private static function notesOutside(string $prepared, array $destLines): array
+    {
+        $out = [];
+        foreach (preg_split('/\n/u', $prepared) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || in_array($line, $destLines, true) || AiParserService::phonesIn($line) !== []) {
+                continue;
+            }
+            $out[] = $line;
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * Kalkışı yazmayan liste için gönderenin bilinen kalkışı (SenderPickupMemory): her varış satırı o kalkıştan ayrı, "bilgi eksik"
+     * rozetli ilan olur (seri ilan mekanizması: rota kesin, yapay zeka çağrılmaz, tekrar ilçe düzeyinde).
+     *
+     * @return list<array>|null
+     */
+    private function pickupFromSenderMemory(array $segment, array $ctx): ?array
+    {
+        $lines = (array) ($segment['dest_lines'] ?? []);
+        if ($lines === [] || $segment['phones'] === []) {
+            return null;
+        }
+        $pickup = app(SenderPickupMemory::class)->pickupFor($segment['phones']);
+        if ($pickup === null) {
+            return null;
+        }
+        $notes = (array) ($segment['notes'] ?? []);
+        $phoneLine = "\n☎️ ".implode(', ', array_map(fn (string $p) => Phone::format($p), $segment['phones']));
+        $out = [];
+        $n = count($lines);
+        foreach ($lines as $i => $line) {
+            $place = AiParserService::placesIn($line, 1)[0] ?? null;
+            if ($place === null) {
+                continue;
+            }
+            $out[] = [
+                'text' => 'Kalkış: '.$pickup['label']." (gönderen hafızası)\n".$line.($notes !== [] ? "\n".implode("\n", $notes) : '').$phoneLine,
+                'phones' => $segment['phones'], 'index' => $i, 'count' => $n,
+                'series' => ['count' => $n, 'pickup' => $pickup['label'], 'delivery' => $place['label']],
+                'interpreted' => 'sender_memory', 'layer' => 'sender_pickup_memory',
+            ];
+        }
+
+        return $out !== [] ? $out : null;
+    }
+
+    /** Seri/hafıza parçası için kural çözümü: rota parçadan kesin bilinir. */
+    private function seriesParsed(array $segment, ?string $fallbackPhone): array
+    {
+        $parsed = $this->parser->parseCheap($segment['text'], $fallbackPhone);
+        if (($parsed['sender_phone'] ?? null) === null && $segment['phones'] !== []) {
+            $parsed['sender_phone'] = $segment['phones'][0];
+        }
+        $parsed['pickup_location'] = $segment['series']['pickup'];
+        $parsed['delivery_location'] = $segment['series']['delivery'];
+        $parsed['success'] = true;
+        unset($parsed['reason']);
+
+        return $parsed;
+    }
+
+    /**
+     * Kalkışı yazmayan liste ve gönderen hafızada yok: mesaj elenmek yerine tek "kalkış bekleyen" aday olarak kuyruğa girer
+     * (status parsed_partial, needs_pickup). Yönetici "Kalkış öğret" deyince gönderen hafızasına yazılır, mesaj yeniden okunur ve
+     * her satır ayrı ilan olur; aynı gönderenin sonraki listeleri kendiliğinden çözülür. 48 saat içinde öğretilmezse olağan yaş retine düşer.
+     */
+    private function holdForPickup(array $segment, array $ctx): ?array
+    {
+        $lines = (array) ($segment['dest_lines'] ?? []);
+        $phones = array_values(array_filter($segment['phones'], fn ($p) => AiParserService::isAdPhone($p)));
+        if ($lines === [] || $phones === []) {
+            return null;
+        }
+        $text = $segment['text'];
+        $contentHash = hash('sha256', $ctx['source_id'].'|'.$ctx['message_id'].'|'.$text);
+        if ($existing = ScrapedLoad::query()->where('content_hash', $contentHash)->first()) {
+            $this->noteSighting($existing, $ctx['group']);
+
+            return $this->result(200, true, 'duplicate', 'Kalkış bekleyen aday zaten kuyrukta.', $existing->id) + ['excerpt' => $text];
+        }
+        $firstPlace = AiParserService::placesIn($lines[0], 1)[0] ?? null;
+        /** @var Scraper $scraper */
+        $scraper = $ctx['scraper'];
+        $load = $this->createLoad([
+            'scraper_id' => $scraper->id, 'content_hash' => $contentHash, 'normalized_hash' => hash('sha256', self::normalizeText($text)),
+            'route_key' => null, 'duplicate_count' => 1, 'seen_sources' => [$ctx['group']], 'last_seen_at' => now(), 'sighting_count' => 1,
+            'raw_message' => $text, 'sender_phone' => null, 'encrypted_sender_phone' => Crypt::encryptString($phones[0]),
+            'pickup_location' => null, 'delivery_location' => $firstPlace['label'] ?? null,
+            'status' => 'parsed_partial', 'parsed_by_llm' => 'regex', 'ai_status' => 'skipped', 'ai_checked_at' => now(), 'visibility' => 'private',
+            'parse_metadata' => array_filter([
+                'layer' => 'sender_pickup_memory', 'needs_pickup' => true, 'dest_lines' => array_slice($lines, 0, 60), 'message_id' => $ctx['message_id'],
+                'extra_phones_enc' => count($phones) > 1 ? array_map(fn (string $p) => Crypt::encryptString($p), array_slice($phones, 1)) : null,
+            ]),
+            'retention_expires_at' => now()->addDays(30),
+        ]);
+        $this->messageIds[] = $load->id;
+
+        return $this->result(201, true, 'created', 'Kalkış yeri yazmıyor; gönderenin kalkışı öğretilene kadar kuyrukta bekliyor ('.count($lines).' varış satırı).', $load->id) + ['excerpt' => $text, 'reason' => 'pickup_pending'];
     }
 
     /** Satırda "+" ile bağlı yer adları var mı ("Gönen+Merkez", "Çorum + Ankara")? */
@@ -1193,14 +1345,46 @@ class LoadIntakeService
         // Nakliyeci dili elenir: "kamyonum boş", "tırım boş(ta)", "aracım yük bekliyor", "müsait araç" (yük sahibinin "müsait araç arıyorum"u hariç)
         .'|(?:kamyonum|tırım|tirim|aracım|aracim|arabam|dorsem|çekicim|cekicim|kamyonetim|panelvanım|panelvanim|kırkayağım|kirkayagim)\s+(?:boş|bos|boşta|bosta|müsait|musait|yük\s+bekl\p{L}*|yuk\s+bekl\p{L}*|yük\s+arıyor|yuk\s+ariyor|hazır|hazir)'
         .'|(?:müsait|musait)\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse)(?!\s*(?:arıyor|ariyor|arayan|aranıyor|araniyor|lazım|lazim|var\s*mı|varmı|var\s*mi|varmi|olan|varsa|gerek|ihtiyaç|ihtiyac))|(?:araç|arac|tır|tir|kamyon|kamyonet)\s+(?:müsait|musait)\b'
-        .'|yük arıyor|yuk ariyor|yük bakıyor|yuk bakiyor|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
+        .'|yük arıyor\p{L}*|yuk ariyor\p{L}*|yük bakıyor\p{L}*|yuk bakiyor\p{L}*|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor\p{L}*'
+        // "boş tırım var", "boş kamyonum var": nakliyeci (iyelik ekli araç) — "boş tır var mı" yük sahibi kalır (yukarıdaki kuralla)
+        .'|boş\s+(?:tırım|tirim|kamyonum|kamyonetim|aracım|aracim|arabam|dorsem|çekicim|cekicim|kırkayağım|kirkayagim)'
+        .'|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
+
+    /** Muhasebe/fatura reklamı sözcükleri: ilan rotası (iki il) varsa yalnız nottur ("e-fatura kesilir"), elenmez. */
+    private const ACCOUNTING_TERMS = ['e-fatura', 'efatura', 'e fatura', 'e-arşiv', 'e-arsiv', 'gider fişi', 'gider fisi', 'utts', 'sgk yapılır', 'sgk yapilir', 'kdv açığ', 'kdv acig', 'beyanname', 'epd kayıt', 'epd kayit', 'sanal market'];
 
     public static function isNotLoadPattern(string $text): bool
     {
         // PCRE büyük İ/I harflerini küçük i/ı ile eşleştirmez; Türkçe küçük harfe çevrilip bakılır ("BOŞ ARAÇ GİRECEK")
         $lower = mb_strtolower(str_replace(['İ', 'I'], ['i', 'ı'], $text));
+        if (! preg_match_all(self::NOT_LOAD_PATTERN, $lower, $hits, PREG_OFFSET_CAPTURE)) {
+            return false;
+        }
+        $hasRoute = null; // tembel: yalnız muhasebe sözcüğü görülünce bakılır
+        foreach ($hits[0] as [$term, $offset]) {
+            // Olumsuzlama: "satılık değil", "kiralık değil, navlun" → ilan (derin inceleme 2026-10-05)
+            if (preg_match('/^\s*(?:değil|degil)(?!\p{L})/u', substr($lower, $offset + strlen($term))) === 1) {
+                continue;
+            }
+            // Muhasebe reklamı sözcüğü ("e-fatura kesilir", "sgk") rota taşıyan ilanda yalnız nottur
+            $isAccounting = false;
+            foreach (self::ACCOUNTING_TERMS as $acc) {
+                if (str_contains($term, $acc)) {
+                    $isAccounting = true;
+                    break;
+                }
+            }
+            if ($isAccounting) {
+                $hasRoute ??= count(AiParserService::placesIn($text, 2)) === 2;
+                if ($hasRoute) {
+                    continue;
+                }
+            }
 
-        return preg_match(self::NOT_LOAD_PATTERN, $lower) === 1;
+            return true;
+        }
+
+        return false;
     }
 
     public static function looksLikeLoad(string $text, ?string $fallbackPhone = null): bool

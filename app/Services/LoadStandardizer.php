@@ -437,6 +437,12 @@ class LoadStandardizer
 
             return $v >= 500 ? round($v, 2) : null;
         }
+        // "1500 artı kdv", "1050 kdv" (normalize "+" işaretini düşürür: "1500+kdv" → "1500 kdv"), satır/metin sonunda "1500 artı"
+        if (preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,6})\s*(?:tl\s*)?(?:arti\s*)?kdv\b/', $norm, $m) || preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,6})\s*(?:tl\s*)?arti\s*$/', rtrim($norm), $m)) {
+            $v = (float) str_replace('.', '', $m[1]);
+
+            return $v >= 500 && $v <= 999999 ? round($v, 2) : null;
+        }
 
         return null;
     }

@@ -146,10 +146,17 @@ class LocationAuditTest extends TestCase
         $this->assertSame(['tir', ['kapali'], 2], [$loads[0]->vehicle_type, $loads[0]->body_types, $loads[0]->vehicle_count]);
         $this->assertStringContainsString('Kalkış: İstanbul Tuzla', $loads[1]->raw_message);
 
-        // Kalkışı yazılmayan "varış + araç" listesi: satırlar birbirine rota diye bağlanmaz ("Samsun → İzmir" uydurulmaz), elenir
+        // Kalkışı yazılmayan "varış + araç" listesi: satırlar birbirine rota diye bağlanmaz ("Samsun → İzmir" uydurulmaz). Gönderenin
+        // bilinen kalkışı yoksa mesaj elenmez, tek "kalkış bekleyen" aday olarak kuyruğa girer (2026-10-05; yönetici "Kalkış öğret" der).
         $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\nİZMİR ÖDEMİŞ KAPALI KAMYON\n\n☎️ AD 0538 111 22 33", 'message_id' => 's2', 'source_jid' => 'notif:grup-a']);
+        $this->assertSame(['created', 'pickup_pending'], [$r['status'], $r['reason'] ?? null]);
+        $this->assertSame(5, ScrapedLoad::query()->count());
+        $this->assertTrue((bool) ScrapedLoad::query()->latest('id')->first()->meta('needs_pickup'));
+        // Gönderen hafızası katmanı kapalıyken eskisi gibi elenir.
+        Settings::set('intake_layer_sender_pickup_memory', '0');
+        $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\n\n☎️ AD 0538 111 22 34", 'message_id' => 's3', 'source_jid' => 'notif:grup-a']);
         $this->assertSame(['filtered', 'pickup_missing'], [$r['status'], $r['reason']]);
-        $this->assertSame(4, ScrapedLoad::query()->count());
+        Settings::set('intake_layer_sender_pickup_memory', '1');
 
         // Kalkış fiiliyle yazılmış tek satırlık ilan eskisi gibi: "Gebze yükler- Muğla Menteşe" ikinci yer varıştır
         $p = app(AiParserService::class)->parseCheap('Gebze yükler- Muğla Menteşe 0532 111 22 33');

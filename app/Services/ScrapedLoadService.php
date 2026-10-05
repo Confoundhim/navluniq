@@ -7,6 +7,7 @@ use App\Models\DriverProfile;
 use App\Models\IntakeEvent;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Support\SenderPickupMemory;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
@@ -213,7 +214,18 @@ class ScrapedLoadService
 
         // Mesajda birden çok ilan varsa bu adayın numarasına ve rotasına uyan ilan alınır (yoksa ilki).
         $ai['data'] = AiParserService::pickAd($ai['data'], $current['sender_phone'], $load->pickup_location, $load->delivery_location);
+        // Yorum katmanı (iki satırlık ilan): yapay zeka iki ucu da verdiyse onun rotası geçerli ve rota doğrulanmış sayılır.
+        $routeConfirmed = false;
+        if (($meta['route_inferred'] ?? null) === 'two_line' && ($ai['data']['is_load'] ?? true) !== false
+            && TurkishLocations::resolve((string) ($ai['data']['pickup_location'] ?? '')) !== null && TurkishLocations::resolve((string) ($ai['data']['delivery_location'] ?? '')) !== null) {
+            $current['pickup_location'] = $ai['data']['pickup_location'];
+            $current['delivery_location'] = $ai['data']['delivery_location'];
+            $routeConfirmed = true;
+        }
         $merged = $parser->merge($current, $ai['data']);
+        if ($routeConfirmed) {
+            unset($merged['ai_conflict']);
+        }
         $std = app(LoadStandardizer::class)->standardize((string) $load->raw_message, $merged);
         $load->forceFill(array_merge(array_intersect_key($std, array_flip([
             'pickup_location', 'pickup_province_code', 'pickup_district', 'pickup_lat', 'pickup_lng',
@@ -229,6 +241,7 @@ class ScrapedLoadService
             'parse_metadata' => array_merge(array_diff_key($meta, ['ai_conflict' => 1]), $std['metadata'], array_filter([
                 'ai' => array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load', 'ad_index', 'ad_count'])),
                 'ai_conflict' => $merged['ai_conflict'] ?? null,
+                'route_confirmed' => $routeConfirmed ? true : ($meta['route_confirmed'] ?? null),
                 // Yapay zeka bu ilanda başka numara da bulduysa yedek numaralara eklenir (şifreli).
                 'extra_phones_enc' => ($extra = array_values(array_diff(array_unique(array_merge($load->extraPhones(), (array) ($merged['phones'] ?? []))), [$current['sender_phone']]))) !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extra) : null,
                 'phone_count' => count($extra) > 0 ? count($extra) + 1 : null,
@@ -421,6 +434,38 @@ class ScrapedLoadService
     }
 
     /** Otomatik onay kriterlerini sağlamıyorsa nedenini, sağlıyorsa null döndürür. */
+    /**
+     * Kalkış bekleyen aday (needs_pickup): yönetici kalkışı yazar → gönderen hafızasına girer, mesaj yeniden okunur ve her varış satırı
+     * ayrı "bilgi eksik" ilan olur; bekleyen kayıt kalıcı silinir (aynı içerik özetiyle yeniden açılabilsin). Dönüş: açılan ilan sayısı.
+     */
+    public function teachPickup(ScrapedLoad $load, string $pickupText, ?int $userId = null): int
+    {
+        if (! $load->meta('needs_pickup')) {
+            throw new RuntimeException('Bu aday kalkış beklemiyor.');
+        }
+        $phone = $load->plainPhone();
+        if ($phone === null) {
+            throw new RuntimeException('Adayın numarası okunamadı.');
+        }
+        $memory = app(SenderPickupMemory::class);
+        if ($memory->teach($phone, $pickupText, $userId) === null) {
+            throw new RuntimeException('Kalkış yeri katalogda bulunamadı; "İl" ya da "İl İlçe" yazın.');
+        }
+        foreach ($load->extraPhones() as $extra) {
+            $memory->teach($extra, $pickupText, $userId);
+        }
+        $payload = ['group_name' => $load->scraper?->name ?? 'Grup', 'raw_message' => (string) $load->raw_message, 'message_id' => (string) ($load->meta('message_id') ?: 'ogretildi-'.$load->id),
+            'source_jid' => $load->scraper?->source_identifier ?? 'bilinmiyor', 'source_type' => $load->scraper?->type ?? 'whatsapp'];
+        $load->forceDelete();
+        $result = app(LoadIntakeService::class)->intake($payload);
+        ActivityLog::record('scraped_load.pickup_taught', "Gönderen kalkışı öğretildi ({$pickupText}); kalkış bekleyen aday yeniden okundu: ".($result['message'] ?? ''), $userId);
+
+        return count((array) ($result['created_ids'] ?? []));
+    }
+
+    /** Yorum katmanı engeli: rota yorumla çözüldü, yapay zeka doğrulamadı → "bilgi eksik" rozetiyle yayın. */
+    public const INFERRED_ROUTE_BLOCKER = 'rota yorumla çözüldü; eksik bilgili yayın';
+
     public function autoApprovalBlocker(ScrapedLoad $load): ?string
     {
         if ($load->visibility === 'public' || $load->status === 'rejected') {
@@ -467,6 +512,15 @@ class ScrapedLoadService
             return null; // yönetici düzeltip kaydettiyse karar puanı aranmaz
         }
         $d = $this->decision($load);
+        // Yorum katmanı: rota sırayla (iki satır) ya da gönderen hafızasından çıktı, yapay zeka doğrulamadı → tam ilan değil,
+        // "bilgi eksik" rozetiyle yayın (incompleteEligible bunu yumuşak engel sayar); puan ret sınırının altındaysa olağan ret.
+        if (! empty($meta['route_inferred']) && empty($meta['route_confirmed']) && $d['score'] > self::pct('scraper_auto_reject_max_score')) {
+            if ($d['wait']) {
+                return 'yapay zeka doğrulaması bekleniyor';
+            }
+
+            return self::INFERRED_ROUTE_BLOCKER;
+        }
         // Kural tamamsa (iki il, telefon, kesin araç tipi) yapay zeka cevabı BEKLENMEZ ve yerel sınıflandırıcının kuşkusu ilanı
         // "eksik bilgili"ye düşüremez; yalnız yapay zeka açıkça "ilan değil" derse ya da puan ret sınırının altındaysa yayınlanmaz
         // (Engin Abi: araç yazılı ama eksikte). Kesin araç: açık ad / yönetici / şablon / şoför, ya da güçlü kasa ipucu
@@ -549,6 +603,9 @@ class ScrapedLoadService
         $blocker ??= $this->autoApprovalBlocker($load);
         if ($blocker === null) {
             return false; // normal otomatik yayın
+        }
+        if ($blocker === self::INFERRED_ROUTE_BLOCKER) {
+            return $this->decision($load)['score'] > self::pct('scraper_auto_reject_max_score'); // yorumla çözülen rota: puan bandına bakılmaz, hep eksik bilgili
         }
         $soft = in_array($blocker, ['araç tipi yok', 'fiyat yok', 'tonaj yok'], true) || str_starts_with($blocker, 'karar puanı %');
         if (! $soft) {
