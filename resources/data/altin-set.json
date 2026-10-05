@@ -1488,5 +1488,86 @@
       ],
       "phone": "5321112233"
     }
+  },
+  {
+    "id": "kurumsal-hat-0850",
+    "message": "İzmir Torbalı yükleme Ankara teslim 20 ton tenteli tır 0850 222 33 44",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Torbalı",
+          "Ankara"
+        ]
+      ],
+      "vehicle": "tir",
+      "phone": "8502223344"
+    }
+  },
+  {
+    "id": "sabit-hat-0312",
+    "message": "Ankara Sincan - Konya 12 ton kapalı kamyon (0312) 345 67 89",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Sincan",
+          "Konya"
+        ]
+      ],
+      "phone": "3123456789"
+    }
+  },
+  {
+    "id": "cagri-merkezi-444",
+    "message": "İstanbul Hadımköy - Bursa 24 ton palet tenteli 444 1 234",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Arnavutköy",
+          "Bursa"
+        ]
+      ],
+      "phone": "4441234"
+    }
+  },
+  {
+    "id": "tarih-numara-degil",
+    "message": "Yükleme 05.10.2026 saat 14:30 Ankara İzmir 24 ton tenteli",
+    "expect": {
+      "filtered": "no_phone"
+    }
+  },
+  {
+    "id": "torbali-yukler-baslik",
+    "message": "TORBALI YÜKLER\nANKARA 2 ARAÇ TENTELİ\nKONYA 1 ARAÇ\n0532 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "İzmir Torbalı",
+          "Ankara"
+        ],
+        [
+          "İzmir Torbalı",
+          "Konya"
+        ]
+      ],
+      "count": 2
+    }
+  },
+  {
+    "id": "torbali-cikisli",
+    "message": "Torbalı çıkışlı Ankara teslim tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Torbalı",
+          "Ankara"
+        ]
+      ]
+    }
   }
 ]

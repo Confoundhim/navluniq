@@ -144,7 +144,7 @@ final class IntakeBenchmark
     private static function expect(array $p, array $d, array $v, array $g, int $t, string $ph): array
     {
         return ['ads' => 1, 'routes' => [[$p['label'], $d['label']]], 'vehicle' => $v['vehicle'], 'body' => $v['body'] ? [$v['body']] : null,
-            'goods' => $g['goods'], 'weight' => $t * 1000, 'phone' => Phone::normalize($ph)];
+            'goods' => $g['goods'], 'weight' => $t * 1000, 'phone' => Phone::normalizeContact($ph)];
     }
 
     /**

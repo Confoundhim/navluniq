@@ -58,6 +58,7 @@ new class extends Component {
         'scraper_queue_max_age_hours' => 'Kuyrukta en çok bekleme (saat)',
         'scraper_ai_wait_minutes' => 'Yapay zeka cevabı için en çok bekleme (dakika)',
         'scraper_local_enabled' => 'Yerel öğrenen sınıflandırıcı',
+        'scraper_landline_phones' => 'Sabit hat ve 0850 numaralı ilanlar',
         'scraper_local_min_confidence' => 'Yapay zeka ulaşılamazsa otomatik onay için en düşük yerel güven (%)',
         'telegram_post_enabled' => 'Sistem ilanlarını Telegram kanalına paylaş',
         'telegram_bot_token' => 'Telegram bot anahtarı',
@@ -93,7 +94,7 @@ new class extends Component {
     /** Formda hiç gösterilmeyen, boş bırakılınca korunan gizli alanlar (Telegram bot anahtarı da buradadır; eski sürüm düz metin gösteriyordu). */
     public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'telegram_bot_token'];
 
-    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'scraper_incomplete_publish', 'scraper_local_enabled', 'ai_ollama_enabled', 'telegram_post_enabled'];
+    public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'scraper_incomplete_publish', 'scraper_local_enabled', 'scraper_landline_phones', 'ai_ollama_enabled', 'telegram_post_enabled'];
 
     /** @var array<string, string> */
     public array $scraper = [];
@@ -818,6 +819,11 @@ new class extends Component {
                     <label class="form-label">{{ $scraperKeys['scraper_local_enabled'] }}</label>
                     <select wire:model="scraper.scraper_local_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select>
                     <span class="text-[11px] text-neutral-400">Dış servise bağlı olmayan, sizin kararlarınızdan (yayınla / reddet / düzelt) öğrenen sınıflandırıcı ve jargon sözlüğü. Durumu ve sözlüğü Dış Kaynak İlanları → "Sözlük ve öğrenme" sekmesinde görürsünüz.</span>
+                </div>
+                <div>
+                    <label class="form-label">{{ $scraperKeys['scraper_landline_phones'] }}</label>
+                    <select wire:model="scraper.scraper_landline_phones" class="{{ $input }}"><option value="0">Kapalı (yalnız cep)</option><option value="1">Açık</option></select>
+                    <span class="text-[11px] text-neutral-400">Açıkken nakliye firmalarının sabit hat (0212…), kurumsal hat (0850, 0800) ve 444'lü çağrı merkezi numarasıyla verdiği ilanlar da alınır. Kartta hat türü yazılır; klasik sabit hatta WhatsApp düğmesi çıkmaz.</span>
                 </div>
                 <div>
                     <label class="form-label">{{ $scraperKeys['scraper_free_delay_minutes'] }}</label>

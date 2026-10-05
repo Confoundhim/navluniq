@@ -311,7 +311,8 @@ class LoadIntakeTest extends TestCase
 
         // Aynı rotayı iki satırda anlatan tek ilan bölünmez.
         $this->assertCount(1, LoadIntakeService::splitSegments("Ankara → İstanbul 24 ton tenteli\nAnkara Ostim yükleme İstanbul Kartal teslim\n0532 111 11 11"));
-        $this->assertSame(['5321111111', '5332222222'], AiParserService::phonesIn('Ahmet 0532 111 11 11, Mehmet +90 (533) 222-22-22, sabit 0312 444 44 44'));
+        // Sabit hat da ilan numarasıdır (Osman, 2026-10-05); yazılış sırası korunur.
+        $this->assertSame(['5321111111', '5332222222', '3124444444'], AiParserService::phonesIn('Ahmet 0532 111 11 11, Mehmet +90 (533) 222-22-22, sabit 0312 444 44 44'));
     }
 
     public function test_uppercase_headers_and_plus_chains_follow_sector_language(): void

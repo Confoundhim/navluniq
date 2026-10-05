@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\GoodsCatalog;
+use App\Support\Phone;
 use App\Support\TurkishCities;
 use App\Support\TurkishText;
 use App\Support\VehicleClassifier;
@@ -668,15 +669,7 @@ final class NotificationIntakeParser
 
     private static function phoneFrom(string $sender): ?string
     {
-        $digits = preg_replace('/\D+/', '', $sender) ?? '';
-        if (str_starts_with($digits, '90') && strlen($digits) === 12) {
-            $digits = substr($digits, 2);
-        }
-        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
-            $digits = substr($digits, 1);
-        }
-
-        return preg_match('/^5\d{9}$/', $digits) ? $digits : null;
+        return Phone::normalizeContact($sender);
     }
 
     /** Ekran dökümünde "görüldü" önbellek anahtarı (grup + metin); kaynak onay beklerken alım bu anahtarı serbest bırakır. */

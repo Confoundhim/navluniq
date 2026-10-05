@@ -20,7 +20,7 @@
 set -euo pipefail
 
 APP_DIR="/var/www/navluniq"
-REPO_URL="https://github.com/Confoundhim/navluniq.git"
+REPO_URL="${REPO_URL:-https://github.com/Confoundhim/navluniq.git}" # depo gizliyse SSH adresi (deploy key: deploy/github-erisim.sh)
 APP_BRANCH="${APP_BRANCH:-main}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 NODE_MAJOR="20"
