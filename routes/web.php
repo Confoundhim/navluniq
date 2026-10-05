@@ -180,9 +180,6 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/cms', function () {
             return view('admin.cms-page');
         })->name('admin.cms');
-        Route::get('/languages', function () {
-            return view('admin.languages-page');
-        })->name('admin.languages');
         Route::get('/settings', function () {
             return view('admin.settings-page');
         })->name('admin.settings');
