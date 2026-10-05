@@ -196,3 +196,8 @@ Schedule::call(function (): void {
 // Tek yedek yolu (I5): gece 03:30 tam yedek (son 7, yukarıda) + 6 saatte bir yalnız veritabanı dökümü (son 12 = 3 gün),
 // tam yedekten 15 dk sonra ki ikisi çakışmasın. En kötü veri kaybı 24 saatten 6 saate iner. Hata → yöneticilere bildirim.
 Schedule::command('system:backup', ['--type' => 'database', '--keep' => 12])->cron('45 3,9,15,21 * * *')->withoutOverlapping(60);
+
+// Sistem bekçisi (I1): kuyruk, başarısız iş, yedek, disk, telefon sessizliği, e-posta, Redis, SSL, yeniden konumlama.
+// Sorun → Telegram (alert_telegram_chat_id) + yönetici bildirimi; 6 saatte bir tekrar; düzelince "düzeldi". Sağlık ekranı
+// SystemWatchdog::lastStatus() ile son çalışmayı gösterir.
+Schedule::command('system:watchdog')->everyFiveMinutes()->withoutOverlapping(10);

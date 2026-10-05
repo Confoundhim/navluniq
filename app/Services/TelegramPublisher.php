@@ -63,12 +63,32 @@ class TelegramPublisher
         return str_starts_with($id, '@') && strlen($id) > 1 ? 'https://t.me/'.substr($id, 1) : null;
     }
 
-    /** @throws \RuntimeException */
+    /** Kanala gönderir. @throws \RuntimeException */
     public function send(string $html): array
     {
+        return $this->sendTo(Settings::string('telegram_channel_id'), $html);
+    }
+
+    /** Bot anahtarı girilmiş mi (kanal yayını kapalı olsa da bekçi uyarısı gidebilir). */
+    public static function hasBotToken(): bool
+    {
+        return Settings::string('telegram_bot_token') !== '';
+    }
+
+    /**
+     * Herhangi bir sohbete (kanal, grup ya da yöneticinin özel mesajı) gönderir; bekçi uyarıları (system:watchdog)
+     * alert_telegram_chat_id ayarındaki sohbete bununla gider.
+     *
+     * @throws \RuntimeException
+     */
+    public function sendTo(string $chatId, string $html): array
+    {
         $token = Settings::string('telegram_bot_token');
+        if ($token === '' || $chatId === '') {
+            throw new \RuntimeException('telegram_not_configured');
+        }
         $response = Http::timeout(15)->asJson()->post("https://api.telegram.org/bot{$token}/sendMessage", [
-            'chat_id' => Settings::string('telegram_channel_id'),
+            'chat_id' => $chatId,
             'text' => $html,
             'parse_mode' => 'HTML',
             'disable_web_page_preview' => true,
