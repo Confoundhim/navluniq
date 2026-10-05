@@ -24,7 +24,26 @@ Toplam 567 test geçiyor.
 
 ---
 
-## 2. Osman'ın karar vermesi gereken konular
+## 2. Osman'ın kararları (2026-10-05)
+
+1. **Para akışı:** iyzico Pazaryeri; NavlunIQ hiç para tutmaz, hakediş ve komisyonu iyzico dağıtır. → Alt üye modeli tek canlı yol; şoför
+   TC/VKN + IBAN belge aşamasında; pazaryeri kapalıyken ödeme kapalı; PayTR seçimden kalkar; elle hakediş yalnız istisna.
+2. **Depo (GitHub'daki kod deposu) ve imza anahtarı:** açıklama Osman'a yapıldı; depo gizlenince anahtar yenilenecek, telefonlara
+   uygulama bir kez yeniden kurulacak.
+3. **Yük sahibi doğrulama:** bireysel → TC + NVİ (otomatik), kurumsal → VKN + GİB (otomatik) yeterli; belge fotoğrafı istenmez
+   (sektör uygulaması: yük borsaları şirketlerden vergi levhası ister, bireyden kimlik fotoğrafı istemez). Doğrulanmış rozeti şoföre
+   görünür; doğrulanmamış yük sahibi teklif kabul edemez.
+4. **İptal ve iade:** Abonelik dijital hizmet, iadesi yok; otomatik yenileme yok, dönem sonuna kadar kullanılır (metinler buna göre).
+   Navlun: yola çıkılmadan önce yük sahibi iptal edebilir (tam iade, iyzico üzerinden), şoför ödeme sonrası vazgeçebilir (tam iade),
+   "şoför gelmedi" zaman aşımı; yola çıktıktan sonra yalnız uyuşmazlık. Yoldaki uyuşmazlıkta karar "devam / iptal+iade".
+5. **Pazarlama e-postası:** ETK ve İYS kuralına göre: kayıtta ayrı, işaretlenmemiş "ticari elektronik ileti" onayı; her iletide
+   abonelikten çık bağlantısı; onaylar İYS'ye 3 iş günü içinde yüklenir (Osman: İYS kaydı ve yetkili entegratör).
+6. **Yük sigortası:** yük sahibi ödeme adımında seçebilsin. Yasal zemin: sigorta aracılığı yalnız lisanslı acente/broker ile;
+   platform "gömülü sigorta" API'si sunan bir aracıyla anlaşır (aday: Tamamliyo gömülü sigorta API'si — nakliye/kargo ürünü;
+   Anadolu Sigorta "Web Emtia / Online Sertifika"; acente kanalıyla Allianz/Axa/Türkiye Sigorta nakliyat emtia). Teklif → poliçe →
+   sertifika akışı, prim yük sahibinden ayrı kalem, BSMV dahil; sözleşmede "sigorta aracı tarafından düzenlenir" ibaresi.
+
+## 2a. Karar verilmeden önceki sorular (kayıt için)
 
 1. **Para hangi hesapta durur?** Bugünkü varsayılan: tüm navlun NavlunIQ'nun iyzico hesabına girer, teslimattan sonra finans
    şoföre havale eder. Bu, NavlunIQ'nun üçüncü kişi parası tutması demektir (ödeme kuruluşu lisansı alanı) ve sözleşme
