@@ -256,8 +256,24 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   Okuma: `TextPrep::stripInvisible` (LRM/ZWSP/geçersiz UTF-8) alımın ilk adımı; `hasTrueAblative` ("TENTEN", "ELBİSTAN" kalkış eki değil;
   `TurkishLocations::isCatalogName`); etiket kökleri `LABEL_STEMS`; sistem bildirimi başlığı ≤2 sözcük ya da telefonsuz metin;
   PDOException/RedisException kuyruğa fırlatılır (`tries=2`); ekran dökümü `fb:seen` kaynak onay beklerken 10 dk; IBAN ve "kat 5 0532…"
-  telefon değil. **Bekleyen tasarım kararları (Osman):** sabit hat / 0850 numaralı ilanlar (bugün alınmıyor), komisyoncu tekrarı (aynı
-  ilan başka numarayla), iki satırlık "yer + araç" ilanı, "TORBALI YÜKLER" gibi yük-benzeri ilçe adıyla başlayan başlık.
+  telefon değil.
+- **Osman'ın 2026-10-05 kararları (uygulandı):** (1) **Sabit hat / 0850 ilanları alınır.** İki ayrı numara kavramı var: hesap numarası
+  (üye/personel/iletişim formu) yalnız cep (`Phone::normalize`, `Phone::RULE`; SMS ve WhatsApp oraya gider); ilan iletişim numarası
+  cep + sabit hat (0212…, 0312…) + kurumsal hat (0850/0800) + 444'lü kısa numara (`Phone::normalizeContact`, `AiParserService::isAdPhone`,
+  panel ayarı `scraper_landline_phones`, varsayılan açık). Sabit hat yalnız başında 0 ya da +90 ile ve noktasız yazımda tanınır
+  (tarih "05.10.2026 14:30" numara sanılmaz); kartta hat türü yazılır (`Phone::kindLabel`), WhatsApp düğmesi yalnız cep ve 0850'de
+  (`Phone::supportsWhatsapp`), `tel:` bağlantısı `Phone::telHref`. Veritabanında numara sıfırsız ("2123456789", "8502223344", "4441234").
+  (2) **Aynı yük başka numarayla (komisyoncu):** ayrı ilan olarak yayınlanır, iki kart da "Benzer ilan · farklı numara" rozeti taşır
+  (`LoadIntakeService::similarWithOtherPhone`: 48 saat, aynı il çifti, farklı numara, metin benzerliği ≥ 0,7 ya da ilçe çelişmez + yük
+  kategorisi aynı + tonaj/fiyat/kesin araçtan biri aynı; `parse_metadata.similar_to` / `similar_with`, `ScrapedLoad::similarIds`).
+  (4) **"TORBALI YÜKLER" = Torbalı'dan yükleme:** yük-benzeri ilçe adının (`GOODS_LIKE_DISTRICTS`) hemen ardından yalnız yere bağlanan rol fiili
+  (`AiParserService::PLACE_ROLE_VERBS`: yükler, yüklemeli, çıkışlı, kalkış, iner, boşaltır…) geliyorsa yerdir; "Kiraz yükleme var",
+  "Kiraz yüklenecek" (yüke de bağlanan biçimler) ve "Torbalı çimento yükler" yük kalır. (5) Depo gizliye alınacak: sunucuda
+  `deploy/github-erisim.sh` deploy key kurar (okuma yetkili), sonra `android/keystore` yenilenir. (6) Yük sigortası elle değil API ile
+  (Tamamliyo gömülü sigorta; ortak sözleşmesi Osman'da). (7) Toplayıcı yalnız grupları gezer; ana sayfa akışı eklenmez.
+  **Hâlâ bekleyen (3):** iki satırlık "İSTANBUL HADIMKÖY TENTELİ TIR / ANKARA 2 ARAÇ" (bugün `isDestinationListWithoutPickup` ile eleniyor);
+  Osman'ın ilkesi: ilk yer kalkış, ikinci yer varış; araç yoksa eksik bilgili, varış yoksa eksik bilgili, kalkış+varış yoksa ret; önce
+  mevcut hattı inceleyip öneri sunulacak. Testler: `PendingDecisionsTest`, altın sette 6 yeni örnek.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
@@ -418,12 +434,14 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   #128 derleme geri dönüşü + Dependabot, #131 axios). Sağlık ekranı: başarısız iş 0, kuyruk/zamanlayıcı/telefon akışı/yapay zeka yeşil;
   kırmızı yalnız "Ödeme kuruluşu" (iyzico anahtarı yok) ve "Sabit kodla giriş" (iyzico inceleme hesapları, bilinçli).
   Test: 710 test, altın set 250/250, pint ve composer audit temiz; npm audit'teki kalan uyarılar yalnız derleme araçlarında.
-- **Osman'ın kararını bekleyen konular:** (1) sabit hat / 0850 numaralı ilanlar alınsın mı (bugün yalnız 5xx cep); (2) aynı ilanı kendi
-  numarasıyla paylaşan komisyoncu için "benzer ilan" rozeti; (3) iki satırlık "İSTANBUL HADIMKÖY TENTELİ TIR / ANKARA 2 ARAÇ" mesajı
-  eksik bilgili yayınlansın mı (bugün kalkışsız liste diye eleniyor); (4) "TORBALI YÜKLER" gibi yük-benzeri ilçe adıyla başlayan başlık
-  fiil varsa kabul edilsin mi; (5) depo gizliliği + keystore; (6) yük sigortası ortağı (Tamamliyo önerildi); (7) Toplayıcı'ya "Ana sayfa
-  akışı da dahil / yalnız gruplar" ayarı (Engin Abi 2026-10-05: nakliyecileri takip edip ana sayfadan toplama; cevap: teknik olarak çalışır,
-  arkadaş eklemek yerine "takip et", yalnız herkese açık gönderiler, ana sayfa grupların yerine değil yanına).
+- **Osman'ın kararları (2026-10-05, §4'te "Osman'ın 2026-10-05 kararları"):** sabit hat/0850 alınır, komisyoncu ilanı "benzer ilan"
+  rozetiyle ayrı yayınlanır, "TORBALI YÜKLER" kalkış, Toplayıcı yalnız gruplar, sigorta API ile otomatik. **Bekleyen:** (3) iki satırlık
+  "yer+araç / yer+araç" ilanı (öneri sunulacak); (5) depo gizliliği: Osman depoyu gizlemeden **önce** sunucuda `bash deploy/github-erisim.sh`
+  çalıştırıp çıkan satırı GitHub → Settings → Deploy keys'e ekler, `--kontrol` yeşil olunca depoyu gizler; sonra keystore yenilenir
+  (telefonlarda uygulama bir kez silinip kurulur); (6) Tamamliyo ortaklık/API erişimi Osman'da.
+- **Bu bulut ortamında PHP 8.3 var, proje 8.4 ister:** `composer install --ignore-platform-req=php` ile kurulur; iki test yalnız bu
+  yüzden düşer (`SystemWatchdogTest` `ReflectionProperty::isVirtual` 8.4'e özgü, `ScheduleLocksTest` kırpma testi); canlıda sorun yok.
+  Playwright kurulumu (`npm i --no-save playwright`) 2026-10-05 oturumunda izin denetimine takıldı; ekran görüntüsü alınamadıysa Osman'a söylenir.
 - **Sıradaki kod işleri (öncelik sırası, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §3-§6):** Paket C3 (yapılandırılmış yük ilanı formu il/ilçe
   seçici + gizli adres, "doğrulanmış yük sahibi" rozeti, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
   detayı, destek talebi), Paket C4 (indeksler, temizlik, durum makinesi testleri), cihaz başına alım anahtarı (I13), bildirim kuyruğu,

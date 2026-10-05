@@ -43,6 +43,7 @@ final class Settings
         'scraper_queue_max_age_hours' => 48,         // kuyrukta bu kadar saatten uzun bekleyen ve rotası/ili çözülemeyen aday kendiliğinden reddedilir (puan bandı / yapay zeka beklemesi yüzünden bekleyen reddedilmez)
         'scraper_ai_wait_minutes' => 15,             // yapay zeka zorunluyken cevap için en çok bu kadar beklenir
         'scraper_local_enabled' => 1,                // 1: yerel öğrenen sınıflandırıcı (dış servisten bağımsız) devrede
+        'scraper_landline_phones' => 1,              // 1: sabit hat (0212…), kurumsal hat (0850/0800) ve 444'lü numarayla verilen ilanlar da alınır; 0: yalnız cep (5xx)
         'scraper_local_min_confidence' => 90,        // dış yapay zeka ulaşılamazsa yerel güven (yüzde) bu değerin üstündeyse otomatik onay
         'ai_local_docs_load' => 0,                   // yerel sınıflandırıcı: öğrenilen ilan örneği sayısı
         'ai_local_docs_other' => 0,                  // yerel sınıflandırıcı: öğrenilen "ilan değil" örneği sayısı

@@ -130,13 +130,13 @@ class ScrapedLoad extends Model
     {
         if ($this->encrypted_sender_phone) {
             try {
-                return Phone::normalize(Crypt::decryptString($this->encrypted_sender_phone));
+                return Phone::normalizeContact(Crypt::decryptString($this->encrypted_sender_phone));
             } catch (\Throwable) {
                 return null;
             }
         }
 
-        return Phone::normalize($this->sender_phone);
+        return Phone::normalizeContact($this->sender_phone);
     }
 
     /**
@@ -149,7 +149,7 @@ class ScrapedLoad extends Model
         $out = [];
         foreach ((array) $this->meta('extra_phones_enc', []) as $enc) {
             try {
-                $phone = Phone::normalize(Crypt::decryptString((string) $enc));
+                $phone = Phone::normalizeContact(Crypt::decryptString((string) $enc));
             } catch (\Throwable) {
                 continue;
             }
@@ -175,6 +175,10 @@ class ScrapedLoad extends Model
 
     public static function maskPhone(?string $phone): string
     {
+        if ($phone && strlen($phone) === 7) {
+            return substr($phone, 0, 3).' * ***'; // 444'lü kısa numara
+        }
+
         return $phone ? '0'.substr($phone, 0, 3).' *** ** '.substr($phone, -2) : 'Bilinmiyor';
     }
 
@@ -306,6 +310,17 @@ class ScrapedLoad extends Model
     public function meta(string $key, mixed $default = null): mixed
     {
         return ((array) ($this->parse_metadata ?? []))[$key] ?? $default;
+    }
+
+    /** Aynı yük başka numarayla da paylaşılmış (komisyoncu olabilir): kartta rozet. @return list<int> */
+    public function similarIds(): array
+    {
+        return array_values(array_unique(array_map('intval', array_merge((array) $this->meta('similar_to', []), (array) $this->meta('similar_with', [])))));
+    }
+
+    public function hasSimilar(): bool
+    {
+        return $this->similarIds() !== [];
     }
 
     public function isUrgent(): bool

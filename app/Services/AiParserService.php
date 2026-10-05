@@ -6,6 +6,7 @@ use App\Models\AiProviderUsage;
 use App\Support\BodyTypes;
 use App\Support\ForeignPlaces;
 use App\Support\GoodsCatalog;
+use App\Support\Phone;
 use App\Support\SeriesAd;
 use App\Support\Settings;
 use App\Support\TextPrep;
@@ -98,8 +99,15 @@ class AiParserService
         return 86400;
     }
 
-    /** Türkiye cep numarası: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil). */
-    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?![\s\-.()]+0\d)(?:[\s\-.()]*\d){9}(?!\d)/u'; // "kat 5 0532 …": tek başına 5 numarayı başlatmaz
+    /**
+     * İlan iletişim numarası. Cep: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil;
+     * "kat 5 0532 …": tek başına 5 numarayı başlatmaz). Sabit / kurumsal hat (0212…, 0312…, 0850…, 0800…) yalnız başında 0 ya da
+     * +90 ile ve noktasız yazımda tanınır ("05.10.2026 14:30" tarihi sabit hat sanılmasın); 444'lü kısa numara "444 1 234".
+     * Kabul edilip edilmeyeceğine `isAdPhone` (panel ayarı) karar verir; bu kalıp metinden numara rakamlarını da temizler.
+     */
+    public const PHONE_PATTERN = '/(?<![\d.])(?:\+?90|0)[\s\-()]*(?:[234]\d{2}|850|800)(?:[\s\-()]*\d){7}(?![\d.])'
+        .'|(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?![\s\-.()]+0\d)(?:[\s\-.()]*\d){9}(?!\d)'
+        .'|(?<![\d.,])444[\s\-]?\d[\s\-]?\d{3}(?![\d.,])/u';
 
     /** IBAN ("TR53 2000 0001 2345 6789 0123 45") telefon değildir; numara aranmadan metinden çıkarılır. */
     public const IBAN_PATTERN = '/\bTR\d{2}(?:[\s\-]?\d{4}){5}[\s\-]?\d{2}\b/iu';
@@ -719,7 +727,7 @@ class AiParserService
         // Bir ilanda birden çok numara olabilir: kuralın bulduğu ilk numara asıl, yapay zekanın eklediği diğerleri yedek.
         $phones = array_values(array_unique(array_filter(array_merge(
             [$out['sender_phone'] ?? null], (array) ($out['phones'] ?? []), (array) ($ai['phones'] ?? [])
-        ), fn ($p) => is_string($p) && preg_match('/^5\d{9}$/', $p) === 1)));
+        ), fn ($p) => is_string($p) && self::isAdPhone($p))));
         if ($phones !== []) {
             $out['phones'] = $phones;
         }
@@ -898,12 +906,26 @@ class AiParserService
             if (str_starts_with($digits, '0') && strlen($digits) === 11) {
                 $digits = substr($digits, 1);
             }
-            if (preg_match('/^5\d{9}$/', $digits) && ! in_array($digits, $out, true)) {
+            if (self::isAdPhone($digits) && ! in_array($digits, $out, true)) {
                 $out[] = $digits;
             }
         }
 
         return $out;
+    }
+
+    /**
+     * Normalleştirilmiş rakam dizisi ilan numarası olarak kabul edilir mi? Cep her zaman; sabit hat, 0850/0800 ve 444'lü
+     * numara panel ayarı (scraper_landline_phones) açıkken. Nakliye firmaları çağrı merkeziyle ilan verir; cep zorunluluğu
+     * bu ilanları "numara yok" diye düşürüyordu (2026-10-05, Osman).
+     */
+    public static function isAdPhone(?string $digits): bool
+    {
+        if (Phone::isMobile($digits)) {
+            return true;
+        }
+
+        return Phone::isContact($digits) && Settings::bool('scraper_landline_phones');
     }
 
     /** {province, district} nesnesini "İl İlçe" metnine çevirir. */
@@ -1285,7 +1307,7 @@ TXT;
     {
         // "0532 123 45 67", "0 (532) 123-45-67" gibi boşluklu/ayraçlı yazımlar da telefon sayılır.
         $phones = self::phonesIn($message);
-        if ($phones === [] && $fallbackPhone !== null && preg_match('/^5\d{9}$/', $fallbackPhone) === 1) {
+        if ($phones === [] && $fallbackPhone !== null && self::isAdPhone($fallbackPhone)) {
             $phones = [$fallbackPhone]; // gönderen numarası bildirim başlığından geldi
         }
         $phone = $phones[0] ?? null;
@@ -1560,8 +1582,12 @@ TXT;
                     }
                 }
             } elseif (mb_strlen($w) >= 4 || in_array(TurkishCities::ascii($w), self::SHORT_DISTRICTS, true)) {
-                // Yük sözcüğüyle aynı ilçe adı ("Kiraz yükü", "Torbalı çimento", "Bor madeni"): tek başına yer değil
-                if (in_array(TurkishCities::ascii($w), self::GOODS_LIKE_DISTRICTS, true) || ($nextLower !== null && in_array($nextLower, self::GOODS_FOLLOWERS, true))) {
+                // Yük sözcüğüyle aynı ilçe adı ("Kiraz yükü", "Torbalı çimento", "Bor madeni"): tek başına yer değil.
+                // Hemen ardından yere bağlanan fiil geliyorsa yerdir: "TORBALI YÜKLER" = Torbalı'dan yükleme (Osman, 2026-10-05),
+                // "Kemer iner". Yüke de bağlanan biçimler sayılmaz: "Kiraz yükleme var", "Kiraz yüklenecek", "Kiraz boşaltılır" yüktür;
+                // "Torbalı çimento yükler" de yük (araya yük sözcüğü girdi).
+                $roleFollows = $nextLower !== null && preg_match(self::PLACE_ROLE_VERBS, $nextLower) === 1;
+                if ((in_array(TurkishCities::ascii($w), self::GOODS_LIKE_DISTRICTS, true) && ! $roleFollows) || ($nextLower !== null && in_array($nextLower, self::GOODS_FOLLOWERS, true))) {
                     continue;
                 }
                 $r = TurkishLocations::resolve($w, false);
@@ -1668,6 +1694,9 @@ TXT;
 
     /** Yer adından sonra geldiğinde o adın kişi adı olduğunu gösteren sözcükler ("Can Bey", "Sinan Abi"). */
     public const PERSON_TITLES = ['bey', 'abi', 'ağabey', 'hanım', 'hanim', 'usta', 'hoca', 'kardeş', 'kardes', 'amca', 'dayı', 'dayi'];
+
+    /** Yalnız bir yere bağlanan rol fiilleri ("Torbalı yükler", "Gebze çıkışlı", "Kemer iner"); yüke de bağlananlar (yükleme, yüklenecek, boşaltma) yok. */
+    public const PLACE_ROLE_VERBS = '/^(?:yükler|yukler|yüklemeli|yuklemeli|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|kalkışlı|kalkisli|iner|inecek|indirmeli|boşaltır|bosaltir|varış|varis)$/u';
 
     /** Yük sözcüğüyle aynı ilçe adları ("Kiraz yükü", "Torbalı çimento", "Maden yükü", "Mısır silajı"): tek başına yer sayılmaz. */
     private const GOODS_LIKE_DISTRICTS = ['kiraz', 'kavak', 'maden', 'madeni', 'torbali', 'misir', 'hamur', 'bahce', 'ciftlik', 'kemer', 'kumru', 'yumurtalik', 'findik', 'cay', 'kozan', 'tut'];
@@ -1960,15 +1989,9 @@ TXT;
         if (! is_scalar($value)) {
             return null;
         }
-        $digits = preg_replace('/\D+/', '', (string) $value) ?? '';
-        if (str_starts_with($digits, '90') && strlen($digits) === 12) {
-            $digits = substr($digits, 2);
-        }
-        if (str_starts_with($digits, '0') && strlen($digits) === 11) {
-            $digits = substr($digits, 1);
-        }
+        $digits = Phone::normalizeContact((string) $value);
 
-        return preg_match('/^5\d{9}$/', $digits) ? $digits : null;
+        return $digits !== null && self::isAdPhone($digits) ? $digits : null;
     }
 
     private static function cleanText(mixed $value, int $limit): ?string

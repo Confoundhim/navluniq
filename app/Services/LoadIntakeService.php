@@ -37,6 +37,9 @@ class LoadIntakeService
 
     public const ROUTE_DEDUPE_HOURS = 48;
 
+    /** Aynı yük başka numarayla: bu kadar saat içindeki kayıtlar "benzer ilan" diye eşlenir. */
+    public const SIMILAR_HOURS = 48;
+
     /** Bir mesajdan en fazla bu kadar ilan adayı açılır (kötü niyetli/uzun listelere karşı); 15 iken 20-30 rotalı firma listeleri kesiliyordu. */
     public const MAX_ADS_PER_MESSAGE = 40;
 
@@ -157,7 +160,7 @@ class LoadIntakeService
             }
 
             // 4) Telefonu olmayan mesaj ilan olarak kullanılamaz; yapay zekaya da gitmez (kota).
-            $fallbackPhone = Phone::normalize($payload['sender_phone'] ?? null);
+            $fallbackPhone = Phone::normalizeContact($payload['sender_phone'] ?? null);
             if (! self::hasPhone($raw) && $fallbackPhone === null) {
                 return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing');
             }
@@ -389,7 +392,7 @@ class LoadIntakeService
 
         $phones = array_values(array_unique(array_filter(array_merge(
             [$parsed['sender_phone'] ?? null], $phones, (array) ($parsed['phones'] ?? []), [$ctx['fallback_phone']]
-        ), fn ($p) => is_string($p) && preg_match('/^5\d{9}$/', $p) === 1)));
+        ), fn ($p) => is_string($p) && AiParserService::isAdPhone($p))));
         $phone = $phones[0] ?? null;
         if ($phone === null) {
             return $this->result(200, false, 'filtered', 'İlan ölçütleri karşılanmadı.', null, 'phone_missing') + ['excerpt' => $text];
@@ -420,6 +423,8 @@ class LoadIntakeService
         // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
         $std = $this->standardizer->standardize($text, $parsed);
         $extraPhones = array_values(array_slice($phones, 1));
+        // Aynı yük başka numarayla (komisyoncu): ayrı ilan olarak yayınlanır, iki kart da "Benzer ilan" rozeti taşır (Osman, 2026-10-05).
+        $similar = $this->similarWithOtherPhone($std, $text, $phones);
 
         /** @var Scraper $scraper */
         $scraper = $ctx['scraper'];
@@ -476,6 +481,8 @@ class LoadIntakeService
                 'series' => $isSeries ? ['count' => (int) $segment['series']['count'], 'pickup' => $segment['series']['pickup']] : null,
                 // Aynı numara + rota ama fiyat/tonaj/araç/yük/tarih değişti: bu kayıt eskisinin yerine geçer (onayda eski arşivlenir).
                 'supersedes' => $supersedes?->id,
+                // Aynı yük başka numarayla paylaşılmış (komisyoncu olabilir): kimlikler; karşı kayıtlara da yazılır.
+                'similar_to' => $similar !== [] ? array_map(fn (ScrapedLoad $l) => $l->id, $similar) : null,
             ])),
             'visibility' => 'private',
             'retention_expires_at' => now()->addDays(30), // yayınlanmayan aday 30 gün sonra arşivlenir; yayınlananda yayın anından itibaren ayarlanır
@@ -484,6 +491,10 @@ class LoadIntakeService
         $this->messageIds[] = $scrapedLoad->id;
         if ($supersedes !== null) {
             app(ScrapedLoadService::class)->supersede($supersedes, $scrapedLoad);
+        }
+        foreach ($similar as $twin) {
+            $ids = array_values(array_unique(array_merge((array) $twin->meta('similar_with', []), [$scrapedLoad->id])));
+            ScrapedLoad::query()->whereKey($twin->id)->update(['parse_metadata' => array_merge((array) $twin->parse_metadata, ['similar_with' => $ids])]);
         }
         if ($partialPending) {
             return $this->result(201, true, 'created', 'Rotanın bir ucu çözüldü; yapay zeka sırada, kayıt eksik olarak açıldı.', $scrapedLoad->id) + ['excerpt' => $text];
@@ -1216,6 +1227,72 @@ class LoadIntakeService
         $hasVehicle = VehicleClassifier::analyze($text)['type'] !== null;
 
         return $hasRoute || $hasMoney || $hasWeight || $hasKeyword || $hasGoods || $hasVehicle;
+    }
+
+    /**
+     * Aynı yükü başka numarayla paylaşan kayıtlar (komisyoncu / ikinci aracı). Kesin eşleşme istenir (Osman, 2026-10-05):
+     * son 48 saatte, aynı il çifti, farklı numara ve (a) metin numaralar çıkarılınca neredeyse aynı (sözcük benzerliği ≥ 0,7) ya da
+     * (b) ilçeler çelişmiyor + yük kategorisi aynı + tonaj / fiyat / kesin araç tipinden biri aynı. Reddedilmiş ve aynı mesajın
+     * öbür parçaları sayılmaz. Yan etkisizdir; kayıt açılınca iki tarafa da kimlik yazılır.
+     *
+     * @param  list<string>  $phones
+     * @return list<ScrapedLoad>
+     */
+    private function similarWithOtherPhone(array $std, string $text, array $phones): array
+    {
+        if ($std['pickup_province_code'] === null || $std['delivery_province_code'] === null || $phones === []) {
+            return [];
+        }
+        $candidates = ScrapedLoad::query()
+            ->where('pickup_province_code', $std['pickup_province_code'])->where('delivery_province_code', $std['delivery_province_code'])
+            ->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subHours(self::SIMILAR_HOURS))
+            ->when($this->messageIds !== [], fn ($q) => $q->whereNotIn('id', $this->messageIds))
+            ->latest('id')->limit(40)->get();
+        $tokens = self::similarityTokens($text);
+        $out = [];
+        foreach ($candidates as $c) {
+            if (array_intersect($c->allPhones(), $phones) !== []) {
+                continue; // aynı gönderen: tekrar/tazeleme mantığı (routeKey) bakar
+            }
+            if (self::looksLikeSameLoad($std, $c, $tokens)) {
+                $out[] = $c;
+            }
+        }
+
+        return $out;
+    }
+
+    private static function looksLikeSameLoad(array $std, ScrapedLoad $c, array $tokens): bool
+    {
+        $same = fn ($a, $b): bool => $a !== null && $a !== '' && $b !== null && $b !== '' && (string) $a === (string) $b;
+        $conflict = fn ($a, $b): bool => $a !== null && $a !== '' && $b !== null && $b !== '' && (string) $a !== (string) $b;
+        if ($conflict($std['pickup_district'], $c->pickup_district) || $conflict($std['delivery_district'], $c->delivery_district)) {
+            return false;
+        }
+        if ($conflict($std['weight'], $c->weight) || $conflict($std['metadata']['goods_category'] ?? null, $c->meta('goods_category'))) {
+            return false;
+        }
+        $other = self::similarityTokens((string) $c->raw_message);
+        if (count($tokens) >= 5 && count($other) >= 5) {
+            $union = count(array_unique(array_merge($tokens, $other)));
+            if ($union > 0 && count(array_intersect($tokens, $other)) / $union >= 0.7) {
+                return true;
+            }
+        }
+        if (! $same($std['metadata']['goods_category'] ?? null, $c->meta('goods_category'))) {
+            return false;
+        }
+        $exactVehicle = in_array($std['vehicle_type_source'], ['keyword', 'template'], true) && in_array($c->vehicle_type_source, LoadFilterService::EXACT_VEHICLE_SOURCES, true);
+
+        return $same($std['weight'], $c->weight) || $same($std['price'], $c->price) || ($exactVehicle && $same($std['vehicle_type'], $c->vehicle_type));
+    }
+
+    /** Benzerlik için sözcükler: numaralar ve tek harfler atılır, Türkçe küçük harf. @return list<string> */
+    private static function similarityTokens(string $text): array
+    {
+        $clean = preg_replace(AiParserService::PHONE_PATTERN, ' ', TextPrep::prepare($text)) ?? $text;
+
+        return array_values(array_unique(array_filter(explode(' ', self::normalizeText($clean)), fn ($w) => mb_strlen($w) >= 2)));
     }
 
     /** Aynı numara + aynı il çifti son saatlerde kaydedildiyse o ilanı döndürür. */

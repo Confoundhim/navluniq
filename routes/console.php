@@ -188,6 +188,7 @@ Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping(180);
 // yavaş diskte sınırsız büyümesin; son 2 MB saklanır.
 Schedule::call(function (): void {
     $file = storage_path('logs/schedule.log');
+    clearstatcache(true, $file); // aynı süreçte az önce yazılmış dosyanın eski boyutu önbellekte kalmasın
     if (! is_file($file) || filesize($file) < 2 * 1024 * 1024) {
         return;
     }

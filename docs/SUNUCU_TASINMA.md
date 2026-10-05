@@ -21,6 +21,11 @@ cd /var/www/navluniq && git init -q && git remote add origin https://github.com/
   && git fetch -q origin main && git reset -q --hard origin/main && bash deploy/update.sh
 ```
 
+Depo GitHub'da **gizli** ise sunucu kodu ancak okuma yetkili bir deploy key ile çeker: `bash deploy/github-erisim.sh` anahtarı
+üretir ve GitHub'a eklenecek satırı yazar (depo → Settings → Deploy keys, yazma izni verilmez); sonra `--kontrol` ile bağlantı
+denenir. Yukarıdaki `https://github.com/...` adresi yerine betiğin yazdığı `git@github.com-navluniq:Confoundhim/navluniq.git` kullanılır.
+`raw.githubusercontent.com` bağlantıları da gizli depoda çalışmaz; betikler yedeğin `kod/deploy/` klasöründen alınır.
+
 Aşağıdaki bölümler aynı işi sunucu betiği yedeğiyle (`deploy/backup.sh` → `tar.gz`) ve planlı geçişle anlatır.
 
 Bu rehber siteyi mevcut sunucudan yeni bir sunucuya, veri kaybı olmadan ve 15-30 dakikalık kesintiyle taşımak

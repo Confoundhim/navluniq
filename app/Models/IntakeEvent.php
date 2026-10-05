@@ -63,7 +63,7 @@ class IntakeEvent extends Model
             }
             $digits = ltrim($digits, '0');
 
-            return '0'.substr($digits, 0, 3).'…';
+            return (strlen($digits) === 7 ? '' : '0').substr($digits, 0, 3).'…'; // 444'lü kısa numarada sıfır yok
         }, $text) ?? $text;
     }
 
