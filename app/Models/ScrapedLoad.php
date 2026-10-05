@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\FitsColumnWidths;
 use App\Support\BodyTypes;
 use App\Support\Phone;
 use App\Support\Settings;
@@ -17,7 +18,16 @@ use Illuminate\Support\Facades\Crypt;
 
 class ScrapedLoad extends Model
 {
+    use FitsColumnWidths;
     use HasFactory, SoftDeletes;
+
+    /** Metin kolonlarının genişliği (migration'larla aynı); uzun değer kesilir, kayıt düşmez. */
+    public const COLUMN_LIMITS = [
+        'content_hash' => 64, 'normalized_hash' => 64, 'route_key' => 191, 'sender_phone' => 255,
+        'pickup_location' => 255, 'pickup_district' => 80, 'delivery_location' => 255, 'delivery_district' => 80,
+        'goods_type' => 255, 'vehicle_type' => 48, 'vehicle_type_source' => 16, 'body_type_source' => 16, 'load_kind' => 12,
+        'completed_by' => 16, 'currency' => 3, 'price_unit' => 8, 'status' => 32, 'parsed_by_llm' => 255, 'ai_status' => 16, 'visibility' => 24,
+    ];
 
     protected $fillable = [
         'scraper_id',

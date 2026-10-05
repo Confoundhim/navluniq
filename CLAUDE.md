@@ -367,6 +367,11 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - Volt bileşen dosyasında aynı metod iki kez tanımlanırsa PHP fatal verir; trait'e taşınan metodları dosyadan sil.
 - MySQL/MariaDB'de DDL işlemsel değildir; yarım kalan migration ikinci çalıştırmada "already exists" der → `hasTable` koruması.
 - `STDERR` sabiti `php artisan serve` altında yoktur; hata ayıklama için `Log` kullan.
+- MySQL strict kipte kolona sığmayan metin kaydı düşürür ("1406 Data too long"; 2026-10-05 canlıda 19 `ProcessNotificationMessage` işi
+  böyle başarısız oldu). Alım hattının yazdığı modeller (`ScrapedLoad`, `IntakeEvent`, `Scraper`) `App\Models\Concerns\FitsColumnWidths`
+  ile `COLUMN_LIMITS` tablosuna göre keser; yeni metin kolonu eklerken o tabloya satır ekle. `raw_message` MEDIUMTEXT (`0001_01_52`).
+  Sağlık ekranı başarısız işin kolon adını gösterir (`FailedJobSummary`). SQLite testleri genişlik denetlemez; kesme davranışı
+  `ColumnWidthTest` ile modelden doğrulanır.
 - Blade'de `@php($x = app(\App\X::class)->y())` tek satır biçimi `::class` ile bozulur (derleyici parantezi yanlış keser); `@php ... @endphp`
   bloğu kullan. Volt bileşeninde `request()->session()` Livewire testinde "Session store not set" verir; `session()` yardımcısını kullan.
   Volt bileşeninin kök öğesinden önce yazılan `@php` satırları derlenmez; değişkenleri kök `<div>` içinde tanımla.

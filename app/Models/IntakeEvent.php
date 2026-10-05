@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\FitsColumnWidths;
 use App\Services\AiParserService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** Dış kaynak hattına gelen her isteğin sonucu (canlı akış ve sorun giderme için). */
 class IntakeEvent extends Model
 {
+    use FitsColumnWidths;
+
     public $timestamps = false;
+
+    /** Metin kolonlarının genişliği (0001_01_09 migration'ı); uzun gerekçe/grup adı kesilir, canlı akış satırı düşmez. */
+    public const COLUMN_LIMITS = ['source_name' => 160, 'status' => 24, 'reason' => 120, 'title' => 255, 'excerpt' => 300, 'ip' => 45];
 
     public const STATUS_LABELS = [
         'created' => 'Kuyruğa alındı',
@@ -44,7 +50,7 @@ class IntakeEvent extends Model
             'status' => $status,
             'created_at' => now(),
             'ip' => request()?->ip(),
-        ], array_map(fn ($v) => is_string($v) ? mb_substr($v, 0, 300) : $v, $attributes)));
+        ], $attributes));
     }
 
     /** Metindeki cep numaralarını "0532…" biçimine indirger. */
