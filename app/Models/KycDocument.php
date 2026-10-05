@@ -49,9 +49,10 @@ class KycDocument extends Model
         'signature_circular' => 'İmza sirküleri (kurumsal, varsa)',
     ];
 
-    public const CARGO_OWNER_REQUIRED = ['id_card'];
+    /** Yük sahibinden belge fotoğrafı istenmez (karar 3, 2026-10-05): bireysel NVİ ile, kurumsal VKN teyidiyle doğrulanır; yükleme isteğe bağlıdır. */
+    public const CARGO_OWNER_REQUIRED = [];
 
-    public const CARGO_OWNER_CORPORATE_REQUIRED = ['id_card', 'tax_plate'];
+    public const CARGO_OWNER_CORPORATE_REQUIRED = [];
 
     public const STATUS_LABELS = [
         'pending' => 'İnceleniyor',

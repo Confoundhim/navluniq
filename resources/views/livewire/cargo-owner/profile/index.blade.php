@@ -4,6 +4,8 @@ use App\Livewire\Concerns\ManagesAccountSecurity;
 use App\Models\KycDocument;
 use App\Services\AccountService;
 use App\Services\KycService;
+use App\Services\NviService;
+use Illuminate\Support\Facades\RateLimiter;
 use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -30,11 +32,59 @@ class extends Component {
 
     public bool $deleteModalOpen = false;
 
+    /** Kimlik doğrulama (bireysel): TC ve doğum yılı düzeltilip NVİ'ye yeniden sorulur. */
+    public string $verify_tc = '';
+
+    public string $verify_birth_year = '';
+
+    public const NVI_RETRY_PER_DAY = 3;
+
     public function mount(): void
     {
         $user = Auth::user();
         $this->fillAccountFields($user);
-        $this->upload_type = array_key_first($this->allowedTypes());
+        $this->upload_type = array_key_first($this->allowedTypes()) ?? '';
+        $profile = $user->cargoOwnerProfile;
+        $this->verify_tc = (string) ($profile?->tc_no ?? '');
+        $this->verify_birth_year = (string) ($profile?->birth_year ?? '');
+    }
+
+    /** Bireysel yük sahibi kimliğini yeniden doğrular (günde en çok 3 deneme; TC ve doğum yılı düzeltilebilir). */
+    public function reverifyIdentity(NviService $nvi): void
+    {
+        $user = Auth::user();
+        $profile = $user->cargoOwnerProfile;
+        if (! $profile || $profile->type !== 'individual' || $profile->is_staff_view) {
+            return;
+        }
+        if ($profile->nvi_verified) {
+            session()->flash('success_message', 'Kimliğiniz zaten doğrulanmış.');
+
+            return;
+        }
+        $this->validate([
+            'verify_tc' => ['required', 'digits:11'],
+            'verify_birth_year' => ['required', 'digits:4', 'integer', 'min:1920', 'max:'.(date('Y') - 18)],
+        ], ['verify_tc.digits' => 'T.C. kimlik numarası 11 haneli olmalıdır.', 'verify_birth_year.max' => 'Platforma 18 yaşından büyükler kayıt olabilir.']);
+        $limitKey = 'nvi:self:'.$user->id;
+        if (RateLimiter::tooManyAttempts($limitKey, self::NVI_RETRY_PER_DAY)) {
+            $this->addError('verify_tc', 'Günlük doğrulama deneme sınırına ulaştınız; yarın yeniden deneyin.');
+
+            return;
+        }
+        RateLimiter::hit($limitKey, 86400);
+        $result = $nvi->verify($this->verify_tc, (string) $user->first_name, (string) $user->last_name, $this->verify_birth_year);
+        $match = (bool) ($result['is_match'] ?? false);
+        $profile->update([
+            'tc_no' => $this->verify_tc, 'birth_year' => (int) $this->verify_birth_year,
+            'nvi_verified' => $match, 'nvi_checked_at' => now(), 'nvi_message' => $match ? null : mb_substr((string) ($result['message'] ?? 'Kimlik doğrulanamadı.'), 0, 200),
+        ]);
+        \App\Models\ActivityLog::record('kyc.nvi_checked', 'Yük sahibi kendi kimliğini yeniden sorguladı: '.($match ? 'eşleşti' : 'eşleşmedi'), $user->id, $profile, ['success' => (bool) ($result['success'] ?? false), 'is_match' => $match]);
+        if ($match) {
+            session()->flash('success_message', 'Kimliğiniz doğrulandı; artık teklif kabul edebilirsiniz.');
+        } else {
+            $this->addError('verify_tc', (string) ($result['message'] ?? 'Kimlik bilgileri eşleşmedi.').' Ad ve soyadınızın nüfus kaydıyla birebir aynı olduğundan emin olun.');
+        }
     }
 
     public function uploadDocument(KycService $kyc): void
@@ -113,8 +163,8 @@ class extends Component {
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h2 class="page-title">Profil, Belgeler ve Güvenlik</h2>
-        <p class="page-subtitle">İletişim bilgileriniz, kimlik doğrulama belgeleriniz ve hesap güvenliği.</p>
+        <h2 class="page-title">Profil, Doğrulama ve Güvenlik</h2>
+        <p class="page-subtitle">İletişim bilgileriniz, hesap doğrulamanız ve güvenlik ayarlarınız.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -125,13 +175,14 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h3 class="section-title">Kimlik doğrulama belgeleri</h3>
+                    <h3 class="section-title">Belgeler (isteğe bağlı)</h3>
                     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
                     <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
                         {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
-                        {{ ['approved' => 'Doğrulandı', 'pending' => 'İnceleniyor', 'rejected' => 'Belge reddedildi', 'unsubmitted' => 'Belge bekleniyor'][$kycStatus] ?? $kycStatus }}
+                        {{ ['approved' => 'Belgeler onaylandı', 'pending' => 'İnceleniyor', 'rejected' => 'Belge reddedildi', 'unsubmitted' => 'Belge zorunlu değil'][$kycStatus] ?? $kycStatus }}
                     </span>
                 </div>
+                <p class="text-[11px] text-neutral-500 leading-relaxed">Hesap doğrulaması için belge fotoğrafı gerekmez; bireysel hesaplar kimlik numarasıyla, kurumsal hesaplar vergi bilgileriyle doğrulanır. Kurumsal hesapta vergi levhası yüklemek doğrulamayı hızlandırır.</p>
 
                 @if($profile?->kyc_notes)
                     <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">{{ $profile->kyc_notes }}</div>
@@ -229,18 +280,34 @@ class extends Component {
                             <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">{{ $profile->tax_office ?: '—' }}</div>
                         </div>
                         <div class="flex items-center justify-between pt-1">
-                            <span class="text-neutral-500">GİB doğrulaması</span>
-                            <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
+                            <span class="text-neutral-500">Şirket doğrulaması</span>
+                            <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Bekleniyor' }}</span>
                         </div>
+                        @unless($profile->gib_verified)
+                            <p class="text-[11px] text-neutral-500 leading-relaxed">Vergi bilgileriniz ekibimizce teyit edilince (genellikle aynı gün) hesabınız doğrulanır ve teklif kabul edebilirsiniz. Vergi levhanızı aşağıdan yüklerseniz teyit hızlanır.</p>
+                        @endunless
                     @else
                         <div>
                             <span class="text-neutral-500 block mb-0.5">T.C. kimlik numarası</span>
                             <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $profile?->tc_no ? substr($profile->tc_no, 0, 3).'******'.substr($profile->tc_no, -2) : '—' }}</div>
                         </div>
                         <div class="flex items-center justify-between pt-1">
-                            <span class="text-neutral-500">NVİ doğrulaması</span>
-                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500 dark:text-neutral-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Belge kontrolünde' }}</span>
+                            <span class="text-neutral-500">Kimlik doğrulaması (NVİ)</span>
+                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Doğrulanmadı' }}</span>
                         </div>
+                        @if($profile && ! $profile->nvi_verified)
+                            <form wire:submit.prevent="reverifyIdentity" class="space-y-2 pt-1">
+                                @if($profile->nvi_message)<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px]">{{ $profile->nvi_message }}</div>@endif
+                                <p class="text-[11px] text-neutral-500 leading-relaxed">Teklif kabul edebilmek için kimliğinizin doğrulanması gerekir. Nüfus kaydınızdaki ad-soyad hesabınızla aynı olmalı; T.C. kimlik numaranızı ve doğum yılınızı kontrol edip yeniden deneyin.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div><label class="form-label">T.C. kimlik numarası</label><input type="text" wire:model="verify_tc" maxlength="11" inputmode="numeric" class="form-input font-mono"></div>
+                                    <div><label class="form-label">Doğum yılı</label><input type="text" wire:model="verify_birth_year" maxlength="4" inputmode="numeric" class="form-input font-mono"></div>
+                                </div>
+                                @error('verify_tc') <span class="form-error">{{ $message }}</span> @enderror
+                                @error('verify_birth_year') <span class="form-error">{{ $message }}</span> @enderror
+                                <button type="submit" wire:loading.attr="disabled" class="btn-primary py-2 text-xs">Kimliğimi doğrula</button>
+                            </form>
+                        @endif
                     @endif
                 </div>
                 <p class="text-[11px] text-neutral-500 leading-relaxed">Kimlik ve şirket bilgileriniz yalnız doğrulama amacıyla kullanılır ve web'den erişilemeyen özel depolamada saklanır.</p>

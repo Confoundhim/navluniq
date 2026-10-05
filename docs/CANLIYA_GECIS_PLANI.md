@@ -8,8 +8,8 @@ oluyor mu, atladığım bir şey var mı?" Üç ayrı kod incelemesinin (ödeme/
 Hayır, dördü tek başına yetmez. Dördü de gerekli, ama ikisi (ERP ve sigorta) **canlıya çıkmak için şart değil**, sonradan eklenebilir.
 Canlıya çıkmayı asıl engelleyen, listede olmayan **altı konu** var:
 
-1. **Yük sahibi doğrulama kuralı kodda yok.** Karar (TC+NVİ / VKN+GİB; doğrulanmamış yük sahibi teklif kabul edemez; şoföre rozet) hiç
-   uygulanmamış. GİB sorgusu gerçek değil (yalnız VKN sağlaması), NVİ "eşleşmedi" dese de kayıt devam ediyor, doğum yılı kaydedilmiyor.
+1. **Yük sahibi doğrulama kuralı kodda yok.** ✅ **2026-10-05 uygulandı (bkz. §3a).** Karar (TC+NVİ / VKN + yönetici teyidi;
+   doğrulanmamış yük sahibi teklif kabul edemez, en çok 3 açık ilan; şoföre rozet ve "Ad S."). GİB e-fatura sorgusu ERP/Rota API'si gelince.
 2. **Açık adres ve yük sahibinin adı herkese açılıyor.** Telegram kanalı ve şoför kartı tam adresi ve bireysel yük sahibinin adını
    basıyor (KVKK). Çözüm, yapılandırılmış ilan formu (il/ilçe seçici + gizli açık adres).
 3. **KVKK metninde yurt dışına aktarım yok.** Grup mesajları telefon numaralarıyla yurt dışındaki yapay zeka sağlayıcılarına gidiyor;
@@ -95,11 +95,11 @@ ilan formuna (il/ilçe) bağımlı.** Canlıya çıkış için şart değil.
 
 | # | Konu | Ne yapılacak | Emek |
 |---|---|---|---|
-| E1 | Doğrulanmamış yük sahibi teklif kabul ediyor | `OfferService::accept` ve ilan yayınında yük sahibi doğrulama şartı; panel ayarıyla (varsayılan açık) | 1 gün |
-| E2 | "Doğrulanmış yük sahibi" rozeti yok | Şoför ilan kartında ve teklif ekranında rozet; bireysel yük sahibi "Ad S." | ½ gün |
-| E3 | GİB doğrulaması gerçek değil | Karar: e-Fatura mükellef sorgusu (Rota API'sinde varsa) ya da vergi levhası + elle onay; `gib_verified` yazılsın | 1 gün |
-| E4 | NVİ sessiz, doğum yılı kaydedilmiyor | Eşleşmezse kayıt durur / "belge kontrolü" durumuna düşer; `birth_year` yazılır (✅ XML kaçışı bu gece) | ½ gün |
-| E5 | Yük sahibinden kimlik fotoğrafı isteniyor (karar: istenmez) | `KycDocument::CARGO_OWNER_REQUIRED` bireyselde boş, kurumsalda vergi levhası | ½ gün |
+| E1 | Doğrulanmamış yük sahibi teklif kabul ediyor | ✅ `OfferService::accept` doğrulama ister, `LoadService::publish` doğrulanmamışa açık ilan sınırı; panel ayarları `cargo_owner_verification_required` (açık), `cargo_owner_unverified_max_active_loads` (3) | ✅ |
+| E2 | "Doğrulanmış yük sahibi" rozeti yok | ✅ Şoför ilan kartı ve genel bakışta rozet (`verificationLabel`), bireysel yük sahibi "Ad S." (`publicName`) | ✅ |
+| E3 | GİB doğrulaması gerçek değil | ✅ Kurumsal: VKN biçim sağlaması + yöneticinin KYC ekranında "Şirketi doğrula" (`gib_verified_at/by`, bildirim). e-Fatura mükellef sorgusu Rota API'si gelince eklenir | ✅ (API sonra) |
+| E4 | NVİ sessiz, doğum yılı kaydedilmiyor | ✅ Kayıtta `birth_year`, `nvi_checked_at`, `nvi_message` yazılır; kayıt durmaz ama hesap "doğrulanmadı" kalır; profilde yeniden doğrulama (günde 3 deneme) | ✅ |
+| E5 | Yük sahibinden kimlik fotoğrafı isteniyor (karar: istenmez) | ✅ `KycDocument::CARGO_OWNER_REQUIRED` ve kurumsal liste boş; belgeler isteğe bağlı (yönetici şirket teyidinde bakar) | ✅ |
 | E6 | Açık adres ve ad herkese açık | Telegram ve kartlarda il/ilçe; açık adres yalnız ödeme sonrası atanmış şoföre | E7 ile |
 | E7 | İlan formu serbest metin adres | Yapılandırılmış form: il/ilçe seçici, gizli açık adres, saat penceresi, irtibat, araç adedi, çok durak; adres defteri de | 3 gün |
 | E9 | KVKK metninde yurt dışı aktarım yok; tek onay kutusu | Aydınlatma metnine yapay zeka/e-posta/Telegram sağlayıcıları ve KVKK m.9; aydınlatma ile açık rıza ayrı; konum için ayrı rıza | 1 gün + hukukçu |
@@ -109,6 +109,32 @@ ilan formuna (il/ilçe) bağımlı.** Canlıya çıkış için şart değil.
 | E12 | İmza anahtarı açıkta | Depo gizlenince anahtar yenileme + APK özeti panelde | ½ gün |
 | P4 | Defter güvenilmez | §2.3'teki defter düzeltmesi (ERP'den önce) | 1-2 gün |
 | Ö7 | Premium satın alma yolu yok | Belge onayında otomatik deneme süresi (ayar), açılış kampanyası; ödeme açılınca satın alma | 1 gün |
+
+### 3a. Yük sahibi doğrulama paketi — sektör karşılaştırması ve bizim seviye (2026-10-05, uygulandı)
+
+**Başkaları nasıl yapıyor?**
+- **Türkiye'deki yük ilan panoları** (ilan tahtası mantığıyla çalışanlar): üyelikte telefon doğrulaması (SMS) ve firma için vergi numarası /
+  vergi levhası isterler; bireysel yük sahibinin kimliği genelde hiç denetlenmez, güven "firma profili + puan" ile sağlanır. Para
+  platformdan geçmediği için risk onların değil, tarafların.
+- **Parayı emanette tutan pazaryerleri** (yurt dışı dijital nakliye platformları, Türkiye'de ödeme kuruluşu üzerinden çalışanlar):
+  firma için **KYB** (vergi kaydı, imza yetkilisi, IBAN'ın firmaya ait olması), bireysel için kimlik bilgisi + çoğu zaman kimlik
+  fotoğrafı/selfie. Bunu ödeme kuruluşu da ister; iyzico pazaryerinde alt üye (şoför) için zaten zorunlu.
+- **Ortak nokta:** parayı kim alıyorsa (şoför) sıkı doğrulama; parayı ödeyen (yük sahibi) tarafta amaç dolandırıcılığı ve sahte ilanı
+  önlemek, onun için "kimlik + telefon + iletişim" yeter, fotoğraf istenmez.
+
+**NavlunIQ için yeterli bulunan seviye (karar 3 ile uyumlu):**
+- Bireysel: T.C. kimlik no + ad soyad + doğum yılı **NVİ sorgusuyla** eşleşir → "Kimliği doğrulandı". Eşleşmezse kayıt yine açılır ama
+  hesap "doğrulanmadı" kalır; yük sahibi profilden günde 3 kez yeniden dener (yazım hatası için).
+- Kurumsal: vergi numarası biçim sağlaması + ünvan; yönetici KYC ekranında **"Şirketi doğrula"** der (isteğe bağlı yüklenen vergi
+  levhasına ya da e-Devlet sorgusuna bakarak) → "Kurumsal · doğrulandı", yük sahibine bildirim gider. Rota Bulut / GİB e-fatura mükellef
+  sorgusu gelince bu adım otomatikleşir.
+- Belge fotoğrafı **zorunlu değil** (karar). Telefon doğrulaması Netgsm gelince eklenir (SMS kodu; §2).
+- Doğrulanmamış hesap: ilan açabilir (en çok 3 açık ilan), teklif alır, ama **teklif kabul edemez** (para akışına giremez). İlan
+  formunun üstünde kehribar uyarı + profil bağlantısı.
+- Şoför tarafı: kartta "✓ Doğrulanmış yük sahibi" / "Doğrulanmamış yük sahibi" rozeti; bireysel yük sahibi adı "Ad S." (KVKK),
+  kurumsal ünvan açık.
+- Panel ayarları: `cargo_owner_verification_required` (varsayılan açık; kapatılırsa kısıtlar kalkar) ve
+  `cargo_owner_unverified_max_active_loads` (3). Test: `tests/Feature/CargoOwner/VerificationTest`.
 
 ## 4. Önemli (yayın haftası)
 
@@ -139,7 +165,7 @@ outbox tablosu kararı (kaldır), mobil uygulama kabuğu.
 ## 7. Önerilen sıra (bu hafta)
 
 1. **Pzt-Sal:** iyzico sandbox uçtan uca deneme (Osman anahtar + sözleşme) ↔ kodda vergi dairesi, alt üye güncelleme, webhook imzası.
-   Paralel: E1-E5 yük sahibi doğrulama paketi (kod).
+   Paralel: E1-E5 yük sahibi doğrulama paketi (kod). ✅ 2026-10-05 tamamlandı (§3a).
 2. **Çar:** Netgsm (Osman hesap) ↔ kodda kanal yedeği + telefon doğrulama + panel.
 3. **Per:** E7/E6 yapılandırılmış ilan formu (adres gizliliği) ve E9/E10 metin düzeltmeleri → hukukçuya.
 4. **Cum:** P4 defter düzeltmesi; Rota ve Tamamliyo görüşmelerinin sonucuna göre entegrasyon tasarımı.

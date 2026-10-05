@@ -147,6 +147,10 @@ class OfferService
                 if ($lockedLoad->cargoOwnerProfile?->user_id !== $ownerUserId) {
                     throw new RuntimeException('Bu ilan size ait değil.');
                 }
+                // Doğrulanmamış yük sahibi teklif kabul edemez (karar 3): şoför kimliği belirsiz birine yola çıkmasın
+                if (($verification = $lockedLoad->cargoOwnerProfile?->verificationBlocker()) !== null) {
+                    throw new RuntimeException($verification);
+                }
 
                 $driver = $lockedOffer->driverProfile;
                 if (! $driver || ! $driver->isKycApproved()) {

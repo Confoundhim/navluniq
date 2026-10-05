@@ -218,6 +218,13 @@ class extends Component {
 }; ?>
 
 <div class="max-w-4xl mx-auto space-y-8">
+    @php $ownerProfile = auth()->user()?->cargoOwnerProfile; @endphp
+    @if($ownerProfile && \App\Models\CargoOwnerProfile::verificationRequired() && ! $ownerProfile->isVerified())
+        <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+            <span>Hesabınız henüz doğrulanmadı: ilan açabilirsiniz (en çok {{ \App\Support\Settings::int('cargo_owner_unverified_max_active_loads') }} açık ilan) ama teklif kabul edemezsiniz.</span>
+            <a href="{{ route('cargo-owner.profile.index') }}" wire:navigate class="font-bold underline">Doğrulamayı tamamla</a>
+        </div>
+    @endif
 
     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
         <div class="flex items-center justify-between relative">

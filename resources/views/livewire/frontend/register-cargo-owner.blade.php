@@ -28,6 +28,8 @@ new class extends Component {
     #[Locked]
     public bool $nviVerified = false;
 
+    public ?string $nviMessage = null;
+
     public string $otp = '';
 
     public string $type = 'individual';
@@ -170,8 +172,12 @@ new class extends Component {
         }
 
         $this->nviVerified = false;
+        $this->nviMessage = null;
         if ($this->type === 'individual') {
-            $this->nviVerified = (bool) ((new NviService)->verify($this->tcNo, $firstName, $lastName, $this->birthYear)['is_match'] ?? false);
+            // Eşleşmezse ya da servis cevap vermezse kayıt yine açılır; hesap "doğrulanmadı" kalır, profilden yeniden denenir (karar 3).
+            $nvi = app(NviService::class)->verify($this->tcNo, $firstName, $lastName, $this->birthYear);
+            $this->nviVerified = (bool) ($nvi['is_match'] ?? false);
+            $this->nviMessage = $this->nviVerified ? null : mb_substr((string) ($nvi['message'] ?? 'Kimlik doğrulanamadı.'), 0, 200);
         }
 
         if ($existingUser && ! $isDraft) {
@@ -226,7 +232,10 @@ new class extends Component {
             'tax_no' => $this->type === 'corporate' ? $this->taxNo : null,
             'company_title' => $this->type === 'corporate' ? trim($this->companyTitle) : null,
             'tax_office' => $this->type === 'corporate' ? (trim($this->taxOffice) ?: null) : null,
+            'birth_year' => $this->type === 'individual' && $this->birthYear !== '' ? (int) $this->birthYear : null,
             'nvi_verified' => $this->nviVerified,
+            'nvi_checked_at' => $this->type === 'individual' ? now() : null,
+            'nvi_message' => $this->nviMessage,
             'gib_verified' => false,
             'kyc_status' => 'unsubmitted',
         ]);

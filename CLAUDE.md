@@ -468,8 +468,17 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   defter düzeltmesi P4 (ERP'den önce), premium satın alma yolu, depo/keystore. Aynı gece düzeltilenler: mesafeli satış bağlantısı 404,
   yeniden onay "Çıkış yap", yapay zeka komutu sabit hat (PROMPT_VERSION 2026-10-05b), sağlık "Ödeme kuruluşu" ışığı escrowBlocker'a
   bakar, NVİ XML kaçışı. Haftalık sıra belgenin §7'sinde.
+- **Yük sahibi doğrulama paketi (2026-10-05, E1-E5, `docs/CANLIYA_GECIS_PLANI.md` §3a; Osman: "diğer firmalar nasıl yapıyor, bize ne
+  kadarı yeterse"):** bireysel → NVİ (TC + ad soyad + doğum yılı; kayıtta `birth_year/nvi_checked_at/nvi_message`, eşleşmezse kayıt durmaz,
+  profilden günde 3 yeniden deneme `nvi:self:{id}`); kurumsal → VKN biçim sağlaması + yönetici KYC ekranında "Şirketi doğrula"
+  (`gib_verified_at/by`, bildirim; e-fatura mükellef sorgusu Rota API'si gelince). Belge fotoğrafı zorunlu değil (`KycDocument::
+  CARGO_OWNER_REQUIRED` boş). Doğrulanmamış yük sahibi teklif kabul edemez (`OfferService::accept` → `CargoOwnerProfile::verificationBlocker`),
+  en çok `cargo_owner_unverified_max_active_loads` (3) açık ilan (`LoadService::publish`); ayar `cargo_owner_verification_required`
+  (varsayılan açık). Şoför kartında `verificationLabel()` rozeti ve `publicName()` ("Ad S.", kurumsal ünvan). **Testlerde zorunluluk
+  `tests/TestCase::setUp` ile kapalıdır** (eski testler doğrulanmamış yük sahibiyle teklif kabul eder); doğrulamayı sınayan test kendi
+  setUp'ında açar (`VerificationTest`). Migration `0001_01_55`.
 - **Sıradaki kod işleri (öncelik sırası, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §3-§6):** Paket C3 (yapılandırılmış yük ilanı formu il/ilçe
-  seçici + gizli adres, "doğrulanmış yük sahibi" rozeti, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
+  seçici + gizli adres, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
   detayı, destek talebi), Paket C4 (indeksler, temizlik, durum makinesi testleri), cihaz başına alım anahtarı (I13), bildirim kuyruğu,
   SMS doğrulama (Netgsm anahtarı gelince), sigorta entegrasyonu, Tailwind 4 / Vite 8 geçişi (elle, testle, ayrı PR).
 - **Çalışma kuralı hatırlatması:** her işte dal = oturumun `claude/...` dalı, PR aç, Osman birleştirir, "Siteyi güncelle" notu; Osman
