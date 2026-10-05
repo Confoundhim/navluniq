@@ -185,7 +185,13 @@ ok "Site açıldı"
 
 # Araç tipi boş kalmış dış kaynak ilanlarını doldurma ve son 30 günü yeniden konumlama (tekrar çalıştırmak güvenli)
 # site AÇILDIKTAN SONRA arka planda çalışır: bakım süresini uzatmaz; çıktısı storage/logs/classify.log'a gider.
-if runuser -u www-data -- bash -c "cd '$APP_DIR' && nohup php artisan scraped-loads:classify --no-interaction >> storage/logs/classify.log 2>&1 &"; then
+# Panel güncellemesi geçici bir systemd servisi içinde koşar ve servis bitince cgroup'taki her süreç öldürülür; bu yüzden
+# sınıflandırma AYRI bir geçici servis olarak başlatılır (systemd-run). systemd yoksa nohup ile arka plana atılır.
+CLASSIFY_CMD="cd '$APP_DIR' && php artisan scraped-loads:classify --no-interaction >> storage/logs/classify.log 2>&1"
+if command -v systemd-run >/dev/null 2>&1 \
+   && systemd-run --quiet --no-block --collect --unit "navluniq-classify-$(date +%s)" -p User=www-data bash -c "$CLASSIFY_CMD" 2>/dev/null; then
+    ok "Sınıflandırma arka planda başladı (systemd, storage/logs/classify.log)"
+elif runuser -u www-data -- bash -c "nohup bash -c \"$CLASSIFY_CMD\" >/dev/null 2>&1 &"; then
     ok "Sınıflandırma arka planda başladı (storage/logs/classify.log)"
 else
     echo "  ! Sınıflandırma başlatılamadı; elle: php artisan scraped-loads:classify"

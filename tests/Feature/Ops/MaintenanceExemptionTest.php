@@ -38,8 +38,10 @@ class MaintenanceExemptionTest extends TestCase
 
         $this->assertStringContainsString('--secret="$BYPASS_SECRET"', $script);
         $this->assertStringContainsString('public/build.prev', $script);
-        $this->assertStringContainsString('nohup php artisan scraped-loads:classify', $script);
+        // Sınıflandırma ayrı geçici systemd servisi olarak (güncelleme servisi bitince öldürülmesin), yoksa nohup ile.
+        $this->assertStringContainsString('systemd-run --quiet --no-block --collect --unit "navluniq-classify-', $script);
+        $this->assertStringContainsString('nohup bash -c', $script);
         // Sınıflandırma ancak "php artisan up" satırından sonra gelir (bakım süresini uzatmaz).
-        $this->assertGreaterThan(strpos($script, 'php artisan up --quiet || true'), strpos($script, 'nohup php artisan scraped-loads:classify'));
+        $this->assertGreaterThan(strpos($script, 'php artisan up --quiet || true'), strpos($script, 'CLASSIFY_CMD="cd'));
     }
 }
