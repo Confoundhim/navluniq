@@ -31,8 +31,9 @@ new class extends Component {
 
     public function ban(): void
     {
-        if (! auth()->user()?->can('manage settings')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+        // Görüntüleme "manage settings"; yasak ekleme / kaldırma "manage system" (denetim Y5).
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'IP yasaklamak için sistem yönetimi yetkisi gerekir.');
 
             return;
         }
@@ -82,8 +83,8 @@ new class extends Component {
 
     public function unban(int $banId): void
     {
-        if (! auth()->user()?->can('manage settings')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'IP yasağını kaldırmak için sistem yönetimi yetkisi gerekir.');
 
             return;
         }
@@ -116,17 +117,21 @@ new class extends Component {
             'expired' => $expired,
             'staff' => $staff,
             'currentIp' => (string) request()->ip(),
+            'canSystem' => (bool) auth()->user()?->can('manage system'),
         ];
     }
 }; ?>
 
-<div wire:poll.8s class="max-w-7xl mx-auto space-y-6">
+<div wire:poll.15s class="max-w-7xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
     @endphp
 
     @if (session()->has('success_message'))
         <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
     <div>
@@ -164,11 +169,15 @@ new class extends Component {
                     </div>
                 @endif
             </div>
-            <button type="submit" wire:loading.attr="disabled" class="py-2.5 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold">Yasakla</button>
+            @if($canSystem)
+                <button type="submit" wire:loading.attr="disabled" class="py-2.5 px-5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold">Yasakla</button>
+            @else
+                <p class="text-[11px] text-neutral-400">Yasak ekleme ve kaldırma yalnız sistem yönetimi yetkisiyle yapılır.</p>
+            @endif
 
             <div class="pt-4 border-t border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400 space-y-1">
                 <p class="font-semibold text-neutral-500">Bilgi: kod içinde sabit hız sınırları</p>
-                <p>Yönetici girişi: 5 deneme / dakika (IP + kimlik). OTP: 3 gönderim / dakika, 5 hatalı deneme. Konum bildirimi: 60 istek / dakika. Bu değerler bu ekrandan değiştirilemez.</p>
+                <p>Yönetici girişi: 5 deneme / dakika (IP + kimlik). Doğrulama kodu: {{ \App\Services\OtpService::MAX_SENDS_PER_MINUTE }} gönderim / dakika, kullanıcı başına {{ \App\Services\OtpService::MAX_SENDS_PER_USER_10MIN }} gönderim / 10 dakika, {{ \App\Services\OtpService::MAX_VERIFY_ATTEMPTS }} hatalı deneme. Şoför konum bildirimi: kullanıcı başına 60 istek / dakika. Telefon alım uçları kendi sayaçlarında (mesaj 600 / dakika). Bu değerler bu ekrandan değiştirilemez.</p>
             </div>
         </form>
 
@@ -193,7 +202,7 @@ new class extends Component {
                                     <td class="p-4" data-label="Gerekçe">{{ $ban->reason }}</td>
                                     <td class="p-4 whitespace-nowrap" data-label="Bitiş">{{ $ban->banned_until?->format('d.m.Y H:i') ?? 'Kalıcı' }}</td>
                                     <td class="p-4 text-neutral-500" data-label="Ekleyen">{{ $staff[$ban->banned_by]?->full_name ?? '—' }}<div class="text-[11px] text-neutral-400">{{ $ban->created_at?->format('d.m.Y H:i') }}</div></td>
-                                    <td class="p-4 tc-actions"><button type="button" wire:click="unban({{ $ban->id }})" wire:confirm="Yasak kaldırılacak. Devam edilsin mi?" class="text-brand-500 font-semibold">Kaldır</button></td>
+                                    <td class="p-4 tc-actions">@if($canSystem)<button type="button" wire:click="unban({{ $ban->id }})" wire:confirm="Yasak kaldırılacak. Devam edilsin mi?" class="text-brand-500 font-semibold">Kaldır</button>@endif</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="5" class="p-10 text-center text-neutral-500">Aktif yasak yok.</td></tr>
