@@ -12,10 +12,8 @@ use Illuminate\Support\Facades\Artisan;
 use Livewire\Volt\Component;
 
 new class extends Component {
+    /** Genel: yalnız sabit kodla giriş ayarları kaldı (site başlığı / meta / bakım notu hiçbir şablon tarafından okunmuyordu; 2026-10-05'te kaldırıldı). */
     public const GENERAL_KEYS = [
-        'system_site_title' => 'Site başlığı',
-        'system_meta_description' => 'Meta açıklaması',
-        'system_maintenance_note' => 'Bakım duyurusu',
         'review_login_emails' => 'İnceleme (test) hesapları: e-postalar (virgülle)',
         'review_login_code' => 'İnceleme hesapları için sabit doğrulama kodu (6 hane)',
         'review_login_until' => 'Sabit kodun son geçerlilik tarihi (YYYY-AA-GG SS:DD; boşsa süresiz, yöneticiler canlıda bu kodla giremez)',
@@ -92,7 +90,8 @@ new class extends Component {
         'ai_kimi_key' => 'Moonshot API anahtarı',
     ];
 
-    public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
+    /** Formda hiç gösterilmeyen, boş bırakılınca korunan gizli alanlar (Telegram bot anahtarı da buradadır; eski sürüm düz metin gösteriyordu). */
+    public const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_claude_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'telegram_bot_token'];
 
     public const SCRAPER_TOGGLES = ['scraper_auto_approve', 'scraper_auto_approve_require_price', 'scraper_auto_approve_require_weight', 'scraper_auto_approve_require_vehicle', 'scraper_auto_approve_require_ai', 'scraper_incomplete_publish', 'scraper_local_enabled', 'ai_ollama_enabled', 'telegram_post_enabled'];
 
@@ -135,10 +134,55 @@ new class extends Component {
     /** @var array<string, string> */
     public array $paymentForm = [];
 
+    /** Gizli anahtar ya da ödeme ayarı kaydedilirken yeniden girilen yönetici şifresi; kayıttan sonra temizlenir (denetim Y2). */
+    public string $currentPassword = '';
+
     public function mount(): void
     {
         abort_unless(auth()->user()->can('manage settings'), 403);
+        if ($this->activeTab === 'payment' && ! $this->isSuperAdmin()) {
+            $this->activeTab = 'general';
+        }
         $this->loadValues();
+    }
+
+    public function updatedActiveTab(string $value): void
+    {
+        if ($value === 'payment' && ! $this->isSuperAdmin()) {
+            $this->activeTab = 'general';
+        }
+    }
+
+    private function isSuperAdmin(): bool
+    {
+        return (bool) auth()->user()?->hasRole('super_admin');
+    }
+
+    /**
+     * Hassas işlem onayı: gizli anahtar girildiyse ya da ödeme ayarı değişiyorsa yöneticinin şifresi yeniden istenir.
+     * Oturum açık bırakılmış bir panelden anahtar değiştirilemez. Başarılıysa şifre alanı temizlenir.
+     */
+    private function confirmPassword(): void
+    {
+        $this->validate(['currentPassword' => ['required', 'current_password']], [
+            'currentPassword.required' => 'Gizli anahtar ya da ödeme ayarı değiştirmek için şifrenizi yeniden girin.',
+            'currentPassword.current_password' => 'Şifre doğrulanamadı.',
+        ]);
+        $this->currentPassword = '';
+    }
+
+    /** Değişen hassas ayarları diğer yöneticilere bildirir (kim, hangi anahtar; değer yazılmaz). */
+    private function notifySensitiveChange(array $changedKeys): void
+    {
+        $changedKeys = array_values(array_filter($changedKeys, fn ($k) => Settings::requiresReauth($k)));
+        if ($changedKeys === []) {
+            return;
+        }
+        $labels = array_map(fn ($k) => self::SCRAPER_KEYS[$k] ?? self::MAIL_KEYS[$k] ?? self::PAYMENT_KEYS[$k] ?? $k, $changedKeys);
+        ActivityLog::record('setting.sensitive_changed', 'Ödeme/gizli ayar değişti: '.implode(', ', $changedKeys), auth()->id(), null, ['keys' => $changedKeys]);
+        app(NotificationService::class)->notifyAdmins('manage settings', 'Ödeme/gizli ayar değişti',
+            [auth()->user()->full_name.' şu ayarları değiştirdi: '.implode(', ', $labels).' ('.now()->format('d.m.Y H:i').').', 'Bu değişikliği siz yapmadıysanız hesabınızın şifresini değiştirin ve diğer yöneticilere haber verin.'],
+            route('admin.settings'), 'Ayarları gör', 'admin');
     }
 
     private function loadValues(): void
@@ -155,6 +199,7 @@ new class extends Component {
         foreach (array_keys(\App\Services\AiParserService::PROVIDERS) as $provider) {
             $this->scraper['ai_'.$provider.'_key_set'] = app(\App\Services\AiParserService::class)->apiKey($provider) !== '' ? '1' : '0';
         }
+        $this->scraper['telegram_bot_token_set'] = Settings::string('telegram_bot_token') !== '' ? '1' : '0';
         foreach (array_keys(Company::LABELS) as $key) {
             $this->company[$key] = Company::get($key);
         }
@@ -241,15 +286,29 @@ new class extends Component {
             'mailForm.mail_embed_images' => 'nullable|in:0,1',
         ]);
 
+        if ($this->mailForm['mail_password'] !== '') {
+            if (! $this->isSuperAdmin()) {
+                $this->addError('mailForm.mail_password', 'SMTP şifresini yalnız süper yönetici değiştirebilir.');
+
+                return;
+            }
+            $this->confirmPassword();
+        }
+
         $changed = 0;
+        $changedKeys = [];
         foreach (self::MAIL_KEYS as $key => $label) {
             $value = $this->mailForm[$key];
             if ($key === 'mail_password' && $value === '') {
                 continue; // boş bırakıldı: mevcut şifre korunur
             }
             $old = (string) Settings::get($key);
-            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+            if ($this->persist($key, $label, $value, $old)) {
+                $changed++;
+                $changedKeys[] = $key;
+            }
         }
+        $this->notifySensitiveChange($changedKeys);
 
         $this->loadValues();
         \App\Support\RuntimeMailConfig::apply();
@@ -259,8 +318,9 @@ new class extends Component {
     /** Ödeme kuruluşu seçimi ve iyzico anahtarları (gizli anahtar boşsa mevcut korunur). */
     public function savePayment(): void
     {
-        if (! auth()->user()?->can('manage settings')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+        // Ödeme sekmesi yalnız süper yöneticiye açıktır: anahtarlar ve sağlayıcı seçimi para akışını belirler (denetim Y2).
+        if (! $this->isSuperAdmin()) {
+            session()->flash('error_message', 'Ödeme ayarlarını yalnız süper yönetici değiştirebilir.');
 
             return;
         }
@@ -273,7 +333,19 @@ new class extends Component {
             'paymentForm.iyzico_secret_key' => 'nullable|string|max:190',
         ]);
 
+        // Açık ödeme emri varken sağlayıcı değişmez: bekleyen/ödenmiş emirlerin geri çağrısı ve iadesi eski sağlayıcıya bağlıdır.
+        if ($this->paymentForm['payment_provider'] !== \App\Payments\GatewayManager::selectedId()) {
+            $open = self::openEscrowOrderCount();
+            if ($open > 0) {
+                $this->addError('paymentForm.payment_provider', "Ödeme kuruluşu şimdi değiştirilemez: {$open} açık navlun ödeme emri var (oluşturulmuş, bekleyen ya da ödenmiş). Emirler kapanınca yeniden deneyin.");
+
+                return;
+            }
+        }
+        $this->confirmPassword();
+
         $changed = 0;
+        $changedKeys = [];
         foreach (self::PAYMENT_KEYS as $key => $label) {
             $value = $this->paymentForm[$key];
             if ($key === 'iyzico_secret_key' && $value === '') {
@@ -285,11 +357,21 @@ new class extends Component {
             } else {
                 $old = (string) Settings::get($key);
             }
-            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+            if ($this->persist($key, $label, $value, $old)) {
+                $changed++;
+                $changedKeys[] = $key;
+            }
         }
+        $this->notifySensitiveChange($changedKeys);
 
         $this->loadValues();
         session()->flash('success_message', $changed > 0 ? "{$changed} ödeme ayarı kaydedildi." : 'Değişiklik yok.');
+    }
+
+    /** Oluşturulmuş / bekleyen / ödenmiş (henüz kapanmamış) navlun ödeme emirleri: sağlayıcı kilidi için sayılır. */
+    public static function openEscrowOrderCount(): int
+    {
+        return \App\Models\PaymentOrder::query()->where('purpose', PaymentService::PURPOSE_ESCROW)->whereIn('status', ['created', 'pending', 'paid'])->count();
     }
 
     /** SMTP ve şablon doğrulaması: girilen adrese markalı deneme e-postası gönderir. */
@@ -373,9 +455,6 @@ new class extends Component {
         }
 
         $this->validate([
-            'general.system_site_title' => 'nullable|string|max:120',
-            'general.system_meta_description' => 'nullable|string|max:320',
-            'general.system_maintenance_note' => 'nullable|string|max:500',
             'general.review_login_emails' => ['nullable', 'string', 'max:500', 'regex:/^[^,\s]+@[^,\s]+(\s*,\s*[^,\s]+@[^,\s]+)*$/'],
             'general.review_login_code' => ['nullable', 'regex:/^\d{6}$/'],
             'general.review_login_until' => ['nullable', 'date'],
@@ -383,6 +462,18 @@ new class extends Component {
             'general.review_login_emails.regex' => 'E-postaları virgülle ayırarak yazın.',
             'general.review_login_code.regex' => 'Kod 6 haneli olmalıdır.',
         ]);
+
+        // Sabit kodla giriş, kimlik doğrulamayı atlatan bir kapıdır: yalnız sistem yönetimi yetkisi değiştirir (denetim Y5).
+        if (! auth()->user()?->can('manage system')) {
+            foreach (Settings::SYSTEM_ONLY_KEYS as $key) {
+                $value = trim((string) ($this->general[$key] ?? ''));
+                if ($value !== trim((string) CmsContent::getVal($key, ''))) {
+                    $this->addError('general.'.$key, 'Sabit kodla giriş ayarlarını yalnız sistem yönetimi yetkisi olan yönetici değiştirebilir.');
+
+                    return;
+                }
+            }
+        }
 
         $changed = 0;
         foreach (self::GENERAL_KEYS as $key => $label) {
@@ -482,13 +573,26 @@ new class extends Component {
             'scraper.telegram_channel_id.regex' => 'Kanal kimliği "@kanaladi" ya da "-100..." biçiminde olmalıdır.',
         ]);
 
-        if ($this->scraper['telegram_post_enabled'] === '1' && (trim($this->scraper['telegram_bot_token']) === '' || trim($this->scraper['telegram_channel_id']) === '')) {
+        $tokenPresent = trim((string) ($this->scraper['telegram_bot_token'] ?? '')) !== '' || Settings::string('telegram_bot_token') !== '';
+        if ($this->scraper['telegram_post_enabled'] === '1' && (! $tokenPresent || trim($this->scraper['telegram_channel_id']) === '')) {
             $this->addError('scraper.telegram_post_enabled', 'Paylaşımı açmak için bot anahtarı ve kanal kimliği gerekir.');
 
             return;
         }
 
+        // Gizli anahtar (yapay zeka, Telegram) girildiyse: yalnız süper yönetici, şifre yeniden doğrulanır.
+        $secretsEntered = array_values(array_filter(self::AI_SECRET_KEYS, fn ($k) => trim((string) ($this->scraper[$k] ?? '')) !== ''));
+        if ($secretsEntered !== []) {
+            if (! $this->isSuperAdmin()) {
+                $this->addError('scraper.'.$secretsEntered[0], 'API anahtarlarını yalnız süper yönetici değiştirebilir.');
+
+                return;
+            }
+            $this->confirmPassword();
+        }
+
         $changed = 0;
+        $changedKeys = [];
         foreach (self::SCRAPER_KEYS as $key => $label) {
             $value = trim((string) ($this->scraper[$key] ?? ''));
             if (in_array($key, self::AI_SECRET_KEYS, true) && $value === '') {
@@ -503,8 +607,12 @@ new class extends Component {
             } else {
                 $old = (string) Settings::get($key);
             }
-            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+            if ($this->persist($key, $label, $value, $old)) {
+                $changed++;
+                $changedKeys[] = $key;
+            }
         }
+        $this->notifySensitiveChange($changedKeys);
 
         $this->loadValues();
         session()->flash('success_message', $changed > 0 ? "{$changed} ayar güncellendi." : 'Değişiklik yok.');
@@ -584,6 +692,9 @@ new class extends Component {
             'checks' => $checks,
             'checkSummary' => \App\Support\PaymentReadiness::summary($checks),
             'revisions' => SettingRevision::query()->with('user')->latest('id')->limit(10)->get(),
+            'isSuperAdmin' => $this->isSuperAdmin(),
+            'canSystem' => (bool) auth()->user()?->can('manage system'),
+            'openEscrowOrders' => $this->activeTab === 'payment' ? self::openEscrowOrderCount() : 0,
         ];
     }
 }; ?>
@@ -592,10 +703,17 @@ new class extends Component {
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı', 'mail' => 'E-posta ve bildirim'];
+        if (! $isSuperAdmin) {
+            unset($tabs['payment']); // ödeme anahtarları ve sağlayıcı seçimi yalnız süper yönetici
+        }
+        $passwordLabel = 'Şifreniz (gizli anahtar ya da ödeme ayarı değiştirmek için yeniden girin)';
     @endphp
 
     @if (session()->has('success_message'))
         <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 text-xs rounded-2xl">{{ session('error_message') }}</div>
     @endif
 
     <div>
@@ -611,19 +729,22 @@ new class extends Component {
 
     @if($activeTab === 'general')
         <form wire:submit="saveGeneral" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div>
+                <h3 class="section-title">Sabit kodla giriş (inceleme hesapları)</h3>
+                <p class="text-[11px] text-neutral-400 mt-1">Ödeme kuruluşu ya da mağaza incelemesi için listedeki e-postalar sabit kodla girer. Kimlik doğrulamayı atlatan bir kapıdır: canlıda yöneticiler için işlemez, bitiş tarihi geçince kendiliğinden kapanır ve yalnız sistem yönetimi yetkisi olan yönetici değiştirebilir.</p>
+            </div>
             @foreach($generalKeys as $key => $label)
                 <div>
                     <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
-                    @if($key === 'system_site_title')
-                        <input type="text" wire:model="general.{{ $key }}" class="{{ $input }}">
-                    @else
-                        <textarea wire:model="general.{{ $key }}" rows="3" class="{{ $input }}"></textarea>
-                    @endif
+                    <input type="text" wire:model="general.{{ $key }}" class="{{ $input }}" @disabled(! $canSystem)>
                     @error('general.'.$key) <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
                 </div>
             @endforeach
-            <p class="text-[11px] text-neutral-400">Bakım duyurusu doldurulduğunda ön yüzde gösterilmesi için ilgili şablonun bu anahtarı okuması gerekir; bu sürümde yalnız saklanır.</p>
-            <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+            @if($canSystem)
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+            @else
+                <p class="text-[11px] text-neutral-400">Bu ayarları yalnız sistem yönetimi yetkisi olan yönetici değiştirebilir.</p>
+            @endif
         </form>
     @endif
 
@@ -645,9 +766,6 @@ new class extends Component {
 
     @if($activeTab === 'scraper')
         <form wire:submit="saveScraper" class="apple-glass rounded-3xl p-6 space-y-5 text-xs">
-            @if (session()->has('error_message'))
-                <div class="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-800/30 text-red-600 dark:text-red-400 rounded-xl">{{ session('error_message') }}</div>
-            @endif
             <div>
                 <h3 class="section-title">Otomatik onay</h3>
                 <p class="text-[11px] text-neutral-400 mt-1">Açıkken her dakika çalışan görev, kriterleri sağlayan adayları kendiliğinden yayınlar: kaynak aktif, kalkış ve varış ili çözülmüş, telefon var, (zorunluysa) fiyat/tonaj/araç var ve yapay zeka doğrulaması geçmiş. Kapalıyken adaylar Dış Kaynak İlanları ekranında elle onaylanır; her satır neden kendiliğinden yayınlanmadığını yazar.</p>
@@ -732,8 +850,13 @@ new class extends Component {
                     @error('scraper.telegram_post_enabled') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
                 <div>
-                    <label class="form-label">{{ $scraperKeys['telegram_bot_token'] }}</label>
-                    <input type="password" autocomplete="off" wire:model="scraper.telegram_bot_token" class="{{ $input }} font-mono" placeholder="123456789:AA...">
+                    @php $tgSet = ($scraper['telegram_bot_token_set'] ?? '0') === '1'; @endphp
+                    <label class="form-label">{{ $scraperKeys['telegram_bot_token'] }} {{ $tgSet ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label>
+                    @if($isSuperAdmin)
+                        <input type="password" autocomplete="new-password" wire:model="scraper.telegram_bot_token" class="{{ $input }} font-mono" placeholder="{{ $tgSet ? '••••••••' : '123456789:AA...' }}">
+                    @else
+                        <p class="text-[11px] text-neutral-400 py-2">{{ $tgSet ? 'Anahtar kayıtlı.' : 'Anahtar yok.' }} Yalnız süper yönetici değiştirir.</p>
+                    @endif
                     @error('scraper.telegram_bot_token') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
                 <div>
@@ -792,13 +915,20 @@ new class extends Component {
                                         <select wire:model="scraper.ai_{{ $pk }}_enabled" class="{{ $input }}"><option value="0">Kapalı</option><option value="1">Açık</option></select></div>
                                     <div><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_base'] }}</label><input type="text" wire:model="scraper.ai_{{ $pk }}_base" class="{{ $input }} font-mono" placeholder="http://127.0.0.1:11434/v1">@error('scraper.ai_'.$pk.'_base')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
                                 @else
-                                    <div class="sm:col-span-2"><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_key'] }} {{ $set ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="scraper.ai_{{ $pk }}_key" class="{{ $input }} font-mono" placeholder="{{ $set ? '••••••••' : $prov['key_hint'] }}"></div>
+                                    <div class="sm:col-span-2"><label class="form-label">{{ $scraperKeys['ai_'.$pk.'_key'] }} {{ $set ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label>
+                                        @if($isSuperAdmin)<input type="password" autocomplete="new-password" wire:model="scraper.ai_{{ $pk }}_key" class="{{ $input }} font-mono" placeholder="{{ $set ? '••••••••' : $prov['key_hint'] }}">
+                                        @else<p class="text-[11px] text-neutral-400 py-2">{{ $set ? 'Anahtar kayıtlı.' : 'Anahtar yok.' }} Yalnız süper yönetici değiştirir.</p>@endif
+                                        @error('scraper.ai_'.$pk.'_key')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                                    </div>
                                 @endif
                             </div>
                         </div>
                     @endforeach
                 </div>
             </div>
+            @if($isSuperAdmin)
+                <div class="sm:max-w-sm"><label class="form-label">{{ $passwordLabel }}</label><input type="password" autocomplete="current-password" wire:model="currentPassword" class="{{ $input }}">@error('currentPassword')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+            @endif
             <div class="flex flex-wrap gap-3">
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
                 <button type="button" wire:click="sendTelegramTest" wire:loading.attr="disabled" class="btn-apple-secondary py-2.5 px-5 text-xs">Kanala deneme mesajı gönder</button>
@@ -806,7 +936,7 @@ new class extends Component {
         </form>
     @endif
 
-    @if($activeTab === 'payment')
+    @if($activeTab === 'payment' && $isSuperAdmin)
         <div class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Sağlayıcı</span><span class="font-bold">{{ $payment['provider'] }}</span></div>
@@ -832,6 +962,12 @@ new class extends Component {
                         <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_marketplace" value="1" class="rounded"> Pazaryeri ürünü aktif (şoför ödemeleri iyzico üzerinden)</label>
                     </div>
                 </div>
+                @error('paymentForm.payment_provider')<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror
+                @if($openEscrowOrders > 0)
+                    <p class="text-[11px] text-amber-600">{{ $openEscrowOrders }} açık navlun ödeme emri var; emirler kapanmadan ödeme kuruluşu değiştirilemez (anahtarlar ve test modu değiştirilebilir).</p>
+                @endif
+                <div class="sm:max-w-sm"><label class="form-label">{{ $passwordLabel }}</label><input type="password" autocomplete="current-password" wire:model="currentPassword" class="{{ $input }}">@error('currentPassword')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                <p class="text-[11px] text-neutral-400">Her kayıt diğer yöneticilere "Ödeme/gizli ayar değişti" bildirimi düşürür.</p>
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Ödeme ayarlarını kaydet</button>
             </form>
         </div>
@@ -912,13 +1048,20 @@ new class extends Component {
                         <select wire:model="mailForm.mail_encryption" class="{{ $input }}"><option value="tls">TLS / STARTTLS (587)</option><option value="ssl">SSL (465)</option><option value="none">Yok</option></select>
                     </div>
                     <div><label class="form-label">Kullanıcı adı (e-posta)</label><input type="text" wire:model="mailForm.mail_username" class="{{ $input }}">@error('mailForm.mail_username')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
-                    <div><label class="form-label">Şifre {{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="mailForm.mail_password" class="{{ $input }}" placeholder="{{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '••••••••' : 'Posta kutusu şifresi' }}"></div>
+                    <div><label class="form-label">Şifre {{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label>
+                        @if($isSuperAdmin)<input type="password" autocomplete="new-password" wire:model="mailForm.mail_password" class="{{ $input }}" placeholder="{{ ($mailForm['mail_password_set'] ?? '0') === '1' ? '••••••••' : 'Posta kutusu şifresi' }}">
+                        @else<p class="text-[11px] text-neutral-400 py-2">{{ ($mailForm['mail_password_set'] ?? '0') === '1' ? 'Şifre kayıtlı.' : 'Şifre yok.' }} Yalnız süper yönetici değiştirir.</p>@endif
+                        @error('mailForm.mail_password')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror
+                    </div>
                     <div><label class="form-label">Gönderici adı</label><input type="text" wire:model="mailForm.mail_from_name" class="{{ $input }}"></div>
                     <div class="sm:col-span-3"><label class="form-label">Gönderici adresi</label><input type="email" wire:model="mailForm.mail_from_address" class="{{ $input }}">@error('mailForm.mail_from_address')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
                     <div class="sm:col-span-3"><label class="form-label">Logo görselleri</label>
                         <select wire:model="mailForm.mail_embed_images" class="{{ $input }}"><option value="0">Siteden yüklensin (önerilir; ekli ileti düşüren süzgeçlere takılmaz)</option><option value="1">İletiye gömülsün (ek olarak; görsel engelleyen istemcilerde de görünür)</option></select>
                     </div>
                 </div>
+                @if($isSuperAdmin)
+                    <div class="sm:max-w-sm"><label class="form-label">{{ $passwordLabel }}</label><input type="password" autocomplete="current-password" wire:model="currentPassword" class="{{ $input }}">@error('currentPassword')<p class="text-rose-500 text-[11px] mt-1">{{ $message }}</p>@enderror</div>
+                @endif
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">SMTP ayarlarını kaydet</button>
             </form>
             <form wire:submit="sendTestMail" class="flex flex-col sm:flex-row gap-3 sm:items-end">
