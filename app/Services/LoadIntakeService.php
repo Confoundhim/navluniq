@@ -62,7 +62,7 @@ class LoadIntakeService
         // Aynı metin iki gruptan aynı saniyede gelince (bildirim iletici her grubu ayrı yollar) iki istek yan yana
         // işlenir ve tekrar denetimi henüz yazılmamış kaydı göremezdi. Mesaj başına kilit: ikinci istek ilkinin
         // bitmesini bekler, sonra kaydı bulur ve "tekrar" der. Kilit alınamazsa (aşırı bekleme) kilitsiz devam edilir.
-        $raw = trim(TextPrep::foldFonts((string) $payload['raw_message']));
+        $raw = trim(TextPrep::foldFonts(TextPrep::stripInvisible((string) $payload['raw_message'])));
         $lock = Cache::lock('intake:lock:'.hash('sha256', self::normalizeText($raw)), self::LOCK_TTL_SECONDS);
         try {
             return $lock->block(self::LOCK_WAIT_SECONDS, fn () => $this->intakeUnlocked($payload, $raw));
@@ -128,6 +128,8 @@ class LoadIntakeService
                 Scraper::withTrashed()->whereKey($scraper->id)->update(['messages_since_deleted' => $scraper->messages_since_deleted + 1, 'last_message_at' => now()]);
                 Cache::forget($seenKey);
 
+                Cache::put(NotificationIntakeParser::screenSeenKey($groupName, $raw), 1, now()->addMinutes(10)); // ekran dökümü gönderisi kaynak onaylanınca yeniden alınsın (10 dk içinde tekrar değil)
+
                 return $this->result(202, false, 'source_deleted', 'Kaynak silinmiş; mesaj yok sayıldı.');
             }
             if (! $scraper->exists) {
@@ -142,6 +144,8 @@ class LoadIntakeService
             $scraper->forceFill(['last_message_at' => now()])->saveQuietly();
             if (! $scraper->is_active) {
                 Cache::forget($seenKey); // kaynak açıldığında aynı metin yeniden gelebilsin
+
+                Cache::put(NotificationIntakeParser::screenSeenKey($groupName, $raw), 1, now()->addMinutes(10)); // ekran dökümü gönderisi kaynak onaylanınca yeniden alınsın (10 dk içinde tekrar değil)
 
                 return $this->result(202, false, 'source_pending', 'Kaynak yönetici onayı bekliyor.');
             }
@@ -267,7 +271,13 @@ class LoadIntakeService
                         return $this->result(200, false, 'filtered', 'Yapay zeka: yük ilanı değil.', null, 'ai_not_load');
                     }
                     if ($ads !== []) {
-                        $pending = $this->segmentsFromAi($ads, array_values($pending), $raw, $fallbackPhone);
+                        // Parça anahtarları korunur: yeniden dizinlenince erken sonuçlar (tekrar/elenen) eziliyor, canlı akışta satır kayboluyordu.
+                        $origKeys = array_keys($pending);
+                        $fromAi = $this->segmentsFromAi($ads, array_values($pending), $raw, $fallbackPhone);
+                        $pending = [];
+                        foreach (array_values($fromAi) as $j => $seg) {
+                            $pending[$origKeys[$j] ?? (1000 + $j)] = $seg;
+                        }
                     }
                 }
             }
@@ -280,6 +290,9 @@ class LoadIntakeService
             Cache::forget($seenKey); // yeniden denenebilsin
             foreach ($this->segmentSeenKeys as $k) {
                 Cache::forget($k); // yarım kalan parçalar da 24 saat "görüldü" diye kilitli kalmasın
+            }
+            if ($e instanceof \PDOException || $e instanceof \RedisException) {
+                throw $e; // altyapı hatası (veritabanı/önbellek kopması): kuyruk işi yeniden dener (tries=2); yutulursa ilan kalıcı kaybolurdu
             }
             Log::error('Dış kaynak ilanı ayrıştırılamadı.', ['exception' => $e::class, 'error' => $e->getMessage()]);
 
@@ -452,7 +465,7 @@ class LoadIntakeService
             'ai_status' => $ai['status'],
             'ai_checked_at' => in_array($ai['status'], ['done', 'failed'], true) ? now() : null,
             'parse_metadata' => array_merge($std['metadata'], array_filter([
-                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'ad_index', 'ad_count', 'template_id'])) : null,
+                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load', 'ad_index', 'ad_count', 'template_id'])) : null,
                 'ai_conflict' => $parsed['ai_conflict'] ?? null,
                 // Aynı ilandaki diğer numaralar (şifreli); ilk numara ana kolonda.
                 'extra_phones_enc' => $extraPhones !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extraPhones) : null,
@@ -532,11 +545,26 @@ class LoadIntakeService
     {
         $std = $this->standardizer->standardize($text, $parsed);
         $differs = fn ($a, $b): bool => $a !== null && $a !== '' && $b !== null && $b !== '' && (string) $a !== (string) $b;
+        // Daha dolu paylaşım: eski kayıtta araç/fiyat/tonaj yokken yeni parça getiriyorsa yeni kayıt eskisinin yerine geçer (bilgi yutulmaz).
+        // Reddedilmiş kayıt için geçerli değil: yöneticinin "ilan değil" dediği metnin eksik alanı tamamlanınca ilan olmaz.
+        $fillable = $existing->status !== 'rejected';
+        if ($fillable && ! $existing->vehicle_type && ! $existing->vehicle_any && ($std['vehicle_any'] || ($std['vehicle_type'] && in_array($std['vehicle_type_source'], ['keyword', 'template'], true)))) {
+            return true;
+        }
+        if ($fillable && (($std['price'] !== null && $existing->price === null) || ($std['weight'] !== null && $existing->weight === null))) {
+            return true;
+        }
         if ($differs($std['price'] !== null ? (float) $std['price'] : null, $existing->price !== null ? (float) $existing->price : null)) {
             return true;
         }
         if ($differs($std['weight'], $existing->weight)) {
             return true;
+        }
+        // Aynı il çifti ama iki kayıtta da ilçe açıkça yazılı ve farklı (Polatlı→Tuzla, Sincan→Esenyurt): ayrı ilanlar.
+        foreach (['pickup_district', 'delivery_district'] as $col) {
+            if ($differs($std[$col], $existing->{$col})) {
+                return true;
+            }
         }
         if ($differs($std['vehicle_type'], $existing->vehicle_type) && in_array($std['vehicle_type_source'], ['keyword', 'hint'], true)
             && in_array($existing->vehicle_type_source, ['keyword', 'hint', 'admin', 'ai', 'template'], true)) {
@@ -718,9 +746,9 @@ class LoadIntakeService
                 $isHeader = $linePlaces !== [] && ! self::hasPhone($line)
                     && ($lineIndex === $listHeaderLine
                         || $linePair === null && (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1
-                        || preg_match('/^\p{L}+(?:dan|den|tan|ten)[\p{P}\p{S}\s]*$/u', $lower) === 1
-                        || preg_match('/^\p{L}+(?:\s+\p{L}+){0,3}\s+(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*(?:\p{L}+\s*){0,2}[\p{P}\p{S}\s]*$/u', $lower) === 1
-                        || preg_match('/^(?:\p{L}+\s+){0,3}\p{L}{4,}(?:dan|den|tan|ten)[\p{P}\p{S}\s]*$/u', $lower) === 1));
+                        || (AiParserService::hasTrueAblative($lower) && (preg_match('/^\p{L}+(?:dan|den|tan|ten)[\p{P}\p{S}\s]*$/u', $lower) === 1
+                        || preg_match('/^(?:\p{L}+\s+){0,3}\p{L}{4,}(?:dan|den|tan|ten)[\p{P}\p{S}\s]*$/u', $lower) === 1))
+                        || preg_match('/^\p{L}+(?:\s+\p{L}+){0,3}\s+(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*(?:\p{L}+\s*){0,2}[\p{P}\p{S}\s]*$/u', $lower) === 1));
                 if ($isHeader) {
                     // Yeni başlık: önceki başlığın son varışını kapat.
                     if ($header !== null && $destInCurrent && $current !== []) {
@@ -934,7 +962,7 @@ class LoadIntakeService
             }
             // Klasik başlık ("Çorlu yüklemeli işlerimiz", "Samsundan") varsa liste düzeni o başlığa göre kurulur.
             $lower = TurkishCities::lower(trim($line));
-            if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match('/(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*$/u', $lower) === 1) {
+            if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || (preg_match('/(?:dan|den|tan|ten)\s*[\p{P}\p{S}]*\s*$/u', $lower) === 1 && AiParserService::hasTrueAblative($lower))) {
                 return null;
             }
             // Yer adı dışında kalan sözcükler araç/ton/kasa/adet sözcükleri ya da kısa bağlaçlar olmalı
@@ -1216,10 +1244,16 @@ class LoadIntakeService
     /** Aynı metin: yayındaki ya da bekleyen kayıt 7 gün boyunca (son görülmeye göre) tazelenir; reddedilmiş kayıt yalnız açılıştan 7 gün tutar. */
     private function recentByText(string $normalizedHash): ?ScrapedLoad
     {
+        // Reddedilmiş kayıt yalnız yöneticinin "ilan değil" dediyse tutar: kendiliğinden ret (il çözülemedi, yaş), tekrar, eski, yanlış rota
+        // gerekçeli kayıtlar ilanın ilan olmadığı anlamına gelmez; sözlük düzeltilince yeniden paylaşım yeni aday açsın.
+        // 30 günü geçmiş kayıt tazelenmez: yeni kayıt açılır ve yayında eskisinin yerine geçer (resolveTwin).
         return ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
             ->where(fn ($q) => $q
-                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
-                ->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
+                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))
+                    ->where('created_at', '>=', now()->subDays(ScrapedLoadService::TWIN_MAX_AGE_DAYS)))
+                ->orWhere(fn ($w) => $w->where('status', 'rejected')->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))
+                    ->whereNull('parse_metadata->auto_rejected')->whereNull('parse_metadata->duplicate_of')->whereNull('parse_metadata->superseded_by')
+                    ->where(fn ($r) => $r->whereNull('parse_metadata->reject_reason')->orWhere('parse_metadata->reject_reason', 'not_load'))))
             ->orderByRaw("CASE WHEN visibility = 'public' THEN 0 ELSE 1 END")->orderByRaw("CASE WHEN status = 'rejected' THEN 1 ELSE 0 END")->latest('id')->first();
     }
 

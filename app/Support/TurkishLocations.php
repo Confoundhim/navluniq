@@ -225,6 +225,27 @@ final class TurkishLocations
         return self::$provinceIndex[TurkishCities::ascii($canonical)] ?? null;
     }
 
+    /** @var array<string, true>|null il ve ilçe adlarının ASCII kümesi (ek denetimi: "Elbistan" -tan eki değil, ilçe adıdır) */
+    private static ?array $catalogNames = null;
+
+    /** Sözcüğün kendisi (ek atılmadan) bir il ya da ilçe adı mı? */
+    public static function isCatalogName(string $word): bool
+    {
+        if (self::$catalogNames === null) {
+            self::load();
+            $names = [];
+            foreach (self::provinces() as $p) {
+                $names[TurkishCities::ascii($p['name'])] = true;
+                foreach (self::$districtIndex[$p['code']] ?? [] as $d) {
+                    $names[TurkishCities::ascii($d['n'])] = true;
+                }
+            }
+            self::$catalogNames = $names;
+        }
+
+        return isset(self::$catalogNames[TurkishCities::ascii(trim($word))]);
+    }
+
     /** @return list<string> */
     public static function districtsOf(int $provinceCode): array
     {

@@ -362,7 +362,7 @@ class LoadFilterService
     private function applyWeightPrice(Builder $q, array $f, bool $priceNullable): void
     {
         if ($f['min_weight'] !== null) {
-            $q->where('weight', '>=', $f['min_weight']);
+            $q->where(fn (Builder $w) => $w->where('weight', '>=', $f['min_weight'])->orWhereNull('weight')); // tonajı yazılmamış ilan elenmez (max ile aynı)
         }
         if ($f['max_weight'] !== null) {
             $q->where(fn (Builder $w) => $w->where('weight', '<=', $f['max_weight'])->orWhereNull('weight'));

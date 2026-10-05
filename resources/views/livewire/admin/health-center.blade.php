@@ -248,7 +248,7 @@ new class extends Component {
                 $last = DB::table('failed_jobs')->orderByDesc('id')->first();
                 $payload = json_decode((string) ($last->payload ?? ''), true);
                 $name = class_basename((string) ($payload['displayName'] ?? 'İş'));
-                $reason = mb_substr(trim((string) strtok((string) ($last->exception ?? ''), "\n")), 0, 80);
+                $reason = \App\Support\FailedJobSummary::line($last->exception ?? null);
                 throw new RuntimeException($count.' başarısız iş bekliyor. Sonuncusu: '.$name.($reason !== '' ? ' — '.$reason : '').'. İlan kaybettirmez; yeniden deneyin ya da temizleyin (3 günden eskiler kendiliğinden silinir).');
             }
 

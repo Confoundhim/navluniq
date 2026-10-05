@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\FitsColumnWidths;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Scraper extends Model
 {
+    use FitsColumnWidths;
     use HasFactory, SoftDeletes;
+
+    /** Metin kolonlarının genişliği; telefondan gelen uzun grup adı kesilir, kaynak kaydı düşmez. */
+    public const COLUMN_LIMITS = ['name' => 255, 'type' => 32, 'source_identifier' => 255];
 
     protected $fillable = [
         'name',

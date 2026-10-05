@@ -44,7 +44,7 @@ class VehicleClassifierTest extends TestCase
             ['Sekiz teker lazım Trabzon Samsun', '8_teker_kamyon'],
             ['Kamyon aranıyor 10 ton tekstil Bursa Antalya 0533 987 65 43', '8_teker_kamyon'],
             ["Bursa'dan Antalya'ya 12 ton tekstil, kamyon aranıyor 0533 987 65 43", '8_teker_kamyon'],
-            ['kamyona yük var Kayseri Sivas', '8_teker_kamyon'],
+            ['kamyona yük var Kayseri Sivas', '6_teker_kamyon'], // tonajsız "kamyon": sınıfın en küçüğü, tahmin (her kamyon şoförü görür)
             ['Tenteli kamyon lazım 7 ton Uşak İzmir', '6_teker_kamyon'],
             ['6 teker kamyon 5 ton mobilya İnegöl Antalya', '6_teker_kamyon'],
             ['Altı teker araç Tokat Amasya', '6_teker_kamyon'],

@@ -34,7 +34,8 @@ class LoadStandardizer
      */
     public function standardize(string $raw, array $parsed): array
     {
-        $norm = VehicleClassifier::normalize($raw);
+        // Telefon rakamları kasa/adet/fiyat kalıplarına sızmasın ("… 0532 000 13 60" 13.60 dorse, "0532 … / TIR LAZIM" 2 tır sayılıyordu)
+        $norm = VehicleClassifier::normalize(preg_replace(AiParserService::PHONE_PATTERN, ' ', $raw) ?? $raw);
         // Yük emojileri (🍇 üzüm, 🦴 kemik) normalleştirmede düşer; sözcük olarak eklenir (yük ve kasa çıkarımı için).
         if (($emojiWords = GoodsCatalog::emojiWords($raw)) !== '') {
             $norm = rtrim($norm).' '.$emojiWords.' ';
@@ -55,14 +56,14 @@ class LoadStandardizer
             $warnings[] = 'same_route_ends';
         }
 
-        // Yük
-        $goods = GoodsCatalog::detect($norm);
+        // Yük: çözülen yer adlarının sözcükleri çıkarılmış metinde aranır ("Yumurtalık" yumurta, "Odunpazarı" kereste, "Elmadağ" meyve değildir)
+        $goods = GoodsCatalog::detect($this->withoutPlaceWords($norm, [$pickup['province_code'] !== null ? $pickup['label'] : null, $delivery['province_code'] !== null ? $delivery['label'] : null]));
         // Yük türü tek biçimde: katalog etiketi ya da cümle biçimi ("PALETLİ YÜK" → "Paletli yük")
         $goodsLabel = $goods['label'] ?? TurkishText::sentence($parsed['goods_type'] ?? null);
 
         // Tonaj ve fiyat
-        $weight = isset($parsed['weight']) && (int) $parsed['weight'] > 0 ? (int) $parsed['weight'] : VehicleClassifier::weightFromText($norm);
-        $price = isset($parsed['price']) && (float) $parsed['price'] > 0 ? round((float) $parsed['price'], 2) : $this->priceFromText($norm);
+        $weight = self::plausibleWeight($parsed['weight'] ?? null) ?? VehicleClassifier::weightFromText($norm);
+        $price = isset($parsed['price']) && (float) $parsed['price'] > 0 ? round((float) $parsed['price'], 2) : ($this->priceFromText($norm) ?? self::perTonPriceFromRaw($raw));
         $priceUnit = $price !== null
             ? (in_array($parsed['price_unit'] ?? null, ['total', 'per_ton'], true) ? $parsed['price_unit'] : AiParserService::priceUnitFromText($raw, $price))
             : null;
@@ -76,29 +77,34 @@ class LoadStandardizer
         // kuralın kendi okuduğu aracı da ($parsed['vehicle_type'] kural ayrıştırmasından gelir) sınıflandırıcı "high" demediğinde
         // "ai" kaynaklı yazıyordu; karar puanı ve filtre bu kayıtları tahmin gibi görüyordu (hâlbuki "tenteli" açıkça yazılmıştı).
         $parsedSource = $parsed['vehicle_type_source'] ?? null;
-        $externalType = in_array($parsedSource, ['ai', 'template', 'admin', 'keyword'], true) && VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null))
+        $externalType = in_array($parsedSource, ['ai', 'ai_guess', 'template', 'admin', 'keyword', 'driver'], true) && VehicleTypes::isValid(VehicleTypes::canonical($parsed['vehicle_type'] ?? null))
             ? VehicleTypes::canonical($parsed['vehicle_type']) : null;
         // Kuralın kendi "keyword" okuması yalnız sınıflandırıcı hiçbir şey bulamadıysa taşınır (aynı metin, aynı kaynak adı).
-        if ($externalType !== null && ($vehicleType === null || ($vehicle['confidence'] !== 'high' && $parsedSource !== 'keyword'))) {
+        // Yönetici ve şoför ("Aradım, araç:") cevabı her zaman kazanır: yeniden standartlaştırma bunları eziyordu.
+        $humanSource = in_array($parsedSource, ['admin', 'driver'], true);
+        if ($externalType !== null && ($humanSource || $vehicleType === null || ($vehicle['confidence'] !== 'high' && $parsedSource !== 'keyword'))) {
             $vehicleType = $externalType;
             $vehicleSource = $parsedSource;
         }
         // "Araç fark etmez": açıkça araç adı yazılmadıysa tip boş kalır, ilan her araca açık sayılır.
-        $vehicleAny = ! empty($parsed['vehicle_any']) && ($parsed['vehicle_type_source'] ?? null) === 'admin';
+        $vehicleAny = ! empty($parsed['vehicle_any']) && in_array($parsedSource, ['admin', 'driver'], true);
         if (VehicleClassifier::anyVehicle($norm) && $vehicle['confidence'] !== 'high') {
             $vehicleAny = true;
         }
         if ($vehicleAny) {
             $vehicleType = null;
-            $vehicleSource = 'keyword';
+            $vehicleSource = $humanSource ? $parsedSource : 'keyword';
         } elseif ($vehicleType === null && $goods !== null) {
             $vehicleType = $goods['min_vehicle'];
             $vehicleSource = 'goods';
         }
         if ($vehicleType === null && ! $vehicleAny) {
             $warnings[] = 'vehicle_unresolved';
-        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai', 'template', 'admin'], true)) {
+        } elseif ($vehicleType !== null && ! in_array($vehicleSource, ['keyword', 'ai', 'template', 'admin', 'driver'], true)) {
             $warnings[] = 'vehicle_inferred';
+        }
+        if ($vehicleType !== null && ! VehicleTypes::isValid($vehicleType)) {
+            $vehicleType = VehicleTypes::canonical($vehicleType); // eski anahtar (uzun_panelvan…) geçerli tipe iner
         }
 
         // Kasa / dorse: açık sözcük > sözlük > "13.60 = damper hariç" > yükten çıkarım; yapay zeka yalnız kural boşsa.
@@ -182,8 +188,9 @@ class LoadStandardizer
             'price' => $load->price,
             'price_unit' => $load->price_unit,
             'currency' => $load->currency,
-            'vehicle_type' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type : null,
-            'vehicle_type_source' => in_array($load->vehicle_type_source, ['ai', 'template'], true) ? $load->vehicle_type_source : null,
+            'vehicle_type' => in_array($load->vehicle_type_source, ['ai', 'ai_guess', 'template', 'driver', 'admin'], true) ? $load->vehicle_type : null,
+            'vehicle_type_source' => in_array($load->vehicle_type_source, ['ai', 'ai_guess', 'template', 'driver', 'admin'], true) ? $load->vehicle_type_source : null,
+            'vehicle_any' => in_array($load->vehicle_type_source, ['driver', 'admin'], true) ? (bool) $load->vehicle_any : false,
             'body_types' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_types : null,
             'body_type_source' => in_array($load->body_type_source, ['ai', 'admin'], true) ? $load->body_type_source : null,
             'load_kind' => $load->load_kind,
@@ -206,9 +213,10 @@ class LoadStandardizer
         if ($load->status === 'parsed_partial' && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
             $changes['status'] = 'parsed_success'; // iki uç da çözüldü: aday artık eksik değil
         }
-        // Konum değiştiyse rota anahtarı da yenilenir; eski anahtar yanlış rotanın tekrar denetimine takılıyordu.
-        if (isset($changes['pickup_location']) || isset($changes['delivery_location'])) {
-            $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        // Rota anahtarı her seferinde yenilenir: konum başka yoldan (yapay zeka, yönetici) değişmiş olabilir, eski anahtar tekrar denetimini atlatıyordu.
+        $routeKey = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        if ($routeKey !== $load->route_key) {
+            $changes['route_key'] = $routeKey;
         }
         $changes['parse_metadata'] = array_merge($meta, $std['metadata']);
         $load->forceFill($changes)->save();
@@ -407,6 +415,13 @@ class LoadStandardizer
     /** "45 bin", "45bin tl", "45k", "fiyat: 45000", "45.000 tl" → 45000. */
     public function priceFromText(string $norm): ?float
     {
+        // Ton başı fiyat "TL" yazılmadan: "tonu 950", "ton başı 1.100", "950/ton", "950 tl/ton" (dökme ilanlarının en yaygın yazımı)
+        if (preg_match('/\b(?:tonu|ton\s+basi(?:na)?|ton\s+fiyat[i]?|ton\s+ucret[i]?)\s*[:=]?\s*(\d{1,2}[.,]\d{3}|\d{3,5})(?![\d.,])/', $norm, $m)
+            || preg_match('/(?<![\d.,])(\d{1,2}[.,]\d{3}|\d{3,5})\s*(?:tl|lira)?\s*\/\s*ton\b/', $norm, $m)) {
+            $v = (float) str_replace(['.', ','], '', $m[1]);
+
+            return $v >= 100 && $v <= 50000 ? round($v, 2) : null;
+        }
         if (preg_match('/(?<![\d.,])(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:bin|k)\b(?!\s*(?:ton|kg|km|palet|adet|koli))/', $norm, $m)) {
             $v = (float) str_replace(',', '.', $m[1]) * 1000;
 
@@ -424,6 +439,54 @@ class LoadStandardizer
         }
 
         return null;
+    }
+
+    /** "950/ton", "950 tl/ton": normalize "/" işaretini boşluğa çevirdiğinden ham metinde aranır. */
+    public static function perTonPriceFromRaw(string $raw): ?float
+    {
+        if (preg_match('/(?<![\d.,])(\d{1,2}[.,]\d{3}|\d{3,5})\s*(?:tl|₺|lira)?\s*\/\s*ton\b/iu', $raw, $m)) {
+            $v = (float) str_replace(['.', ','], '', $m[1]);
+
+            return $v >= 100 && $v <= 50000 ? round($v, 2) : null;
+        }
+
+        return null;
+    }
+
+    /** Tonaj mantıklı aralıkta mı (50 kg – 60 ton); yapay zeka "24" (ton) yazdıysa kilograma çevrilir. */
+    public static function plausibleWeight(mixed $value): ?int
+    {
+        if (! is_numeric($value) || (float) $value <= 0) {
+            return null;
+        }
+        $kg = (float) $value;
+        if ($kg <= 60) {
+            $kg *= 1000; // ton olarak yazılmış
+        }
+
+        return $kg >= 50 && $kg <= 60000 ? (int) round($kg) : null;
+    }
+
+    /** Yer adlarının sözcüklerini metinden çıkarır (yük kataloğu yer adını yük sanmasın). */
+    private function withoutPlaceWords(string $norm, array $places): string
+    {
+        $words = [];
+        foreach ($places as $place) {
+            if (! is_string($place) || trim($place) === '') {
+                continue;
+            }
+            foreach (preg_split('/\s+/', trim(VehicleClassifier::normalize($place))) ?: [] as $w) {
+                if (mb_strlen($w) >= 3) {
+                    $words[$w] = true;
+                }
+            }
+        }
+        if ($words === []) {
+            return $norm;
+        }
+        $pattern = '/\b(?:'.implode('|', array_map('preg_quote', array_keys($words))).')\w*/';
+
+        return preg_replace($pattern, ' ', $norm) ?? $norm;
     }
 
     private function pickupNote(string $norm): ?string

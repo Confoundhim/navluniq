@@ -51,13 +51,30 @@ final class TextPrep
         'ᴜ' => 'u', 'ᴠ' => 'v', 'ᴡ' => 'w', 'ʏ' => 'y', 'ᴢ' => 'z', 'ᴓ' => 'ö',
     ];
 
+    /**
+     * Görünmez karakterler (yön işaretleri U+200E/200F, sıfır genişlikli boşluk/birleştirici U+200B–200D, U+2060, U+FEFF, yumuşak tire)
+     * atılır, geçersiz UTF-8 baytları temizlenir. WhatsApp'tan kopyalanan numaraların içinde LRM sık görülür; eski sürümde "0532‎ 000…"
+     * telefon sayılmıyor, ilan "telefon yok" diye düşüyordu.
+     */
+    public static function stripInvisible(string $text): string
+    {
+        if (! mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_scrub($text, 'UTF-8');
+        }
+
+        return str_replace(["\u{200B}", "\u{200C}", "\u{200D}", "\u{200E}", "\u{200F}", "\u{2060}", "\u{FEFF}", "\u{00AD}", "\0"], '', $text);
+    }
+
     public static function prepare(string $text): string
     {
+        $text = self::stripInvisible($text);
         // Görünüm seçicileri (U+FE0F) ve yön işaretleri atılır; "➡️" ile "➡" aynı karakter olur
         $t = str_replace(["\r\n", "\r", "\u{200E}", "\u{200F}", "\u{202F}", "\u{00A0}", "\u{FE0F}", "\u{FE0E}", "\u{2060}", "\u{FEFF}"], ["\n", "\n", '', '', ' ', ' ', '', '', '', ''], self::foldFonts($text));
         // WhatsApp dışa aktarma / kopyalama ön eki: "[26/9 23:01] Grup Adı: " ya da "26.09.2026 23:01 - Grup Adı: " satır başında atılır
         $t = preg_replace('/^\[\d{1,2}[.\/]\d{1,2}(?:[.\/]\d{2,4})?,?\s+\d{1,2}:\d{2}(?::\d{2})?\]\s+[^:\n]{1,60}:\s*/mu', '', $t) ?? $t;
         $t = preg_replace('/^\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s+-\s+[^:\n]{1,60}:\s*/mu', '', $t) ?? $t;
+        // "panel van" araç adıdır; ayrı yazılınca "van" Van ili sanılıyordu
+        $t = preg_replace('/\b(panel)\s+(van)\b/iu', '$1$2', $t) ?? $t;
         // Kesme/backtick işaretleri ("Tarsus'tan", "BİMS`DEN", "Adapazarın,dan") sözcüğe bitişir
         $t = preg_replace('/(?<=\p{L})[’\'‘`´,](?=(?:dan|den|tan|ten|ya|ye|a|e|na|ne|dan|de|da)\b)/iu', '', $t) ?? $t;
         $t = preg_replace('/(?<=\p{L})[’\'‘`´]\s?(?=\p{L})/u', '', $t) ?? $t;

@@ -39,7 +39,7 @@ final class SeriesAd
      * "ÇANAKKALE TENTELİ KAMYON". Sayılar zaten atılır (2, 13.60).
      */
     private const VEHICLE_FILLER = ['yer', 'arac', 'araclar', 'adet', 'tir', 'tirlar', 'kamyon', 'kamyonet', 'panelvan', 'kirkayak', 'cekici', 'dorse', 'dorseli',
-        'kapali', 'tenteli', 'tente', 'acik', 'frigo', 'frigorifik', 'damperli', 'damper', 'lowbed', 'silobas', 'kisa', 'uzun', 'liftli', 'lift', 'ton', 'tonluk',
+        'kapali', 'tenteli', 'tente', 'tenten', 'tentelı', 'acik', 'frigo', 'frigorifik', 'damperli', 'damper', 'lowbed', 'silobas', 'kisa', 'uzun', 'liftli', 'lift', 'ton', 'tonluk',
         'parsiyel', 'komple', 'yuk', 'yukler', 'var', 'lazim', 'aranan', 'araniyor', 'olur', 'uygun', 'm', 'mt', 'metre', 'teker', 'tekerli', 'dingil'];
 
     /** Mesajda kalkış bulunduğunu gösteren işaretler yoksa ve satırlar "yer + araç" biçimindeyse: kalkışsız varış listesi. */
@@ -115,11 +115,12 @@ final class SeriesAd
                     continue;
                 }
             }
-            $hasPickupVerb = preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(self::PICKUP_SUFFIX, $lower) === 1;
+            $suffixHeader = preg_match(self::PICKUP_SUFFIX, $lower) === 1 && AiParserService::hasTrueAblative($lower); // "ANKARA TENTEN", "K.MARAŞ ELBİSTAN" başlık değil
+            $hasPickupVerb = preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || $suffixHeader;
             // Varış satırı: "X boşaltır / iner" ya da (başlık görüldükten sonra) yalnız yer adı taşıyan satır ("Amasya / MERZİFON")
             $isDest = $places !== [] && ! $hasPickupVerb
                 && (preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1 || ($headerCount > 0 && self::isPlaceOnly($line, $places)));
-            $isHeader = ! $isDest && $places !== [] && (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(self::PICKUP_SUFFIX, $lower) === 1);
+            $isHeader = ! $isDest && $places !== [] && $hasPickupVerb;
             if ($isHeader) {
                 if ($current['dests'] !== []) {
                     $blocks[] = $current;

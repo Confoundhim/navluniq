@@ -99,7 +99,10 @@ class AiParserService
     }
 
     /** Türkiye cep numarası: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil). */
-    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u';
+    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?![\s\-.()]+0\d)(?:[\s\-.()]*\d){9}(?!\d)/u'; // "kat 5 0532 …": tek başına 5 numarayı başlatmaz
+
+    /** IBAN ("TR53 2000 0001 2345 6789 0123 45") telefon değildir; numara aranmadan metinden çıkarılır. */
+    public const IBAN_PATTERN = '/\bTR\d{2}(?:[\s\-]?\d{4}){5}[\s\-]?\d{2}\b/iu';
 
     /** Yalnız kural tabanlı ayrıştırma; başarısızsa (ayar açıksa) yapay zeka ile tamamlar. */
     public function parseMessage(string $message, ?string $preferredProvider = null): array
@@ -441,7 +444,9 @@ class AiParserService
         // Aynı metin için yapay zeka sonucu 7 gün önbellekte: alım, kuyruk ve denetim aynı mesaja ikinci kez kota harcamaz;
         // yarım kalan iş yeniden denendiğinde çağrı tekrarlanmaz (idempotent).
         $cacheKey = self::resultCacheKey($message);
-        if (is_array($cached = Cache::get($cacheKey))) {
+        if ($manual) {
+            Cache::forget($cacheKey); // yönetici "yeniden çözümle" dedi: önbellekten değil, sağlayıcıdan taze cevap
+        } elseif (is_array($cached = Cache::get($cacheKey))) {
             return ['status' => 'done', 'data' => $cached, 'cached' => true];
         }
         $exhausted = $this->exhaustedToday();
@@ -514,9 +519,12 @@ class AiParserService
 
     public const BREAKER_COOLDOWN_MINUTES = 10;
 
+    /** Yapay zeka komutu / şema değişince eski cevaplar önbellekten dönmesin; komuta kural eklenince bu sürüm artırılır. */
+    public const PROMPT_VERSION = '2026-10-05';
+
     public static function resultCacheKey(string $message): string
     {
-        return 'ai:result:'.hash('sha256', LoadIntakeService::normalizeText(mb_substr($message, 0, self::AI_MESSAGE_CHARS)));
+        return 'ai:result:'.self::PROMPT_VERSION.':'.hash('sha256', LoadIntakeService::normalizeText(mb_substr($message, 0, self::AI_MESSAGE_CHARS)));
     }
 
     /** Sağlayıcı devre kesicide bekliyorsa bitiş zamanı, değilse null. */
@@ -732,7 +740,8 @@ class AiParserService
         $ruleKeyword = ($out['vehicle_type_source'] ?? null) === 'keyword';
         if (! empty($ai['vehicle_type']) && (empty($out['vehicle_type']) || ! $ruleKeyword)) {
             $out['vehicle_type'] = $ai['vehicle_type'];
-            $out['vehicle_type_source'] = 'ai';
+            // Mesajda araç adı yokken modelin "en küçük uygun araç" tahmini (vehicle_flexible) kesin değildir: filtre ve karar tahmin sayar.
+            $out['vehicle_type_source'] = ! empty($ai['vehicle_flexible']) ? 'ai_guess' : 'ai';
         }
         $out['success'] = ! empty($out['sender_phone']) && ! empty($out['pickup_location']) && ! empty($out['delivery_location']);
         if ($out['success']) {
@@ -765,7 +774,7 @@ class AiParserService
         $messageType = in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : null;
         $anyLoad = array_filter($ads, fn (array $a) => $a['is_load']) !== [];
         $first = $ads[0];
-        $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : $first['confidence'];
+        $confidence = self::normalizeConfidence($data['confidence'] ?? null) ?? $first['confidence'];
 
         return array_merge($first, [
             'post_type' => $messageType ?? $first['post_type'],
@@ -778,12 +787,26 @@ class AiParserService
         ]);
     }
 
+    /** Güven 0-1 beklenir; küçük modeller yüzde (85) yazar → 0,85; 100'den büyük anlamsız → null (eski sürüm 85'i 1,0'a kırpıp "kesin ilan değil" sayıyordu). */
+    public static function normalizeConfidence(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+        $v = (float) $value;
+        if ($v > 1.0 && $v <= 100.0) {
+            $v /= 100;
+        }
+
+        return $v > 1.0 || $v < 0.0 ? null : $v;
+    }
+
     /** Tek bir ilan nesnesini (yeni "ads" öğesi ya da eski düz nesne) iç biçime çevirir. */
     private function normalizeAd(array $data, string $provider, string $model, int $index, int $count): array
     {
         $vehicle = is_string($data['vehicle_type'] ?? null) && VehicleTypes::isValid($data['vehicle_type']) ? $data['vehicle_type'] : null;
         $goodsKey = is_string($data['goods_category'] ?? null) && GoodsCatalog::label($data['goods_category']) ? $data['goods_category'] : null;
-        $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : null;
+        $confidence = self::normalizeConfidence($data['confidence'] ?? null);
         $phones = [];
         foreach (array_merge([$data['sender_phone'] ?? null], is_array($data['phones'] ?? null) ? $data['phones'] : [$data['phones'] ?? null]) as $candidate) {
             $normalized = $this->normalizePhone($candidate);
@@ -864,7 +887,8 @@ class AiParserService
      */
     public static function phonesIn(string $text): array
     {
-        preg_match_all(self::PHONE_PATTERN, $text, $matches);
+        $text = TextPrep::stripInvisible($text);
+        preg_match_all(self::PHONE_PATTERN, preg_replace(self::IBAN_PATTERN, ' ', $text) ?? $text, $matches);
         $out = [];
         foreach ($matches[0] as $match) {
             $digits = preg_replace('/\D+/', '', $match) ?? '';
@@ -1354,6 +1378,9 @@ TXT;
         if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {
             $weightKg *= 1000;
         }
+        if ($weightKg !== null && ($weightKg < 50 || $weightKg > 60000)) {
+            $weightKg = null; // "24.500 ton" gibi okuma hatası: üst sınır 60 ton (weightFromText ile aynı)
+        }
         // "24t", "20-25 ton", "yirmi dört ton" gibi yazımlar sınıflandırıcının tonaj çözümüyle yakalanır.
         $weightKg ??= VehicleClassifier::weightFromText(VehicleClassifier::normalize($message));
         preg_match('/(?:yük|mal|ürün)\s*[:\-]\s*([\p{L}\d\s]{2,80})/iu', $message, $goods);
@@ -1440,7 +1467,7 @@ TXT;
             if ($connector === ',') {
                 $lineLower = TurkishCities::lower($m['line']);
                 $hasVerb = preg_match(self::PICKUP_VERBS, $lineLower) === 1 || preg_match(self::DELIVERY_VERBS, $lineLower) === 1
-                    || preg_match('/(?<!\p{L})\p{L}{3,}(?:dan|den|tan|ten)(?!\p{L})/u', preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower) === 1;
+                    || self::hasTrueAblative(preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower);
                 if ($hasVerb || count(self::placesIn($m['line'], 3)) !== 2) {
                     continue;
                 }
@@ -1652,7 +1679,7 @@ TXT;
     public const SHORT_DISTRICTS = ['can', 'bor', 'mut', 'kas', 'ula', 'cat', 'has', 'kale'];
 
     /** İlçe adıyla çakışan ama ilanlarda başka anlamda geçen sözcükler: tek başına yer sayılmaz. */
-    public const PLACE_NOISE = ['arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir',
+    public const PLACE_NOISE = ['karsi', 'karşı', 'musa', 'vana', 'panel', 'arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir',
         // gün adları ("Perşembe yükleme"; "Samsun Çarşamba" / "Rize Pazar" il ile yazılınca çözülür), ay ("15 Aralık"), gündelik sözcükler ve yönler
         'pazartesi', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar', 'aralık', 'aralik', 'olur', 'orta', 'güney', 'guney', 'kuzey', 'doğu', 'dogu', 'batı', 'bati',
         'akdeniz', 'marmara', 'ege', 'karadeniz', 'termal', 'selim', 'evren', 'ulus', 'susuz', 'korkut', 'küre', 'kure', 'köşk', 'kosk', 'hal', 'hali', 'yeşil', 'yesil', 'güzel', 'guzel'];
@@ -1678,7 +1705,7 @@ TXT;
             }
             // Büyük harfli Türkçe ("YÜKLEMELİ", "İNER") /i ile eşleşmez (İ ↔ i katlanmaz): küçük harfe indirilmiş satırda aranır
             $lower = TurkishCities::lower($line);
-            $isPickup = preg_match(self::PICKUP_VERBS, $lower) === 1 || preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $lower) === 1;
+            $isPickup = preg_match(self::PICKUP_VERBS, $lower) === 1 || (preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $lower) === 1 && self::hasTrueAblative($lower));
             $isDelivery = preg_match(self::DELIVERY_VERBS, $lower) === 1;
             if ($isPickup && $isDelivery && count($places) >= 2 && $pickup === null && $delivery === null) {
                 // "BOLU YÜKLER ANTALYA BOŞALTIR": her fiilden önceki en yakın yer adı o role aittir
@@ -1759,9 +1786,33 @@ TXT;
         return [$pickup, $delivery]; // aynı yer ("ankara lojistik üssü yükler / … iner"): şehir içi taşıma
     }
 
-    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
+    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklenecek|yuklenecek|yükleniyor|yukleniyor|yüklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
 
-    public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|boşaltır|bosaltir|boşaltma|bosaltma|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
+    public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|indirilecek|indirilir|indirecek|iniyor|boşaltır|bosaltir|boşaltılır|bosaltilir|boşaltılacak|bosaltilacak|boşaltacak|bosaltacak|boşaltılıyor|bosaltiliyor|boşaltma|bosaltma|tahliye|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
+
+    /** "-dan/-den/-tan/-ten" ile biten ama ayrılma eki olmayan sözcükler: sektör ve gündelik sözcükler; il/ilçe adının kendisi de (Elbistan, Buldan) katalogdan denetlenir. */
+    public const FALSE_ABLATIVE = ['tenten', 'toptan', 'kaptan', 'bostan', 'vatan', 'destan', 'zaten', 'meydan', 'fidan', 'kurban', 'sultan', 'siten', 'posten', 'listen', 'kesten', 'yastan', 'nisan', 'dukkan', 'orman', 'liman', 'yan', 'perakenden', 'hemen', 'nereden', 'beden', 'neden', 'giden', 'eden', 'gelen', 'alan', 'olan', 'kalan', 'bulunan'];
+
+    /**
+     * Satırdaki "-dan/-den/-tan/-ten" ile biten sözcük gerçekten kalkış eki mi? "GEBZE YÜKLER / ANKARA TENTEN" satırında "tenten" kasa
+     * sözcüğüdür, "K.MARAŞ ELBİSTAN" ilçe adıdır; eski sürüm ikisini de kalkış başlığı sayıp seri ilanı bozuyordu.
+     */
+    public static function hasTrueAblative(string $lower): bool
+    {
+        if (! preg_match_all('/(?<!\p{L})(\p{L}{3,}(?:dan|den|tan|ten))(?!\p{L})/u', $lower, $m)) {
+            return false;
+        }
+        foreach ($m[1] as $word) {
+            $ascii = TurkishCities::ascii($word);
+            if (in_array($ascii, self::FALSE_ABLATIVE, true) || TurkishLocations::isCatalogName($word)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
 
     private static function samePlace(array $a, array $b): bool
     {
@@ -1861,6 +1912,8 @@ TXT;
             'sabah', 'akşam', 'aksam', 'yükü', 'yuku', 'nakliye', 'dorse', 'frigo', 'kasa',
             'yükler', 'yukler', 'yüklemeli', 'yuklemeli', 'yüklemeler', 'yuklemeler', 'yüklenir', 'yuklenir', 'yüklemem', 'yuklemem', 'yükümüz', 'yukumuz',
             'iner', 'inecek', 'indirmeli', 'indirme', 'boşaltır', 'bosaltir', 'teslim', 'teslimat', 'tampon', 'bölge', 'bolge',
+            'yüklenecek', 'yuklenecek', 'yükleniyor', 'yukleniyor', 'boşaltılacak', 'bosaltilacak', 'boşaltılır', 'bosaltilir', 'boşaltacak', 'bosaltacak',
+            'boşaltılıyor', 'bosaltiliyor', 'indirilecek', 'indirilir', 'indirecek', 'iniyor', 'tahliye',
             'kapalı', 'kapali', 'açık', 'acik', 'tente', 'tenten', 'firgo', 'firigo', 'damper', 'damperli', 'damperlı', 'dökme', 'dokme',
             'hemen', 'bugünkü', 'yarınki', 'pazartesi', 'salı', 'sali', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar',
             'günü', 'gunu', 'saat', 'kadar', 'km', 'usd', 'tl', 'kdv', 'peşin', 'pesin', 'nokta', 'yer', 'civarı', 'civari', 'depo', 'depodan', 'depoma',
