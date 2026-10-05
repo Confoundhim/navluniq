@@ -1393,5 +1393,100 @@
       "vehicle": "tir",
       "weight": null
     }
+  },
+  {
+    "id": "tenten-kalkis-degil",
+    "message": "GEBZE YÜKLER\nANKARA TENTEN\nKONYA TENTEN\nADANA KAPALI\n0532 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Ankara"
+        ],
+        [
+          "Kocaeli Gebze",
+          "Konya"
+        ],
+        [
+          "Kocaeli Gebze",
+          "Adana"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "elbistan-ilce-kalkis-degil",
+    "message": "SAMSUN YÜKLEMELERİ\nK.MARAŞ ELBİSTAN\nADANA\nMERSİN\n0532 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Samsun",
+          "Kahramanmaraş Elbistan"
+        ],
+        [
+          "Samsun",
+          "Adana"
+        ],
+        [
+          "Samsun",
+          "Mersin"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "bosaltilacak-yuklenecek",
+    "message": "İZMİR BOŞALTILACAK\nANKARA YÜKLENECEK\n24 ton tenteli tır\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "bosaltilir-yuklenir",
+    "message": "Mersin boşaltılır\nAdana yüklenir\n10 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Adana",
+          "Mersin"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "tahliye-yukleme",
+    "message": "Samsun tahliye\nOrdu yükleme\n10 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ordu",
+          "Samsun"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "kat-5-numara",
+    "message": "Ankara - İzmir 24 ton tenteli tır kat 5 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ],
+      "phone": "5321112233"
+    }
   }
 ]

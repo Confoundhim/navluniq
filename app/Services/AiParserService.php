@@ -99,7 +99,10 @@ class AiParserService
     }
 
     /** Türkiye cep numarası: "0532 123 45 67", "+90 (532) 123-45-67", "5321234567" (ayraçlı/boşluklu yazımlar dahil). */
-    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?:[\s\-.()]*\d){9}(?!\d)/u';
+    public const PHONE_PATTERN = '/(?<!\d)(?:\+?90|0)?[\s\-.()]*5(?![\s\-.()]+0\d)(?:[\s\-.()]*\d){9}(?!\d)/u'; // "kat 5 0532 …": tek başına 5 numarayı başlatmaz
+
+    /** IBAN ("TR53 2000 0001 2345 6789 0123 45") telefon değildir; numara aranmadan metinden çıkarılır. */
+    public const IBAN_PATTERN = '/\bTR\d{2}(?:[\s\-]?\d{4}){5}[\s\-]?\d{2}\b/iu';
 
     /** Yalnız kural tabanlı ayrıştırma; başarısızsa (ayar açıksa) yapay zeka ile tamamlar. */
     public function parseMessage(string $message, ?string $preferredProvider = null): array
@@ -884,7 +887,8 @@ class AiParserService
      */
     public static function phonesIn(string $text): array
     {
-        preg_match_all(self::PHONE_PATTERN, $text, $matches);
+        $text = TextPrep::stripInvisible($text);
+        preg_match_all(self::PHONE_PATTERN, preg_replace(self::IBAN_PATTERN, ' ', $text) ?? $text, $matches);
         $out = [];
         foreach ($matches[0] as $match) {
             $digits = preg_replace('/\D+/', '', $match) ?? '';
@@ -1463,7 +1467,7 @@ TXT;
             if ($connector === ',') {
                 $lineLower = TurkishCities::lower($m['line']);
                 $hasVerb = preg_match(self::PICKUP_VERBS, $lineLower) === 1 || preg_match(self::DELIVERY_VERBS, $lineLower) === 1
-                    || preg_match('/(?<!\p{L})\p{L}{3,}(?:dan|den|tan|ten)(?!\p{L})/u', preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower) === 1;
+                    || self::hasTrueAblative(preg_replace(self::PHONE_PATTERN, ' ', $lineLower) ?? $lineLower);
                 if ($hasVerb || count(self::placesIn($m['line'], 3)) !== 2) {
                     continue;
                 }
@@ -1701,7 +1705,7 @@ TXT;
             }
             // Büyük harfli Türkçe ("YÜKLEMELİ", "İNER") /i ile eşleşmez (İ ↔ i katlanmaz): küçük harfe indirilmiş satırda aranır
             $lower = TurkishCities::lower($line);
-            $isPickup = preg_match(self::PICKUP_VERBS, $lower) === 1 || preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $lower) === 1;
+            $isPickup = preg_match(self::PICKUP_VERBS, $lower) === 1 || (preg_match('/^\p{L}+(?:dan|den|tan|ten)\b/iu', $lower) === 1 && self::hasTrueAblative($lower));
             $isDelivery = preg_match(self::DELIVERY_VERBS, $lower) === 1;
             if ($isPickup && $isDelivery && count($places) >= 2 && $pickup === null && $delivery === null) {
                 // "BOLU YÜKLER ANTALYA BOŞALTIR": her fiilden önceki en yakın yer adı o role aittir
@@ -1782,9 +1786,33 @@ TXT;
         return [$pickup, $delivery]; // aynı yer ("ankara lojistik üssü yükler / … iner"): şehir içi taşıma
     }
 
-    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
+    public const PICKUP_VERBS = '/(?<!\p{L})(?:yükler|yukler|yüklemeli|yuklemeli|yükleme|yukleme|yüklemeler|yuklemeler|yüklemeleri|yuklemeleri|yüklemelerimiz|yuklemelerimiz|yüklemesi|yuklemesi|yüklenir|yuklenir|yüklenecek|yuklenecek|yükleniyor|yukleniyor|yüklenir|yüklemem|yuklemem|yükümüz|yukumuz|çıkış|cikis|çıkışlı|cikisli|kalkış|kalkis|yükleme noktası)(?!\p{L})/iu';
 
-    public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|boşaltır|bosaltir|boşaltma|bosaltma|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
+    public const DELIVERY_VERBS = '/(?<!\p{L})(?:iner|inecek|indirmeli|indirme|indirir|indirilecek|indirilir|indirecek|iniyor|boşaltır|bosaltir|boşaltılır|bosaltilir|boşaltılacak|bosaltilacak|boşaltacak|bosaltacak|boşaltılıyor|bosaltiliyor|boşaltma|bosaltma|tahliye|teslim|varış|varis|tampon bölge|teslimat)(?!\p{L})/iu';
+
+    /** "-dan/-den/-tan/-ten" ile biten ama ayrılma eki olmayan sözcükler: sektör ve gündelik sözcükler; il/ilçe adının kendisi de (Elbistan, Buldan) katalogdan denetlenir. */
+    public const FALSE_ABLATIVE = ['tenten', 'toptan', 'kaptan', 'bostan', 'vatan', 'destan', 'zaten', 'meydan', 'fidan', 'kurban', 'sultan', 'siten', 'posten', 'listen', 'kesten', 'yastan', 'nisan', 'dukkan', 'orman', 'liman', 'yan', 'perakenden', 'hemen', 'nereden', 'beden', 'neden', 'giden', 'eden', 'gelen', 'alan', 'olan', 'kalan', 'bulunan'];
+
+    /**
+     * Satırdaki "-dan/-den/-tan/-ten" ile biten sözcük gerçekten kalkış eki mi? "GEBZE YÜKLER / ANKARA TENTEN" satırında "tenten" kasa
+     * sözcüğüdür, "K.MARAŞ ELBİSTAN" ilçe adıdır; eski sürüm ikisini de kalkış başlığı sayıp seri ilanı bozuyordu.
+     */
+    public static function hasTrueAblative(string $lower): bool
+    {
+        if (! preg_match_all('/(?<!\p{L})(\p{L}{3,}(?:dan|den|tan|ten))(?!\p{L})/u', $lower, $m)) {
+            return false;
+        }
+        foreach ($m[1] as $word) {
+            $ascii = TurkishCities::ascii($word);
+            if (in_array($ascii, self::FALSE_ABLATIVE, true) || TurkishLocations::isCatalogName($word)) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
 
     private static function samePlace(array $a, array $b): bool
     {
@@ -1884,6 +1912,8 @@ TXT;
             'sabah', 'akşam', 'aksam', 'yükü', 'yuku', 'nakliye', 'dorse', 'frigo', 'kasa',
             'yükler', 'yukler', 'yüklemeli', 'yuklemeli', 'yüklemeler', 'yuklemeler', 'yüklenir', 'yuklenir', 'yüklemem', 'yuklemem', 'yükümüz', 'yukumuz',
             'iner', 'inecek', 'indirmeli', 'indirme', 'boşaltır', 'bosaltir', 'teslim', 'teslimat', 'tampon', 'bölge', 'bolge',
+            'yüklenecek', 'yuklenecek', 'yükleniyor', 'yukleniyor', 'boşaltılacak', 'bosaltilacak', 'boşaltılır', 'bosaltilir', 'boşaltacak', 'bosaltacak',
+            'boşaltılıyor', 'bosaltiliyor', 'indirilecek', 'indirilir', 'indirecek', 'iniyor', 'tahliye',
             'kapalı', 'kapali', 'açık', 'acik', 'tente', 'tenten', 'firgo', 'firigo', 'damper', 'damperli', 'damperlı', 'dökme', 'dokme',
             'hemen', 'bugünkü', 'yarınki', 'pazartesi', 'salı', 'sali', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar',
             'günü', 'gunu', 'saat', 'kadar', 'km', 'usd', 'tl', 'kdv', 'peşin', 'pesin', 'nokta', 'yer', 'civarı', 'civari', 'depo', 'depodan', 'depoma',

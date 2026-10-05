@@ -97,7 +97,8 @@ class NotificationWebhookController extends Controller
         $parsed = NotificationIntakeParser::parse($validated);
         $groupOnly = NotificationIntakeParser::splitTitle((string) ($validated['title'] ?? ''))[0] ?: null; // gönderen adı canlı akışa yazılmaz (KVKK)
         if ($parsed['skipped'] !== null) {
-            IntakeEvent::record('skipped', ['title' => $groupOnly, 'excerpt' => $validated['text_big'] ?? $validated['text'] ?? null, 'reason' => $parsed['skipped'].($repaired ? ' (json_repaired)' : '')]);
+            // WhatsApp dışı uygulama bildirimlerinin (SMS, banka) metni canlı akışa yazılmaz (KVKK); yalnız gerekçe kalır.
+            IntakeEvent::record('skipped', ['title' => $groupOnly, 'excerpt' => $parsed['skipped'] === 'not_whatsapp' ? null : ($validated['text_big'] ?? $validated['text'] ?? null), 'reason' => $parsed['skipped'].($repaired ? ' (json_repaired)' : '')]);
 
             return response()->json(['success' => true, 'status' => 'skipped', 'reason' => $parsed['skipped'], 'processed' => 0]);
         }
@@ -112,7 +113,7 @@ class NotificationWebhookController extends Controller
             // Toplayıcı uygulaması kullanıcı kaydırdıkça aynı gönderiyi birkaç kez gösterir; 24 saat içinde görülen gönderi kuyruğa
             // bir daha girmez (canlı akış "tekrar" satırlarıyla dolmaz). Önbellek anahtarı grup + metin özetidir.
             $total = count($parsed['messages']);
-            $parsed['messages'] = array_values(array_filter($parsed['messages'], fn (array $m) => Cache::add('fb:seen:'.sha1(($m['group'] ?? '').'|'.$m['text']), 1, now()->addDay())));
+            $parsed['messages'] = array_values(array_filter($parsed['messages'], fn (array $m) => Cache::add(NotificationIntakeParser::screenSeenKey((string) ($m['group'] ?? ''), $m['text']), 1, now()->addDay())));
             $app = (string) $request->header('X-Intake-App', '');
             IntakeEvent::record('screen', ['source_name' => $parsed['group'], 'title' => $groupOnly,
                 'excerpt' => $total.' gönderi ayrıştırıldı, '.count($parsed['messages']).' yeni, '.mb_strlen((string) ($validated['text'] ?? '')).' karakter döküm'.($app !== '' ? ' · '.mb_substr($app, 0, 40) : '')]);

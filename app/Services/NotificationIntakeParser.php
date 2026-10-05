@@ -35,7 +35,10 @@ final class NotificationIntakeParser
      * Yedekleme / arama bildirimleri: yalnız BAŞLIKTA ve tam sözcük olarak bakılır. Eski sürüm bu sözcükleri metinde de
      * sınırsız arıyordu; "fiyat görüşmeli", "yük arıyoruz", "görüşmek için arayın" yazan gerçek ilanlar özet sanılıp eleniyordu.
      */
-    private const SYSTEM_TITLE_PATTERN = '/(?<!\p{L})(?:yedekleme|backup|arama|call|görüşme|kaçırılan|cevapsız)(?!\p{L})/iu';
+    private const SYSTEM_TITLE_PATTERN = '/(?<!\p{L})(?:yedekleme|backup|kaçırılan|cevapsız)(?!\p{L})/iu';
+
+    /** "arama / call / görüşme" tek başına sistem bildirimi sayılmaz: "Yük Arama Grubu" gerçek bir grup adıdır. Yalnız kısa başlık + kısa metinde. */
+    private const SYSTEM_WEAK_TITLE_PATTERN = '/(?<!\p{L})(?:arama|call|görüşme)(?!\p{L})/iu';
 
     /** Kısa metinde (40 karakterden az) sistem bildirimi: "Yedekleme tamamlandı", "Cevapsız arama". "arama/görüşme" tek başına yetmez. */
     private const SYSTEM_SHORT_TEXT_PATTERN = '/(?<!\p{L})(?:yedekleme|backup|kaçırılan|cevapsız)(?!\p{L})/iu';
@@ -53,6 +56,10 @@ final class NotificationIntakeParser
         'isim', 'ad', 'yetkili', 'sahibi', 'ilan', 'ilanı', 'ilani', 'lazım', 'lazim', 'aranıyor', 'araniyor', 'acil', 'önemli', 'onemli', 'dikkat', 'zaman', 'gün', 'gun',
         'sevk', 'sevkiyat', 'tır', 'tir', 'kamyon', 'kamyonet', 'tenteli', 'frigo', 'damper', 'damperli', 'panelvan', 'kırkayak', 'kirkayak', 'uyarı', 'uyari', 'mesaj',
         'konum', 'il', 'ilçe', 'ilce', 'şehir', 'sehir', 'depo', 'fabrika', 'liman', 'alıcı', 'alici', 'gönderici', 'gonderici', 'müşteri', 'musteri', 've', 'ile'];
+
+    /** Etiket sözcüklerinin kökleri: "Yükleme günü", "Boşaltma adresi", "Tel no", "Ödeme şekli", "Avrupa yakası" gibi ek almış biçimler de etikettir. */
+    private const LABEL_STEMS = ['gun', 'adres', 'nokta', 'bilgi', 'saat', 'sekl', 'sekil', 'tarih', 'yer', 'irtibat', 'gsm', 'tel', 'yuk', 'bosalt', 'yukle', 'kalkis', 'varis',
+        'teslim', 'fiyat', 'arac', 'odeme', 'yaka', 'avrupa', 'anadolu', 'var', 'aciklama', 'not', 'ton', 'navlun', 'ucret', 'guzergah', 'rota', 'kasa', 'dorse', 'malzeme', 'urun'];
 
     /** Facebook ekran dökümünde arayüz satırları (düğme, sayaç, zaman, rozet); gönderi metni değildir. */
     private const SCREEN_NOISE = [
@@ -130,8 +137,14 @@ final class NotificationIntakeParser
                 return self::skip('summary_notification');
             }
         }
-        if (preg_match(self::SYSTEM_TITLE_PATTERN, $title) || (mb_strlen($text) < 40 && preg_match(self::SYSTEM_SHORT_TEXT_PATTERN, $text))) {
+        // Sistem bildirimi başlığı kısadır ("Yedekleme", "Cevapsız arama") ve metni de kısadır; "Yük Backup Grubu: Ali" gibi bir grup adı
+        // uzun bir ilan metniyle gelince sistem bildirimi değildir (eski sürüm o grubun bütün mesajlarını atıyordu).
+        $titleWords = count(array_filter(preg_split('/\s+/u', trim($title)) ?: []));
+        if ((preg_match(self::SYSTEM_TITLE_PATTERN, $title) && ($titleWords <= 2 || ! LoadIntakeService::hasPhone($text))) || (mb_strlen($text) < 40 && preg_match(self::SYSTEM_SHORT_TEXT_PATTERN, $text))) {
             return self::skip('summary_notification');
+        }
+        if (preg_match(self::SYSTEM_WEAK_TITLE_PATTERN, $title) && mb_strlen($text) < 40 && $titleWords <= 2) {
+            return self::skip('summary_notification'); // "Sesli arama", "Cevapsız arama" gibi kısa sistem başlığı + kısa metin
         }
 
         // Başlık biçimleri: "Grup", "Grup (3 mesaj)", "Grup (3 mesaj): Gönderen", "Grup: Gönderen", "Gönderen @ Grup".
@@ -204,7 +217,16 @@ final class NotificationIntakeParser
         }
         $labelWords = 0;
         foreach ($words as $w) {
-            if (in_array(trim($w, ".'’-"), self::LABEL_WORDS, true)) {
+            $w = trim($w, ".'’-");
+            $ascii = TurkishCities::ascii($w);
+            $stemHit = false;
+            foreach (self::LABEL_STEMS as $stem) {
+                if (str_starts_with($ascii, $stem) && strlen($ascii) <= strlen($stem) + 5) {
+                    $stemHit = true;
+                    break;
+                }
+            }
+            if ($stemHit || in_array($w, self::LABEL_WORDS, true) || in_array($ascii, ['no', 'nr', 'num'], true)) {
                 $labelWords++;
             }
         }
@@ -655,6 +677,12 @@ final class NotificationIntakeParser
         }
 
         return preg_match('/^5\d{9}$/', $digits) ? $digits : null;
+    }
+
+    /** Ekran dökümünde "görüldü" önbellek anahtarı (grup + metin); kaynak onay beklerken alım bu anahtarı serbest bırakır. */
+    public static function screenSeenKey(string $group, string $text): string
+    {
+        return 'fb:seen:'.sha1($group.'|'.trim($text));
     }
 
     private static function skip(string $reason): array

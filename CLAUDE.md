@@ -229,6 +229,22 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   (`MarketingConsentService`, `users.marketing_consent_at`, imzalı `marketing.unsubscribe`, bildirim türü `marketing`).
   Depo herkese açık: Osman gizleyince `android/keystore` yenilenecek. Sözleşme metinleri `{{AUTO_APPROVAL_HOURS}}` /
   `{{OFFER_PAYMENT_HOURS}}` yer tutucularıyla (`Company::SETTING_TOKENS`); `legal:refresh --if-stale` eksikse yeniler.
+- **İlan hattı derin denetimi (2026-10-05, Osman: "algoritmayı zirveye çıkaralım, atladığımız bir şey var mı"):** üç ayrı inceleme
+  (okuma/parçalama, karar/tekrar/yayın, alan çıkarımı/yapay zeka/eşleşme) 53 bulgu verdi; hepsi `DecisionAuditTest`, `FieldsAuditTest`,
+  `ParsingAuditTest` ile kapatıldı, altın set 250 örnek. Kalıcı kurallar: `autoApprovalBlocker` **yan etkisizdir** (ikiz kararı
+  `resolveTwin`, tekrar işareti yalnız `autoApproveDue` döngüsünde, arşivleme yalnız `approve`); `Settings::isCounterKey` sayaç anahtarları
+  "ayar değişti" damgası basmaz; yerel sınıflandırıcı puanı `rule + (local-0,5)×0,8`; yapay zeka `is_load=false` → kanıt `1-güven`;
+  `reparseWithAi` route_key yeniler ve "ilan değil"i eler; yayınlanmamış aday `retention_expires_at` dolunca arşivlenir; daha dolu paylaşım
+  (araç/fiyat/tonaj eklenmiş, ilçe farklı) `supersedes`; `materiallyDifferent` reddedilmiş kaydı doldurmaz. Alanlar: telefon rakamları
+  araç/kasa/adet kalıplarından önce silinir; tonajsız "kamyon" = 6 teker **tahmin** (hint, yumuşak filtre); kasa sözcüğü + ≤16 t = kamyon
+  alt tipi tahmin; `ai_guess` (vehicle_flexible) kesin değil; şoför/yönetici aracı restandardize'da korunur; yük kataloğu çözülen yer
+  adlarının sözcüklerini görmez; tek harfli il eki yalnız 5+ harfli gövdede ("vana", "musa", "karşı" il değil); İskenderun/Antakya ilçe;
+  `AiParserService::normalizeConfidence` (85 → 0,85), `PROMPT_VERSION` önbellek anahtarında, elle yeniden çözümleme önbelleği atlar.
+  Okuma: `TextPrep::stripInvisible` (LRM/ZWSP/geçersiz UTF-8) alımın ilk adımı; `hasTrueAblative` ("TENTEN", "ELBİSTAN" kalkış eki değil;
+  `TurkishLocations::isCatalogName`); etiket kökleri `LABEL_STEMS`; sistem bildirimi başlığı ≤2 sözcük ya da telefonsuz metin;
+  PDOException/RedisException kuyruğa fırlatılır (`tries=2`); ekran dökümü `fb:seen` kaynak onay beklerken 10 dk; IBAN ve "kat 5 0532…"
+  telefon değil. **Bekleyen tasarım kararları (Osman):** sabit hat / 0850 numaralı ilanlar (bugün alınmıyor), komisyoncu tekrarı (aynı
+  ilan başka numarayla), iki satırlık "yer + araç" ilanı, "TORBALI YÜKLER" gibi yük-benzeri ilçe adıyla başlayan başlık.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
