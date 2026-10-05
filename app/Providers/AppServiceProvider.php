@@ -51,5 +51,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('intake-ping', fn (Request $r) => Limit::perMinute(30)->by('ping|'.$r->ip()));
         RateLimiter::for('intake-version', fn (Request $r) => Limit::perMinute(60)->by('version|'.$r->ip()));
         RateLimiter::for('scraper-webhook', fn (Request $r) => Limit::perMinute(60)->by('scraper|'.$r->ip()));
+        RateLimiter::for('driver-location', fn (Request $r) => Limit::perMinute(60)->by('loc|'.($r->user()?->getAuthIdentifier() ?: $r->ip()))); // şoför konumu: kullanıcı başına, paylaşımlı sayaç değil (A22)
     }
 }

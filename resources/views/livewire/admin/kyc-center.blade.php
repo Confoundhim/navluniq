@@ -118,13 +118,27 @@ new class extends Component {
             return;
         }
 
+        // Günde en çok 5 sorgu (kullanıcı başına): NVİ servisi toplu kimlik taramasına açılmaz (denetim Y26).
+        $limitKey = 'nvi:'.auth()->id().':'.$user->id;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($limitKey, self::NVI_DAILY_LIMIT)) {
+            $this->nviResult = ['success' => false, 'is_match' => false, 'message' => 'Bu kullanıcı için günlük NVİ sorgu sınırı ('.self::NVI_DAILY_LIMIT.') doldu; yarın yeniden deneyin.', 'source' => 'Sistem'];
+
+            return;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($limitKey, 86400);
+
         $this->nviResult = app(NviService::class)->verify((string) $profile->tc_no, $user->first_name, $user->last_name, (string) $profile->birth_year);
+        // Her sorgu (eşleşse de eşleşmese de) işlem kaydına yazılır; TC numarası yazılmaz.
+        ActivityLog::record('kyc.nvi_checked', 'NVİ sorgusu: '.($this->nviResult['is_match'] ? 'eşleşti' : 'eşleşmedi')." (kullanıcı #{$user->id})", auth()->id(), $profile,
+            ['success' => (bool) $this->nviResult['success'], 'is_match' => (bool) $this->nviResult['is_match'], 'source' => $this->nviResult['source'] ?? null, 'message' => mb_substr((string) ($this->nviResult['message'] ?? ''), 0, 200)]);
 
         if ($this->nviResult['success'] && $this->nviResult['is_match'] && ! $profile->nvi_verified) {
             $profile->update(['nvi_verified' => true]);
             ActivityLog::record('kyc.nvi_verified', "NVİ kimlik doğrulaması eşleşti (kullanıcı #{$user->id})", auth()->id(), $profile);
         }
     }
+
+    public const NVI_DAILY_LIMIT = 5;
 
     public function verifyGib(): void
     {

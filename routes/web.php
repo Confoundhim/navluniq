@@ -240,7 +240,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     });
 
     Volt::route('/dashboard', 'driver.dashboard')->name('dashboard');
-    Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
+    Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:driver-location')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
     // İşlerim: NavlunIQ işleri ve gruptan alınan işler tek listede. Eski adresler (Sevkiyatlarım, Seferlerim) buraya yönlenir.
     Volt::route('/islerim', 'driver.jobs.index')->name('jobs.index');
