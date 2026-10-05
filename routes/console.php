@@ -111,15 +111,15 @@ Artisan::command('trips:auto-close', function (DriverTripService $trips) {
 })->purpose('Teslimden sonra süresi dolan seferleri kapatır');
 
 Schedule::command('offers:expire')->hourly();
-Schedule::command('loads:expire')->hourly()->withoutOverlapping();
-Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping();
-Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('loads:expire')->hourly()->withoutOverlapping(180);
+Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping(60);
+Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('trips:auto-close')->dailyAt('04:10');
 Schedule::command('subscriptions:expire')->hourly();
 Schedule::command('subscriptions:remind')->dailyAt('09:00');
-Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('scraped-loads:purge-expired')->daily();
-Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping(10);
 
 // Konum sözlüğü temizliği sonrası (0001_01_32) son 14 günün ilanları ham mesajdan yeniden konumlanır; parça parça, 60 sn/çalıştırma,
 // imleç ayarda; bitince ya da süre dolunca ayar silinir. Yönetici düzenlemesi korunur; yapay zeka/şablon çözümü de yeniden bakılır.
@@ -165,16 +165,30 @@ Artisan::command('scraped-loads:relocate-force {--seconds=60 : Bu çalıştırma
     }
     Settings::set('scraper_relocate_force_progress', json_encode($progress));
 })->purpose('Konum sözlüğü düzeltmesi sonrası ilanları ham mesajdan yeniden konumlar');
-Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping();
-Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
+Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping(10);
+Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping(120);
 Schedule::command('queue:prune-failed', ['--hours' => 72])->dailyAt('04:40'); // 3 günden eski başarısız işler kendiliğinden silinir (sağlık ekranında takılı kalmasın)
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
 Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
 // Kuyruk nabzı: işçi bu işi çalıştırınca zaman damgası yazar; tazeyse telefon mesajları kuyruğa verilir (bkz. NotificationWebhookController).
 Schedule::job(new QueueHeartbeat)->everyMinute()->name('queue-heartbeat');
-Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
-Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping();
+Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping(10);
+Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping(10);
 Schedule::command('shipments:auto-approve')->hourly();
 Schedule::command('accounts:purge-drafts')->hourly();
 Schedule::command('privacy:purge')->dailyAt('04:20');
-Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping();
+Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping(180);
+
+// ---------------------------------------------------------------------------------------------------------------
+// İşletim ve uyarılar (2026-10-05)
+// ---------------------------------------------------------------------------------------------------------------
+// Zamanlayıcı çıktısı storage/logs/schedule.log'a akar (crontab, deploy/install.sh). Dosya haftada bir kırpılır ki
+// yavaş diskte sınırsız büyümesin; son 2 MB saklanır.
+Schedule::call(function (): void {
+    $file = storage_path('logs/schedule.log');
+    if (! is_file($file) || filesize($file) < 2 * 1024 * 1024) {
+        return;
+    }
+    $tail = (string) file_get_contents($file, false, null, max(0, filesize($file) - 2 * 1024 * 1024));
+    file_put_contents($file, '[kırpıldı '.now()->toDateTimeString()."]\n".$tail);
+})->weeklyOn(1, '04:50')->name('schedule-log-trim');

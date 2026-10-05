@@ -147,7 +147,7 @@ ensure_cron() {  # ensure_cron <kullanıcı> <eşleşme metni> <satır>
 }
 
 log "Zamanlayıcı (her dakika)"
-ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> ${APP_DIR}/storage/logs/schedule.log 2>&1"
 ok "www-data crontab: schedule:run (otomatik onay, ilan açılışı, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
 
 log "Gece yedeği (03:00)"
