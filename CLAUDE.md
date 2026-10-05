@@ -462,6 +462,12 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - **Bu bulut ortamında PHP 8.3 var, proje 8.4 ister:** `composer install --ignore-platform-req=php` ile kurulur; iki test yalnız bu
   yüzden düşer (`SystemWatchdogTest` `ReflectionProperty::isVirtual` 8.4'e özgü, `ScheduleLocksTest` kırpma testi); canlıda sorun yok.
   Playwright kurulumu (`npm i --no-save playwright`) 2026-10-05 oturumunda izin denetimine takıldı; ekran görüntüsü alınamadıysa Osman'a söylenir.
+- **Canlıya geçiş planı (2026-10-05 gece, `docs/CANLIYA_GECIS_PLANI.md`):** Osman'ın bu haftaki dört işi (iyzico, Netgsm, Rota Bulut ERP,
+  Tamamliyo) tek başına yetmez; ERP ve sigorta canlı için şart değil. Listede olmayan engelleyiciler: yük sahibi doğrulama kuralı/rozet
+  (E1-E5), açık adres ve ad gizliliği + yapılandırılmış ilan formu (E6/E7), KVKK yurt dışı aktarım ve sözleşme metinleri (E9/E10),
+  defter düzeltmesi P4 (ERP'den önce), premium satın alma yolu, depo/keystore. Aynı gece düzeltilenler: mesafeli satış bağlantısı 404,
+  yeniden onay "Çıkış yap", yapay zeka komutu sabit hat (PROMPT_VERSION 2026-10-05b), sağlık "Ödeme kuruluşu" ışığı escrowBlocker'a
+  bakar, NVİ XML kaçışı. Haftalık sıra belgenin §7'sinde.
 - **Sıradaki kod işleri (öncelik sırası, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §3-§6):** Paket C3 (yapılandırılmış yük ilanı formu il/ilçe
   seçici + gizli adres, "doğrulanmış yük sahibi" rozeti, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
   detayı, destek talebi), Paket C4 (indeksler, temizlik, durum makinesi testleri), cihaz başına alım anahtarı (I13), bildirim kuyruğu,

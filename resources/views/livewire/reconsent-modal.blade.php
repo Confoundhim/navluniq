@@ -44,10 +44,12 @@ new class extends Component {
                 </label>
                 @error('accept') <span class="form-error">{{ $message }}</span> @enderror
                 <div class="flex justify-end gap-2 pt-1">
-                    <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="btn-secondary py-2 text-xs">Çıkış yap</button></form>
+                    {{-- Çıkış formu onay formunun DIŞINDA (iç içe form tarayıcıda yok sayılır, düğme onayı gönderiyordu); düğme form="" ile bağlanır --}}
+                    <button type="submit" form="reconsent-logout" class="btn-secondary py-2 text-xs">Çıkış yap</button>
                     <button type="submit" class="btn-primary py-2 text-xs">Onaylıyorum</button>
                 </div>
             </form>
+            <form id="reconsent-logout" method="POST" action="{{ route('logout') }}" class="hidden">@csrf</form>
         </div>
     @endunless
 </div>

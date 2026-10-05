@@ -32,8 +32,8 @@ class NviService
               <soap:Body>
                 <TCKimlikNoDogrula xmlns="http://tckimlik.nvi.gov.tr/WS">
                   <TCKimlikNo>'.$tcNo.'</TCKimlikNo>
-                  <Ad>'.$this->turkishToUpper($firstName).'</Ad>
-                  <Soyad>'.$this->turkishToUpper($lastName).'</Soyad>
+                  <Ad>'.htmlspecialchars($this->turkishToUpper($firstName), ENT_XML1 | ENT_QUOTES, 'UTF-8').'</Ad>
+                  <Soyad>'.htmlspecialchars($this->turkishToUpper($lastName), ENT_XML1 | ENT_QUOTES, 'UTF-8').'</Soyad>
                   <DogumYili>'.$birthYear.'</DogumYili>
                 </TCKimlikNoDogrula>
               </soap:Body>

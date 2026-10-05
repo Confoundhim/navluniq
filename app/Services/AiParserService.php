@@ -528,7 +528,7 @@ class AiParserService
     public const BREAKER_COOLDOWN_MINUTES = 10;
 
     /** Yapay zeka komutu / şema değişince eski cevaplar önbellekten dönmesin; komuta kural eklenince bu sürüm artırılır. */
-    public const PROMPT_VERSION = '2026-10-05';
+    public const PROMPT_VERSION = '2026-10-05b';
 
     public static function resultCacheKey(string $message): string
     {
@@ -966,7 +966,7 @@ Görevin: mesajı anlayıp yapılandırılmış alanlara ayırmak. Kurallar:
 4. weight_kg: kilogram tam sayı ("24 tn" → 24000, "12,5 ton" → 12500, "800 kg" → 800). "Basar tonaj" = aracın taşıyabildiği azami tonaj, yük tonajı sayılır. Palet adedi tonaj değildir.
 5. price_try: Türk lirası ("45 bin" → 45000, "38.000 tl" → 38000, "45k" → 45000). KDV notu fiyatı değiştirmez. Yoksa null. price_per_ton: fiyat ton başına ise true ("ton başı 1200", "tonu 950", "+basar", dökme yükte "1000+kdv"), toplam navlun ise false.
 6. goods_category: yalnız şu anahtarlardan biri ya da null: {$goods}. goods: mesajdaki yük tanımı kısa metin.
-7. phones: o ilana ait TÜM Türkiye cep numaraları, 10 hane "5xxxxxxxxx" biçiminde (0 ve +90 atılır). Bir ilanda birden fazla kişi/numara olabilir ("Ahmet 0532…, Mehmet 0533…"); hepsini sırayla yaz. Sabit hat ve yabancı numaraları yazma.
+7. phones: o ilana ait TÜM Türkiye numaraları, başındaki 0 ve +90 atılmış rakamlarla: cep "5xxxxxxxxx" (10 hane), sabit hat "212xxxxxxx" / "312xxxxxxx" (10 hane), kurumsal hat "850xxxxxxx" (10 hane), çağrı merkezi "444xxxx" (7 hane). Bir ilanda birden fazla kişi/numara olabilir ("Ahmet 0532…, Mehmet 0533…"); hepsini sırayla yaz. Yabancı ülke numaralarını yazma.
 8. urgent: acil/hemen/bugün gibi ifadeler varsa true. pickup_date_text: yükleme zamanı ifadesi ("yarın", "pazartesi", "12.05") aynen.
 9. ads: mesajdaki HER ayrı yük ilanı için bir öğe (bir mesajda 5-10 ilan olabilir). Ayrı ilan = ayrı rota ya da ayrı yük. Aynı firmanın farklı rotaları ayrı ilandır; aynı rotanın tekrar yazılması tek ilandır. Mesajın sonunda/başında ortak bir irtibat numarası varsa o numarayı her ilanın phones listesine ekle. excerpt: o ilana ait satırları mesajdan AYNEN kopyala (kısaltma, düzeltme, çeviri yapma); sistem her ilanı ayrı saklar ve alıntıyı gösterir. Yük ilanı yoksa ads boş liste olsun.
 10. confidence: 0 ile 1 arasında; mesaj belirsizse düşük ver (mesaj geneli için üstte, her ilan için ilanın içinde). Tahmin etmek zorunda kaldığın alanları notes içinde kısaca belirt.

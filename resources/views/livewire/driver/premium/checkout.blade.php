@@ -104,7 +104,7 @@ class extends Component {
             <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Başlangıç</span><span class="text-neutral-900 dark:text-white">{{ $premiumUntil && $premiumUntil->isFuture() ? 'Mevcut sürenin bitiminde ('.$premiumUntil->format('d.m.Y').')' : 'Ödeme onaylandığında' }}</span></div>
             <div class="flex items-center justify-between py-3"><span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam (KDV %{{ number_format($vatRate, 0) }} dahil)</span><span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($price, 2, ',', '.') }} ₺</span></div>
         </div>
-        <p class="text-[11px] text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde iade yapılmaz. Ödeme için <a href="{{ route('contracts', 'mesafeli-satis-sozlesmesi') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesini</a> kabul etmiş sayılırsınız.</p>
+        <p class="text-[11px] text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde iade yapılmaz. Ödeme için <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesini</a> kabul etmiş sayılırsınız.</p>
     </div>
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">

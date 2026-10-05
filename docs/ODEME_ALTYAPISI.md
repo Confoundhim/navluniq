@@ -8,7 +8,7 @@ Uygulama yalnız `App\Payments\Contracts\PaymentGateway` arayüzünü bilir. Sa�
 |---|---|---|
 | Sözleşme | `app/Payments/Contracts/PaymentGateway.php` | createCheckout, parseWebhook, refund, (isteğe bağlı) alt üye işyeri kaydı ve aktarımı |
 | Adaptörler | `app/Payments/Gateways/PaytrGateway.php`, `NullGateway.php` | PayTR iFrame; anahtar yokken güvenli boş adaptör |
-| Seçici | `app/Payments/GatewayManager.php` | `PAYMENT_PROVIDER` ile seçim; anahtar yoksa NullGateway |
+| Seçici | `app/Payments/GatewayManager.php` | Panel ayarı `payment_provider` (bugün yalnız iyzico seçilebilir; PayTR ölü yol); anahtar yoksa NullGateway |
 | Akış | `app/Services/PaymentService.php` | sipariş (escrow / subscription), ödeme ekranı, sunucu bildirimi, iade, defter, bildirim |
 | Abonelik | `app/Services/SubscriptionService.php` | premium sipariş, ödeme sonrası dönem + fatura + premium süresi |
 | Şoför ödemesi | `app/Services/PayoutService.php` | teslimat onayında hakediş; pazaryeri geçidi varsa otomatik aktarım, yoksa manuel |
@@ -37,7 +37,7 @@ anahtarlar"; gizli anahtar veritabanında şifreli) ya da `.env` `IYZICO_API_KEY
 Akış: initialize → kullanıcı iyzico sayfasına yönlendirilir → iyzico kullanıcıyı `POST /odeme/bildirim/iyzico`
 adresine `token` ile döndürür → token sunucudan sorgulanır → sipariş "paid" → kullanıcı sonuç sayfasına
 yönlendirilir. iyzico panelinde webhook adresi olarak aynı adres girilebilir (JSON, `iyziEventType`).
-Pazaryeri ürünü ("Pazaryeri ürünü aktif" kutusu): şoför ilk navlun ödemesinde IBAN'ıyla alt üye işyeri olarak
+Pazaryeri ürünü ("Pazaryeri ürünü aktif" kutusu): şoför teklifi kabul edilirken TC/VKN ve IBAN'ıyla alt üye işyeri olarak
 kaydedilir, navlun kalemi `subMerchantKey` ile gönderilir, teslimat onayında kalem onayı (item approve) ile
 tutar şoföre aktarılır. Sandbox anahtarlarıyla test modunda deneyip canlıya geçerken test modunu kapatın.
 
