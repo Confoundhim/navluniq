@@ -22,6 +22,9 @@ class LoadService
     /** Yeni ilanı doğrudan şoför havuzuna açık olarak yayınlar. */
     public function publish(CargoOwnerProfile $owner, array $data, ?UploadedFile $eIrsaliyeFile = null): Load
     {
+        if ($owner->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         $minPrice = Settings::float('min_load_price');
         if ((float) $data['price'] < $minPrice) {
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
