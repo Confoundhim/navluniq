@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Services\AiParserService;
+
 /**
  * Serbest metinden (WhatsApp ilanı) araç tipini çıkaran puanlama tabanlı sınıflandırıcı.
  *
@@ -85,7 +87,8 @@ final class VehicleClassifier
      */
     public static function analyze(string $text, ?int $weightKg = null): array
     {
-        $norm = self::normalize($text);
+        // Telefon rakamları araç/kasa kalıplarına sızmasın ("0532 000 13 60" → 13.60 dorse, "0532 860 …" → 8.60 kasa)
+        $norm = self::normalize(preg_replace(AiParserService::PHONE_PATTERN, ' ', $text) ?? $text);
         $evidence = [];
 
         $weight = $weightKg !== null && $weightKg > 0 ? $weightKg : self::weightFromText($norm);
@@ -125,12 +128,21 @@ final class VehicleClassifier
             if ($genericTruck && ! str_contains($type, 'kamyon') && $top < 10) {
                 $type = self::truckSubtype($weight);
             }
+            // Yalnız kasa sözcüğü (tenteli, frigo) ile "tır" çıktıysa ve tonaj kamyon sınıfındaysa (≤ 10 teker kapasitesi) araç kamyon
+            // alt tipidir ve tahmindir: "10 ton tenteli" kesin TIR sayılınca 10 teker tenteli şoför ilanı hiç göremiyordu.
+            if ($type === 'tir' && $top <= 7 && $weight !== null && $weight <= VehicleTypes::TYPES['10_teker_kamyon']['capacity_kg']) {
+                return self::result(self::truckSubtype($weight), 'hint', 'medium', $weight, $evidence);
+            }
 
             return self::result($type, 'keyword', $top >= 9 ? 'high' : 'medium', $weight, $evidence);
         }
 
         if ($genericTruck) {
-            return self::result(self::truckSubtype($weight), 'keyword', $weight !== null ? 'high' : 'medium', $weight, $evidence);
+            // Tonajsız "kamyon": sınıfın en küçüğü (6 teker) tahmin olarak yazılır; filtre tahmini yumuşak uygular, her kamyon şoförü görür
+            // (eski sürüm "8 teker, kesin" yazıyor, 6 teker şoförü ilanı hiç göremiyordu).
+            return $weight !== null
+                ? self::result(self::truckSubtype($weight), 'keyword', 'high', $weight, $evidence)
+                : self::result('6_teker_kamyon', 'hint', 'medium', null, $evidence);
         }
 
         // 2) Kasa/üstyapı ipuçları
@@ -285,9 +297,7 @@ final class VehicleClassifier
             $m3 >= 35 => '8_teker_kamyon',
             $m3 >= 20 => '6_teker_kamyon',
             $m3 >= 12 => 'kamyonet',
-            $m3 >= 8 => 'uzun_panelvan',
-            $m3 >= 4 => 'orta_panelvan',
-            default => 'minivan',
+            default => 'panelvan', // eski uzun/orta panelvan ve minivan anahtarları geçersizdi; ilan hiçbir şoföre çıkmıyordu
         };
     }
 

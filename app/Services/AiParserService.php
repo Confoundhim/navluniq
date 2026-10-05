@@ -441,7 +441,9 @@ class AiParserService
         // Aynı metin için yapay zeka sonucu 7 gün önbellekte: alım, kuyruk ve denetim aynı mesaja ikinci kez kota harcamaz;
         // yarım kalan iş yeniden denendiğinde çağrı tekrarlanmaz (idempotent).
         $cacheKey = self::resultCacheKey($message);
-        if (is_array($cached = Cache::get($cacheKey))) {
+        if ($manual) {
+            Cache::forget($cacheKey); // yönetici "yeniden çözümle" dedi: önbellekten değil, sağlayıcıdan taze cevap
+        } elseif (is_array($cached = Cache::get($cacheKey))) {
             return ['status' => 'done', 'data' => $cached, 'cached' => true];
         }
         $exhausted = $this->exhaustedToday();
@@ -514,9 +516,12 @@ class AiParserService
 
     public const BREAKER_COOLDOWN_MINUTES = 10;
 
+    /** Yapay zeka komutu / şema değişince eski cevaplar önbellekten dönmesin; komuta kural eklenince bu sürüm artırılır. */
+    public const PROMPT_VERSION = '2026-10-05';
+
     public static function resultCacheKey(string $message): string
     {
-        return 'ai:result:'.hash('sha256', LoadIntakeService::normalizeText(mb_substr($message, 0, self::AI_MESSAGE_CHARS)));
+        return 'ai:result:'.self::PROMPT_VERSION.':'.hash('sha256', LoadIntakeService::normalizeText(mb_substr($message, 0, self::AI_MESSAGE_CHARS)));
     }
 
     /** Sağlayıcı devre kesicide bekliyorsa bitiş zamanı, değilse null. */
@@ -732,7 +737,8 @@ class AiParserService
         $ruleKeyword = ($out['vehicle_type_source'] ?? null) === 'keyword';
         if (! empty($ai['vehicle_type']) && (empty($out['vehicle_type']) || ! $ruleKeyword)) {
             $out['vehicle_type'] = $ai['vehicle_type'];
-            $out['vehicle_type_source'] = 'ai';
+            // Mesajda araç adı yokken modelin "en küçük uygun araç" tahmini (vehicle_flexible) kesin değildir: filtre ve karar tahmin sayar.
+            $out['vehicle_type_source'] = ! empty($ai['vehicle_flexible']) ? 'ai_guess' : 'ai';
         }
         $out['success'] = ! empty($out['sender_phone']) && ! empty($out['pickup_location']) && ! empty($out['delivery_location']);
         if ($out['success']) {
@@ -765,7 +771,7 @@ class AiParserService
         $messageType = in_array($data['post_type'] ?? null, ['load', 'vehicle_available', 'other'], true) ? $data['post_type'] : null;
         $anyLoad = array_filter($ads, fn (array $a) => $a['is_load']) !== [];
         $first = $ads[0];
-        $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : $first['confidence'];
+        $confidence = self::normalizeConfidence($data['confidence'] ?? null) ?? $first['confidence'];
 
         return array_merge($first, [
             'post_type' => $messageType ?? $first['post_type'],
@@ -778,12 +784,26 @@ class AiParserService
         ]);
     }
 
+    /** Güven 0-1 beklenir; küçük modeller yüzde (85) yazar → 0,85; 100'den büyük anlamsız → null (eski sürüm 85'i 1,0'a kırpıp "kesin ilan değil" sayıyordu). */
+    public static function normalizeConfidence(mixed $value): ?float
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+        $v = (float) $value;
+        if ($v > 1.0 && $v <= 100.0) {
+            $v /= 100;
+        }
+
+        return $v > 1.0 || $v < 0.0 ? null : $v;
+    }
+
     /** Tek bir ilan nesnesini (yeni "ads" öğesi ya da eski düz nesne) iç biçime çevirir. */
     private function normalizeAd(array $data, string $provider, string $model, int $index, int $count): array
     {
         $vehicle = is_string($data['vehicle_type'] ?? null) && VehicleTypes::isValid($data['vehicle_type']) ? $data['vehicle_type'] : null;
         $goodsKey = is_string($data['goods_category'] ?? null) && GoodsCatalog::label($data['goods_category']) ? $data['goods_category'] : null;
-        $confidence = is_numeric($data['confidence'] ?? null) ? max(0.0, min(1.0, (float) $data['confidence'])) : null;
+        $confidence = self::normalizeConfidence($data['confidence'] ?? null);
         $phones = [];
         foreach (array_merge([$data['sender_phone'] ?? null], is_array($data['phones'] ?? null) ? $data['phones'] : [$data['phones'] ?? null]) as $candidate) {
             $normalized = $this->normalizePhone($candidate);
@@ -1354,6 +1374,9 @@ TXT;
         if ($weightKg !== null && isset($weight[2]) && in_array(strtolower($weight[2]), ['ton', 'tn'], true)) {
             $weightKg *= 1000;
         }
+        if ($weightKg !== null && ($weightKg < 50 || $weightKg > 60000)) {
+            $weightKg = null; // "24.500 ton" gibi okuma hatası: üst sınır 60 ton (weightFromText ile aynı)
+        }
         // "24t", "20-25 ton", "yirmi dört ton" gibi yazımlar sınıflandırıcının tonaj çözümüyle yakalanır.
         $weightKg ??= VehicleClassifier::weightFromText(VehicleClassifier::normalize($message));
         preg_match('/(?:yük|mal|ürün)\s*[:\-]\s*([\p{L}\d\s]{2,80})/iu', $message, $goods);
@@ -1652,7 +1675,7 @@ TXT;
     public const SHORT_DISTRICTS = ['can', 'bor', 'mut', 'kas', 'ula', 'cat', 'has', 'kale'];
 
     /** İlçe adıyla çakışan ama ilanlarda başka anlamda geçen sözcükler: tek başına yer sayılmaz. */
-    public const PLACE_NOISE = ['arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir',
+    public const PLACE_NOISE = ['karsi', 'karşı', 'musa', 'vana', 'panel', 'arac', 'araç', 'araclar', 'araçlar', 'sur', 'tut', 'ulas', 'ulaş', 'ova', 'merkez', 'yeni', 'dere', 'iner', 'kaya', 'bey', 'tas', 'taş', 'demir', 'gol', 'göl', 'ada', 'kum', 'sar', 'sal', 'salı', 'sali', 'cide', 'hani', 'nazar', 'yol', 'yolu', 'tir', 'tır', 'ton', 'usd', 'hemen', 'bugun', 'bugün', 'yarin', 'yarın', 'firma', 'nokta', 'depo', 'liman', 'sanayi', 'termik', 'santral', 'dosya', 'ekli', 'kira', 'bir',
         // gün adları ("Perşembe yükleme"; "Samsun Çarşamba" / "Rize Pazar" il ile yazılınca çözülür), ay ("15 Aralık"), gündelik sözcükler ve yönler
         'pazartesi', 'çarşamba', 'carsamba', 'perşembe', 'persembe', 'cuma', 'cumartesi', 'pazar', 'aralık', 'aralik', 'olur', 'orta', 'güney', 'guney', 'kuzey', 'doğu', 'dogu', 'batı', 'bati',
         'akdeniz', 'marmara', 'ege', 'karadeniz', 'termal', 'selim', 'evren', 'ulus', 'susuz', 'korkut', 'küre', 'kure', 'köşk', 'kosk', 'hal', 'hali', 'yeşil', 'yesil', 'güzel', 'guzel'];

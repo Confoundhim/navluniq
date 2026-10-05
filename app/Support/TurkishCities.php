@@ -31,7 +31,7 @@ final class TurkishCities
         'ç.kale' => 'Çanakkale', 'c.kale' => 'Çanakkale', 'ckale' => 'Çanakkale', 'çkale' => 'Çanakkale', 'zong' => 'Zonguldak',
         'kkale' => 'Kırıkkale', 'k.kale' => 'Kırıkkale', 'gantep' => 'Gaziantep', 'g.antep' => 'Gaziantep', 'tdag' => 'Tekirdağ', 't.dag' => 'Tekirdağ',
         'bkesir' => 'Balıkesir', 'b.kesir' => 'Balıkesir', 'esehir' => 'Eskişehir', 'e.sehir' => 'Eskişehir', 'ksehir' => 'Kırşehir', 'nsehir' => 'Nevşehir',
-        'adapazari' => 'Sakarya', 'antakya' => 'Hatay', 'iskenderun' => 'Hatay',
+        'adapazari' => 'Sakarya', // antakya / iskenderun ilçe yolundan çözülür (ilçe ve koordinat kaybolmasın)
         'ıst' => 'İstanbul', 'i̇st' => 'İstanbul', 'ankra' => 'Ankara', 'ankr' => 'Ankara',
     ];
 
@@ -124,6 +124,10 @@ final class TurkishCities
         foreach (self::SUFFIXES as $suffix) {
             if (str_ends_with($token, $suffix)) {
                 $stem = substr($token, 0, -strlen($suffix));
+                // Tek harfli ek yalnız uzun gövdede atılır: "vana" Van, "musa" Muş, "karşı" Kars değildir ("Vandan", "Van'a" yine çözülür)
+                if (strlen($suffix) === 1 && strlen($stem) < 5) {
+                    continue;
+                }
                 if (strlen($stem) >= 3 && isset($map[$stem])) {
                     return ['name' => $map[$stem], 'tokens' => 1];
                 }

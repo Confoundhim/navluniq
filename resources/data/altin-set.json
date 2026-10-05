@@ -1,152 +1,1397 @@
 [
-  {"id": "kisaltma-ckale", "note": "Noktalı il kısaltması + ilçe", "message": "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER\nBURDUR BUCAK BOŞALTIR\nDAMPERLİ ARAÇ\n0530 111 22 33",
-   "expect": {"ads": 1, "routes": [["Çanakkale Çan", "Burdur Bucak"]], "goods": "Kömür", "body": ["damperli"], "phone": "5301112233"}},
-  {"id": "kisaltma-kmaras", "message": "K.MARAŞ ELBİSTAN - GANTEP 24 ton tenteli tır 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Kahramanmaraş Elbistan", "Gaziantep"]], "vehicle": "tir", "body": ["tenteli"], "weight": 24000}},
-  {"id": "ayrik-yazim", "message": "Kahraman Maraş tan Kırık Kale ye 12 ton palet 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Kahramanmaraş", "Kırıkkale"]], "goods": "Paletli yük", "weight": 12000}},
-  {"id": "ilce-kisaltma", "message": "İSTANBUL K.ÇEKMECE ➡ ANKARA Y.MAHALLE 13.60 tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İstanbul Küçükçekmece", "Ankara Yenimahalle"]], "vehicle": "tir", "body": ["tenteli"]}},
-  {"id": "turkce-karaktersiz", "message": "sanliurfa viransehir den canakkale gokceada ya 20 ton bugday damperli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Şanlıurfa Viranşehir", "Çanakkale Gökçeada"]], "goods": "Tarım ürünü", "body": ["damperli"], "weight": 20000}},
-  {"id": "yazim-hatasi", "message": "DİYARBAKR - istanbl 25 ton mermer 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Diyarbakır", "İstanbul"]], "goods": "Mermer / taş", "weight": 25000}},
-  {"id": "eski-ad-semt", "message": "Ostim den Gebze OSB ye 8 ton makine kırkayak 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Yenimahalle", "Kocaeli Gebze"]], "vehicle": "kirkayak", "goods": "Makine / ekipman"}},
-  {"id": "eski-il-adlari", "message": "Adapazarından Antakyaya 15 ton gübre tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Sakarya", "Hatay"]], "goods": "Gübre", "weight": 15000}},
-  {"id": "nden-eki", "message": "MECİTÖZÜNDEN SAKARYA PAMUKOVA 3 ARABA ÇEKİRDEK DAMPERLİ\n0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Çorum Mecitözü", "Sakarya Pamukova"]], "count": 3, "goods": "Tarım ürünü", "body": ["damperli"]}},
-  {"id": "gun-adi-yer-degil", "message": "PAZAR GÜNÜ\nDİYARBAKIR BİSMİLDEN SAMSUN MISIR DAMPERLİ\n0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Diyarbakır Bismil", "Samsun"]], "goods": "Tarım ürünü", "body": ["damperli"]}},
-  {"id": "gun-adi-ilce", "message": "Rize Pazar - Samsun Çarşamba 10 ton çay tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Rize Pazar", "Samsun Çarşamba"]], "goods": "Gıda"}},
-  {"id": "whatsapp-onek", "message": "[26/9 23:01] Samsun Deneme Grubu: ÇORUMDAN BAFRA DAMPER 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Çorum", "Samsun Bafra"]], "body": ["damperli"]}},
-  {"id": "whatsapp-onek-tarihli", "message": "26.09.2026 23:05 - Ali: ANKARA İZMİR 13.60 TENTELİ 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara", "İzmir"]], "vehicle": "tir", "body": ["tenteli"]}},
-  {"id": "seri-bosaltir", "note": "Tek yükleme, çok boşaltma: her satır ayrı araç", "message": "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER\nBURDUR AĞLASUN BOŞALTIR\nBURDUR BUCAK BOŞALTIR\nBURDUR GÖLHİSAR BOŞALTIR\nISPARTA EĞİRDİR BOŞALTIR\nDAMPERLİ ARAÇLAR\n0530 111 22 33",
-   "expect": {"ads": 4, "routes": [["Çanakkale Çan", "Burdur Ağlasun"], ["Çanakkale Çan", "Burdur Bucak"], ["Çanakkale Çan", "Burdur Gölhisar"], ["Çanakkale Çan", "Isparta Eğirdir"]], "each": true, "goods": "Kömür", "body": ["damperli"], "phone": "5301112233"}},
-  {"id": "seri-il-ilce-listesi", "note": "Lojistik firması listesi: boşaltma fiili yok", "message": "ÖRNEK LOJİSTİK\nSAMSUN YÜKLEMELERİ\nGÜBRE TESİSLERİ\nAÇIK TENTE DAMPER TIR\n\n0553 111 22 33\n\nAmasya / MERKEZ\nAmasya / MERZIFON\nAnkara / KAZAN\nIğdır / IĞDIR\nYozgat / AKDAGMADENI",
-   "expect": {"ads": 5, "routes": [["Samsun", "Amasya"], ["Samsun", "Amasya Merzifon"], ["Samsun", "Ankara Kahramankazan"], ["Samsun", "Iğdır"], ["Samsun", "Yozgat Akdağmadeni"]], "each": true, "goods": "Gübre", "vehicle": "tir", "body": ["acik", "tenteli", "damperli"], "phone": "5531112233"}},
-  {"id": "cok-ilanli-mesaj", "message": "Bursa - İstanbul 13.60 tenteli\nBursa - Ankara 13.60 tenteli\nBursa - İzmir 13.60 tenteli\n0544 111 11 14",
-   "expect": {"ads": 3, "routes": [["Bursa", "İstanbul"], ["Bursa", "Ankara"], ["Bursa", "İzmir"]], "each": true, "vehicle": "tir", "body": ["tenteli"], "phone": "5441111114"}},
-  {"id": "cok-ilan-bos-satir", "message": "SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ 24 SAAT YÜKLEME\n\nÇORUMDAN BAFRA DAMPER\n\nALACADAN SAMSUN ÇARŞAMBA ÇEKİRDEK DAMPERLİ\n0532 111 22 33",
-   "expect": {"ads": 3, "routes": [["Samsun", "Mardin"], ["Çorum", "Samsun Bafra"], ["Çorum Alaca", "Samsun Çarşamba"]], "each": true, "body": ["damperli"], "phone": "5321112233"}},
-  {"id": "iki-yer-arac-sayisi", "message": "Samsun 2 yer – Konya – tenteli tır – 26 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Samsun", "Konya"]], "count": 2, "vehicle": "tir", "weight": 26000}},
-  {"id": "arti-teslim-noktalari", "message": "Kayseri - Çorum+Ankara+Denizli 20 ton un tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Kayseri", "Çorum"]], "goods": "Gıda", "weight": 20000}},
-  {"id": "emoji-format", "message": "📍 Kocaeli Gebze\n📦 Mersin Tarsus\n🚚 tenteli tır\n💰 45.000 tl\n☎️ 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Kocaeli Gebze", "Mersin Tarsus"]], "vehicle": "tir", "body": ["tenteli"], "price": 45000}},
-  {"id": "emoji-yuk", "message": "Manisa Salihli → İstanbul Hadımköy 🍇 üzüm 18 ton frigo 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Manisa Salihli", "İstanbul Arnavutköy"]], "goods": "Meyve / sebze", "body": ["frigo"], "weight": 18000}},
-  {"id": "fiyat-bin", "message": "Adana - Ankara 24 ton palet tenteli 45 bin 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Adana", "Ankara"]], "price": 45000, "weight": 24000}},
-  {"id": "fiyat-kdv", "message": "İzmir Torbalı > Antalya 12 ton koli kapalı kasa 28.000+KDV 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İzmir Torbalı", "Antalya"]], "price": 28000, "body": ["kapali"]}},
-  {"id": "tonaj-virgul", "message": "Eskişehir - Bilecik Bozüyük 12,5 ton seramik 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Eskişehir", "Bilecik Bozüyük"]], "weight": 12500}},
-  {"id": "tonaj-tn", "message": "Denizli den Muğla Milas a 8 tn tekstil kamyonet 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Denizli", "Muğla Milas"]], "weight": 8000, "goods": "Tekstil"}},
-  {"id": "aralikli-harf", "message": "O R D U - T R A B Z O N fındık 13.60 tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ordu", "Trabzon"]], "goods": "Gıda", "vehicle": "tir"}},
-  {"id": "lowbed-is-makinesi", "message": "Ankara Sincan - Erzurum iş makinesi lowbed lazım 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Sincan", "Erzurum"]], "goods": "İş makinesi", "vehicle": "tir", "body": ["lowbed"]}},
-  {"id": "yurt-disi", "message": "Mersin limanından Erbil e 24 ton gıda frigo 0532 111 22 33",
-   "expect": {"ads": 1, "goods": "Gıda", "body": ["frigo"]}},
-  {"id": "kesme-isareti", "message": "Tarsus'tan Gaziantep'e 20 ton narenciye frigo 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Mersin Tarsus", "Gaziantep"]], "goods": "Meyve / sebze", "body": ["frigo"]}},
-  {"id": "kapali-degil-tenteli", "message": "Bursa İnegöl - Erzurum mobilya kapalı kasa 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Bursa İnegöl", "Erzurum"]], "goods": "Mobilya / ev eşyası", "body": ["kapali"]}},
-  {"id": "on-teker", "message": "Konya Karatay - Aksaray 14 ton çimento 10 teker açık kasa 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya Karatay", "Aksaray"]], "vehicle": "10_teker_kamyon", "body": ["acik"], "goods": "İnşaat malzemesi"}},
-  {"id": "reklam-satiri", "message": "Kocaeli Dilovası - Van 25 ton demir tenteli 0532 111 22 33\nBu ilan VIP grubundan paylaşılmıştır, gruba katılmak için yazın",
-   "expect": {"ads": 1, "routes": [["Kocaeli Dilovası", "Van"]], "goods": "Demir / çelik", "weight": 25000}},
-  {"id": "telefon-bosluklu", "message": "Balıkesir Bandırma - Tekirdağ Çorlu 20 ton yem 0 532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Balıkesir Bandırma", "Tekirdağ Çorlu"]], "phone": "5321112233", "goods": "Tarım ürünü"}},
-  {"id": "telefon-arti90", "message": "Afyon - Muğla Fethiye 10 ton mermer +90 533 444 55 66",
-   "expect": {"ads": 1, "routes": [["Afyonkarahisar", "Muğla Fethiye"]], "phone": "5334445566"}},
-  {"id": "iki-numara", "message": "Kırşehir - Malatya 22 ton hurda damperli\nAhmet Örnek 0532 111 22 33\nMehmet Deneme 0533 444 55 66",
-   "expect": {"ads": 1, "routes": [["Kırşehir", "Malatya"]], "phone": "5321112233", "goods": "Hurda", "body": ["damperli"]}},
-  {"id": "telefonsuz-elenir", "message": "Ankara - İzmir 24 ton palet tenteli lazım acil",
-   "expect": {"filtered": "no_phone"}},
-  {"id": "sohbet-elenir", "message": "Hayırlı işler arkadaşlar, herkese bol kazançlar 🙏",
-   "expect": {"filtered": "no_phone"}},
-  {"id": "arac-satisi-elenir", "message": "Satılık 2019 model kamyonet temiz bakımlı 0532 111 22 33",
-   "expect": {"filtered": "not_load"}},
-  {"id": "ambarli-liman", "message": "İstanbul Ambarlı - Gaziantep Nizip 24 ton konteyner yükü tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İstanbul Avcılar", "Gaziantep Nizip"]], "weight": 24000}},
-  {"id": "sinir-kapisi", "message": "Hatay Cilvegözü - Konya 20 ton bakliyat tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Hatay Reyhanlı", "Konya"]], "goods": "Gıda"}},
-  {"id": "kalin-yazi", "message": "*İzmir Kemalpaşa* - *Ankara* 12 ton plastik hammadde 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İzmir Kemalpaşa", "Ankara"]], "goods": "Plastik / hammadde"}},
-  {"id": "sus-satirlari", "message": "➖➖➖➖➖\n🔥 ACİL 🔥\nZonguldak Ereğli - Karabük 26 ton kömür damperli\n➖➖➖➖➖\n0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Zonguldak Ereğli", "Karabük"]], "goods": "Kömür", "body": ["damperli"], "weight": 26000}},
-  {"id": "basar-tonaj", "message": "Sivas - Adana basar tonaj un tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Sivas", "Adana"]], "goods": "Gıda", "body": ["tenteli"]}},
-  {"id": "parsiyel", "message": "Ankara Ostim - Bursa 3 palet parsiyel yük kamyonet 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Yenimahalle", "Bursa"]], "vehicle": "kamyonet"}},
-  {"id": "zong-kisaltma", "message": "ZONG - İST 25 TON KÖMÜR DAMPERLİ 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Zonguldak", "İstanbul"]], "goods": "Kömür", "body": ["damperli"]}},
-  {"id": "kirsehir-nevsehir", "message": "N.ŞEHİR ÜRGÜP - E.ŞEHİR 15 ton patates tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Nevşehir Ürgüp", "Eskişehir"]], "goods": "Meyve / sebze"}},
-  {"id": "sadece-frigo", "message": "Antalya Serik - Ankara 20 ton domates sadece frigo 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Antalya Serik", "Ankara"]], "goods": "Meyve / sebze", "body": ["frigo"]}},
-  {"id": "canli-hayvan", "message": "Erzurum Horasan - Bursa Karacabey canlı hayvan 60 büyükbaş 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Erzurum Horasan", "Bursa Karacabey"]], "goods": "Canlı hayvan"}},
-  {"id": "buyuk-harf-basari", "message": "SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ 24 SAAT YÜKLEME 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Samsun", "Mardin"]], "goods": "Gübre", "body": ["damperli"]}},
-  {"id": "ilce-once-il-sonra", "message": "Tekkeköy / Samsun - Kocaeli Körfez 20 ton demir 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Samsun Tekkeköy", "Kocaeli Körfez"]], "goods": "Demir / çelik"}},
-  {"id": "parantez-il", "message": "Elmadağ (Ank) - Bolu (Oyak) 12 ton çimento 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Elmadağ", "Bolu"]]}},
-  {"id": "es-adli-ilce-kemalpasa", "message": "KEMALPAŞA - BURSA 24 ton tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İzmir Kemalpaşa", "Bursa"]]}},
-  {"id": "es-adli-ilce-golbasi", "message": "Gölbaşı - İstanbul 20 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Gölbaşı", "İstanbul"]]}},
-  {"id": "ilce-il-sirasi", "message": "Ereğli Zonguldak - Ankara 26 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Zonguldak Ereğli", "Ankara"]]}},
-  {"id": "bitisik-il-ilce", "message": "ANKARA-SİNCAN - İZMİR 13.60 tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara Sincan", "İzmir"]]}},
-  {"id": "gun-adi-ilce-degil", "message": "Perşembe yükleme Konya Bursa 24 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya", "Bursa"]]}},
-  {"id": "yuk-sozcugu-ilce-degil", "message": "Konya torbalı çimento Bursa 26 ton damperli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya", "Bursa"]], "body": ["damperli"]}},
-  {"id": "firma-adi-ilce-degil", "message": "Kartal Nakliyat\nKonya Ankara 20 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya", "Ankara"]]}},
-  {"id": "rol-sozcugu-yon", "message": "İzmir teslim - Bursa yükleme 24 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Bursa", "İzmir"]]}},
-  {"id": "hal-eki-yon", "message": "İzmire gidecek Bursadan 24 ton tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Bursa", "İzmir"]]}},
-  {"id": "yazim-hatasi-son-care", "message": "Hatası yok Konya Bursa 24 ton 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Konya", "Bursa"]]}},
-  {"id": "iki-kalkisli-seri", "message": "GEBZE+TUZLA YÜKLER\n\nANKARA 2 YER KAPALI TIR\nANTALYA 2 YER KAPALI TIR\n\nAD SOYAD\n05341112233\nFİRMA LOJİSTİK",
-   "expect": {"ads": 4, "routes": [["Kocaeli Gebze", "Ankara"], ["İstanbul Tuzla", "Ankara"], ["Kocaeli Gebze", "Antalya"], ["İstanbul Tuzla", "Antalya"]], "each": true, "vehicle": "tir", "body": ["kapali"], "count": 2}},
-  {"id": "kalkissiz-varis-listesi", "message": "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\nİZMİR ÖDEMİŞ KAPALI KAMYON\n\n☎️ AD 0538 111 22 33",
-   "expect": {"filtered": "no_pickup"}},
-  {"id": "cikisli-virgul-listesi", "note": "Başlık + virgüllü varış listesi: her varış ayrı ilan (eskiden Ankara → İzmir rota sanılıyordu)", "message": "İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa 13.60 tenteli 0532 111 22 33",
-   "expect": {"ads": 3, "routes": [["İstanbul", "Ankara"], ["İstanbul", "İzmir"], ["İstanbul", "Bursa"]], "each": true, "vehicle": "tir", "body": ["tenteli"], "phone": "5321112233"}},
-  {"id": "dan-baslik-iki-nokta", "note": "Sondaki iki nokta başlığı bozmaz", "message": "İSTANBULDAN:\nAnkara tenteli\nKonya kapalı\n0532 111 22 33",
-   "expect": {"ads": 2, "routes": [["İstanbul", "Ankara"], ["İstanbul", "Konya"]], "each": true, "phone": "5321112233"}},
-  {"id": "yukleme-virgul-bosaltma-3-arac", "note": "Araç adedi yazılı virgüllü boşaltma listesi: her il ayrı araç", "message": "İstanbul Hadımköy yükleme, Ankara, Konya, Kayseri boşaltma 3 araç tenteli 0532 111 22 33",
-   "expect": {"ads": 3, "routes": [["İstanbul Arnavutköy", "Ankara"], ["İstanbul Arnavutköy", "Konya"], ["İstanbul Arnavutköy", "Kayseri"]], "each": true, "vehicle": "tir", "body": ["tenteli"]}},
-  {"id": "yukleme-virgul-bosaltma-tek-arac", "note": "Araç adedi yok: tek araç, sıralı teslim noktaları", "message": "İstanbul Hadımköy yükleme, Ankara, Konya boşaltma tenteli 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["İstanbul Arnavutköy", "Ankara"]], "stops": ["Ankara", "Konya"], "vehicle": "tir"}},
-  {"id": "gidis-donus", "note": "Aynı satırda ters iki rota: iki ilan", "message": "Ankara-İstanbul / İstanbul-Ankara gidiş dönüş 24 ton tenteli 0532 111 22 33",
-   "expect": {"ads": 2, "routes": [["Ankara", "İstanbul"], ["İstanbul", "Ankara"]], "each": true, "weight": 24000, "vehicle": "tir"}},
-  {"id": "virgul-duz-rota", "note": "Düz satırda iki yer arasındaki virgül rota bağlacı olmayı sürdürür", "message": "Mersin Tarsus, Kayseri 20 ton narenciye frigo 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Mersin Tarsus", "Kayseri"]], "goods": "Meyve / sebze", "body": ["frigo"]}},
-  {"id": "yuk-sahibi-bos-arac-ariyor", "note": "Yük sahibi dili: elenmez", "message": "Ankara - İzmir 24 ton palet, boş araç arıyorum yük var 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Ankara", "İzmir"]], "weight": 24000}},
-  {"id": "yuk-sahibi-bosta-tir-var-mi", "message": "Bursa - Antalya 20 ton mobilya, boşta tır var mı 0532 111 22 33",
-   "expect": {"ads": 1, "routes": [["Bursa", "Antalya"]], "goods": "Mobilya / ev eşyası"}},
-  {"id": "nakliyeci-kamyonum-bos", "note": "Nakliyeci dili: elenir", "message": "Kamyonum boş Ankara İzmir arası yük olan arasın 0532 111 22 33",
-   "expect": {"filtered": "not_load"}},
-  {"id": "nakliyeci-tirim-bos", "message": "Tırım boş İstanbul çıkışlı her yere 0532 111 22 33",
-   "expect": {"filtered": "not_load"}},
-  {"id": "nakliyeci-aracim-yuk-bekliyor", "message": "Aracım yük bekliyor Konya Bursa 13.60 tenteli 0532 111 22 33",
-   "expect": {"filtered": "not_load"}},
-  {"id": "nakliyeci-musait-arac", "message": "Müsait araç Gaziantep Mersin 0532 111 22 33",
-   "expect": {"filtered": "not_load"}}
+  {
+    "id": "kisaltma-ckale",
+    "note": "Noktalı il kısaltması + ilçe",
+    "message": "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER\nBURDUR BUCAK BOŞALTIR\nDAMPERLİ ARAÇ\n0530 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Çanakkale Çan",
+          "Burdur Bucak"
+        ]
+      ],
+      "goods": "Kömür",
+      "body": [
+        "damperli"
+      ],
+      "phone": "5301112233"
+    }
+  },
+  {
+    "id": "kisaltma-kmaras",
+    "message": "K.MARAŞ ELBİSTAN - GANTEP 24 ton tenteli tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kahramanmaraş Elbistan",
+          "Gaziantep"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ],
+      "weight": 24000
+    }
+  },
+  {
+    "id": "ayrik-yazim",
+    "message": "Kahraman Maraş tan Kırık Kale ye 12 ton palet 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kahramanmaraş",
+          "Kırıkkale"
+        ]
+      ],
+      "goods": "Paletli yük",
+      "weight": 12000
+    }
+  },
+  {
+    "id": "ilce-kisaltma",
+    "message": "İSTANBUL K.ÇEKMECE ➡ ANKARA Y.MAHALLE 13.60 tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Küçükçekmece",
+          "Ankara Yenimahalle"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ]
+    }
+  },
+  {
+    "id": "turkce-karaktersiz",
+    "message": "sanliurfa viransehir den canakkale gokceada ya 20 ton bugday damperli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Şanlıurfa Viranşehir",
+          "Çanakkale Gökçeada"
+        ]
+      ],
+      "goods": "Tarım ürünü",
+      "body": [
+        "damperli"
+      ],
+      "weight": 20000
+    }
+  },
+  {
+    "id": "yazim-hatasi",
+    "message": "DİYARBAKR - istanbl 25 ton mermer 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Diyarbakır",
+          "İstanbul"
+        ]
+      ],
+      "goods": "Mermer / taş",
+      "weight": 25000
+    }
+  },
+  {
+    "id": "eski-ad-semt",
+    "message": "Ostim den Gebze OSB ye 8 ton makine kırkayak 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Yenimahalle",
+          "Kocaeli Gebze"
+        ]
+      ],
+      "vehicle": "kirkayak",
+      "goods": "Makine / ekipman"
+    }
+  },
+  {
+    "id": "eski-il-adlari",
+    "message": "Adapazarından Antakyaya 15 ton gübre tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Sakarya",
+          "Hatay"
+        ]
+      ],
+      "goods": "Gübre",
+      "weight": 15000
+    }
+  },
+  {
+    "id": "nden-eki",
+    "message": "MECİTÖZÜNDEN SAKARYA PAMUKOVA 3 ARABA ÇEKİRDEK DAMPERLİ\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Çorum Mecitözü",
+          "Sakarya Pamukova"
+        ]
+      ],
+      "count": 3,
+      "goods": "Tarım ürünü",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "gun-adi-yer-degil",
+    "message": "PAZAR GÜNÜ\nDİYARBAKIR BİSMİLDEN SAMSUN MISIR DAMPERLİ\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Diyarbakır Bismil",
+          "Samsun"
+        ]
+      ],
+      "goods": "Tarım ürünü",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "gun-adi-ilce",
+    "message": "Rize Pazar - Samsun Çarşamba 10 ton çay tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Rize Pazar",
+          "Samsun Çarşamba"
+        ]
+      ],
+      "goods": "Gıda"
+    }
+  },
+  {
+    "id": "whatsapp-onek",
+    "message": "[26/9 23:01] Samsun Deneme Grubu: ÇORUMDAN BAFRA DAMPER 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Çorum",
+          "Samsun Bafra"
+        ]
+      ],
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "whatsapp-onek-tarihli",
+    "message": "26.09.2026 23:05 - Ali: ANKARA İZMİR 13.60 TENTELİ 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ]
+    }
+  },
+  {
+    "id": "seri-bosaltir",
+    "note": "Tek yükleme, çok boşaltma: her satır ayrı araç",
+    "message": "Ç.KALE ÇAN TORBA KÖMÜR YÜKLER\nBURDUR AĞLASUN BOŞALTIR\nBURDUR BUCAK BOŞALTIR\nBURDUR GÖLHİSAR BOŞALTIR\nISPARTA EĞİRDİR BOŞALTIR\nDAMPERLİ ARAÇLAR\n0530 111 22 33",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Çanakkale Çan",
+          "Burdur Ağlasun"
+        ],
+        [
+          "Çanakkale Çan",
+          "Burdur Bucak"
+        ],
+        [
+          "Çanakkale Çan",
+          "Burdur Gölhisar"
+        ],
+        [
+          "Çanakkale Çan",
+          "Isparta Eğirdir"
+        ]
+      ],
+      "each": true,
+      "goods": "Kömür",
+      "body": [
+        "damperli"
+      ],
+      "phone": "5301112233"
+    }
+  },
+  {
+    "id": "seri-il-ilce-listesi",
+    "note": "Lojistik firması listesi: boşaltma fiili yok",
+    "message": "ÖRNEK LOJİSTİK\nSAMSUN YÜKLEMELERİ\nGÜBRE TESİSLERİ\nAÇIK TENTE DAMPER TIR\n\n0553 111 22 33\n\nAmasya / MERKEZ\nAmasya / MERZIFON\nAnkara / KAZAN\nIğdır / IĞDIR\nYozgat / AKDAGMADENI",
+    "expect": {
+      "ads": 5,
+      "routes": [
+        [
+          "Samsun",
+          "Amasya"
+        ],
+        [
+          "Samsun",
+          "Amasya Merzifon"
+        ],
+        [
+          "Samsun",
+          "Ankara Kahramankazan"
+        ],
+        [
+          "Samsun",
+          "Iğdır"
+        ],
+        [
+          "Samsun",
+          "Yozgat Akdağmadeni"
+        ]
+      ],
+      "each": true,
+      "goods": "Gübre",
+      "vehicle": "tir",
+      "body": [
+        "acik",
+        "tenteli",
+        "damperli"
+      ],
+      "phone": "5531112233"
+    }
+  },
+  {
+    "id": "cok-ilanli-mesaj",
+    "message": "Bursa - İstanbul 13.60 tenteli\nBursa - Ankara 13.60 tenteli\nBursa - İzmir 13.60 tenteli\n0544 111 11 14",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Bursa",
+          "İstanbul"
+        ],
+        [
+          "Bursa",
+          "Ankara"
+        ],
+        [
+          "Bursa",
+          "İzmir"
+        ]
+      ],
+      "each": true,
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ],
+      "phone": "5441111114"
+    }
+  },
+  {
+    "id": "cok-ilan-bos-satir",
+    "message": "SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ 24 SAAT YÜKLEME\n\nÇORUMDAN BAFRA DAMPER\n\nALACADAN SAMSUN ÇARŞAMBA ÇEKİRDEK DAMPERLİ\n0532 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Samsun",
+          "Mardin"
+        ],
+        [
+          "Çorum",
+          "Samsun Bafra"
+        ],
+        [
+          "Çorum Alaca",
+          "Samsun Çarşamba"
+        ]
+      ],
+      "each": true,
+      "body": [
+        "damperli"
+      ],
+      "phone": "5321112233"
+    }
+  },
+  {
+    "id": "iki-yer-arac-sayisi",
+    "message": "Samsun 2 yer – Konya – tenteli tır – 26 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Samsun",
+          "Konya"
+        ]
+      ],
+      "count": 2,
+      "vehicle": "tir",
+      "weight": 26000
+    }
+  },
+  {
+    "id": "arti-teslim-noktalari",
+    "message": "Kayseri - Çorum+Ankara+Denizli 20 ton un tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kayseri",
+          "Çorum"
+        ]
+      ],
+      "goods": "Gıda",
+      "weight": 20000
+    }
+  },
+  {
+    "id": "emoji-format",
+    "message": "📍 Kocaeli Gebze\n📦 Mersin Tarsus\n🚚 tenteli tır\n💰 45.000 tl\n☎️ 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Mersin Tarsus"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ],
+      "price": 45000
+    }
+  },
+  {
+    "id": "emoji-yuk",
+    "message": "Manisa Salihli → İstanbul Hadımköy 🍇 üzüm 18 ton frigo 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Manisa Salihli",
+          "İstanbul Arnavutköy"
+        ]
+      ],
+      "goods": "Meyve / sebze",
+      "body": [
+        "frigo"
+      ],
+      "weight": 18000
+    }
+  },
+  {
+    "id": "fiyat-bin",
+    "message": "Adana - Ankara 24 ton palet tenteli 45 bin 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Adana",
+          "Ankara"
+        ]
+      ],
+      "price": 45000,
+      "weight": 24000
+    }
+  },
+  {
+    "id": "fiyat-kdv",
+    "message": "İzmir Torbalı > Antalya 12 ton koli kapalı kasa 28.000+KDV 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Torbalı",
+          "Antalya"
+        ]
+      ],
+      "price": 28000,
+      "body": [
+        "kapali"
+      ]
+    }
+  },
+  {
+    "id": "tonaj-virgul",
+    "message": "Eskişehir - Bilecik Bozüyük 12,5 ton seramik 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Eskişehir",
+          "Bilecik Bozüyük"
+        ]
+      ],
+      "weight": 12500
+    }
+  },
+  {
+    "id": "tonaj-tn",
+    "message": "Denizli den Muğla Milas a 8 tn tekstil kamyonet 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Denizli",
+          "Muğla Milas"
+        ]
+      ],
+      "weight": 8000,
+      "goods": "Tekstil"
+    }
+  },
+  {
+    "id": "aralikli-harf",
+    "message": "O R D U - T R A B Z O N fındık 13.60 tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ordu",
+          "Trabzon"
+        ]
+      ],
+      "goods": "Gıda",
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "lowbed-is-makinesi",
+    "message": "Ankara Sincan - Erzurum iş makinesi lowbed lazım 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Sincan",
+          "Erzurum"
+        ]
+      ],
+      "goods": "İş makinesi",
+      "vehicle": "tir",
+      "body": [
+        "lowbed"
+      ]
+    }
+  },
+  {
+    "id": "yurt-disi",
+    "message": "Mersin limanından Erbil e 24 ton gıda frigo 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "goods": "Gıda",
+      "body": [
+        "frigo"
+      ]
+    }
+  },
+  {
+    "id": "kesme-isareti",
+    "message": "Tarsus'tan Gaziantep'e 20 ton narenciye frigo 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin Tarsus",
+          "Gaziantep"
+        ]
+      ],
+      "goods": "Meyve / sebze",
+      "body": [
+        "frigo"
+      ]
+    }
+  },
+  {
+    "id": "kapali-degil-tenteli",
+    "message": "Bursa İnegöl - Erzurum mobilya kapalı kasa 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Bursa İnegöl",
+          "Erzurum"
+        ]
+      ],
+      "goods": "Mobilya / ev eşyası",
+      "body": [
+        "kapali"
+      ]
+    }
+  },
+  {
+    "id": "on-teker",
+    "message": "Konya Karatay - Aksaray 14 ton çimento 10 teker açık kasa 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Konya Karatay",
+          "Aksaray"
+        ]
+      ],
+      "vehicle": "10_teker_kamyon",
+      "body": [
+        "acik"
+      ],
+      "goods": "İnşaat malzemesi"
+    }
+  },
+  {
+    "id": "reklam-satiri",
+    "message": "Kocaeli Dilovası - Van 25 ton demir tenteli 0532 111 22 33\nBu ilan VIP grubundan paylaşılmıştır, gruba katılmak için yazın",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kocaeli Dilovası",
+          "Van"
+        ]
+      ],
+      "goods": "Demir / çelik",
+      "weight": 25000
+    }
+  },
+  {
+    "id": "telefon-bosluklu",
+    "message": "Balıkesir Bandırma - Tekirdağ Çorlu 20 ton yem 0 532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Balıkesir Bandırma",
+          "Tekirdağ Çorlu"
+        ]
+      ],
+      "phone": "5321112233",
+      "goods": "Tarım ürünü"
+    }
+  },
+  {
+    "id": "telefon-arti90",
+    "message": "Afyon - Muğla Fethiye 10 ton mermer +90 533 444 55 66",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Afyonkarahisar",
+          "Muğla Fethiye"
+        ]
+      ],
+      "phone": "5334445566"
+    }
+  },
+  {
+    "id": "iki-numara",
+    "message": "Kırşehir - Malatya 22 ton hurda damperli\nAhmet Örnek 0532 111 22 33\nMehmet Deneme 0533 444 55 66",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kırşehir",
+          "Malatya"
+        ]
+      ],
+      "phone": "5321112233",
+      "goods": "Hurda",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "telefonsuz-elenir",
+    "message": "Ankara - İzmir 24 ton palet tenteli lazım acil",
+    "expect": {
+      "filtered": "no_phone"
+    }
+  },
+  {
+    "id": "sohbet-elenir",
+    "message": "Hayırlı işler arkadaşlar, herkese bol kazançlar 🙏",
+    "expect": {
+      "filtered": "no_phone"
+    }
+  },
+  {
+    "id": "arac-satisi-elenir",
+    "message": "Satılık 2019 model kamyonet temiz bakımlı 0532 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "ambarli-liman",
+    "message": "İstanbul Ambarlı - Gaziantep Nizip 24 ton konteyner yükü tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Avcılar",
+          "Gaziantep Nizip"
+        ]
+      ],
+      "weight": 24000
+    }
+  },
+  {
+    "id": "sinir-kapisi",
+    "message": "Hatay Cilvegözü - Konya 20 ton bakliyat tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Hatay Reyhanlı",
+          "Konya"
+        ]
+      ],
+      "goods": "Gıda"
+    }
+  },
+  {
+    "id": "kalin-yazi",
+    "message": "*İzmir Kemalpaşa* - *Ankara* 12 ton plastik hammadde 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Kemalpaşa",
+          "Ankara"
+        ]
+      ],
+      "goods": "Plastik / hammadde"
+    }
+  },
+  {
+    "id": "sus-satirlari",
+    "message": "➖➖➖➖➖\n🔥 ACİL 🔥\nZonguldak Ereğli - Karabük 26 ton kömür damperli\n➖➖➖➖➖\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Zonguldak Ereğli",
+          "Karabük"
+        ]
+      ],
+      "goods": "Kömür",
+      "body": [
+        "damperli"
+      ],
+      "weight": 26000
+    }
+  },
+  {
+    "id": "basar-tonaj",
+    "message": "Sivas - Adana basar tonaj un tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Sivas",
+          "Adana"
+        ]
+      ],
+      "goods": "Gıda",
+      "body": [
+        "tenteli"
+      ]
+    }
+  },
+  {
+    "id": "parsiyel",
+    "message": "Ankara Ostim - Bursa 3 palet parsiyel yük kamyonet 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Yenimahalle",
+          "Bursa"
+        ]
+      ],
+      "vehicle": "kamyonet"
+    }
+  },
+  {
+    "id": "zong-kisaltma",
+    "message": "ZONG - İST 25 TON KÖMÜR DAMPERLİ 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Zonguldak",
+          "İstanbul"
+        ]
+      ],
+      "goods": "Kömür",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "kirsehir-nevsehir",
+    "message": "N.ŞEHİR ÜRGÜP - E.ŞEHİR 15 ton patates tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Nevşehir Ürgüp",
+          "Eskişehir"
+        ]
+      ],
+      "goods": "Meyve / sebze"
+    }
+  },
+  {
+    "id": "sadece-frigo",
+    "message": "Antalya Serik - Ankara 20 ton domates sadece frigo 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Antalya Serik",
+          "Ankara"
+        ]
+      ],
+      "goods": "Meyve / sebze",
+      "body": [
+        "frigo"
+      ]
+    }
+  },
+  {
+    "id": "canli-hayvan",
+    "message": "Erzurum Horasan - Bursa Karacabey canlı hayvan 60 büyükbaş 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Erzurum Horasan",
+          "Bursa Karacabey"
+        ]
+      ],
+      "goods": "Canlı hayvan"
+    }
+  },
+  {
+    "id": "buyuk-harf-basari",
+    "message": "SAMSUNDAN MARDIN DÖKME GÜBRE DAMPERLİ 24 SAAT YÜKLEME 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Samsun",
+          "Mardin"
+        ]
+      ],
+      "goods": "Gübre",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "ilce-once-il-sonra",
+    "message": "Tekkeköy / Samsun - Kocaeli Körfez 20 ton demir 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Samsun Tekkeköy",
+          "Kocaeli Körfez"
+        ]
+      ],
+      "goods": "Demir / çelik"
+    }
+  },
+  {
+    "id": "parantez-il",
+    "message": "Elmadağ (Ank) - Bolu (Oyak) 12 ton çimento 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Elmadağ",
+          "Bolu"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "es-adli-ilce-kemalpasa",
+    "message": "KEMALPAŞA - BURSA 24 ton tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Kemalpaşa",
+          "Bursa"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "es-adli-ilce-golbasi",
+    "message": "Gölbaşı - İstanbul 20 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Gölbaşı",
+          "İstanbul"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "ilce-il-sirasi",
+    "message": "Ereğli Zonguldak - Ankara 26 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Zonguldak Ereğli",
+          "Ankara"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "bitisik-il-ilce",
+    "message": "ANKARA-SİNCAN - İZMİR 13.60 tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Sincan",
+          "İzmir"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "gun-adi-ilce-degil",
+    "message": "Perşembe yükleme Konya Bursa 24 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Konya",
+          "Bursa"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "yuk-sozcugu-ilce-degil",
+    "message": "Konya torbalı çimento Bursa 26 ton damperli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Konya",
+          "Bursa"
+        ]
+      ],
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "firma-adi-ilce-degil",
+    "message": "Kartal Nakliyat\nKonya Ankara 20 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Konya",
+          "Ankara"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "rol-sozcugu-yon",
+    "message": "İzmir teslim - Bursa yükleme 24 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Bursa",
+          "İzmir"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "hal-eki-yon",
+    "message": "İzmire gidecek Bursadan 24 ton tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Bursa",
+          "İzmir"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "yazim-hatasi-son-care",
+    "message": "Hatası yok Konya Bursa 24 ton 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Konya",
+          "Bursa"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "iki-kalkisli-seri",
+    "message": "GEBZE+TUZLA YÜKLER\n\nANKARA 2 YER KAPALI TIR\nANTALYA 2 YER KAPALI TIR\n\nAD SOYAD\n05341112233\nFİRMA LOJİSTİK",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Ankara"
+        ],
+        [
+          "İstanbul Tuzla",
+          "Ankara"
+        ],
+        [
+          "Kocaeli Gebze",
+          "Antalya"
+        ],
+        [
+          "İstanbul Tuzla",
+          "Antalya"
+        ]
+      ],
+      "each": true,
+      "vehicle": "tir",
+      "body": [
+        "kapali"
+      ],
+      "count": 2
+    }
+  },
+  {
+    "id": "kalkissiz-varis-listesi",
+    "message": "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\nİZMİR ÖDEMİŞ KAPALI KAMYON\n\n☎️ AD 0538 111 22 33",
+    "expect": {
+      "filtered": "no_pickup"
+    }
+  },
+  {
+    "id": "cikisli-virgul-listesi",
+    "note": "Başlık + virgüllü varış listesi: her varış ayrı ilan (eskiden Ankara → İzmir rota sanılıyordu)",
+    "message": "İSTANBUL ÇIKIŞLI: Ankara, İzmir, Bursa 13.60 tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "İstanbul",
+          "Ankara"
+        ],
+        [
+          "İstanbul",
+          "İzmir"
+        ],
+        [
+          "İstanbul",
+          "Bursa"
+        ]
+      ],
+      "each": true,
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ],
+      "phone": "5321112233"
+    }
+  },
+  {
+    "id": "dan-baslik-iki-nokta",
+    "note": "Sondaki iki nokta başlığı bozmaz",
+    "message": "İSTANBULDAN:\nAnkara tenteli\nKonya kapalı\n0532 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "İstanbul",
+          "Ankara"
+        ],
+        [
+          "İstanbul",
+          "Konya"
+        ]
+      ],
+      "each": true,
+      "phone": "5321112233"
+    }
+  },
+  {
+    "id": "yukleme-virgul-bosaltma-3-arac",
+    "note": "Araç adedi yazılı virgüllü boşaltma listesi: her il ayrı araç",
+    "message": "İstanbul Hadımköy yükleme, Ankara, Konya, Kayseri boşaltma 3 araç tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "İstanbul Arnavutköy",
+          "Ankara"
+        ],
+        [
+          "İstanbul Arnavutköy",
+          "Konya"
+        ],
+        [
+          "İstanbul Arnavutköy",
+          "Kayseri"
+        ]
+      ],
+      "each": true,
+      "vehicle": "tir",
+      "body": [
+        "tenteli"
+      ]
+    }
+  },
+  {
+    "id": "yukleme-virgul-bosaltma-tek-arac",
+    "note": "Araç adedi yok: tek araç, sıralı teslim noktaları",
+    "message": "İstanbul Hadımköy yükleme, Ankara, Konya boşaltma tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Arnavutköy",
+          "Ankara"
+        ]
+      ],
+      "stops": [
+        "Ankara",
+        "Konya"
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "gidis-donus",
+    "note": "Aynı satırda ters iki rota: iki ilan",
+    "message": "Ankara-İstanbul / İstanbul-Ankara gidiş dönüş 24 ton tenteli 0532 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Ankara",
+          "İstanbul"
+        ],
+        [
+          "İstanbul",
+          "Ankara"
+        ]
+      ],
+      "each": true,
+      "weight": 24000,
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "virgul-duz-rota",
+    "note": "Düz satırda iki yer arasındaki virgül rota bağlacı olmayı sürdürür",
+    "message": "Mersin Tarsus, Kayseri 20 ton narenciye frigo 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin Tarsus",
+          "Kayseri"
+        ]
+      ],
+      "goods": "Meyve / sebze",
+      "body": [
+        "frigo"
+      ]
+    }
+  },
+  {
+    "id": "yuk-sahibi-bos-arac-ariyor",
+    "note": "Yük sahibi dili: elenmez",
+    "message": "Ankara - İzmir 24 ton palet, boş araç arıyorum yük var 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ],
+      "weight": 24000
+    }
+  },
+  {
+    "id": "yuk-sahibi-bosta-tir-var-mi",
+    "message": "Bursa - Antalya 20 ton mobilya, boşta tır var mı 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Bursa",
+          "Antalya"
+        ]
+      ],
+      "goods": "Mobilya / ev eşyası"
+    }
+  },
+  {
+    "id": "nakliyeci-kamyonum-bos",
+    "note": "Nakliyeci dili: elenir",
+    "message": "Kamyonum boş Ankara İzmir arası yük olan arasın 0532 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "nakliyeci-tirim-bos",
+    "message": "Tırım boş İstanbul çıkışlı her yere 0532 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "nakliyeci-aracim-yuk-bekliyor",
+    "message": "Aracım yük bekliyor Konya Bursa 13.60 tenteli 0532 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "nakliyeci-musait-arac",
+    "message": "Müsait araç Gaziantep Mersin 0532 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "karsi-odemeli-kars-degil",
+    "message": "Gebze 24 ton palet karşı ödemeli Konya tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Konya"
+        ]
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "panel-van-van-degil",
+    "message": "Gebze Bursa 1 ton koli panel van 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Bursa"
+        ]
+      ],
+      "vehicle": "panelvan"
+    }
+  },
+  {
+    "id": "telefon-13-60-dorse-degil",
+    "message": "Ankara Sincan - İzmir Bornova 10 ton mobilya kamyon lazım 0532 111 13 60",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Sincan",
+          "İzmir Bornova"
+        ]
+      ],
+      "vehicle": "8_teker_kamyon",
+      "goods": "Mobilya / ev eşyası"
+    }
+  },
+  {
+    "id": "telefon-860-kasa-degil",
+    "message": "Ankara - Konya 2 ton koli kamyonet 0532 860 11 22",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "Konya"
+        ]
+      ],
+      "vehicle": "kamyonet"
+    }
+  },
+  {
+    "id": "tonu-950-ton-basi",
+    "message": "Mersin - Konya dökme tuz 26 ton tonu 950 damperli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin",
+          "Konya"
+        ]
+      ],
+      "goods": "Tuz",
+      "price": 950,
+      "weight": 26000
+    }
+  },
+  {
+    "id": "950-bolu-ton",
+    "message": "Mersin - Konya dökme tuz 26 ton 950/ton damperli 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Mersin",
+          "Konya"
+        ]
+      ],
+      "price": 950
+    }
+  },
+  {
+    "id": "yedek-parca-komple",
+    "message": "Bursa - Ankara 24 ton oto yedek parça komple tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Bursa",
+          "Ankara"
+        ]
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "acik-adres-kasa-degil",
+    "message": "Kocaeli Gebze - Ankara 20 palet gıda, açık adres whatsapptan 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kocaeli Gebze",
+          "Ankara"
+        ]
+      ],
+      "goods": "Gıda",
+      "body": null
+    }
+  },
+  {
+    "id": "yumurtalik-yumurta-degil",
+    "message": "Adana Yumurtalık - Konya 26 ton tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Adana Yumurtalık",
+          "Konya"
+        ]
+      ],
+      "goods": null
+    }
+  },
+  {
+    "id": "odunpazari-kereste-degil",
+    "message": "Eskişehir Odunpazarı - İzmir 20 ton tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Eskişehir Odunpazarı",
+          "İzmir"
+        ]
+      ],
+      "goods": null
+    }
+  },
+  {
+    "id": "iskenderun-ilce",
+    "message": "Hatay İskenderun - Ankara 24 ton tenteli tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Hatay İskenderun",
+          "Ankara"
+        ]
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "10-ton-tenteli-kamyon",
+    "message": "Ankara - İzmir 10 ton tenteli yük 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ],
+      "vehicle": "8_teker_kamyon",
+      "body": [
+        "tenteli"
+      ],
+      "weight": 10000
+    }
+  },
+  {
+    "id": "tonaj-ust-sinir",
+    "message": "Ankara - İzmir 24.500 ton saman tır 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara",
+          "İzmir"
+        ]
+      ],
+      "vehicle": "tir",
+      "weight": null
+    }
+  }
 ]

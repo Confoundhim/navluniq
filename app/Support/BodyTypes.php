@@ -70,7 +70,8 @@ final class BodyTypes
     private const PATTERNS = [
         'tenteli' => '/\btent(?:e|eli|elidir|eliler|elik|en|ene|eneli|enli|ali)?\b|\btnt\b|\btentli\b|\bmega\s+tente\w*/',
         'kapali' => '/\bkapali\b/',
-        'acik' => '/\bacik(?:ta|da|a|i|tir|dir)?\b|\bsal\b|\btentesiz\b|\bplatform\b/',
+        // "açık adres", "fiyat açık", "açık hesap" kasa değildir; "açık kasa/sal/dorse/tır/araç", "kapalı/açık", tek başına "açık(tır)" kasa
+        'acik' => '/\bacik\s+(?:kasa|sal|dorse|tir|arac|araclar|kamyon|kamyonet|tenteli|kapali)\b|\b(?:kasa|sal|dorse)\s+acik\b|\bacik\s*\/|\/\s*acik\b|(?<!adres\s)(?<!fiyat\s)(?<!hesap\s)\bacik(?:ta|tir|dir)?\b(?!\s+(?:adres|fiyat|hesap|artirma|arttirma|kart|ogretim|ucak|hava))|\bsal\b|\btentesiz\b|\bplatform\b/',
         'frigo' => '/\bfr[iı]?[iı]?go\w*|\bfirgo\w*|\bfirigo\w*|\btermo\s?k[iı]ng?\w*|\bthermo\s?king\w*|\btermokin\w*|\bsogutucu\w*|\bsogutmali\b|\bsoguk\s+hava\w*|\bfrigolu\b/',
         'damperli' => '/\bdamper\w*|\bdanper\w*/',
         'silobas' => '/\bsilobas\w*|\bsilo\s?bas\w*/',
@@ -306,7 +307,7 @@ final class BodyTypes
      */
     public static function detectLoadKind(string $norm, ?int $weightKg = null, ?int $vehicleCount = null): ?string
     {
-        if (preg_match('/\b(?:parca\s+yuk\w*|parsiyel|parsiyal|parsiyl|kismi\s+yuk\w*|grupaj|yanina\s+(?:yuk|alinir|alir)|bosluk\w*\s+(?:olan|var)|ek\s+yuk\w*|parca\b)/', $norm)) {
+        if (preg_match('/\b(?:parca\s+yuk\w*|parsiyel|parsiyal|parsiyl|kismi\s+yuk\w*|grupaj|yanina\s+(?:yuk|alinir|alir)|bosluk\w*\s+(?:olan|var)|ek\s+yuk\w*|(?<!yedek\s)(?<!oto\s)parca\b)/', $norm)) { // "yedek parça" yük adıdır, yük biçimi değil
             return 'parca';
         }
         if (preg_match('/\b(?:komple|tirlik|araclik|full\s+(?:tir|arac|yuk)|ftl|tam\s+arac|komple\s+yuk\w*)\b/', $norm)) {

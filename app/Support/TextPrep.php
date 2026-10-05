@@ -58,6 +58,8 @@ final class TextPrep
         // WhatsApp dışa aktarma / kopyalama ön eki: "[26/9 23:01] Grup Adı: " ya da "26.09.2026 23:01 - Grup Adı: " satır başında atılır
         $t = preg_replace('/^\[\d{1,2}[.\/]\d{1,2}(?:[.\/]\d{2,4})?,?\s+\d{1,2}:\d{2}(?::\d{2})?\]\s+[^:\n]{1,60}:\s*/mu', '', $t) ?? $t;
         $t = preg_replace('/^\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?\s+-\s+[^:\n]{1,60}:\s*/mu', '', $t) ?? $t;
+        // "panel van" araç adıdır; ayrı yazılınca "van" Van ili sanılıyordu
+        $t = preg_replace('/\b(panel)\s+(van)\b/iu', '$1$2', $t) ?? $t;
         // Kesme/backtick işaretleri ("Tarsus'tan", "BİMS`DEN", "Adapazarın,dan") sözcüğe bitişir
         $t = preg_replace('/(?<=\p{L})[’\'‘`´,](?=(?:dan|den|tan|ten|ya|ye|a|e|na|ne|dan|de|da)\b)/iu', '', $t) ?? $t;
         $t = preg_replace('/(?<=\p{L})[’\'‘`´]\s?(?=\p{L})/u', '', $t) ?? $t;
