@@ -68,6 +68,27 @@ class ProtectedFileController extends Controller
         abort_unless(Storage::disk($disk)->exists($path), 404);
 
         // nosniff: tarayıcı dosyayı sunulan türün dışında yorumlamaz (ör. resim adıyla gelen betik çalışmaz).
-        return Storage::disk($disk)->response($path, basename($path), ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
+        // sandbox CSP (I16): kullanıcı yüklemesi (PDF içi betik, SVG) site kökeninde çalışamaz, oturum çerezine ulaşamaz.
+        // PDF satır içi açılmaz, indirilir (PDF görüntüleyicisinin betik yüzeyi sitede çalışmaz).
+        $headers = [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "sandbox; default-src 'none'; img-src 'self'",
+        ];
+        $disposition = self::isPdf($disk, $path) ? 'attachment' : 'inline';
+
+        return Storage::disk($disk)->response($path, basename($path), $headers, $disposition);
+    }
+
+    private static function isPdf(string $disk, string $path): bool
+    {
+        if (str_ends_with(strtolower($path), '.pdf')) {
+            return true;
+        }
+        try {
+            return Storage::disk($disk)->mimeType($path) === 'application/pdf';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }
