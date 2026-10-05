@@ -1,5 +1,7 @@
 # Bağımlılık güncellemeleri (I11): ayda bir, tek PR'da gruplanmış (composer, npm, GitHub Actions). PR açılınca CI çalışır;
 # Osman yeşil PR'ı birleştirir. Güvenlik güncellemeleri Dependabot tarafından takvim beklemeden açılır.
+# Büyük sürüm atlamaları (major) kapalı: 2026-10-05'te Tailwind 3→4 ve Vite 5→8 önerisi birleştirilince derleme bozuldu, güncelleme
+# önceki sürüme döndü. Büyük sürüm geçişi elle ve testle yapılır.
 version: 2
 updates:
   - package-ecosystem: composer
@@ -10,6 +12,10 @@ updates:
     groups:
       composer-paketleri:
         patterns: ['*']
+        update-types: ['minor', 'patch']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'Bağımlılık (composer)'
 
@@ -21,6 +27,10 @@ updates:
     groups:
       npm-paketleri:
         patterns: ['*']
+        update-types: ['minor', 'patch']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'Bağımlılık (npm)'
 
