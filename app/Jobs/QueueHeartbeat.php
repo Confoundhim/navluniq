@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
@@ -10,12 +11,16 @@ use Illuminate\Support\Facades\Cache;
  * Kuyruk nabzı: zamanlayıcı her dakika bu işi kuyruğa bırakır; bir işçi çalıştırınca önbelleğe zaman damgası yazar.
  * Nabız tazeyse (işçi gerçekten iş alıyorsa) telefondan gelen mesajlar kuyruğa verilir; değilse istek içinde işlenir.
  * Böylece işçi durursa ya da yanlış bağlantıyı dinlerse ilan akışı durmaz, yalnız yavaşlar.
+ * İş tekildir (ShouldBeUnique): işçi durduğunda kuyrukta dakikada bir yeni nabız birikmez; açılınca tek iş çalışır.
  */
-class QueueHeartbeat implements ShouldQueue
+class QueueHeartbeat implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public const CACHE_KEY = 'queue.heartbeat';
+
+    /** Tekillik kilidi: bir dakikalık zamanlayıcı aralığından biraz kısa, böylece her dakika yeni nabız kuyruğa girebilir. */
+    public int $uniqueFor = 55;
 
     /** Nabız bundan eskiyse kuyruk "çalışmıyor" sayılır. */
     public const MAX_AGE_SECONDS = 180;

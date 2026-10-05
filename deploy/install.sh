@@ -281,7 +281,9 @@ if command -v supervisorctl >/dev/null; then
     cat > /etc/supervisor/conf.d/navluniq-worker.conf <<SUPERVISOR
 [program:navluniq-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php ${APP_DIR}/artisan queue:work ${QUEUE_CONN} --sleep=3 --tries=3 --max-time=3600
+; --tries verilmez: her iş kendi \$tries değerini taşır (telefon mesajı 1 deneme); 180 sn retry_after (config/queue.php) ile
+; aynı mesaj ikinci işçiye düşmez.
+command=php ${APP_DIR}/artisan queue:work ${QUEUE_CONN} --sleep=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true
