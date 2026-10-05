@@ -4,8 +4,7 @@ use App\Livewire\Concerns\ManagesAccountSecurity;
 use App\Models\KycDocument;
 use App\Services\AccountService;
 use App\Services\KycService;
-use App\Services\NviService;
-use Illuminate\Support\Facades\RateLimiter;
+use App\Services\CargoOwnerVerificationService;
 use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -37,8 +36,6 @@ class extends Component {
 
     public string $verify_birth_year = '';
 
-    public const NVI_RETRY_PER_DAY = 3;
-
     public function mount(): void
     {
         $user = Auth::user();
@@ -50,7 +47,7 @@ class extends Component {
     }
 
     /** Bireysel yük sahibi kimliğini yeniden doğrular (günde en çok 3 deneme; TC ve doğum yılı düzeltilebilir). */
-    public function reverifyIdentity(NviService $nvi): void
+    public function reverifyIdentity(CargoOwnerVerificationService $verification): void
     {
         $user = Auth::user();
         $profile = $user->cargoOwnerProfile;
@@ -62,29 +59,16 @@ class extends Component {
 
             return;
         }
-        $this->validate([
-            'verify_tc' => ['required', 'digits:11'],
-            'verify_birth_year' => ['required', 'digits:4', 'integer', 'min:1920', 'max:'.(date('Y') - 18)],
-        ], ['verify_tc.digits' => 'T.C. kimlik numarası 11 haneli olmalıdır.', 'verify_birth_year.max' => 'Platforma 18 yaşından büyükler kayıt olabilir.']);
-        $limitKey = 'nvi:self:'.$user->id;
-        if (RateLimiter::tooManyAttempts($limitKey, self::NVI_RETRY_PER_DAY)) {
-            $this->addError('verify_tc', 'Günlük doğrulama deneme sınırına ulaştınız; yarın yeniden deneyin.');
+        $this->validate(
+            ['verify_tc' => CargoOwnerVerificationService::rules()['tc'], 'verify_birth_year' => CargoOwnerVerificationService::rules()['birth_year']],
+            CargoOwnerVerificationService::messages('verify_tc', 'verify_birth_year'),
+        );
+        if ($error = $verification->verifyIdentity($user, $this->verify_tc, $this->verify_birth_year)) {
+            $this->addError('verify_tc', $error);
 
             return;
         }
-        RateLimiter::hit($limitKey, 86400);
-        $result = $nvi->verify($this->verify_tc, (string) $user->first_name, (string) $user->last_name, $this->verify_birth_year);
-        $match = (bool) ($result['is_match'] ?? false);
-        $profile->update([
-            'tc_no' => $this->verify_tc, 'birth_year' => (int) $this->verify_birth_year,
-            'nvi_verified' => $match, 'nvi_checked_at' => now(), 'nvi_message' => $match ? null : mb_substr((string) ($result['message'] ?? 'Kimlik doğrulanamadı.'), 0, 200),
-        ]);
-        \App\Models\ActivityLog::record('kyc.nvi_checked', 'Yük sahibi kendi kimliğini yeniden sorguladı: '.($match ? 'eşleşti' : 'eşleşmedi'), $user->id, $profile, ['success' => (bool) ($result['success'] ?? false), 'is_match' => $match]);
-        if ($match) {
-            session()->flash('success_message', 'Kimliğiniz doğrulandı; artık teklif kabul edebilirsiniz.');
-        } else {
-            $this->addError('verify_tc', (string) ($result['message'] ?? 'Kimlik bilgileri eşleşmedi.').' Ad ve soyadınızın nüfus kaydıyla birebir aynı olduğundan emin olun.');
-        }
+        session()->flash('success_message', 'Kimliğiniz doğrulandı; artık teklif kabul edebilirsiniz.');
     }
 
     public function uploadDocument(KycService $kyc): void
@@ -284,7 +268,7 @@ class extends Component {
                             <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Bekleniyor' }}</span>
                         </div>
                         @unless($profile->gib_verified)
-                            <p class="text-[11px] text-neutral-500 leading-relaxed">Vergi bilgileriniz ekibimizce teyit edilince (genellikle aynı gün) hesabınız doğrulanır ve teklif kabul edebilirsiniz. Vergi levhanızı aşağıdan yüklerseniz teyit hızlanır.</p>
+                            <p class="text-[11px] text-neutral-500 leading-relaxed">Vergi numaranız kayıtlı; teklif kabul edebilirsiniz. Ekibimiz şirket bilgilerinizi teyit edince ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür. Vergi levhanızı aşağıdan yüklerseniz teyit hızlanır.</p>
                         @endunless
                     @else
                         <div>
@@ -293,12 +277,12 @@ class extends Component {
                         </div>
                         <div class="flex items-center justify-between pt-1">
                             <span class="text-neutral-500">Kimlik doğrulaması (NVİ)</span>
-                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Doğrulanmadı' }}</span>
+                            <span class="font-bold {{ $profile?->nvi_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile?->nvi_verified ? 'Doğrulandı' : 'Henüz yapılmadı' }}</span>
                         </div>
                         @if($profile && ! $profile->nvi_verified)
                             <form wire:submit.prevent="reverifyIdentity" class="space-y-2 pt-1">
                                 @if($profile->nvi_message)<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px]">{{ $profile->nvi_message }}</div>@endif
-                                <p class="text-[11px] text-neutral-500 leading-relaxed">Teklif kabul edebilmek için kimliğinizin doğrulanması gerekir. Nüfus kaydınızdaki ad-soyad hesabınızla aynı olmalı; T.C. kimlik numaranızı ve doğum yılınızı kontrol edip yeniden deneyin.</p>
+                                <p class="text-[11px] text-neutral-500 leading-relaxed">İlk teklifi kabul ederken kimliğiniz bir kez doğrulanır; isterseniz şimdiden burada tamamlayın. Nüfus kaydınızdaki ad-soyad hesabınızla aynı olmalı.</p>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     <div><label class="form-label">T.C. kimlik numarası</label><input type="text" wire:model="verify_tc" maxlength="11" inputmode="numeric" class="form-input font-mono"></div>
                                     <div><label class="form-label">Doğum yılı</label><input type="text" wire:model="verify_birth_year" maxlength="4" inputmode="numeric" class="form-input font-mono"></div>

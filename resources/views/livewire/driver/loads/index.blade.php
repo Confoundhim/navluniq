@@ -871,7 +871,7 @@ class extends Component {
                             <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}@if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }}@endif · {{ $load->cargoOwnerProfile?->publicName() ?: 'Yük sahibi belirtilmemiş' }}</div>
                             <div class="load-card-badges">
                                 <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>
-                                @if($load->cargoOwnerProfile?->isVerified())<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" title="{{ $load->cargoOwnerProfile->type === 'corporate' ? 'Şirket bilgileri teyit edildi' : 'Kimliği NVİ ile doğrulandı' }}">✓ Doğrulanmış yük sahibi</span>@elseif($load->cargoOwnerProfile)<span class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400" title="Yük sahibi kimlik/şirket doğrulamasını henüz tamamlamadı">Doğrulanmamış yük sahibi</span>@endif
+                                @if($load->cargoOwnerProfile?->isVerified())<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" title="{{ $load->cargoOwnerProfile->type === 'corporate' ? 'Şirket bilgileri teyit edildi' : 'Kimliği NVİ ile doğrulandı' }}">✓ Doğrulanmış yük sahibi</span>@endif
                                 @if($load->isEarlyAccess())<span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400" title="Herkese {{ $load->available_to_free_at->format('H:i') }}'de açılır">⭐ Erken erişim</span>@endif
                             </div>
                         </div>

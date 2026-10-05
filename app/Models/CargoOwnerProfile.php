@@ -90,25 +90,41 @@ class CargoOwnerProfile extends Model
             return $this->type === 'corporate' ? 'Kurumsal · doğrulandı' : 'Kimliği doğrulandı';
         }
 
-        return $this->type === 'corporate' ? 'Şirket doğrulaması bekleniyor' : 'Kimlik doğrulanmadı';
+        return $this->type === 'corporate' ? ($this->hasPreverifiedTaxNo() ? 'Şirket · ön doğrulandı' : 'Vergi numarası eksik') : 'Kimlik doğrulanmadı';
     }
 
-    /** Panel ayarı: doğrulanmamış yük sahibi teklif kabul edemez, aktif ilan sayısı sınırlı. */
+    /** Panel ayarı: doğrulanmamış bireysel yük sahibi teklif kabul edemez (ilan açmak serbesttir). */
     public static function verificationRequired(): bool
     {
         return Settings::bool('cargo_owner_verification_required');
     }
 
-    /** Teklif kabulünü engelleyen gerekçe (yoksa null). */
+    /**
+     * Kurumsal ön doğrulama: 10 haneli vergi numarası + unvan yazılmışsa teklif kabulü açılır; yöneticinin "Şirketi doğrula" onayı
+     * yalnız rozeti verir, kullanıcıyı bekletmez (Osman, 2026-10-05: "kullanıcıları sıkmadan").
+     */
+    public function hasPreverifiedTaxNo(): bool
+    {
+        return $this->type === 'corporate' && preg_match('/^\d{10}$/', (string) $this->tax_no) === 1 && trim((string) $this->company_title) !== '';
+    }
+
+    /** Teklif kabulünü engelleyen gerekçe (yoksa null). Bireyselde NVİ, kurumsalda vergi numarası ön doğrulaması yeter. */
     public function verificationBlocker(): ?string
     {
         if (! self::verificationRequired() || $this->isVerified()) {
             return null;
         }
+        if ($this->type === 'corporate') {
+            return $this->hasPreverifiedTaxNo() ? null : 'Teklif kabul etmek için Profil sayfasından vergi numaranızı ve şirket unvanınızı yazın.';
+        }
 
-        return $this->type === 'corporate'
-            ? 'Teklif kabul etmek için şirket doğrulaması gerekir; vergi bilgileriniz ekibimizce teyit edilince (genelde aynı gün) açılır. Profil → Doğrulama.'
-            : 'Teklif kabul etmek için kimlik doğrulaması gerekir. Profil → Doğrulama bölümünden T.C. kimlik numaranızı ve doğum yılınızı kontrol edip yeniden doğrulayın.';
+        return 'Teklif kabul etmeden önce kimliğinizi bir kez doğrulamanız gerekir (T.C. kimlik numarası ve doğum yılı).';
+    }
+
+    /** Teklif kabulünde kimlik adımı gösterilmeli mi (bireysel, henüz NVİ ile eşleşmemiş)? */
+    public function needsIdentityStep(): bool
+    {
+        return self::verificationRequired() && $this->type === 'individual' && ! $this->nvi_verified;
     }
 
     /**

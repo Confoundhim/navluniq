@@ -29,17 +29,6 @@ class LoadService
         if ((float) $data['price'] < $minPrice) {
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
         }
-        // Doğrulanmamış yük sahibi sınırlı sayıda açık ilan tutabilir (karar 3; spam ve sahte ilan freni)
-        if (CargoOwnerProfile::verificationRequired() && ! $owner->isVerified()) {
-            $limit = max(0, Settings::int('cargo_owner_unverified_max_active_loads'));
-            $open = Load::query()->where('cargo_owner_profile_id', $owner->id)->whereIn('status', [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED])->count();
-            if ($open >= $limit) {
-                throw new RuntimeException($limit === 0
-                    ? 'İlan açmak için hesabınızın doğrulanması gerekir. Profil → Doğrulama.'
-                    : "Doğrulanmamış hesapla en çok {$limit} açık ilan tutabilirsiniz. Daha fazlası için Profil → Doğrulama bölümünden hesabınızı doğrulayın.");
-            }
-        }
-
         // Adres metninden il/ilçe ve koordinat çözümlenir; koordinat açıkça verildiyse o korunur.
         $pickupGeo = TurkishLocations::resolve($data['pickup_location'] ?? null);
         $deliveryGeo = TurkishLocations::resolve($data['delivery_location'] ?? null);

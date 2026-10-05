@@ -31,7 +31,7 @@ class MarketingConsentTest extends TestCase
     {
         $c = Volt::test('frontend.register-cargo-owner')->set([
             'type' => 'individual', 'firstName' => 'Deneme', 'lastName' => 'Kullanıcı', 'email' => 'yeni@example.com', 'phone' => '0532 111 22 33',
-            'password' => 'UzunSifre-123456', 'password_confirmation' => 'UzunSifre-123456', 'tcNo' => '10000000146', 'birthYear' => '1980', 'acceptTerms' => true,
+            'password' => 'UzunSifre-123456', 'password_confirmation' => 'UzunSifre-123456', 'acceptTerms' => true,
         ])->assertSet('acceptMarketing', false)->set('acceptMarketing', true)->call('register')->assertHasNoErrors();
         $user = User::query()->where('email', 'yeni@example.com')->firstOrFail();
         $this->assertNull($user->marketing_consent_at, 'kod doğrulanmadan onay yazılmaz');
