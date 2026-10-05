@@ -36,6 +36,12 @@ new class extends Component {
 
     public string $banReason = '';
 
+    /** Engelleme ön izlemesi: açık işleri olan kullanıcı için "engelle ve kapat" onayı beklenir. */
+    public ?int $banPreviewId = null;
+
+    /** @var array<string, int> */
+    public array $banPreview = [];
+
     public function mount(): void
     {
         abort_unless(auth()->user()->can('view users'), 403);
@@ -52,7 +58,93 @@ new class extends Component {
     {
         $this->openId = $this->openId === $userId ? null : $userId;
         $this->banReason = '';
+        $this->banPreviewId = null;
+        $this->banPreview = [];
     }
+
+    /**
+     * Kullanıcının kapanmamış işleri (denetim Y7): yoldaki/bekleyen sevkiyat, bekleyen ya da kabul edilmiş teklif, bekleyen
+     * hakediş, parası ödenmiş ilan, gruptan alınan açık iş. Engelleme bunlara bakmadan yapılamaz.
+     *
+     * @return array<string, int>
+     */
+    public static function openItems(User $user): array
+    {
+        $driverId = $user->driverProfile?->id;
+        $ownerId = $user->cargoOwnerProfile?->id;
+        $paidEscrow = [\App\Models\Load::ESCROW_PAID, \App\Models\Load::ESCROW_ON_HOLD, \App\Models\Load::ESCROW_RELEASE_APPROVED];
+        $activeShipment = [\App\Models\Shipment::STATUS_AWAITING_PICKUP, \App\Models\Shipment::STATUS_IN_TRANSIT, \App\Models\Shipment::STATUS_DELIVERED, \App\Models\Shipment::STATUS_DISPUTED];
+        $items = [
+            'shipments' => \App\Models\Shipment::query()->whereIn('status', $activeShipment)
+                ->where(fn ($q) => $q->when($driverId, fn ($w) => $w->where('driver_profile_id', $driverId))
+                    ->when($ownerId, fn ($w) => $w->orWhereHas('cargoLoad', fn ($l) => $l->where('cargo_owner_profile_id', $ownerId))))
+                ->when(! $driverId && ! $ownerId, fn ($q) => $q->whereRaw('1 = 0'))->count(),
+            'offers' => $driverId ? \App\Models\Offer::query()->where('driver_profile_id', $driverId)->whereIn('status', ['pending', 'accepted'])->count() : 0,
+            'payouts' => \App\Models\Payout::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'processing'])->count(),
+            'paid_loads' => \App\Models\Load::query()->whereIn('escrow_status', $paidEscrow)
+                ->where(fn ($q) => $q->when($ownerId, fn ($w) => $w->where('cargo_owner_profile_id', $ownerId))
+                    ->when($driverId, fn ($w) => $w->orWhere('driver_profile_id', $driverId)))
+                ->when(! $driverId && ! $ownerId, fn ($q) => $q->whereRaw('1 = 0'))->count(),
+            'external_trips' => $driverId ? \App\Models\DriverTrip::query()->where('driver_profile_id', $driverId)->whereNotNull('scraped_load_id')->open()->count() : 0,
+        ];
+
+        return array_filter($items);
+    }
+
+    public const OPEN_ITEM_LABELS = ['shipments' => 'aktif sevkiyat', 'offers' => 'bekleyen / kabul edilmiş teklif', 'payouts' => 'bekleyen hakediş', 'paid_loads' => 'parası ödenmiş ilan', 'external_trips' => 'gruptan alınan açık iş'];
+
+    /** "Kullanıcıyı engelle": açık iş yoksa hemen engeller; varsa listeyi gösterip "Engelle ve açık işleri kapat" onayı bekler. */
+    public function prepareBan(int $userId): void
+    {
+        if (! $this->allow('manage users') || ! ($user = $this->member($userId))) {
+            return;
+        }
+        $items = self::openItems($user);
+        if ($items === []) {
+            $this->ban($userId);
+
+            return;
+        }
+        $this->banPreviewId = $userId;
+        $this->banPreview = $items;
+    }
+
+    public function cancelBan(): void
+    {
+        $this->banPreviewId = null;
+        $this->banPreview = [];
+    }
+
+    /** Engeller ve açık işleri kapatır: bekleyen teklifler reddedilir, gruptan alınan açık işler kapanır, ödenmiş ilanlar operasyona bildirilir. */
+    public function banAndClose(int $userId): void
+    {
+        if (! $this->allow('manage users') || ! ($user = $this->member($userId))) {
+            return;
+        }
+        if ($user->id === auth()->id() || $user->isAdminPanelUser()) {
+            session()->flash('error_message', 'Yönetici hesapları buradan engellenemez.');
+
+            return;
+        }
+        $items = self::openItems($user);
+        $driverId = $user->driverProfile?->id;
+        $closed = [];
+        if ($driverId) {
+            $closed['offers'] = \App\Models\Offer::query()->where('driver_profile_id', $driverId)->where('status', 'pending')->update(['status' => 'rejected', 'responded_at' => now()]);
+            $closed['external_trips'] = \App\Models\DriverTrip::query()->where('driver_profile_id', $driverId)->whereNotNull('scraped_load_id')->open()->update(['status' => \App\Models\DriverTrip::STATUS_CLOSED, 'closed_at' => now()]);
+        }
+        if (($items['paid_loads'] ?? 0) > 0 || ($items['shipments'] ?? 0) > 0 || ($items['offers'] ?? 0) > ($closed['offers'] ?? 0)) {
+            app(\App\Services\NotificationService::class)->notifyAdmins('manage operations', 'Engellenen kullanıcının açık işi var',
+                ["{$user->full_name} (#{$user->id}) engellendi; ".collect($items)->map(fn ($n, $k) => $n.' '.(self::OPEN_ITEM_LABELS[$k] ?? $k))->join(', ').'. Ödenmiş ilanlar ve yoldaki sevkiyatlar elle incelenmeli (iade / yeniden atama).'],
+                route('admin.operations'), 'Operasyonlar', 'admin');
+        }
+        $this->ban($userId, $items, $closed);
+    }
+
+    /**
+     * @param  array<string, int>  $openItems  engelleme anındaki açık işler (işlem kaydına yazılır)
+     * @param  array<string, int>  $closed  kapatılan iş sayıları
+     */
 
     private function allow(string $permission): bool
     {
@@ -118,7 +210,7 @@ new class extends Component {
         session()->flash('success_message', $user->full_name.' hesabının premium üyeliği sonlandırıldı.');
     }
 
-    public function ban(int $userId): void
+    public function ban(int $userId, array $openItems = [], array $closed = []): void
     {
         if (! $this->allow('manage users') || ! ($user = $this->member($userId))) {
             return;
@@ -128,10 +220,23 @@ new class extends Component {
 
             return;
         }
-        $user->update(['banned_at' => now(), 'ban_reason' => mb_substr(trim($this->banReason) ?: 'Yönetici kararı', 0, 255)]);
-        \App\Models\ActivityLog::record('user.banned', "Kullanıcı engellendi #{$user->id}: {$user->ban_reason}", auth()->id(), $user);
+        $openItems = $openItems ?: self::openItems($user);
+        if ($openItems !== [] && $closed === []) {
+            // Açık iş varken yalnız "Engelle ve açık işleri kapat" yolu geçer; doğrudan çağrı ön izlemeye düşer.
+            $this->banPreviewId = $userId;
+            $this->banPreview = $openItems;
+
+            return;
+        }
+        $user->update(['banned_at' => now(), 'banned_by' => auth()->id(), 'ban_reason' => mb_substr(trim($this->banReason) ?: 'Yönetici kararı', 0, 255)]);
+        \App\Models\ActivityLog::record('user.banned', "Kullanıcı engellendi #{$user->id}: {$user->ban_reason}", auth()->id(), $user, ['open_items' => $openItems, 'closed' => $closed]);
+        app(\App\Services\NotificationService::class)->notify($user, 'Hesabınız engellendi',
+            ['NavlunIQ hesabınız yönetici kararıyla engellendi; giriş yapamazsınız. Gerekçe: '.$user->ban_reason, 'Bir yanlışlık olduğunu düşünüyorsanız destek hattından bize ulaşın.'],
+            route('contact'), 'İletişim', 'general');
         $this->banReason = '';
-        session()->flash('success_message', $user->full_name.' engellendi; giriş yapamaz.');
+        $this->banPreviewId = null;
+        $this->banPreview = [];
+        session()->flash('success_message', $user->full_name.' engellendi; giriş yapamaz.'.($closed !== [] ? ' Kapatılan: '.collect($closed)->filter()->map(fn ($n, $k) => $n.' '.(self::OPEN_ITEM_LABELS[$k] ?? $k))->join(', ').'.' : ''));
     }
 
     public function unban(int $userId): void
@@ -139,7 +244,7 @@ new class extends Component {
         if (! $this->allow('manage users') || ! ($user = $this->member($userId))) {
             return;
         }
-        $user->update(['banned_at' => null, 'ban_reason' => null]);
+        $user->update(['banned_at' => null, 'ban_reason' => null, 'banned_by' => null]);
         \App\Models\ActivityLog::record('user.unbanned', "Kullanıcı engeli kaldırıldı #{$user->id}", auth()->id(), $user);
         session()->flash('success_message', $user->full_name.' için engel kaldırıldı.');
     }
@@ -198,6 +303,7 @@ new class extends Component {
             'kycBadge' => ['approved' => 'bg-emerald-500/10 text-emerald-600', 'pending' => 'bg-amber-500/10 text-amber-600', 'rejected' => 'bg-red-500/10 text-red-600', 'unsubmitted' => 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500'],
             'canKyc' => auth()->user()->can('verify kyc'),
             'canManage' => auth()->user()->can('manage users'),
+            'openItemLabels' => self::OPEN_ITEM_LABELS,
         ];
     }
 }; ?>
@@ -297,11 +403,23 @@ new class extends Component {
                                             <div class="font-bold text-neutral-900 dark:text-white">Hesap</div>
                                             @if($canManage)
                                                 @if($user->banned_at)
-                                                    <p class="text-[11px] text-neutral-500">Engel: {{ $user->ban_reason }} ({{ $user->banned_at->format('d.m.Y H:i') }})</p>
+                                                    <p class="text-[11px] text-neutral-500">Engel: {{ $user->ban_reason }} ({{ $user->banned_at->format('d.m.Y H:i') }}{{ $user->banned_by ? ' · '.($user->bannedBy?->full_name ?? 'yönetici') : '' }})</p>
                                                     <button type="button" wire:click="unban({{ $user->id }})" class="btn-secondary py-2 px-3 text-xs">Engeli kaldır</button>
+                                                @elseif($banPreviewId === $user->id)
+                                                    <div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                                                        <p class="font-semibold text-amber-700 dark:text-amber-300">Açık işleri var:</p>
+                                                        <ul class="text-[11px] text-neutral-600 dark:text-neutral-300 list-disc pl-4">
+                                                            @foreach($banPreview as $k => $n)<li>{{ $n }} {{ $openItemLabels[$k] ?? $k }}</li>@endforeach
+                                                        </ul>
+                                                        <p class="text-[11px] text-neutral-500">"Engelle ve açık işleri kapat": bekleyen teklifler reddedilir, gruptan alınan açık işler kapanır, ödenmiş ilanlar ve yoldaki sevkiyatlar operasyon ekibine bildirilir.</p>
+                                                        <div class="flex flex-wrap gap-2">
+                                                            <button type="button" wire:click="banAndClose({{ $user->id }})" wire:confirm="Kullanıcı engellenecek ve açık işleri kapatılacak. Devam edilsin mi?" class="py-2 px-3 rounded-xl bg-rose-600 text-white text-xs font-semibold">Engelle ve açık işleri kapat</button>
+                                                            <button type="button" wire:click="cancelBan" class="btn-secondary py-2 px-3 text-xs">Vazgeç</button>
+                                                        </div>
+                                                    </div>
                                                 @else
                                                     <input type="text" wire:model="banReason" placeholder="Engel gerekçesi (isteğe bağlı)" class="{{ $input }}">
-                                                    <button type="button" wire:click="ban({{ $user->id }})" wire:confirm="Kullanıcı giriş yapamayacak. Devam edilsin mi?" class="text-rose-600 font-semibold hover:underline">Kullanıcıyı engelle</button>
+                                                    <button type="button" wire:click="prepareBan({{ $user->id }})" wire:confirm="Kullanıcı giriş yapamayacak. Devam edilsin mi?" class="text-rose-600 font-semibold hover:underline">Kullanıcıyı engelle</button>
                                                 @endif
                                             @else<span class="text-neutral-400">Hesap işlemleri için yetkiniz yok.</span>@endif
                                         </div>
