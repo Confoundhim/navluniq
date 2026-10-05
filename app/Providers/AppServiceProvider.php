@@ -4,9 +4,12 @@ namespace App\Providers;
 
 use App\Livewire\PausePollWhileInteracting;
 use App\Payments\GatewayManager;
+use App\Services\SystemWatchdog;
 use App\Support\RuntimeMailConfig;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\Events\DiagnosingHealth;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -50,6 +53,11 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('intake', fn (Request $r) => Limit::perMinute(600)->by('intake|'.$r->ip()));
         RateLimiter::for('intake-ping', fn (Request $r) => Limit::perMinute(30)->by('ping|'.$r->ip()));
         RateLimiter::for('intake-version', fn (Request $r) => Limit::perMinute(60)->by('version|'.$r->ip()));
-        RateLimiter::for('scraper-webhook', fn (Request $r) => Limit::perMinute(60)->by('scraper|'.$r->ip()));
+        RateLimiter::for('marketing-unsubscribe', fn (Request $r) => Limit::perMinute(20)->by('unsub|'.$r->ip()));
+        RateLimiter::for('driver-location', fn (Request $r) => Limit::perMinute(60)->by('loc|'.($r->user()?->getAuthIdentifier() ?: $r->ip()))); // şoför konumu: kullanıcı başına, paylaşımlı sayaç değil (A22)
+        RateLimiter::for('csp-report', fn (Request $r) => Limit::perMinute(30)->by('csp|'.$r->ip()));
+
+        // /up adresi gerçek sağlık döner (veritabanı, önbellek, zamanlayıcı nabzı); dış izleme (UptimeRobot) buna bakar (I1).
+        Event::listen(DiagnosingHealth::class, fn () => SystemWatchdog::diagnose());
     }
 }

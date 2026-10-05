@@ -58,7 +58,9 @@ new class extends Component {
     public function select(int $disputeId): void
     {
         $this->selectedId = $disputeId;
-        $this->decision = 'driver_paid';
+        // Varsayılan karar sevkiyatın durumuna göre: yoldaysa "devam", teslim edildiyse "şoföre öde" (hakem yine seçer).
+        $dispute = Dispute::query()->with('cargoLoad.shipment')->find($disputeId);
+        $this->decision = $dispute ? (string) array_key_first(DisputeService::allowedResolutions($dispute)) : 'owner_refunded';
         $this->decisionNotes = '';
         $this->resetErrorBag();
     }
@@ -78,7 +80,7 @@ new class extends Component {
         }
 
         $this->validate([
-            'decision' => 'required|in:driver_paid,owner_refunded',
+            'decision' => 'required|in:continue,driver_paid,owner_refunded',
             'decisionNotes' => 'required|string|min:10|max:3000',
         ], [
             'decisionNotes.required' => 'Gerekçeli karar notu zorunludur.',
@@ -304,14 +306,15 @@ new class extends Component {
                     @endif
 
                     <form wire:submit="resolve" class="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
+                        @php $resolutions = \App\Services\DisputeService::allowedResolutions($selected); $inTransit = $selected->cargoLoad?->shipment?->delivered_at === null; @endphp
                         <label class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Hakem kararı</label>
+                        <p class="text-[11px] text-neutral-500">{{ $inTransit ? 'Yük henüz teslim edilmedi: hakediş bu aşamada ödenmez. Sevkiyat ya devam eder ya da iptal edilip navlun yük sahibine iade edilir.' : 'Yük teslim edildi: hakediş şoföre ödenir ya da navlun yük sahibine iade edilir.' }}</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer {{ $decision === 'driver_paid' ? 'border-emerald-500 bg-emerald-500/5' : 'border-neutral-200/60 dark:border-neutral-700/40' }}">
-                                <input type="radio" wire:model="decision" value="driver_paid"> <span>Şoför haklı: hakediş ödenir</span>
-                            </label>
-                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer {{ $decision === 'owner_refunded' ? 'border-amber-500 bg-amber-500/5' : 'border-neutral-200/60 dark:border-neutral-700/40' }}">
-                                <input type="radio" wire:model="decision" value="owner_refunded"> <span>Yük sahibi haklı: navlun iade edilir</span>
-                            </label>
+                            @foreach($resolutions as $value => $label)
+                                <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer {{ $decision === $value ? ($value === 'owner_refunded' ? 'border-amber-500 bg-amber-500/5' : 'border-emerald-500 bg-emerald-500/5') : 'border-neutral-200/60 dark:border-neutral-700/40' }}">
+                                    <input type="radio" wire:model.live="decision" value="{{ $value }}"> <span>{{ $label }}</span>
+                                </label>
+                            @endforeach
                         </div>
                         <textarea wire:model="decisionNotes" rows="4" placeholder="Gerekçeli karar notu (taraflara iletilir)" class="{{ $input }}"></textarea>
                         @error('decisionNotes') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror

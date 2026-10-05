@@ -40,6 +40,9 @@ class Load extends Model
 
     public const ESCROW_REFUNDED = 'refunded_to_owner';
 
+    /** İade kararı verildi ama ödeme kuruluşu iadeyi henüz onaylamadı; finans ekibi "İade yapıldı" deyince refunded_to_owner olur. */
+    public const ESCROW_REFUND_PENDING = 'refund_pending';
+
     public const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Teklif bekliyor',
         self::STATUS_ASSIGNED => 'Şoför atandı',
@@ -57,6 +60,7 @@ class Load extends Model
         self::ESCROW_RELEASE_APPROVED => 'Şoför ödemesi onaylandı',
         self::ESCROW_RELEASED => 'Şoföre ödendi',
         self::ESCROW_REFUNDED => 'Yük sahibine iade edildi',
+        self::ESCROW_REFUND_PENDING => 'İade bekleniyor',
     ];
 
     public const GOODS_TYPES = [
@@ -108,6 +112,7 @@ class Load extends Model
         'cancelled_at',
         'payment_due_at',
         'payment_reminded_at',
+        'no_show_notified_at',
     ];
 
     protected $casts = [
@@ -120,6 +125,7 @@ class Load extends Model
         'cancelled_at' => 'datetime',
         'payment_due_at' => 'datetime',
         'payment_reminded_at' => 'datetime',
+        'no_show_notified_at' => 'datetime',
         'price' => 'decimal:2',
         'body_types' => 'array',
         'delivery_stops' => 'array',
@@ -207,16 +213,26 @@ class Load extends Model
     public function statusLabel(): string
     {
         if ($this->isClosedWithRefund()) {
-            return 'İade ile kapandı';
+            return $this->escrow_status === self::ESCROW_REFUND_PENDING ? 'İade bekleniyor' : 'İade ile kapandı';
         }
 
         return self::STATUS_LABELS[$this->status] ?? $this->status;
     }
 
-    /** Uyuşmazlık ya da destek iptali sonucu navlun yük sahibine iade edilerek kapanan sevkiyat: teslimat sayılmaz, puanlanmaz. */
+    /**
+     * Uyuşmazlık ya da iptal sonucu navlun yük sahibine iade edilerek (ya da iadesi beklenerek) kapanan sevkiyat:
+     * teslimat sayılmaz, puanlanmaz, istatistiğe girmez.
+     */
     public function isClosedWithRefund(): bool
     {
-        return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CANCELLED], true) && $this->escrow_status === self::ESCROW_REFUNDED;
+        return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CANCELLED], true)
+            && in_array($this->escrow_status, [self::ESCROW_REFUNDED, self::ESCROW_REFUND_PENDING], true);
+    }
+
+    /** Ödeme alınmış, yola çıkılmamış: yük sahibi tam iadeyle iptal edebilir, şoför vazgeçebilir (karar 4). */
+    public function canBeCancelledBeforeTransit(): bool
+    {
+        return $this->status === self::STATUS_ASSIGNED && $this->escrow_status === self::ESCROW_PAID;
     }
 
     public function escrowLabel(): string

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Driver;
 
+use App\Models\BankAccount;
 use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverSavedLoad;
@@ -21,7 +22,10 @@ use App\Services\ShipmentService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -46,6 +50,9 @@ class TripsAndSavedLoadsTest extends TestCase
         $user = User::factory()->driver()->create();
         $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved', 'premium_until' => $premium ? now()->addMonth() : null]);
         DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '35TR'.(++self::$seq), 'vehicle_type' => 'tir', 'body_type' => $body, 'trailer_length' => 'uzun', 'is_active' => true]);
+        // "Yola çıktım" için kayıtlı IBAN şart (A5)
+        $iban = 'TR330006100519786457841326';
+        BankAccount::create(['user_id' => $user->id, 'encrypted_iban' => Crypt::encryptString($iban), 'iban_hash' => hash('sha256', $iban.$user->id), 'iban_last4' => '1326', 'account_holder' => 'Test Şoför', 'is_default' => true]);
 
         return $user->fresh();
     }
@@ -293,8 +300,11 @@ class TripsAndSavedLoadsTest extends TestCase
         $this->assertSame(0, app(DriverTripService::class)->autoClose());
         $this->assertSame('on_the_way', $trip->fresh()->status);
 
+        // Yoldaki uyuşmazlıkta "şoföre öde" verilemez (K1); şoför uyuşmazlık açıkken kanıt yükleyince teslim edilmiş sayılır ve karar verilebilir.
         $admin = User::factory()->create();
-        app(DisputeService::class)->resolve($dispute, $admin, 'driver_paid', 'Kanıt yeterli');
+        Storage::fake('private');
+        app(ShipmentService::class)->markDelivered($shipment->fresh(), $driver->driverProfile, UploadedFile::fake()->image('pod.jpg'));
+        app(DisputeService::class)->resolve($dispute->fresh(), $admin, 'driver_paid', 'Kanıt yeterli');
         $this->assertSame('closed', $trip->fresh()->status);
         Volt::test('driver.jobs.index')->call('setTab', 'past')->assertSee('Tamamlandı');
     }

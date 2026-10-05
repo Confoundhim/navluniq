@@ -108,13 +108,68 @@ final class Settings
         'iyzico_secret_key' => '',              // şifreli saklanır
         'iyzico_sandbox' => 1,                  // 1: sandbox-api.iyzipay.com
         'iyzico_marketplace' => 0,              // 1: pazaryeri (alt üye işyeri) ürünü aktif
+
+        // Para ve sevkiyat (2026-10-05)
+        'no_show_grace_days' => 1,              // Ödenmiş ilanda yükleme tarihi bu kadar gün geçip yola çıkılmadıysa "şoför gelmedi" uyarısı (bir kez)
+        'payout_processing_stale_minutes' => 15, // "işlemde" takılı hakediş bu kadar dakika sonra "bekliyor"a döner ve finans uyarılır
+        'payout_retry_max_attempts' => 6,       // Ödeme kuruluşu aktarımı en çok bu kadar kez denenir (artan bekleme: 10, 20, 40 dk…)
+        'payment_order_stale_hours' => 24,      // Açık (created/pending) ödeme emri bu kadar saat sonra "süresi doldu" olur
+        'bank_change_hold_hours' => 24,         // IBAN değişikliğinden sonra otomatik hakediş aktarımı bu kadar saat bekler (dolandırıcılık freni)
+
+        // İşletim ve uyarılar (2026-10-05)
+        'mail_verify_tls' => 1,                 // 1: SMTP sertifikası doğrulanır (RuntimeMailConfig); sunucu sertifikası bozuksa geçici 0
+        'alert_telegram_chat_id' => '',         // Bekçi (system:watchdog) uyarılarının gideceği Telegram sohbet kimliği (Osman'ın DM'i); boş: yalnız panel bildirimi
+        'intake_silence_alert_hours' => 3,      // 07:00-23:00 arasında telefondan bu kadar saat hiç istek gelmezse "telefon sessiz" uyarısı
+        'csp_enforce' => 0,                     // 0: içerik güvenliği politikası yalnız rapor eder (Content-Security-Policy-Report-Only); 1: zorunlu
+        'watchdog_last_run' => '',              // Bekçinin son çalışma özeti (JSON: at, alerts, checks); sağlık ekranı okur
+        'watchdog_last_alert' => '',            // Son gönderilen uyarı özeti (JSON: at, keys)
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */
     public const SECRET_KEYS = ['telegram_bot_token', 'mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'scraper_api_token'];
 
-    /** Veritabanında şifreli saklanan anahtarlar (Crypt). */
-    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key'];
+    /**
+     * Veritabanında şifreli saklanan anahtarlar (Crypt). Telegram ve telefon anahtarı 2026-10-05'te eklendi
+     * (`0001_01_50` eski düz değerleri şifreler); get() düz kalan eski değeri de okur.
+     */
+    public const ENCRYPTED_KEYS = ['mail_password', 'iyzico_secret_key', 'ai_claude_key', 'ai_gemini_key', 'ai_groq_key', 'ai_cerebras_key', 'ai_openrouter_key', 'ai_mistral_key', 'ai_openai_key', 'ai_xai_key', 'ai_kimi_key', 'telegram_bot_token', 'scraper_api_token'];
+
+    // Yönetici güvenliği (2026-10-05)
+    /**
+     * Revizyon geçmişinden "eski değere dön" ile geri alınamayan anahtarlar: gizli anahtarlar revizyona maskeli yazılır
+     * (geri alma maskeyi gerçek anahtar yapardı), sözleşme sürümü yeniden onay akışını tetikler, sabit kod ve telefon
+     * anahtarı güvenlik kapısıdır. SECRET_KEYS de geri alınamaz (bkz. isRollbackable).
+     */
+    public const NON_ROLLBACK_KEYS = ['legal_document_version', 'legal_effective_date', 'scraper_api_token', 'review_login_emails', 'review_login_code', 'review_login_until'];
+
+    /** Değişimi şifre ile yeniden doğrulama ve diğer yöneticilere bildirim isteyen ödeme ayarları (gizli anahtarlar da ister). */
+    public const REAUTH_KEYS = ['payment_provider', 'iyzico_sandbox', 'iyzico_marketplace'];
+
+    /** Yalnız "manage system" izniyle düzenlenebilen genel ayarlar (sabit kodla giriş). */
+    public const SYSTEM_ONLY_KEYS = ['review_login_emails', 'review_login_code', 'review_login_until'];
+
+    public static function isRollbackable(string $key): bool
+    {
+        return ! in_array($key, self::SECRET_KEYS, true) && ! in_array($key, self::NON_ROLLBACK_KEYS, true);
+    }
+
+    /** Gizli anahtar ya da ödeme ayarı mı: kaydı şifre doğrulaması ve yönetici bildirimi ister. */
+    public static function requiresReauth(string $key): bool
+    {
+        return in_array($key, self::SECRET_KEYS, true) || in_array($key, self::REAUTH_KEYS, true);
+    }
+
+    /** Değer Laravel Crypt çıktısı gibi görünüyor mu (base64 içinde iv/value/mac taşıyan JSON)? Düz eski değerlerle ayırt etmek için. */
+    public static function looksEncrypted(string $value): bool
+    {
+        $decoded = base64_decode($value, true);
+        if ($decoded === false) {
+            return false;
+        }
+        $json = json_decode($decoded, true);
+
+        return is_array($json) && isset($json['iv'], $json['value'], $json['mac']);
+    }
 
     public static function get(string $key, mixed $default = null): mixed
     {
@@ -126,6 +181,11 @@ final class Settings
         try {
             return Crypt::decryptString((string) $value);
         } catch (\Throwable) {
+            // Şifreli görünmeyen değer: anahtar şifreli listeye sonradan girmiş, eski düz değer henüz dönüştürülmemiş.
+            if (! self::looksEncrypted((string) $value)) {
+                return $value;
+            }
+
             return $default ?? self::DEFAULTS[$key] ?? null;
         }
     }

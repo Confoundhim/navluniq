@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Payments;
 
+use App\Models\BankAccount;
 use App\Models\CargoOwnerProfile;
 use App\Models\CmsContent;
 use App\Models\DriverProfile;
@@ -128,10 +129,13 @@ class PaymentInfrastructureTest extends TestCase
     private function driver(): User
     {
         $user = User::factory()->driver()->create();
-        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved']);
+        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved', 'identity_number' => '10000000146']);
         DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34ABC123', 'vehicle_type' => 'tir', 'is_active' => true]);
+        // Pazaryeri kaydı ve "Yola çıktım" için kayıtlı IBAN şart; uydurma ama sağlaması doğru IBAN
+        $iban = 'TR330006100519786457841326';
+        BankAccount::create(['user_id' => $user->id, 'encrypted_iban' => Crypt::encryptString($iban), 'iban_hash' => hash('sha256', $iban.$user->id), 'iban_last4' => '1326', 'account_holder' => 'Test Şoför', 'is_default' => true]);
 
-        return $user;
+        return $user->fresh();
     }
 
     private function assignedLoad(User $ownerUser, User $driverUser): Load

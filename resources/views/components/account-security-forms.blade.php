@@ -44,6 +44,11 @@
         </div>
     @endif
 
+    <label class="flex items-start gap-3 cursor-pointer select-none text-xs">
+        <input type="checkbox" wire:model="marketing_consent" class="w-4 h-4 mt-0.5 accent-brand-500 rounded">
+        <span class="text-neutral-600 dark:text-neutral-300">Kampanya ve duyuru e-postaları almak istiyorum <span class="text-neutral-400">(ticari elektronik ileti onayı; istediğiniz an kaldırabilirsiniz, işlem bildirimleri etkilenmez)</span></span>
+    </label>
+
     <div class="pt-2 flex justify-end">
         <button type="submit" class="btn-primary py-2 text-xs">
             <span wire:loading.remove wire:target="updateProfile">Değişiklikleri kaydet</span>

@@ -33,8 +33,16 @@ class Dispute extends Model
         'open' => 'İnceleniyor',
         'resolved_driver_paid' => 'Şoför lehine sonuçlandı',
         'resolved_owner_refunded' => 'Yük sahibi lehine sonuçlandı',
+        'dismissed' => 'Sevkiyat devam etti',
         'cancelled' => 'Geri çekildi',
     ];
+
+    /** Hakem kararları: continue (yolda, sevkiyat sürer) · owner_refunded (iptal + iade) · driver_paid (yalnız teslim edildiyse). */
+    public const RESOLUTION_CONTINUE = 'continue';
+
+    public const RESOLUTION_DRIVER_PAID = 'driver_paid';
+
+    public const RESOLUTION_OWNER_REFUNDED = 'owner_refunded';
 
     public function cargoLoad(): BelongsTo
     {

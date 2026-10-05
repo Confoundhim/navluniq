@@ -1,9 +1,13 @@
 <?php
 
 use App\Models\BankAccount;
+use App\Models\DriverProfile;
 use App\Models\Invoice;
 use App\Models\Payout;
 use App\Services\BankAccountService;
+use App\Services\GibService;
+use App\Services\KycService;
+use App\Services\NotificationService;
 use App\Services\PayoutService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -11,6 +15,10 @@ use Livewire\Attributes\Title;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
+/**
+ * Ödemelerim: hakediş kayıtları, IBAN ve ödeme kimliği (TC / VKN). Pazaryeri modelinde ödeme kuruluşu şoförü alt üye işyeri
+ * olarak kaydeder; bunun için IBAN + kimlik birlikte gerekir. IBAN değişikliği şifre ister ve hesaba bildirilir (P7).
+ */
 new
 #[Layout('components.layouts.driver')]
 #[Title('Ödemelerim')]
@@ -21,9 +29,20 @@ class extends Component {
 
     public string $account_holder = '';
 
+    public string $legal_type = DriverProfile::LEGAL_INDIVIDUAL;
+
+    public string $identity_number = '';
+
+    public string $tax_number = '';
+
+    public string $bank_password = '';
+
     public function mount(): void
     {
-        $this->account_holder = Auth::user()->full_name;
+        $user = Auth::user();
+        $this->account_holder = $user->full_name;
+        $profile = $user->driverProfile;
+        $this->legal_type = $profile?->legal_type ?: DriverProfile::LEGAL_INDIVIDUAL;
     }
 
     public function saveBankAccount(BankAccountService $bankAccounts): void
@@ -31,22 +50,112 @@ class extends Component {
         $this->validate([
             'iban' => 'required|string|min:26|max:40',
             'account_holder' => 'required|string|min:3|max:120',
+            'legal_type' => 'required|in:individual,company',
+            'identity_number' => 'nullable|digits:11',
+            'tax_number' => 'nullable|digits:10',
+            'bank_password' => 'required|current_password',
         ], [
             'iban.required' => 'IBAN zorunludur.',
             'iban.min' => 'IBAN TR ile başlayan 26 karakter olmalıdır.',
             'account_holder.required' => 'Hesap sahibi adı zorunludur.',
+            'identity_number.digits' => 'T.C. kimlik numarası 11 rakamdan oluşur.',
+            'tax_number.digits' => 'Vergi numarası 10 rakamdan oluşur.',
+            'bank_password.required' => 'IBAN kaydetmek için mevcut şifrenizi girin.',
+            'bank_password.current_password' => 'Mevcut şifreniz hatalı.',
         ]);
 
+        $user = Auth::user();
+        $profile = $user->driverProfile;
+        if (! $profile) {
+            $this->addError('iban', 'Şoför profili bulunamadı.');
+
+            return;
+        }
+
+        // Kimlik: bireyselde TC (sağlama denetimi), şirkette VKN (GİB algoritması). Yoksa mevcut kayıt korunur; uydurma numara kabul edilmez.
+        $identity = $profile->identity_number;
+        $tax = $profile->tax_number;
+        if ($this->legal_type === DriverProfile::LEGAL_COMPANY) {
+            if ($this->tax_number !== '') {
+                if (! (new GibService)->verifyTax($this->tax_number)['is_match']) {
+                    $this->addError('tax_number', 'Vergi numarası geçersiz; lütfen vergi levhanızdaki 10 haneli numarayı girin.');
+
+                    return;
+                }
+                $tax = $this->tax_number;
+            }
+            if (! $tax) {
+                $this->addError('tax_number', 'Şirket hesabı için vergi numarası zorunludur.');
+
+                return;
+            }
+        } else {
+            if ($this->identity_number !== '') {
+                if (! KycService::isValidTcNo($this->identity_number)) {
+                    $this->addError('identity_number', 'T.C. kimlik numarası geçersiz; lütfen kimlik kartınızdaki 11 haneli numarayı girin.');
+
+                    return;
+                }
+                $identity = $this->identity_number;
+            }
+            if (! $identity) {
+                $this->addError('identity_number', 'Ödeme kuruluşu kaydı için T.C. kimlik numaranız zorunludur.');
+
+                return;
+            }
+        }
+
+        $previous = $user->defaultBankAccount;
         try {
-            $bankAccounts->save(Auth::user(), $this->iban, $this->account_holder, true);
+            $account = $bankAccounts->save($user, $this->iban, $this->account_holder, true);
         } catch (\InvalidArgumentException $e) {
             $this->addError('iban', $e->getMessage());
 
             return;
         }
 
-        $this->reset(['iban']);
-        session()->flash('success_message', 'Banka hesabınız kaydedildi. Ödemeleriniz bu hesaba yapılacaktır.');
+        $ibanChanged = ! $previous || $previous->id !== $account->id;
+        $identityChanged = $identity !== $profile->identity_number || $tax !== $profile->tax_number || $this->legal_type !== $profile->legal_type;
+        $profile->update([
+            'legal_type' => $this->legal_type,
+            'identity_number' => $identity,
+            'tax_number' => $tax,
+            // IBAN ya da kimlik değişince kuruluş kaydı yeni bilgiyle yenilenir; otomatik aktarım ayarlı süre bekler.
+            'payout_provider_ref' => ($ibanChanged || $identityChanged) ? null : $profile->payout_provider_ref,
+            'bank_account_changed_at' => $ibanChanged ? now() : $profile->bank_account_changed_at,
+        ]);
+
+        if ($ibanChanged) {
+            app(NotificationService::class)->notify($user, 'IBAN bilginiz değiştirildi',
+                ['Ödeme alacağınız hesap '.now()->format('d.m.Y H:i').' tarihinde '.$account->maskedIban().' olarak güncellendi.',
+                    'Bu işlemi siz yapmadıysanız hemen şifrenizi değiştirin ve destek ekibimize yazın; otomatik ödemeler güvenlik için kısa süre bekletilir.'],
+                route('driver.wallet.index'), 'Ödemelerim', 'security');
+        }
+        try {
+            app(PayoutService::class)->ensureSubMerchant($profile->fresh());
+        } catch (\Throwable) {
+            // kuruluş kaydı sonra (teklif kabulünde) yeniden denenir
+        }
+
+        $this->reset(['iban', 'bank_password', 'identity_number', 'tax_number']);
+        session()->flash('success_message', 'Ödeme bilgileriniz kaydedildi. Navlun ödemeleriniz bu hesaba yapılacaktır.');
+    }
+
+    /** Başarısız hakediş: şoför IBAN'ı düzeltti, yeniden gönderim ister. */
+    public function retryPayout(int $payoutId): void
+    {
+        $payout = Payout::query()->where('user_id', Auth::id())->whereKey($payoutId)->first();
+        if (! $payout) {
+            session()->flash('error_message', 'Ödeme kaydı bulunamadı.');
+
+            return;
+        }
+        try {
+            app(PayoutService::class)->retryAfterFix($payout, Auth::user());
+            session()->flash('success_message', 'Ödeme yeniden sıraya alındı; finans ekibi bilgilendirildi.');
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
     }
 
     public function with(): array
@@ -54,6 +163,7 @@ class extends Component {
         $user = Auth::user();
 
         return [
+            'profile' => $user->driverProfile,
             'summary' => app(PayoutService::class)->walletSummary($user),
             'payouts' => Payout::query()->with('cargoLoad')->where('user_id', $user->id)->latest('id')->paginate(15),
             'bankAccount' => BankAccount::query()->where('user_id', $user->id)->where('is_default', true)->first(),
@@ -66,6 +176,9 @@ class extends Component {
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -89,11 +202,19 @@ class extends Component {
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-1 text-[11px] text-neutral-500">Devam eden sevkiyatların navlun bedeli</div>
         </div>
-        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
-            <div class="text-xs text-neutral-500 dark:text-neutral-400">Kesilen komisyon</div>
-            <div class="mt-2 text-2xl font-black text-neutral-700 dark:text-neutral-300 tabular-nums">{{ number_format((float) ($summary['commission'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-1 text-[11px] text-neutral-500">Tüm ödemelerden düşülen toplam</div>
-        </div>
+        @if(($summary['failed'] ?? 0) > 0)
+            <div class="bg-white dark:bg-neutral-900 border border-rose-300 dark:border-rose-800 rounded-2xl p-6">
+                <div class="text-xs text-rose-600 dark:text-rose-400">Düzeltme bekleyen</div>
+                <div class="mt-2 text-2xl font-black text-rose-600 dark:text-rose-400 tabular-nums">{{ number_format((float) $summary['failed'], 2, ',', '.') }} ₺</div>
+                <div class="mt-1 text-[11px] text-neutral-500">Banka reddetti; IBAN'ı düzeltip yeniden gönderin</div>
+            </div>
+        @else
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
+                <div class="text-xs text-neutral-500 dark:text-neutral-400">Kesilen komisyon</div>
+                <div class="mt-2 text-2xl font-black text-neutral-700 dark:text-neutral-300 tabular-nums">{{ number_format((float) ($summary['commission'] ?? 0), 2, ',', '.') }} ₺</div>
+                <div class="mt-1 text-[11px] text-neutral-500">Tüm ödemelerden düşülen toplam</div>
+            </div>
+        @endif
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -129,11 +250,19 @@ class extends Component {
                                         <td class="py-3 pr-3 tabular-nums text-neutral-700 dark:text-neutral-300" data-label="Navlun">{{ number_format((float) ($payout->total_amount ?? 0), 2, ',', '.') }} ₺</td>
                                         <td class="py-3 pr-3 tabular-nums text-neutral-500 dark:text-neutral-400" data-label="Komisyon">{{ number_format((float) ($payout->commission_amount ?? 0), 2, ',', '.') }} ₺</td>
                                         <td class="py-3 pr-3 tabular-nums font-bold text-neutral-900 dark:text-white" data-label="Net">{{ number_format((float) ($payout->net_amount ?? 0), 2, ',', '.') }} ₺</td>
-                                        <td class="py-3 pr-3" data-label="Durum">
+                                        <td class="py-3 pr-3 tc-block" data-label="Durum">
                                             <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
                                                 {{ $payout->status === 'paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($payout->status === 'failed' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
                                                 {{ \App\Models\Payout::STATUS_LABELS[$payout->status] ?? $payout->status }}
                                             </span>
+                                            @if($payout->status === 'failed')
+                                                @if($payout->failure_reason)<div class="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{{ $payout->failure_reason }}</div>@endif
+                                                @if($bankAccount)
+                                                    <button type="button" wire:click="retryPayout({{ $payout->id }})" wire:confirm="IBAN bilginiz güncel mi? Ödeme yeniden sıraya alınacak." class="mt-1 text-[11px] font-bold text-brand-500 hover:underline">IBAN'ı güncelledim, yeniden gönder</button>
+                                                @else
+                                                    <div class="text-[11px] text-neutral-500 mt-1">Önce IBAN ekleyin.</div>
+                                                @endif
+                                            @endif
                                         </td>
                                         <td class="py-3 pr-3 font-mono text-neutral-500 dark:text-neutral-400" data-label="Referans">{{ $payout->reference_no ?: '—' }}</td>
                                         <td class="py-3 text-neutral-500 dark:text-neutral-400" data-label="Ödeme tarihi">{{ $payout->paid_at?->format('d.m.Y H:i') ?? '—' }}</td>
@@ -174,13 +303,39 @@ class extends Component {
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
                         <div class="text-neutral-500 dark:text-neutral-400">{{ $bankAccount->account_holder }}</div>
-                        <div class="text-[11px] text-neutral-500">{{ $bankAccount->is_verified ? 'Doğrulandı' : 'Finans ekibi ilk transferde doğrular' }}</div>
+                        @if($profile?->hasPayoutIdentity())
+                            <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->legal_type === 'company' ? 'Vergi no' : 'T.C. kimlik no' }}: <span class="font-mono">{{ $profile->maskedPayoutIdentity() }}</span></div>
+                        @endif
+                        <div class="text-[11px] text-neutral-500">{{ $profile?->payout_provider_ref ? 'Ödeme kuruluşuna kayıtlı' : ($bankAccount->is_verified ? 'Doğrulandı' : 'İlk ödemede ödeme kuruluşuna kaydedilir') }}</div>
                     </div>
                 @else
-                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kayıtlı IBAN adresiniz yok. Ödemelerinizin yapılabilmesi için IBAN ekleyin.</div>
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kayıtlı IBAN adresiniz yok. Teklifinizin kabul edilebilmesi ve ödeme alabilmeniz için IBAN ve kimlik numaranızı ekleyin.</div>
+                @endif
+                @if($bankAccount && ! $profile?->hasPayoutIdentity())
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Kimlik (T.C. / vergi) numaranız kayıtlı değil; ödeme kuruluşu kaydı için gerekir. Aşağıdaki formu doldurun.</div>
                 @endif
 
                 <form wire:submit.prevent="saveBankAccount" class="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-4">
+                    <div>
+                        <label class="form-label">Hesap türü</label>
+                        <select wire:model.live="legal_type" class="form-input">
+                            <option value="individual">Bireysel (T.C. kimlik no ile)</option>
+                            <option value="company">Şirket (vergi no ile)</option>
+                        </select>
+                    </div>
+                    @if($legal_type === 'company')
+                        <div>
+                            <label class="form-label">Vergi numarası (10 hane){{ $profile?->tax_number ? ' · kayıtlı: '.$profile->maskedPayoutIdentity() : '' }}</label>
+                            <input type="text" inputmode="numeric" wire:model="tax_number" maxlength="10" autocomplete="off" placeholder="{{ $profile?->tax_number ? 'Değiştirmek için yeni numara' : '' }}" class="form-input font-mono">
+                            @error('tax_number') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                    @else
+                        <div>
+                            <label class="form-label">T.C. kimlik numarası{{ $profile?->identity_number ? ' · kayıtlı: '.$profile->maskedPayoutIdentity() : '' }}</label>
+                            <input type="text" inputmode="numeric" wire:model="identity_number" maxlength="11" autocomplete="off" placeholder="{{ $profile?->identity_number ? 'Değiştirmek için yeni numara' : '' }}" class="form-input font-mono">
+                            @error('identity_number') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
                     <div>
                         <label class="form-label">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
                         <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="form-input font-mono">
@@ -191,8 +346,13 @@ class extends Component {
                         <input type="text" wire:model="account_holder" class="form-input">
                         @error('account_holder') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
+                    <div>
+                        <label class="form-label">Mevcut şifreniz</label>
+                        <input type="password" wire:model="bank_password" autocomplete="current-password" class="form-input">
+                        @error('bank_password') <span class="form-error">{{ $message }}</span> @enderror
+                    </div>
                     <button type="submit" class="btn-primary w-full" wire:loading.attr="disabled">
-                        <span wire:loading.remove wire:target="saveBankAccount">IBAN kaydet</span>
+                        <span wire:loading.remove wire:target="saveBankAccount">Kaydet</span>
                         <span wire:loading wire:target="saveBankAccount">Kaydediliyor...</span>
                     </button>
                 </form>
@@ -201,7 +361,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <h3 class="section-title">Ödeme süreci</h3>
                 <p>Yük sahibi teslimatı onayladığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.</p>
-                <p>Transfer, finans ekibi tarafından kayıtlı IBAN adresinize yapılır; ödeme tamamlandığında referans numarası bu sayfada görünür.</p>
+                <p>Ödeme, lisanslı ödeme kuruluşu tarafından kayıtlı IBAN adresinize aktarılır; tamamlandığında referans numarası bu sayfada görünür. Kimlik numarası, ödeme kuruluşunun yasal zorunluluğudur ve yalnız bu amaçla kullanılır.</p>
             </div>
         </div>
     </div>

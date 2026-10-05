@@ -22,6 +22,9 @@ class LoadService
     /** Yeni ilanı doğrudan şoför havuzuna açık olarak yayınlar. */
     public function publish(CargoOwnerProfile $owner, array $data, ?UploadedFile $eIrsaliyeFile = null): Load
     {
+        if ($owner->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         $minPrice = Settings::float('min_load_price');
         if ((float) $data['price'] < $minPrice) {
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
@@ -113,7 +116,9 @@ class LoadService
                 || ($locked->status === Load::STATUS_ASSIGNED && $locked->escrow_status === Load::ESCROW_PENDING);
 
             if (! $cancellable) {
-                throw new RuntimeException('Ödemesi yapılmış veya yola çıkmış bir sevkiyat buradan iptal edilemez. Lütfen destek ekibiyle iletişime geçin.');
+                throw new RuntimeException($locked->canBeCancelledBeforeTransit()
+                    ? 'Ödemesi alınmış sevkiyat sevkiyat sayfasındaki "İptal et ve iade al" düğmesiyle iptal edilir.'
+                    : 'Yola çıkmış bir sevkiyat buradan iptal edilemez. Sorun varsa uyuşmazlık açın ya da destek ekibiyle iletişime geçin.');
             }
             self::closeOpenOrders($locked);
 
@@ -158,36 +163,13 @@ class LoadService
 
     /**
      * Yönetici (destek) iptali: ödemesi alınmış ama yükü henüz alınmamış sevkiyat iptal edilir, navlun bedeli yük sahibine iade
-     * edilir (kuruluş reddederse iade finans ekibine düşer), şoförün işi kapanır, iki taraf bilgilendirilir. Yola çıkmış sevkiyat
-     * buradan iptal edilmez (uyuşmazlık süreci).
+     * edilir (kuruluş reddederse havuz "iade bekleniyor" olur, finans tamamlar), şoförün işi kapanır, iki taraf bilgilendirilir.
+     * Yola çıkmış sevkiyat buradan iptal edilmez (uyuşmazlık süreci).
      */
     public function cancelPaid(Load $load, User $admin, string $reason): bool
     {
-        $driverUser = null;
-        DB::transaction(function () use ($load, $admin, $reason, &$driverUser): void {
-            $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
-            if ($locked->status !== Load::STATUS_ASSIGNED || $locked->escrow_status !== Load::ESCROW_PAID) {
-                throw new RuntimeException('Yalnız ödemesi alınmış ve henüz yola çıkmamış sevkiyatlar iade ile iptal edilebilir.');
-            }
-            $driverUser = $locked->driverProfile?->user;
-            $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
-            $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
-            $locked->update([
-                'status' => Load::STATUS_CANCELLED,
-                'rejection_reason' => 'Yönetici kararı: '.mb_substr($reason, 0, 900),
-                'cancelled_at' => now(),
-                'visibility' => 'private',
-            ]);
-            ActivityLog::record('load.cancelled_paid', "İlan #{$locked->id} ödeme sonrası yönetici tarafından iptal edildi: {$reason}", $admin->id, $locked);
-        });
-        app(DriverTripService::class)->closeForLoad($load->id);
-
-        // İade kilit dışında: sağlayıcı çağrısı yavaşsa veritabanı satırları beklemesin.
-        $order = $load->paymentOrders()->where('status', 'paid')->latest()->first();
-        $refunded = $order ? app(PaymentService::class)->refund($order, (float) $order->amount, 'Yönetici iptali #'.$load->id.': '.$reason) : false;
-        if ($refunded) {
-            $load->update(['escrow_status' => Load::ESCROW_REFUNDED]);
-        }
+        $driverUser = $this->cancelPaidLoad($load, 'Yönetici kararı: '.mb_substr($reason, 0, 900), $admin->id, 'load.cancelled_paid', "İlan #{$load->id} ödeme sonrası yönetici tarafından iptal edildi: {$reason}");
+        $refunded = app(PaymentService::class)->refundLoad($load->fresh(), 'Yönetici iptali #'.$load->id.': '.$reason);
 
         $notifications = app(NotificationService::class);
         if ($owner = $load->cargoOwnerProfile?->user) {
@@ -203,6 +185,98 @@ class LoadService
         }
 
         return $refunded;
+    }
+
+    /**
+     * Yük sahibi, ödemesi alınmış ama yola çıkılmamış sevkiyatı iptal eder (karar 4: yola çıkılmadan önce tam iade). Şoförün işi
+     * kapanır, navlun bedeli kartına iade edilir (kuruluş reddederse "iade bekleniyor"), şoför bilgilendirilir.
+     */
+    public function cancelByOwnerPaid(Load $load, CargoOwnerProfile $owner, ?string $reason = null): bool
+    {
+        if ($load->cargo_owner_profile_id !== $owner->id) {
+            throw new RuntimeException('Bu ilan size ait değil.');
+        }
+        $reasonText = $reason ? mb_substr(trim($reason), 0, 900) : 'Yük sahibi yola çıkılmadan iptal etti.';
+        $driverUser = $this->cancelPaidLoad($load, $reasonText, $owner->user_id, 'load.cancelled_by_owner_paid', "İlan #{$load->id} ödeme sonrası yük sahibi tarafından iptal edildi");
+        $refunded = app(PaymentService::class)->refundLoad($load->fresh(), 'Yük sahibi iptali #'.$load->id);
+
+        $notifications = app(NotificationService::class);
+        if ($ownerUser = $owner->user) {
+            $notifications->notify($ownerUser, $refunded ? 'Sevkiyat iptal edildi, navlun bedeli iade edildi' : 'Sevkiyat iptal edildi, iade başlatıldı',
+                ["#{$load->id} numaralı sevkiyatı iptal ettiniz; şoförün işi kapandı.",
+                    $refunded ? 'Navlun bedeli kartınıza iade edildi; bankanıza göre 1-10 iş günü içinde hesabınızda görünür.' : 'Navlun bedelinin iadesi finans ekibi tarafından tamamlanacak; sonuç size bildirilecek.'],
+                route('cargo-owner.loads.index'), 'İlanlarım', 'load');
+        }
+        if ($driverUser) {
+            $notifications->notify($driverUser, 'Yük sahibi sevkiyatı iptal etti',
+                ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı yola çıkılmadan yük sahibi tarafından iptal edildi; iş kaydınız kapandı, navlun yük sahibine iade ediliyor.",
+                    $reason ? 'Yük sahibinin açıklaması: '.mb_substr($reason, 0, 300) : 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                route('driver.loads.index'), 'İlan havuzuna git', 'load');
+        }
+
+        return $refunded;
+    }
+
+    /** Ödenmiş, yola çıkılmamış ilanı kilit altında iptal eder (teklifler, sevkiyat, sefer); şoför kullanıcısını döndürür. */
+    private function cancelPaidLoad(Load $load, string $reasonText, ?int $actorId, string $logEvent, string $logText): ?User
+    {
+        $driverUser = null;
+        DB::transaction(function () use ($load, $reasonText, $actorId, $logEvent, $logText, &$driverUser): void {
+            $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
+            if (! $locked->canBeCancelledBeforeTransit()) {
+                throw new RuntimeException('Yalnız ödemesi alınmış ve henüz yola çıkmamış sevkiyatlar iade ile iptal edilebilir.');
+            }
+            $driverUser = $locked->driverProfile?->user;
+            $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
+            $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
+            $locked->update([
+                'status' => Load::STATUS_CANCELLED,
+                'rejection_reason' => $reasonText,
+                'cancelled_at' => now(),
+                'visibility' => 'private',
+            ]);
+            ActivityLog::record($logEvent, $logText, $actorId, $locked);
+        });
+        app(DriverTripService::class)->closeForLoad($load->id);
+
+        return $driverUser;
+    }
+
+    /**
+     * "Şoför gelmedi" (zamanlanmış görev): ödenmiş, yola çıkılmamış ilanda yükleme tarihi ayarlı gün kadar geçmişse yük sahibine
+     * (iptal + iade düğmesiyle), şoföre ve operasyon ekibine bir kez haber verilir. Karar yük sahibinde ya da yöneticide kalır.
+     */
+    public function notifyNoShows(): int
+    {
+        $grace = max(0, Settings::int('no_show_grace_days'));
+        $count = 0;
+        $notifications = app(NotificationService::class);
+        Load::query()->with(['cargoOwnerProfile.user', 'driverProfile.user'])
+            ->where('status', Load::STATUS_ASSIGNED)->where('escrow_status', Load::ESCROW_PAID)
+            ->whereNotNull('pickup_date')->where('pickup_date', '<', today()->subDays($grace))
+            ->whereNull('no_show_notified_at')->orderBy('id')->limit(100)->get()
+            ->each(function (Load $load) use (&$count, $notifications): void {
+                $load->forceFill(['no_show_notified_at' => now()])->save();
+                $count++;
+                $route = "{$load->pickup_location} → {$load->delivery_location}";
+                if ($owner = $load->cargoOwnerProfile?->user) {
+                    $notifications->notify($owner, 'Şoför yükü henüz almadı',
+                        ["{$route} ilanında yükleme tarihi ({$load->pickup_date->format('d.m.Y')}) geçti, şoför hâlâ yola çıkmadı.",
+                            'Şoförle görüşün; gelmeyecekse sevkiyat sayfasındaki "İptal et ve iade al" düğmesiyle sevkiyatı iptal edip navlun bedelinizi geri alabilirsiniz.'],
+                        route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
+                }
+                if ($driver = $load->driverProfile?->user) {
+                    $notifications->notify($driver, 'Yükleme tarihi geçti, yola çıkmadınız',
+                        ["{$route} işinde yükleme tarihi geçti ve hâlâ \"Yola çıktım\" demediniz. Yükü aldıysanız İşlerim sayfasından yola çıktığınızı bildirin; işi yapamayacaksanız vazgeçin ki yük sahibi başka şoför bulsun.",
+                            'Yük sahibi sevkiyatı iptal edip iade alabilir; ödeme sonrası vazgeçmeler hesabınızda sayılır.'],
+                        route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
+                }
+                $notifications->notifyAdmins('manage operations', 'Şoför gelmedi şüphesi',
+                    ["İlan #{$load->id} ({$route}): ödeme alındı, yükleme tarihi {$load->pickup_date->format('d.m.Y')} geçti, şoför yola çıkmadı. İki taraf bilgilendirildi; gerekirse Operasyon ekranından \"İptal et ve iade et\"."],
+                    route('admin.operations'), 'Operasyon ekranı', 'admin');
+            });
+
+        return $count;
     }
 
     /**

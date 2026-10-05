@@ -11,8 +11,9 @@ class ReviewService
 {
     public function submit(Load $load, User $reviewer, int $rating, ?string $comment = null): Review
     {
-        if (! in_array($load->status, [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED], true) || $load->isClosedWithRefund()) {
-            throw new RuntimeException('Değerlendirme yalnız teslim edilmiş sevkiyatlar için yapılabilir.');
+        // Puan yalnız onaylanıp tamamlanan sevkiyata verilir: teslimat onayı/uyuşmazlık sürerken ya da iade ile kapanmışsa verilmez.
+        if (! self::canReview($load)) {
+            throw new RuntimeException('Değerlendirme yalnız tamamlanmış (onaylanmış) sevkiyatlar için yapılabilir.');
         }
 
         $ownerUserId = $load->cargoOwnerProfile?->user_id;
@@ -49,6 +50,12 @@ class ReviewService
         }
 
         return $review;
+    }
+
+    /** Sevkiyat puanlanabilir mi: tamamlandı ve iade ile kapanmadı. Ekranlar ve servis aynı kuralı kullanır. */
+    public static function canReview(Load $load): bool
+    {
+        return $load->status === Load::STATUS_COMPLETED && ! $load->isClosedWithRefund();
     }
 
     public function hasReviewed(Load $load, User $reviewer): bool

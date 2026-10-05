@@ -170,7 +170,13 @@ new class extends Component {
             return;
         }
 
-        app(PayoutService::class)->markFailed($payout, auth()->user(), $reason);
+        try {
+            app(PayoutService::class)->markFailed($payout, auth()->user(), $reason);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
         unset($this->failReason[$payoutId]);
         session()->flash('success_message', "Hakediş #{$payoutId} başarısız olarak işaretlendi.");
     }
@@ -234,7 +240,7 @@ new class extends Component {
         ];
 
         if ($this->activeTab === 'payouts') {
-            $query = Payout::query()->with(['user', 'bankAccount', 'cargoLoad']);
+            $query = Payout::query()->with(['user.driverProfile', 'bankAccount', 'cargoLoad']);
             if ($this->payoutStatus !== 'all') {
                 $query->where('status', $this->payoutStatus);
             }
@@ -300,7 +306,7 @@ new class extends Component {
             <select wire:model.live="payoutStatus" class="{{ $input }} sm:w-56">
                 <option value="pending">Ödeme sırasında</option>
                 <option value="processing">Transfer yapılıyor</option>
-                <option value="failed">Başarısız</option>
+                <option value="failed">Düzeltme bekleyen (başarısız)</option>
                 <option value="paid">Ödendi</option>
                 <option value="all">Tümü</option>
             </select>
@@ -340,8 +346,18 @@ new class extends Component {
                                                 <button type="button" wire:click="revealIban({{ $payout->bank_account_id }})" class="text-[11px] text-brand-500 font-semibold">IBAN'ı göster</button>
                                             @endif
                                         @endif
+                                    @elseif($payout->iban)
+                                        <span class="font-mono">{{ $payout->iban }}</span>
+                                        <div class="text-[11px] text-neutral-400">{{ $payout->bank_name }} · hesap kapatıldı</div>
                                     @else
                                         <span class="text-amber-600">Banka hesabı tanımlı değil</span>
+                                    @endif
+                                    @php $changedAt = $payout->user?->driverProfile?->bank_account_changed_at; @endphp
+                                    @if($changedAt && $changedAt->gt(now()->subDays(7)))
+                                        <div class="mt-1 inline-block px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 text-[10px] font-semibold">IBAN değişti · {{ $changedAt->format('d.m.Y H:i') }}</div>
+                                    @endif
+                                    @if($payout->failure_reason)
+                                        <div class="text-[11px] text-red-600 mt-1 whitespace-normal">{{ $payout->failure_reason }}</div>
                                     @endif
                                 </td>
                                 <td class="p-4 whitespace-nowrap tc-block" data-label="Tutar">

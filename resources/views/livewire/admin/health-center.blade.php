@@ -20,7 +20,10 @@ new class extends Component {
 
     public function startUpdate(): void
     {
-        if (! auth()->user()?->can('manage settings')) {
+        // Güncelleme, kuyruk temizliği ve yeniden konumlama sunucuyu etkiler: yalnız "manage system" (denetim Y5).
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'Siteyi güncellemek için sistem yönetimi yetkisi gerekir.');
+
             return;
         }
         $started = app(\App\Services\DeployService::class)->start(auth()->id());
@@ -32,7 +35,7 @@ new class extends Component {
     /** Başarısız işleri kuyruğa geri koyar (queue:retry all) ve kontrolleri yeniler. */
     public function retryFailedJobs(): void
     {
-        abort_unless(auth()->user()?->can('manage settings'), 403);
+        abort_unless(auth()->user()?->can('manage system'), 403);
         \Illuminate\Support\Facades\Artisan::call('queue:retry', ['id' => ['all']]);
         session()->flash('success_message', 'Başarısız işler yeniden kuyruğa alındı; işçi çalışıyorsa birazdan işlenir.');
         $this->runChecks();
@@ -41,7 +44,7 @@ new class extends Component {
     /** Başarısız işleri siler (queue:flush). Telefon mesajı işleri zaten Canlı akışa hata olarak yazılmıştır; silmek ilan kaybettirmez. */
     public function flushFailedJobs(): void
     {
-        abort_unless(auth()->user()?->can('manage settings'), 403);
+        abort_unless(auth()->user()?->can('manage system'), 403);
         \Illuminate\Support\Facades\Artisan::call('queue:flush');
         session()->flash('success_message', 'Başarısız işler temizlendi.');
         $this->runChecks();
@@ -50,7 +53,7 @@ new class extends Component {
     /** Yeniden konumlamanın bir parçasını hemen çalıştırır (zamanlayıcıyı beklemeden; en çok 15 sn). */
     public function runRelocateBatch(): void
     {
-        abort_unless(auth()->user()?->can('manage settings'), 403);
+        abort_unless(auth()->user()?->can('manage system'), 403);
         \Illuminate\Support\Facades\Artisan::call('scraped-loads:relocate-force', ['--seconds' => 15]);
         session()->flash('success_message', trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'Bir parça çalıştırıldı.');
         $this->runChecks();
@@ -119,6 +122,123 @@ new class extends Component {
             return 'çalışıyor · son nabız '.$age.' sn önce · telefon mesajları kuyrukta işleniyor';
         });
 
+        // ---- İşletim probları (2026-10-05, denetim Y15): her biri tek ucuz sorgu; kırmızı = hemen bakılmalı, sarı = izlenmeli.
+        $this->checks[] = $this->probe('Zamanlayıcı', function (): string|array {
+            $ts = Cache::get('scheduler.heartbeat');
+            if (! $ts) {
+                throw new RuntimeException('Hiç nabız yok: sunucuda "schedule:run" cron satırı çalışmıyor; süreli görevler (teklif süresi, otomatik onay, yedek) durur.');
+            }
+            $age = max(0, now()->timestamp - (int) $ts);
+            if ($age > 600) {
+                throw new RuntimeException('Son nabız '.floor($age / 60).' dk önce; zamanlayıcı durmuş görünüyor.');
+            }
+
+            return ($age > 180 ? ['warn' => true, 'detail' => 'son nabız '.floor($age / 60).' dk önce (gecikmeli)'] : 'çalışıyor · son nabız '.$age.' sn önce');
+        });
+
+        $this->checks[] = $this->probe('Son yedek', function (): string|array {
+            $last = \App\Models\Backup::query()->where('status', 'completed')->latest('completed_at')->first();
+            if (! $last || ! $last->completed_at) {
+                throw new RuntimeException('Hiç tamamlanmış yedek yok; Yedekleme ekranından ilk yedeği alın.');
+            }
+            $hours = $last->completed_at->diffInHours(now());
+            if ($hours > 26) {
+                throw new RuntimeException('Son başarılı yedek '.floor($hours).' saat önce ('.$last->completed_at->format('d.m H:i').'); gece yedeği çalışmamış.');
+            }
+            $failed = \App\Models\Backup::query()->where('status', 'failed')->where('created_at', '>=', now()->subDay())->count();
+
+            return $failed > 0
+                ? ['warn' => true, 'detail' => 'son başarılı '.$last->completed_at->format('d.m H:i').' · son 24 saatte '.$failed.' başarısız deneme']
+                : 'son başarılı '.$last->completed_at->format('d.m H:i').' ('.number_format((float) $last->size_mb, 1, ',', '.').' MB)';
+        });
+
+        $this->checks[] = $this->probe('Disk doluluğu', function (): string|array {
+            $root = storage_path();
+            $free = @disk_free_space($root);
+            $total = @disk_total_space($root);
+            if ($free === false || ! $total) {
+                throw new RuntimeException('Disk bilgisi okunamadı.');
+            }
+            $pct = (int) round($free / $total * 100);
+            $text = $pct.'% boş · '.number_format($free / 1073741824, 1, ',', '.').' / '.number_format($total / 1073741824, 1, ',', '.').' GB';
+            if ($pct < 15) {
+                throw new RuntimeException('Disk dolmak üzere: '.$text.'. Eski yedekleri ve günlükleri temizleyin.');
+            }
+
+            return $pct < 25 ? ['warn' => true, 'detail' => $text] : $text;
+        });
+
+        $this->checks[] = $this->probe('E-posta (24 saat)', function (): string|array {
+            $since = now()->subDay();
+            $failed = \App\Models\UserNotification::query()->where('created_at', '>=', $since)->where('mail_status', \App\Models\UserNotification::MAIL_FAILED)->count();
+            $sent = \App\Models\UserNotification::query()->where('created_at', '>=', $since)->where('mail_status', \App\Models\UserNotification::MAIL_SENT)->count();
+            if ($failed > 0 && $failed >= $sent) {
+                throw new RuntimeException($failed.' e-posta gönderilemedi, '.$sent.' gönderildi; SMTP ayarlarını ve "Başarısızları yeniden dene" düğmesini kontrol edin.');
+            }
+
+            return $failed > 0 ? ['warn' => true, 'detail' => $sent.' gönderildi · '.$failed.' başarısız (yeniden denenir)'] : $sent.' gönderildi · 0 başarısız';
+        });
+
+        $this->checks[] = $this->probe('Ödeme kuruluşu', function (): string|array {
+            $payments = app(\App\Services\PaymentService::class);
+            $gateway = app(\App\Payments\GatewayManager::class)->selected();
+            if (! $payments->isConfigured()) {
+                throw new RuntimeException($gateway->label().': anahtarlar tanımlı değil; navlun ve premium ödemesi alınamaz.');
+            }
+
+            return $payments->isSandbox() ? ['warn' => true, 'detail' => $gateway->label().' · TEST (sandbox) modu; gerçek para çekilmez'] : $gateway->label().' · canlı';
+        });
+
+        $this->checks[] = $this->probe('Telefon akışı', function (): string|array {
+            $last = \App\Models\IntakeEvent::query()->max('created_at');
+            if (! $last) {
+                return ['warn' => true, 'detail' => 'henüz hiç mesaj gelmedi'];
+            }
+            $at = \Illuminate\Support\Carbon::parse($last);
+            $hours = $at->diffInHours(now());
+            if ($hours >= 12) {
+                throw new RuntimeException('Telefondan son mesaj '.floor($hours).' saat önce ('.$at->format('d.m H:i').'); iletici uygulama ya da telefon kapalı olabilir.');
+            }
+
+            return $hours >= 3 ? ['warn' => true, 'detail' => 'son mesaj '.floor($hours).' saat önce'] : 'son mesaj '.\App\Support\TimeAgo::label($at);
+        });
+
+        $this->checks[] = $this->probe('Yapay zeka sağlayıcıları', function (): string|array {
+            $parser = app(\App\Services\AiParserService::class);
+            if (! method_exists($parser, 'providerStatus')) {
+                return 'durum okunamıyor';
+            }
+            $status = $parser->providerStatus();
+            if ($status === []) {
+                return ['warn' => true, 'detail' => 'tanımlı sağlayıcı yok; ilanlar yalnız kuralla çözülür'];
+            }
+            $ok = array_keys(array_filter($status, fn ($s) => $s['state'] === 'ok'));
+            $down = array_keys(array_filter($status, fn ($s) => $s['state'] !== 'ok'));
+            if ($ok === []) {
+                throw new RuntimeException('Tüm sağlayıcılar kota/soğuma nedeniyle kapalı ('.implode(', ', $down).'); adaylar kural ve yerel sınıflandırıcıyla karar bekliyor.');
+            }
+
+            return $down === [] ? count($ok).' sağlayıcı hazır' : ['warn' => true, 'detail' => count($ok).' hazır · kapalı: '.implode(', ', $down)];
+        });
+
+        $this->checks[] = $this->probe('İade bekleyen emir', function (): string|array {
+            $count = \App\Models\PaymentOrder::query()->where('status', 'refund_pending')->count();
+            if ($count > 0) {
+                throw new RuntimeException($count.' emir iade bekliyor (ödeme kuruluşu iadeyi yapamadı); Finans ekranında "İade yapıldı" ile elle kapatılır.');
+            }
+
+            return '0 emir';
+        });
+
+        $this->checks[] = $this->probe('Takılı hakediş', function (): string|array {
+            $count = \App\Models\Payout::query()->where('status', 'processing')->where('updated_at', '<', now()->subHours(48))->count();
+            if ($count > 0) {
+                throw new RuntimeException($count.' hakediş 48 saatten uzun süredir "transfer yapılıyor" durumunda; banka sonucu girilmemiş olabilir.');
+            }
+
+            return '0 hakediş';
+        });
+
         $this->checks[] = $this->probe('Başarısız işler', function (): string {
             if (! Schema::hasTable('failed_jobs')) {
                 throw new RuntimeException('failed_jobs tablosu yok.');
@@ -133,6 +253,23 @@ new class extends Component {
             }
 
             return '0 başarısız iş';
+        });
+
+        $this->checks[] = $this->probe('Uyarı sistemi (watchdog)', function (): array|string {
+            $st = \App\Services\SystemWatchdog::lastStatus();
+            if ($st['last_run'] === null) {
+                return ['warn' => true, 'detail' => 'Henüz çalışmadı (zamanlayıcı 5 dakikada bir çalıştırır). Telegram uyarısı için Ayarlar → alert_telegram_chat_id.'];
+            }
+            $open = array_keys((array) ($st['last_run']['alerts'] ?? []));
+            $line = 'son kontrol '.$st['last_run']['at'].($st['last_alert'] ? ' · son uyarı '.$st['last_alert']['at'] : ' · uyarı gönderilmedi');
+            if ($st['stale']) {
+                throw new RuntimeException('Son kontrol 15 dakikadan eski ('.$st['last_run']['at'].'): zamanlayıcı durmuş olabilir.');
+            }
+            if ($open !== []) {
+                return ['warn' => true, 'detail' => 'Açık uyarı: '.implode(', ', $open).' · '.$line];
+            }
+
+            return $line;
         });
 
         $this->checks[] = $this->probe('Sabit kodla giriş', function (): string {
@@ -203,13 +340,28 @@ new class extends Component {
         }
     }
 
+    /** Geri dönüş: metin (yeşil), ['warn' => true, 'detail' => …] (sarı) ya da istisna (kırmızı). */
     private function probe(string $name, callable $callback): array
     {
         try {
-            return ['name' => $name, 'ok' => true, 'detail' => $callback()];
+            $result = $callback();
+            if (is_array($result)) {
+                return ['name' => $name, 'ok' => true, 'warn' => ! empty($result['warn']), 'detail' => (string) ($result['detail'] ?? '')];
+            }
+
+            return ['name' => $name, 'ok' => true, 'warn' => false, 'detail' => (string) $result];
         } catch (\Throwable $e) {
-            return ['name' => $name, 'ok' => false, 'detail' => mb_substr($e->getMessage(), 0, 200)];
+            return ['name' => $name, 'ok' => false, 'warn' => false, 'detail' => mb_substr($e->getMessage(), 0, 200)];
         }
+    }
+
+    /** @return array{red:int, amber:int, names:list<string>} */
+    public function summary(): array
+    {
+        $red = array_values(array_filter($this->checks, fn ($c) => ! $c['ok']));
+        $amber = array_values(array_filter($this->checks, fn ($c) => $c['ok'] && ! empty($c['warn'])));
+
+        return ['red' => count($red), 'amber' => count($amber), 'names' => array_map(fn ($c) => $c['name'], array_merge($red, $amber))];
     }
 
     /** Dosyanın sonundan en çok $maxBytes okuyarak son $limit satırı döner; e-posta ve anahtar kalıplarını maskeler. */
@@ -279,9 +431,13 @@ new class extends Component {
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Siteyi güncelle</h2>
                 <p class="mt-1 text-xs text-neutral-500">GitHub'da birleştirilen son sürümü sunucuya alır (sunucudaki <span class="font-mono">update.sh</span> ile aynı iş). Telefondan da çalışır: PR'ı GitHub uygulamasında birleştirin, burada bu düğmeye basın.</p>
             </div>
-            <button type="button" wire:click="startUpdate" wire:loading.attr="disabled" wire:confirm="Sunucu son sürüme güncellenecek; birkaç dakika sürer. Devam edilsin mi?" @disabled($update['running']) class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50 shrink-0">
-                {{ $update['running'] ? 'Güncelleme çalışıyor…' : 'Siteyi güncelle' }}
-            </button>
+            @if(auth()->user()->can('manage system'))
+                <button type="button" wire:click="startUpdate" wire:loading.attr="disabled" wire:confirm="Sunucu son sürüme güncellenecek; birkaç dakika sürer. Devam edilsin mi?" @disabled($update['running']) class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50 shrink-0">
+                    {{ $update['running'] ? 'Güncelleme çalışıyor…' : 'Siteyi güncelle' }}
+                </button>
+            @else
+                <span class="text-[11px] text-neutral-400 shrink-0">Güncelleme yalnız sistem yönetimi yetkisiyle başlatılır.</span>
+            @endif
         </div>
         <div class="flex flex-wrap gap-3 text-[11px] text-neutral-500" data-update-badge>
             @if($update['running'])<span class="badge bg-amber-500/10 text-amber-600">Çalışıyor · başladı {{ $update['started_at'] }}</span>
@@ -305,15 +461,23 @@ new class extends Component {
         <p class="text-[11px] text-neutral-400">Düğme "izin yok" ya da "komut bulunamadı" derse sunucuda bir kez şu çalıştırılır: <span class="font-mono">bash /var/www/navluniq/deploy/install-update-button.sh</span> (belgede anlatılır).</p>
     </section>
 
+    @php $sum = $this->summary(); @endphp
+    <div class="rounded-2xl border p-4 text-xs flex flex-wrap items-center gap-2 {{ $sum['red'] > 0 ? 'border-red-500/30 bg-red-500/5 text-red-700 dark:text-red-300' : ($sum['amber'] > 0 ? 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300' : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300') }}" data-health-summary>
+        <span class="h-2.5 w-2.5 rounded-full {{ $sum['red'] > 0 ? 'bg-red-500' : ($sum['amber'] > 0 ? 'bg-amber-500' : 'bg-emerald-500') }}"></span>
+        <span class="font-bold">{{ $sum['red'] > 0 ? $sum['red'].' kontrol kırmızı' : ($sum['amber'] > 0 ? 'Kırmızı yok' : 'Her şey yolunda') }}{{ $sum['amber'] > 0 ? ' · '.$sum['amber'].' sarı' : '' }}</span>
+        @if($sum['names'] !== [])<span class="text-[11px] opacity-80">{{ implode(' · ', $sum['names']) }}</span>@endif
+    </div>
+
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         @foreach($checks as $check)
-            <div class="apple-glass rounded-2xl border p-5 {{ $check['ok'] ? 'border-emerald-500/20' : 'border-red-500/30' }}">
+            @php $tone = ! $check['ok'] ? 'red' : (! empty($check['warn']) ? 'amber' : 'emerald'); @endphp
+            <div class="apple-glass rounded-2xl border p-5 {{ $tone === 'red' ? 'border-red-500/30' : ($tone === 'amber' ? 'border-amber-500/30' : 'border-emerald-500/20') }}">
                 <div class="flex items-center justify-between gap-3">
                     <span class="text-xs font-bold uppercase tracking-wider text-neutral-500">{{ $check['name'] }}</span>
-                    <span class="h-2.5 w-2.5 rounded-full {{ $check['ok'] ? 'bg-emerald-500' : 'bg-red-500' }}"></span>
+                    <span class="h-2.5 w-2.5 rounded-full {{ $tone === 'red' ? 'bg-red-500' : ($tone === 'amber' ? 'bg-amber-500' : 'bg-emerald-500') }}"></span>
                 </div>
                 <p class="mt-3 text-xs font-semibold text-neutral-900 dark:text-white break-words">{{ $check['detail'] }}</p>
-                @if($check['name'] === 'Yeniden konumlama' && str_starts_with($check['detail'], 'sürüyor'))
+                @if($check['name'] === 'Yeniden konumlama' && str_starts_with($check['detail'], 'sürüyor') && auth()->user()->can('manage system'))
                     <div class="mt-3">
                         <button type="button" wire:click="runRelocateBatch" wire:loading.attr="disabled" class="btn-secondary py-1.5 px-3 text-xs">
                             <span wire:loading.remove wire:target="runRelocateBatch">Bir parça şimdi çalıştır</span>
@@ -321,7 +485,7 @@ new class extends Component {
                         </button>
                     </div>
                 @endif
-                @if($check['name'] === 'Başarısız işler' && ! $check['ok'])
+                @if($check['name'] === 'Başarısız işler' && ! $check['ok'] && auth()->user()->can('manage system'))
                     <div class="mt-3 flex flex-wrap items-center gap-3">
                         <button type="button" wire:click="retryFailedJobs" class="btn-secondary py-1.5 px-3 text-xs">Yeniden dene</button>
                         <button type="button" wire:click="flushFailedJobs" wire:confirm="Başarısız işler silinsin mi? Telefon mesajı işleri Canlı akışta hata olarak zaten görünür; ilan kaybolmaz." class="text-red-600 text-xs font-semibold hover:underline">Temizle</button>
@@ -334,7 +498,7 @@ new class extends Component {
     <div class="grid gap-6 xl:grid-cols-2">
         <section class="apple-glass rounded-3xl p-6">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Zamanlanmış görevler</h2>
-            <p class="mt-1 text-xs text-neutral-500">Sunucuda her dakika çalışan "schedule:run" tetikleyicisine bağlıdır. Son çalışma zamanı kaydedilmediğinden burada gösterilemez.</p>
+            <p class="mt-1 text-xs text-neutral-500">Sunucuda her dakika çalışan "schedule:run" tetikleyicisine bağlıdır; çalışıp çalışmadığı yukarıdaki "Zamanlayıcı" kartında görünür. Tam liste routes/console.php içindedir.</p>
             <div class="mt-4 space-y-2 text-xs">
                 @foreach([
                     ['offers:expire', 'Saatte bir', 'Süresi dolan teklifleri kapatır'],

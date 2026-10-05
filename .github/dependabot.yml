@@ -1,0 +1,35 @@
+# Bağımlılık güncellemeleri (I11): ayda bir, tek PR'da gruplanmış (composer, npm, GitHub Actions). PR açılınca CI çalışır;
+# Osman yeşil PR'ı birleştirir. Güvenlik güncellemeleri Dependabot tarafından takvim beklemeden açılır.
+version: 2
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      composer-paketleri:
+        patterns: ['*']
+    commit-message:
+      prefix: 'Bağımlılık (composer)'
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      npm-paketleri:
+        patterns: ['*']
+    commit-message:
+      prefix: 'Bağımlılık (npm)'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'Bağımlılık (actions)'

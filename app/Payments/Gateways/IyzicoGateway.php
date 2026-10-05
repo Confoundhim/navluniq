@@ -74,7 +74,12 @@ final class IyzicoGateway implements PaymentGateway
         $amount = number_format((float) $order->amount, 2, '.', '');
         $phone = preg_replace('/\D/', '', (string) $user->phone);
         $gsm = $phone !== '' ? '+90'.ltrim($phone, '0') : '+905000000000';
+        // Alıcı kimliği: bireyselde TC (11 hane), kurumsalda VKN (10 hane). Sahte "11111111111" hiç gönderilmez (iyzico canlıda reddeder,
+        // e-fatura/mutabakat bozulur); eksikse ödeme açılmaz ve kullanıcı profiline yönlendirilir.
         $identity = preg_replace('/\D/', '', (string) ($context['identity_number'] ?? ''));
+        if (! in_array(strlen($identity), [10, 11], true)) {
+            throw new RuntimeException('Ödeme için kimlik bilgisi eksik: bireysel hesapta T.C. kimlik numarası, kurumsal hesapta vergi numarası profilinizde kayıtlı olmalı.');
+        }
         $address = mb_substr((string) ($context['address'] ?? 'Türkiye'), 0, 200);
         $city = mb_substr((string) ($context['city'] ?? 'İstanbul'), 0, 60);
         $contactName = mb_substr((string) $user->full_name, 0, 100);
@@ -107,7 +112,7 @@ final class IyzicoGateway implements PaymentGateway
                 'surname' => mb_substr((string) $user->last_name, 0, 50) ?: 'Soyad',
                 'gsmNumber' => $gsm,
                 'email' => (string) $user->email,
-                'identityNumber' => strlen($identity) === 11 ? $identity : '11111111111',
+                'identityNumber' => $identity,
                 'registrationAddress' => $address,
                 'ip' => (string) ($context['ip'] ?? '127.0.0.1'),
                 'city' => $city,
@@ -197,28 +202,48 @@ final class IyzicoGateway implements PaymentGateway
         return Settings::bool('iyzico_marketplace');
     }
 
-    /** Şoförü alt üye işyeri olarak kaydeder; subMerchantKey döner. $data: name, surname, email, phone, iban, identity, address, external_id */
+    /**
+     * Şoförü alt üye işyeri olarak kaydeder; subMerchantKey döner.
+     * $data: name, surname, email, phone, iban, identity (TC) ya da tax_no (VKN) + legal_type (individual|company), address, external_id.
+     * Kimlik yoksa kayıt yapılmaz (sahte TC gönderilmez): null döner, hakediş kuyrukta kalır.
+     */
     public function registerSubMerchant(array $data): ?string
     {
         if (! $this->isConfigured() || ! $this->supportsSubMerchants()) {
             return null;
         }
+        $identity = preg_replace('/\D/', '', (string) ($data['identity'] ?? ''));
+        $taxNo = preg_replace('/\D/', '', (string) ($data['tax_no'] ?? ''));
+        $company = ($data['legal_type'] ?? 'individual') === 'company';
+        if ($company ? strlen($taxNo) !== 10 : strlen($identity) !== 11) {
+            Log::warning('iyzico alt üye işyeri kaydı: kimlik numarası eksik, kayıt yapılmadı.', ['external_id' => $data['external_id'] ?? null]);
+
+            return null;
+        }
         $phone = preg_replace('/\D/', '', (string) ($data['phone'] ?? ''));
-        $response = $this->request(self::PATH_SUBMERCHANT, [
+        $fullName = trim(($data['name'] ?? '').' '.($data['surname'] ?? ''));
+        $payload = [
             'locale' => 'tr',
             'conversationId' => 'SUB-'.($data['external_id'] ?? uniqid()),
             'subMerchantExternalId' => (string) ($data['external_id'] ?? ''),
-            'subMerchantType' => 'PERSONAL',
-            'name' => trim(($data['name'] ?? '').' '.($data['surname'] ?? '')),
+            'subMerchantType' => $company ? 'PRIVATE_COMPANY' : 'PERSONAL',
+            'name' => $company ? (string) ($data['company_title'] ?: $fullName) : $fullName,
             'contactName' => (string) ($data['name'] ?? ''),
             'contactSurname' => (string) ($data['surname'] ?? ''),
             'email' => (string) ($data['email'] ?? ''),
             'gsmNumber' => $phone !== '' ? '+90'.ltrim($phone, '0') : '',
             'address' => mb_substr((string) ($data['address'] ?? 'Türkiye'), 0, 200),
             'iban' => strtoupper(preg_replace('/\s+/', '', (string) ($data['iban'] ?? ''))),
-            'identityNumber' => preg_replace('/\D/', '', (string) ($data['identity'] ?? '')) ?: '11111111111',
             'currency' => 'TRY',
-        ]);
+        ];
+        if ($company) {
+            $payload['taxNumber'] = $taxNo;
+            $payload['taxOffice'] = (string) ($data['tax_office'] ?? '');
+            $payload['legalCompanyTitle'] = (string) ($data['company_title'] ?: $fullName);
+        } else {
+            $payload['identityNumber'] = $identity;
+        }
+        $response = $this->request(self::PATH_SUBMERCHANT, $payload);
         if (($response['status'] ?? '') !== 'success' || empty($response['subMerchantKey'])) {
             Log::warning('iyzico alt üye işyeri kaydı başarısız.', ['external_id' => $data['external_id'] ?? null, 'response' => $response]);
 

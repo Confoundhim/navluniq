@@ -200,14 +200,33 @@ new class extends Component {
         }
     }
 
+    /** @var array<int|string, string> Satır başına seçilen ret gerekçesi (ScrapedLoadService::REJECT_REASONS); seçilmediyse "other". */
+    public array $rejectReasons = [];
+
+    /** Toplu "Reddet" için gerekçe; varsayılan "other" öğrenmez. */
+    public string $bulkRejectReason = 'other';
+
+    /**
+     * Gerekçe her zaman açıkça verilir: yalnız "İlan değil" sınıflandırıcıya olumsuz örnek olur. Varsayılan "Diğer" hiçbir şey
+     * öğretmez; eski tek düğme her reddi "ilan değil" diye öğretip sınıflandırıcıyı ilan metnine karşı zehirliyordu (denetim Y4).
+     */
+    private function rejectReasonFor(int $loadId): string
+    {
+        $reason = (string) ($this->rejectReasons[$loadId] ?? $this->rejectReasons[(string) $loadId] ?? 'other');
+
+        return array_key_exists($reason, ScrapedLoadService::REJECT_REASONS) ? $reason : 'other';
+    }
+
     public function reject(int $loadId): void
     {
         if (! $this->can()) {
             return;
         }
         if ($load = ScrapedLoad::query()->find($loadId)) {
-            app(ScrapedLoadService::class)->reject($load, auth()->id());
-            session()->flash('success_message', "#{$load->id} reddedildi.");
+            $reason = $this->rejectReasonFor($loadId);
+            app(ScrapedLoadService::class)->reject($load, auth()->id(), $reason);
+            unset($this->rejectReasons[$loadId], $this->rejectReasons[(string) $loadId]);
+            session()->flash('success_message', "#{$load->id} reddedildi (".ScrapedLoadService::REJECT_REASONS[$reason].').');
         }
     }
 
@@ -326,7 +345,7 @@ new class extends Component {
             try {
                 match ($action) {
                     'approve' => $service->approve($load, auth()->id(), bulk: true), // toplu yayın: tek tek incelenmemiş ilandan konum/kalıp öğrenilmez
-                    'reject' => $service->reject($load, auth()->id()),
+                    'reject' => $service->reject($load, auth()->id(), array_key_exists($this->bulkRejectReason, ScrapedLoadService::REJECT_REASONS) ? $this->bulkRejectReason : 'other'),
                     'delete' => $service->delete($load, auth()->id()),
                     'reparse' => $service->reparseWithAi($load, null, true) ?: throw new \RuntimeException('yapay zeka yanıt vermedi'),
                     'restore' => $this->restore($load->id),
@@ -565,11 +584,35 @@ new class extends Component {
         }
     }
 
+    /** "Geçmişten yeniden öğren" onay metni; sunucuda birebir karşılaştırılır. */
+    public string $rebuildConfirm = '';
+
+    public const REBUILD_PHRASE = 'YENİDEN ÖĞREN';
+
+    /**
+     * Sınıflandırıcıyı sıfırlayıp tüm geçmişten yeniden öğretir. Tek tıkla geri alınamaz bir işlemdi (denetim Y19): yalnız süper
+     * yönetici, onay metni yazılır, önceki sayaçlar işlem kaydına yazılır ki yanlışlıkla basılınca ne kaybolduğu görünsün.
+     */
     public function rebuildClassifier(): void
     {
         abort_unless(auth()->user()?->can('manage scrapers'), 403);
-        $r = app(LocalClassifier::class)->rebuild();
-        session()->flash('success_message', "Yeniden öğrenildi: {$r['load']} ilan, {$r['other']} ilan-değil örneği.");
+        if (! auth()->user()->hasRole('super_admin')) {
+            session()->flash('error_message', 'Geçmişten yeniden öğrenmeyi yalnız süper yönetici başlatabilir.');
+
+            return;
+        }
+        $this->resetErrorBag('rebuildConfirm');
+        if (trim($this->rebuildConfirm) !== self::REBUILD_PHRASE) {
+            $this->addError('rebuildConfirm', 'Onaylamak için kutuya "'.self::REBUILD_PHRASE.'" yazın.');
+
+            return;
+        }
+        $classifier = app(LocalClassifier::class);
+        $before = $classifier->stats();
+        $r = $classifier->rebuild();
+        $this->rebuildConfirm = '';
+        ActivityLog::record('classifier.rebuilt', "Sınıflandırıcı geçmişten yeniden öğrendi: {$r['load']} ilan, {$r['other']} ilan-değil", auth()->id(), null, ['before' => $before, 'after' => $classifier->stats(), 'rebuilt' => $r]);
+        session()->flash('success_message', "Yeniden öğrenildi: {$r['load']} ilan, {$r['other']} ilan-değil örneği (önce: {$before['docs_load']} / {$before['docs_other']}).");
     }
 
     // ---- Kaynaklar ve telefon bağlantısı ----
@@ -878,7 +921,12 @@ new class extends Component {
                 <span class="font-bold text-neutral-900 dark:text-white mr-2">{{ count($selected) }} seçili</span>
                 <button type="button" wire:click="selectAllMatching" class="text-brand-600 font-semibold hover:underline mr-2">Filtreye uyan tümünü seç</button>
                 @if($activeTab !== 'published')<button type="button" wire:click="bulk('approve')" class="btn-primary py-1.5 px-3 text-xs">Yayınla</button>@endif
-                @if($activeTab !== 'rejected')<button type="button" wire:click="bulk('reject')" wire:confirm="Seçili adaylar reddedilecek." class="btn-secondary py-1.5 px-3 text-xs">Reddet</button>@endif
+                @if($activeTab !== 'rejected')
+                    <select wire:model="bulkRejectReason" class="form-input py-1.5 text-xs w-auto" title="Ret gerekçesi: yalnız 'İlan değil' sınıflandırıcıya öğretir">
+                        @foreach(\App\Services\ScrapedLoadService::REJECT_REASONS as $rk => $rl)<option value="{{ $rk }}">{{ $rl }}</option>@endforeach
+                    </select>
+                    <button type="button" wire:click="bulk('reject')" wire:confirm="Seçili adaylar seçilen gerekçeyle reddedilecek." class="btn-secondary py-1.5 px-3 text-xs">Reddet</button>
+                @endif
                 @if($activeTab === 'rejected')<button type="button" wire:click="bulk('restore')" class="btn-secondary py-1.5 px-3 text-xs">Kuyruğa geri al</button>@endif
                 <button type="button" wire:click="bulk('reparse')" class="btn-secondary py-1.5 px-3 text-xs" title="{{ $ai['configured'] ? $ai['provider'].' · '.$ai['model'] : 'Yapay zeka anahtarı tanımlı değil' }}">Yapay zeka ile çözümle</button>
                 <button type="button" wire:click="bulk('delete')" wire:confirm="Seçili adaylar KALICI olarak silinecek; geri alınamaz." class="py-1.5 px-3 text-xs font-semibold text-red-600 hover:bg-red-500/10 rounded-xl">Kalıcı sil</button>
@@ -977,7 +1025,14 @@ new class extends Component {
                                         @if($load->status === 'rejected')<button type="button" wire:click="restore({{ $load->id }})" class="text-emerald-600 font-semibold">Kuyruğa geri al</button>@endif
                                         <button type="button" wire:click="startEdit({{ $load->id }})" class="text-neutral-600 dark:text-neutral-300 font-semibold">Düzenle</button>
                                         <button type="button" wire:click="reparse({{ $load->id }})" class="text-violet-600 font-semibold">Yapay zeka ile çözümle</button>
-                                        @if($load->status !== 'rejected')<button type="button" wire:click="reject({{ $load->id }})" wire:confirm="Aday reddedilecek." class="text-red-500 font-semibold">Reddet</button>@endif
+                                        @if($load->status !== 'rejected')
+                                            <div class="flex items-center gap-1">
+                                                <select wire:model="rejectReasons.{{ $load->id }}" class="form-input py-1 text-[11px] w-auto max-w-[9rem]" title="Ret gerekçesi">
+                                                    @foreach(\App\Services\ScrapedLoadService::REJECT_REASONS as $rk => $rl)<option value="{{ $rk }}" @selected($rk === 'other')>{{ $rk === 'not_load' ? 'İlan değil' : $rl }}</option>@endforeach
+                                                </select>
+                                                <button type="button" wire:click="reject({{ $load->id }})" wire:confirm="Aday seçilen gerekçeyle reddedilecek." class="text-red-500 font-semibold">Reddet</button>
+                                            </div>
+                                        @endif
                                         <button type="button" wire:click="delete({{ $load->id }})" wire:confirm="Aday KALICI olarak silinecek; geri alınamaz." class="text-neutral-400 hover:text-red-600">Sil</button>
                                     </div>
                                 </td>
@@ -1277,7 +1332,7 @@ new class extends Component {
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yerel sınıflandırıcı</h2>
-                <p class="text-[11px] text-neutral-400">Dış servise bağlı değildir. Siz "Yayınla" dedikçe ilan örneği, "Reddet" dedikçe ilan-değil örneği öğrenir; yapay zeka doğrulamalı otomatik onaylar da ilan örneğidir. Her sınıfta en az {{ \App\Services\LocalClassifier::MIN_DOCS }} örnek olunca karar vermeye başlar; dış yapay zeka kotası dolduğunda otomatik onayı bu karar sürdürür. "İlan değil" diye eleme en az {{ \App\Services\LocalClassifier::MIN_OTHER_DOCS_FOR_FILTER }} ret örneğinden sonra başlar. Grup dışa aktarımlarından toplu öğretmek için sunucuda <code>php artisan intake:analyze /klasör --learn</code> (belgede anlatılır).</p>
+                <p class="text-[11px] text-neutral-400">Dış servise bağlı değildir. Siz "Yayınla" dedikçe ilan örneği, "İlan değil" gerekçesiyle "Reddet" dedikçe ilan-değil örneği öğrenir (tekrar / eski / yanlış rota / diğer gerekçeleri öğretmez); yapay zeka doğrulamalı otomatik onaylar da ilan örneğidir. Her sınıfta en az {{ \App\Services\LocalClassifier::MIN_DOCS }} örnek olunca karar vermeye başlar; dış yapay zeka kotası dolduğunda otomatik onayı bu karar sürdürür. "İlan değil" diye eleme en az {{ \App\Services\LocalClassifier::MIN_OTHER_DOCS_FOR_FILTER }} ret örneğinden sonra başlar. Grup dışa aktarımlarından toplu öğretmek için sunucuda <code>php artisan intake:analyze /klasör --learn</code> (belgede anlatılır).</p>
                 @if($classifier)
                     <div class="grid grid-cols-3 gap-2 text-center">
                         <div class="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900"><div class="text-lg font-bold text-emerald-600">{{ $classifier['docs_load'] }}</div><div class="text-[10px] text-neutral-400">ilan örneği</div></div>
@@ -1287,7 +1342,18 @@ new class extends Component {
                     <div class="badge {{ $classifier['ready'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-amber-500/10 text-amber-600' }}">{{ $classifier['ready'] ? 'Karar veriyor' : 'Henüz yeterli örnek yok' }}</div>
                     <p class="text-[11px] text-neutral-400 pt-1"><strong class="text-neutral-700 dark:text-neutral-200">Şablon hafızası:</strong> {{ $classifier['templates'] }} doğrulanmış gönderen kalıbı, {{ $classifier['template_uses'] }} kez yapay zekasız çözüm. Aynı numaradan aynı kalıpla gelen ilan bir kez doğrulanınca (yapay zeka ya da sizin onayınız) sonrakiler kalıptan okunur; reddettiğiniz bir kalıp silinir.</p>
                 @endif
-                <button type="button" wire:click="rebuildClassifier" wire:confirm="Sayaçlar sıfırlanıp yayınlanan / reddedilen tüm adaylardan yeniden öğrenilecek." class="btn-secondary py-1.5 px-3 text-xs">Geçmişten yeniden öğren</button>
+                @if(auth()->user()->hasRole('super_admin'))
+                    <div class="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
+                        <p class="text-[11px] text-neutral-400">Geçmişten yeniden öğren: sayaçlar sıfırlanır, yayınlanan / "ilan değil" diye reddedilen tüm adaylardan yeniden öğrenilir. Geri alınamaz; önceki sayaçlar işlem kaydına yazılır. Onaylamak için <span class="font-mono">YENİDEN ÖĞREN</span> yazın.</p>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input type="text" wire:model="rebuildConfirm" placeholder="YENİDEN ÖĞREN" autocomplete="off" class="form-input py-1.5 text-xs w-44">
+                            <button type="button" wire:click="rebuildClassifier" class="btn-secondary py-1.5 px-3 text-xs">Geçmişten yeniden öğren</button>
+                        </div>
+                        @error('rebuildConfirm')<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror
+                    </div>
+                @else
+                    <p class="text-[11px] text-neutral-400">"Geçmişten yeniden öğren" yalnız süper yöneticiye açıktır.</p>
+                @endif
             </div>
 
             <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs lg:col-span-2">

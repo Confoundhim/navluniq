@@ -21,6 +21,7 @@ class SystemNoticeMail extends Mailable
         public ?string $actionUrl = null,
         public ?string $actionText = null,
         public ?string $recipientName = null,
+        public ?string $unsubscribeUrl = null,
     ) {}
 
     public function envelope(): Envelope
@@ -33,6 +34,6 @@ class SystemNoticeMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.notice', text: 'emails.text.notice');
+        return new Content(view: 'emails.notice', text: 'emails.text.notice', with: ['unsubscribeUrl' => $this->unsubscribeUrl]);
     }
 }

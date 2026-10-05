@@ -525,6 +525,7 @@ class extends Component {
             'myVehicleBody' => $profile?->activeVehicle()->value('body_type'),
             'myVehicleLength' => $profile?->activeVehicle()->value('trailer_length'),
             'minPrice' => Settings::float('min_load_price'),
+            'commissionRate' => $profile?->commissionRate() ?? Settings::float('commission_standard_driver'),
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             'loads' => null,
             'offers' => null,
@@ -1027,12 +1028,13 @@ class extends Component {
                     <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $selectedLoad->pickup_location }} &rarr; {{ $selectedLoad->delivery_location }} · İlan fiyatı {{ number_format((float) ($selectedLoad->price ?? 0), 2, ',', '.') }} ₺</p>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-data="{ amount: $wire.entangle('amount'), rate: {{ (float) $commissionRate }}, net() { const a = parseFloat(String(this.amount || '').replace(',', '.')); return isNaN(a) || a <= 0 ? null : (a * (1 - this.rate / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } }">
                     <div>
                         <label class="form-label">Teklif tutarı (₺)</label>
                         <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="form-input tabular-nums">
                         @error('amount') <span class="form-error">{{ $message }}</span> @enderror
                         <span class="text-[11px] text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
+                        <span class="text-[11px] mt-1 block" data-commission-rate="{{ $commissionRate }}">Size kalan: <span class="font-bold text-neutral-900 dark:text-white tabular-nums" x-text="net() ? net() + ' ₺' : '—'">—</span> <span class="text-neutral-500">(%{{ number_format($commissionRate, 1, ',', '.') }} hizmet bedeli düşülür)</span></span>
                     </div>
                     <div>
                         <label class="form-label">Tahmini süre (gün)</label>

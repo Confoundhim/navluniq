@@ -212,6 +212,23 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `materiallyDifferent` → `supersedes` (değişen ilan eskisinin yerine geçer); `LoadFilterService::EXACT_VEHICLE_SOURCES` (kesin
   kaynaklı araç yalnız aynı sınıf + bir alt); `reject($load,$userId,$reason)` ve sınıflandırıcı yalnız "ilan değil" retinden öğrenir;
   canlı akışta gönderen adı yok, numara maskeli, `intake_event_days`. Dış kaynak özetinde hat karnesi (`scorecard()`).
+- **Canlıya hazırlık incelemesi (2026-10-04, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md`):** altı modül denetimi; aynı gün düzeltilenler:
+  kabulde iptal edilmiş sevkiyat satırı yeniden kullanılır (`shipments.load_id` UNIQUE; Vazgeç/ödeme süresi sonrası yeniden atama),
+  aynı ilana ikinci tahsilat yetim sayılıp iade edilir ve açık emirler kapanır, `PayoutService::markFailed` yalnız pending/processing,
+  teklif withdraw/reject/expire koşullu yazım. Depo **herkese açık** ve `android/keystore/toplayici.jks` depoda (karar bekliyor).
+  Osman'ın 5 kararı belgenin §2'sinde (para akışı modeli, depo gizliliği/keystore, yük sahibi KYC zorunluluğu, iade/iptal
+  politikası, pazarlama e-postası rızası). Paket C1-C4 öncelik tabloları ve yayın günü yol haritası orada.
+- **Paket C1/C2 uygulandı (2026-10-05, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §2 kararlar, §10 yapılanlar):** pazaryeri tek canlı yol
+  (`PaymentReadiness::escrowBlocker`, şoför `driver_profiles.legal_type/identity_number/tax_number`, alt üye kabulde, PayTR seçilemez),
+  `Load::ESCROW_REFUND_PENDING`, `DisputeService::allowedResolutions` (yolda: continue/owner_refunded) + `withdraw`, `LoadService::
+  cancelByOwnerPaid`, `OfferService::withdrawAccepted` ödenmişte iade, `loads:no-show`, komisyon anlık görüntüsü ödeme emrinde,
+  `payouts:reconcile`, `payments:expire-stale`, IBAN değişikliği şifre + `bank_change_hold_hours`; `manage system` izni (yalnız süper
+  yönetici), gizli ayarlar süper yönetici + şifre onayı, `Settings::NON_ROLLBACK_KEYS`, ret gerekçesi UI, `is_staff_view` işlem engeli,
+  `CreateBackupJob`, sağlık probları; `system:watchdog` (Telegram `alert_telegram_chat_id`), `/up` sağlık dinleyicisi, CSP rapor modu
+  (`SecurityHeaders`, `csp_enforce`), tek yedek yolu, kuyruk `retry_after` 180, `.github/workflows/ci.yml`; pazarlama rızası
+  (`MarketingConsentService`, `users.marketing_consent_at`, imzalı `marketing.unsubscribe`, bildirim türü `marketing`).
+  Depo herkese açık: Osman gizleyince `android/keystore` yenilenecek. Sözleşme metinleri `{{AUTO_APPROVAL_HOURS}}` /
+  `{{OFFER_PAYMENT_HOURS}}` yer tutucularıyla (`Company::SETTING_TOKENS`); `legal:refresh --if-stale` eksikse yeniler.
 - Dış kaynak ilanları (gruplardan derlenen) yalnız premium şoförlere görünür; sistem ilanları önce premium'a,
   ayarlı süre sonra herkese açılır ve Telegram kanalına gider.
 
@@ -324,9 +341,9 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `loads:no-show` (saatlik), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
-işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz.
+işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz; ödeme geri çağrıları (`odeme/bildirim/*`) bakımdan muaftır. Her `withoutOverlapping` kilidinin süresi vardır (10/60/180 dk).
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
 `ProcessNotificationMessage` işine bırakır ve telefona `queued` döner (yapay zeka çağrısı ve 25 sn'lik tekrar kilidi PHP-FPM
 işçisini tutmaz); nabız yoksa/eskiyse eski gibi istek içinde işler. Sağlık ekranı ve dış kaynak sayfası "Kuyruk" rozetinde görünür.

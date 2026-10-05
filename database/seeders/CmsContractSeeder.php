@@ -174,7 +174,8 @@ HTML;
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 5: Güvenli Ödeme Sistemi ve Komisyon Kuralları</h3>
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>5.1 Teslimat Onaylı Ödeme:</strong> Gönderici, anlaşılan navlun bedelini platformun sözleşmeli olduğu lisanslı ödeme kuruluşunun güvenli ödeme altyapısı üzerinden öder. NavlunIQ, taraflar adına para tutan bir ödeme kuruluşu değildir; tahsilat, saklama ve sürücüye ödeme işlemleri ilgili lisanslı ödeme kuruluşu ve bankalar tarafından kendi mevzuat ve işlem kurallarına göre yürütülür. Teslim onay belgesinin (POD) sisteme yüklenmesi, göndericinin onayı ve açık bir uyuşmazlık bulunmaması halinde sürücü ödemesi, platform hizmet bedeli düşülerek sürücünün kayıtlı banka hesabına yapılır.</li>
-            <li><strong>5.2 24 Saatlik Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>24 saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanabilir ve sürücü ödemesi başlatılabilir. Ödemenin banka hesabına geçme zamanı ödeme kuruluşu ve banka işlem takvimine bağlıdır.</li>
+            <li><strong>5.2 Otomatik Onay Kuralı:</strong> Sürücü, teslim onay belgesini sisteme yüklediği andan itibaren <strong>{{AUTO_APPROVAL_HOURS}} saat içerisinde</strong> yük sahibi onay veya itiraz belirtmezse sevkiyat sistemde onaylanır ve sürücü ödemesi başlatılır. Ödemenin banka hesabına geçme zamanı ödeme kuruluşu ve banka işlem takvimine bağlıdır.</li>
+            <li><strong>5.4 Ödeme Süresi:</strong> Gönderici, kabul ettiği teklifin navlun bedelini kabulden itibaren <strong>{{OFFER_PAYMENT_HOURS}} saat içinde</strong> öder; süre dolarsa sürücü ataması kaldırılır ve ilan yeniden teklif almaya açılır.</li>
             <li><strong>5.3 Komisyon ve Bilgi Ücreti:</strong> Başarıyla eşleşen her ilan ve navlun mutabakatı üzerinden NavlunIQ, işlem öncesinde oranı ve vergileri açıkça gösterilen bir "Aracılık Hizmet Komisyonu" tahsil edebilir.</li>
         </ul>
     </div>
@@ -183,7 +184,8 @@ HTML;
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 6: İptal, İade ve Uyuşmazlık Çözüm Protokolü (Dispute)</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>6.1 Fiziksel Yükleme Öncesi İptal:</strong> Fiziksel yükleme işlemi başlamadan önce gönderici ilanı tek tıkla iptal edebilir; bu durumda tahsil edilmiş bedel, işlemin durumu ve uygulanabilir ödeme/iade kuralları çerçevesinde göndericiye iade edilir.</li>
+            <li><strong>6.1 Yola Çıkılmadan Önce İptal:</strong> Sürücü yükü teslim alıp yola çıkmadan önce gönderici sevkiyatı iptal edebilir; tahsil edilmiş navlun bedelinin tamamı ödeme kuruluşu üzerinden göndericinin ödeme aracına iade edilir. Aynı aşamada sürücü de işten vazgeçebilir; bu halde de bedelin tamamı göndericiye iade edilir, ilan yeniden teklif almaya açılır ve vazgeçme sürücünün hesap kayıtlarında izlenir. Sürücü yükleme tarihinden sonra makul süre içinde yola çıkmazsa taraflar ve platform bilgilendirilir; gönderici iptal ve iade hakkını kullanabilir.</li>
+            <li><strong>6.1-a Yola Çıkıldıktan Sonra:</strong> Sürücü yola çıktığını bildirdikten sonra tek taraflı iptal yapılmaz; sorunlar yalnız 6.2'deki uyuşmazlık süreciyle çözülür. Yük yoldayken verilen hakem kararı "sevkiyat devam eder" ya da "iptal ve tam iade" olabilir; sürücüye ödeme yalnız teslimat gerçekleşmişse yapılır.</li>
             <li><strong>6.2 Kriz ve Uyuşmazlık İnceleme Süreci:</strong> Yükleme onaylandıktan sonra meydana gelen kriz veya hasar durumlarında süreç kilitlenir. NavlunIQ <strong>"Kriz ve Uyuşmazlık Merkezi"</strong> yönetim ekranından, sürücünün teslimat kanıtlarını (anlık konum ve fotoğraflar) ve göndericinin hasar iddialarını inceleyerek sunulan kayıtlar çerçevesinde platform içi bir değerlendirme yapar; tutarın tamamen veya kısmen göndericiye iadesi ya da sürücüye ödenmesi için ödeme kuruluşu nezdinde işlem başlatabilir. Bu değerlendirme tarafların mahkeme, tüketici hakem heyeti, ödeme itirazı ve diğer kanuni başvuru haklarını ortadan kaldırmaz.</li>
         </ul>
     </div>
@@ -193,6 +195,14 @@ HTML;
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 7: Sürücünün Taahhüt ve Sorumlulukları</h3>
         <p>
             Sürücü, taşıyacağı yükün cinsine uygun geçerli dorse, tır ruhsatı ve K Yetki Belgesine sahip olduğunu, yükü gerekli özenle, mevzuata ve taraflarca kararlaştırılan teslim koşullarına uygun biçimde taşımakla yükümlüdür. Hırsızlık, sahtecilik veya diğer hukuka aykırı fiil şüphesinde platform hesabı sınırlandırabilir, kanıtları koruyabilir ve gerekli hallerde yetkili mercilere başvurabilir.
+        </p>
+    </div>
+
+    <!-- Madde 7A: Ticari Elektronik İleti -->
+    <div class="space-y-2">
+        <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 7A: Ticari Elektronik İleti</h3>
+        <p style="font-size:12pt;">
+            Kampanya, tanıtım ve duyuru içerikli ticari elektronik iletiler yalnız kayıt sırasında ya da profil sayfasında <strong>ayrıca ve açıkça</strong> verilen onay üzerine gönderilir; onay üyelik için zorunlu değildir. Üye, her iletideki bağlantıyla ya da profilinden onayını dilediği an ücretsiz olarak geri alabilir; ret talebi en geç üç iş günü içinde uygulanır ve İleti Yönetim Sistemi'ne (İYS) kaydedilir. Teklif, ödeme, sevkiyat ve hesap güvenliği gibi hizmetin ifası için zorunlu bildirimler ticari elektronik ileti sayılmaz ve onaydan bağımsız olarak gönderilir.
         </p>
     </div>
 
@@ -317,7 +327,7 @@ HTML;
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 3: Cayma Hakkı Sınırları ve Dijital İade İstisnaları</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>3.1 Premium Abonelik İade Sınırı:</strong> NavlunIQ Premium Sürücü Aboneliği elektronik ortamda sunulan dijital bir hizmettir. Cayma hakkına ilişkin <em>"elektronik ortamda anında ifa edilen hizmetler veya tüketiciye anında teslim edilen gayri maddi mallar"</em> istisnası, yalnız yürürlükteki mevzuatın aradığı bilgilendirme, açık talep/onay ve diğer koşullar oluştuğu ölçüde uygulanır; kullanıcının emredici kanuni hakları saklıdır.</li>
+            <li><strong>3.1 Premium Abonelik:</strong> NavlunIQ Premium Sürücü Aboneliği elektronik ortamda anında ifa edilen dijital bir hizmettir; satın alma ekranında bu durum ve cayma hakkının bulunmadığı açıkça gösterilir ve alıcının onayı alınır. Abonelik bedeli iade edilmez; abonelik otomatik yenilenmez, satın alınan dönemin sonuna kadar kullanılır ve dönem bitiminde kendiliğinden sona erer. Cayma hakkına ilişkin <em>"elektronik ortamda anında ifa edilen hizmetler veya tüketiciye anında teslim edilen gayri maddi mallar"</em> istisnası yürürlükteki mevzuatın aradığı bilgilendirme ve onay koşulları oluştuğu ölçüde uygulanır; kullanıcının emredici kanuni hakları saklıdır.</li>
             <li><strong>3.2 Komisyon İade Sınırı:</strong> Sürücü ve Gönderici arasında eşleşme gerçekleştikten ve yükleme onaylandıktan sonra, platform aracılık hizmetinin ifa edilen kısmı işlem kayıtlarına göre belirlenir. İptal halinde komisyonun iadesi; hizmetin gerçekleşme düzeyi, kusur, işlem öncesi gösterilen koşullar ve emredici mevzuat dikkate alınarak değerlendirilir.</li>
         </ul>
     </div>
@@ -357,8 +367,8 @@ HTML;
     <div class="space-y-3">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 2: Yük İlan İptalleri ve Navlun Bedeli İadesi</h3>
         <ul class="list-disc pl-5 space-y-2">
-            <li><strong>2.1 Fiziksel Yükleme Öncesi İptal:</strong> Sürücü ile anlaşma sağlanıp süreç başlatıldıktan sonra, yükleme fiziksel olarak başlamadan önce gönderici ilanı tek tıkla iptal etme hakkına sahiptir. Bu durumda tahsil edilmiş navlun bedeli, işlemin durumu ve uygulanabilir ödeme/iade kuralları çerçevesinde göndericinin ödeme aracına iade edilir.</li>
-            <li><strong>2.2 Yükleme Onayı Sonrası İptal:</strong> Yükleme işlemi onaylandıktan sonra gerçekleştirilecek iptaller tarafların ortak rızasına tabidir. Sürücü kusurundan ötürü (yükleme noktasına gelmeme, sahte evrak tespiti vb.) yaşanan iptallerde iade ve sürücüye uygulanabilecek hesap tedbirleri, kanıtlanan kusur ve olayın niteliğiyle orantılı olarak belirlenir.</li>
+            <li><strong>2.1 Yola Çıkılmadan Önce İptal (tam iade):</strong> Sürücü yükü teslim alıp yola çıktığını bildirmeden önce gönderici sevkiyatı iptal edebilir; tahsil edilmiş navlun bedelinin tamamı, ödemenin alındığı ödeme kuruluşu üzerinden göndericinin ödeme aracına iade edilir. Aynı aşamada sürücü işten vazgeçerse de bedelin tamamı göndericiye iade edilir ve ilan yeniden teklif almaya açılır. Sürücü yükleme tarihinden sonra yola çıkmazsa ("sürücü gelmedi") taraflar bilgilendirilir ve gönderici bu maddedeki iptal ve iade hakkını kullanabilir.</li>
+            <li><strong>2.2 Yola Çıkıldıktan Sonra:</strong> Sürücü yola çıktığını bildirdikten sonra tek taraflı iptal yapılmaz; sorunlar yalnız uyuşmazlık süreciyle çözülür. Yük yoldayken hakem kararı "sevkiyat devam eder" ya da "iptal ve tam iade" olabilir; sürücüye ödeme yalnız teslimat gerçekleşmişse yapılır. Teslimattan sonra açılan uyuşmazlıkta karar bedelin sürücüye ödenmesi ya da göndericiye iadesidir. Ödeme süresi: gönderici kabul ettiği teklifin bedelini {{OFFER_PAYMENT_HOURS}} saat içinde öder; teslimat onayı verilmezse sevkiyat {{AUTO_APPROVAL_HOURS}} saat sonra kendiliğinden onaylanır.</li>
         </ul>
     </div>
 
@@ -367,7 +377,7 @@ HTML;
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 3: Komisyon ve Abonelik Bedeli İadeleri</h3>
         <ul class="list-disc pl-5 space-y-2">
             <li><strong>3.1 Komisyon İadesi:</strong> Platform komisyonunun iade edilip edilmeyeceği, aracılık hizmetinin gerçekleşen kısmı, iptal nedeni, kusur, işlem öncesi bildirilen koşullar ve emredici mevzuata göre belirlenir. Mücbir sebeplerde olayın etkisi ve ilgili sağlayıcı maliyetleri ayrıca değerlendirilir.</li>
-            <li><strong>3.2 Abonelik İadesi:</strong> Aylık Premium Sürücü Aboneliğinin iptali gelecek dönem yenilemesini durdurur. Mevcut dönem iadesi, hizmetin kullanım durumu, satın alma sırasında verilen onaylar ve emredici tüketici mevzuatına göre değerlendirilir.</li>
+            <li><strong>3.2 Abonelik:</strong> Aylık Premium Sürücü Aboneliği dijital bir hizmettir; bedeli iade edilmez. Abonelik otomatik yenilenmez: satın alınan dönemin sonuna kadar kullanılır ve dönem bitiminde kendiliğinden sona erer. Kullanıcı dilediği zaman yeni bir dönem satın alabilir; süre mevcut dönemin bitiminden itibaren eklenir.</li>
         </ul>
     </div>
 

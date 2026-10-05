@@ -20,6 +20,11 @@ class DriverProfile extends Model
         'premium_until',
         'payout_provider_ref',
         'payout_provider',
+        'legal_type',
+        'identity_number',
+        'tax_number',
+        'withdrawals_after_payment',
+        'bank_account_changed_at',
         'avatar_path',
         'driver_license_path',
         'src_document_path',
@@ -43,7 +48,37 @@ class DriverProfile extends Model
         'preferences' => 'array',
         'kyc_submitted_at' => 'datetime',
         'kyc_verified_at' => 'datetime',
+        'bank_account_changed_at' => 'datetime',
+        'withdrawals_after_payment' => 'integer',
     ];
+
+    public const LEGAL_INDIVIDUAL = 'individual';
+
+    public const LEGAL_COMPANY = 'company';
+
+    /** Pazaryeri alt üye işyeri kaydı için gereken kimlik: bireyselde TC, şirkette VKN. */
+    public function payoutIdentityNumber(): ?string
+    {
+        $value = $this->legal_type === self::LEGAL_COMPANY ? $this->tax_number : $this->identity_number;
+
+        return filled($value) ? (string) $value : null;
+    }
+
+    public function hasPayoutIdentity(): bool
+    {
+        return $this->payoutIdentityNumber() !== null;
+    }
+
+    /** Ekranda gösterilen maskeli kimlik: 123******89 / 12*****890. */
+    public function maskedPayoutIdentity(): ?string
+    {
+        $value = $this->payoutIdentityNumber();
+        if ($value === null) {
+            return null;
+        }
+
+        return substr($value, 0, 2).str_repeat('*', max(0, strlen($value) - 4)).substr($value, -2);
+    }
 
     /**
      * Üst Kullanıcı İlişkisi

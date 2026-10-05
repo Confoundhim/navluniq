@@ -1,0 +1,89 @@
+# NavlunIQ sürekli denetim (I11): her PR ve main'e her gönderimde kod biçimi, testler, altın ölçüm seti, ön yüz derlemesi
+# ve bağımlılık güvenlik taraması. Testler ağa çıkmaz (SQLite bellek içi, Http::fake); derleme Vite manifestini üretir
+# (sayfa testleri ona bakar). Güvenlik taramaları bilgilendirir, PR'ı durdurmaz (continue-on-error).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Pint · test · altın set · derleme · audit
+    runs-on: ubuntu-24.04  # sabit sürüm: "ubuntu-latest" Ekim 2026'da Ubuntu 26'ya geçecek, sürpriz olmasın
+    timeout-minutes: 25
+
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, intl, gd, zip, bcmath, sqlite3, pdo_sqlite, dom, curl, fileinfo
+          coverage: none
+          tools: composer:v2
+
+      - name: Composer önbelleği
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Composer bağımlılıkları
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Kod biçimi (pint)
+        run: vendor/bin/pint --test
+
+      - name: Ortam dosyası
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: npm bağımlılıkları
+        run: npm ci --no-audit --no-fund
+
+      - name: Ön yüz derlemesi (Vite manifesti testler için gerekir)
+        run: npm run build
+
+      - name: Testler (SQLite bellek içi)
+        run: php artisan test --compact
+
+      - name: Altın ölçüm seti (kural katmanı, yapay zekasız)
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ${{ github.workspace }}/database/ci.sqlite
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
+        run: |
+          touch database/ci.sqlite
+          php artisan migrate --force --no-interaction
+          php artisan ilan:dogruluk --hatalar
+
+      - name: Composer güvenlik taraması
+        continue-on-error: true
+        run: composer audit --no-interaction
+
+      - name: npm güvenlik taraması
+        continue-on-error: true
+        run: npm audit --audit-level=high

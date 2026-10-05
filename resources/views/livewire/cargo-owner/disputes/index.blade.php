@@ -87,6 +87,25 @@ class extends Component {
         session()->flash('success_message', 'Uyuşmazlık kaydı açıldı. Navlun ödemesi karar verilene kadar askıya alındı; şoförün savunması ve hakem kararı burada görünecek.');
     }
 
+    /** Açık uyuşmazlığı geri çek: sevkiyat önceki durumuna (yolda / teslim edildi) döner. */
+    public function withdrawDispute(int $disputeId, DisputeService $disputes): void
+    {
+        $dispute = Dispute::query()->whereKey($disputeId)->where('opened_by', Auth::id())->first();
+        if (! $dispute) {
+            session()->flash('error_message', 'Uyuşmazlık bulunamadı.');
+
+            return;
+        }
+        try {
+            $disputes->withdraw($dispute, Auth::user());
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+        session()->flash('success_message', 'Uyuşmazlık geri çekildi; sevkiyat önceki durumuna döndü.');
+    }
+
     public function with(): array
     {
         $profileId = (int) Auth::user()->cargoOwnerProfile?->id;
@@ -198,6 +217,13 @@ class extends Component {
                     </div>
                 @elseif($dispute->status === 'open')
                     <p class="text-[11px] text-neutral-500">Şoför henüz savunma yüklemedi.</p>
+                @endif
+
+                @if($dispute->status === 'open')
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs border-t border-neutral-200 dark:border-neutral-800 pt-3">
+                        <span class="text-neutral-500 dark:text-neutral-400">Sorun çözüldüyse uyuşmazlığı geri çekebilirsiniz; sevkiyat önceki durumuna döner, ödeme teslimat onayıyla şoföre gider.</span>
+                        <button type="button" wire:click="withdrawDispute({{ $dispute->id }})" wire:confirm="Uyuşmazlık geri çekilecek. Devam edilsin mi?" wire:loading.attr="disabled" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold whitespace-nowrap">Uyuşmazlığı geri çek</button>
+                    </div>
                 @endif
 
                 @if($dispute->status !== 'open')

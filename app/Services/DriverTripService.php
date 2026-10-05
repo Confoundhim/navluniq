@@ -38,6 +38,9 @@ class DriverTripService
     /** Dış kaynak ilanı için "Bu işi aldım": aynı ilan için açık sefer varsa onu döndürür. */
     public function takeExternal(DriverProfile $driver, ScrapedLoad $load, ?CarbonInterface $pickupDate, ?CarbonInterface $deliveryDate, bool $notifyReturn = true): DriverTrip
     {
+        if ($driver->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         if (! $driver->isPremium()) {
             throw new RuntimeException('Dış kaynak ilanları yalnız premium üyelere açıktır.');
         }

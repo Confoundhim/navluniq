@@ -10,6 +10,8 @@ use App\Services\LoadService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
+use App\Services\PaymentService;
+use App\Services\PayoutService;
 use App\Services\RuleFeedbackService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
@@ -111,15 +113,15 @@ Artisan::command('trips:auto-close', function (DriverTripService $trips) {
 })->purpose('Teslimden sonra süresi dolan seferleri kapatır');
 
 Schedule::command('offers:expire')->hourly();
-Schedule::command('loads:expire')->hourly()->withoutOverlapping();
-Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping();
-Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('loads:expire')->hourly()->withoutOverlapping(180);
+Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping(60);
+Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('trips:auto-close')->dailyAt('04:10');
 Schedule::command('subscriptions:expire')->hourly();
 Schedule::command('subscriptions:remind')->dailyAt('09:00');
-Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('scraped-loads:purge-expired')->daily();
-Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping();
+Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping(10);
 
 // Konum sözlüğü temizliği sonrası (0001_01_32) son 14 günün ilanları ham mesajdan yeniden konumlanır; parça parça, 60 sn/çalıştırma,
 // imleç ayarda; bitince ya da süre dolunca ayar silinir. Yönetici düzenlemesi korunur; yapay zeka/şablon çözümü de yeniden bakılır.
@@ -165,16 +167,57 @@ Artisan::command('scraped-loads:relocate-force {--seconds=60 : Bu çalıştırma
     }
     Settings::set('scraper_relocate_force_progress', json_encode($progress));
 })->purpose('Konum sözlüğü düzeltmesi sonrası ilanları ham mesajdan yeniden konumlar');
-Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping();
-Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping();
+Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping(10);
+Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping(120);
 Schedule::command('queue:prune-failed', ['--hours' => 72])->dailyAt('04:40'); // 3 günden eski başarısız işler kendiliğinden silinir (sağlık ekranında takılı kalmasın)
 // Zamanlayıcı nabzı: yönetici ekranı "zamanlayıcı çalışıyor mu" sorusunu buradan cevaplar.
 Schedule::call(fn () => Cache::put('scheduler.heartbeat', now()->timestamp, now()->addDay()))->everyMinute()->name('scheduler-heartbeat');
 // Kuyruk nabzı: işçi bu işi çalıştırınca zaman damgası yazar; tazeyse telefon mesajları kuyruğa verilir (bkz. NotificationWebhookController).
 Schedule::job(new QueueHeartbeat)->everyMinute()->name('queue-heartbeat');
-Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping();
-Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping();
+Schedule::command('scraped-loads:auto-approve')->everyMinute()->withoutOverlapping(10);
+Schedule::command('loads:release-to-free')->everyMinute()->withoutOverlapping(10);
 Schedule::command('shipments:auto-approve')->hourly();
 Schedule::command('accounts:purge-drafts')->hourly();
 Schedule::command('privacy:purge')->dailyAt('04:20');
-Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping();
+Schedule::command('system:backup')->dailyAt('03:30')->withoutOverlapping(180);
+
+// ---------------------------------------------------------------------------------------------------------------
+// İşletim ve uyarılar (2026-10-05)
+// ---------------------------------------------------------------------------------------------------------------
+// Zamanlayıcı çıktısı storage/logs/schedule.log'a akar (crontab, deploy/install.sh). Dosya haftada bir kırpılır ki
+// yavaş diskte sınırsız büyümesin; son 2 MB saklanır.
+Schedule::call(function (): void {
+    $file = storage_path('logs/schedule.log');
+    if (! is_file($file) || filesize($file) < 2 * 1024 * 1024) {
+        return;
+    }
+    $tail = (string) file_get_contents($file, false, null, max(0, filesize($file) - 2 * 1024 * 1024));
+    file_put_contents($file, '[kırpıldı '.now()->toDateTimeString()."]\n".$tail);
+})->weeklyOn(1, '04:50')->name('schedule-log-trim');
+
+// Tek yedek yolu (I5): gece 03:30 tam yedek (son 7, yukarıda) + 6 saatte bir yalnız veritabanı dökümü (son 12 = 3 gün),
+// tam yedekten 15 dk sonra ki ikisi çakışmasın. En kötü veri kaybı 24 saatten 6 saate iner. Hata → yöneticilere bildirim.
+Schedule::command('system:backup', ['--type' => 'database', '--keep' => 12])->cron('45 3,9,15,21 * * *')->withoutOverlapping(60);
+
+// Sistem bekçisi (I1): kuyruk, başarısız iş, yedek, disk, telefon sessizliği, e-posta, Redis, SSL, yeniden konumlama.
+// Sorun → Telegram (alert_telegram_chat_id) + yönetici bildirimi; 6 saatte bir tekrar; düzelince "düzeldi". Sağlık ekranı
+// SystemWatchdog::lastStatus() ile son çalışmayı gösterir.
+Schedule::command('system:watchdog')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Para ve sevkiyat (2026-10-05): şoför gelmedi uyarısı, hakediş mutabakatı, açık ödeme emri süresi.
+Artisan::command('loads:no-show', function (LoadService $loads) {
+    $this->info('"Şoför gelmedi" uyarısı gönderilen ilan: '.$loads->notifyNoShows());
+})->purpose('Ödenmiş, yükleme tarihi geçmiş ve yola çıkılmamış ilanlarda yük sahibi, şoför ve operasyonu bir kez uyarır');
+
+Artisan::command('payouts:reconcile', function (PayoutService $payouts) {
+    $r = $payouts->reconcile();
+    $this->info("Hakediş mutabakatı: açılan {$r['created']} · işlemde takılıp bekleyene dönen {$r['reset']} · yeniden aktarılan {$r['retried']}");
+})->purpose('Hakedişsiz onaylı ilanları, işlemde takılan ve bekleyen hakedişleri toparlar; pazaryeri aktarımını artan beklemeyle yeniden dener');
+
+Artisan::command('payments:expire-stale', function (PaymentService $payments) {
+    $this->info('Süresi dolan açık ödeme emri: '.$payments->expireStale());
+})->purpose('Ayarlı saatten (payment_order_stale_hours) eski açık ödeme emirlerini kapatır; geç gelen ödeme iade edilir');
+
+Schedule::command('loads:no-show')->hourly()->withoutOverlapping(10);
+Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(10);
+Schedule::command('payments:expire-stale')->dailyAt('04:50');

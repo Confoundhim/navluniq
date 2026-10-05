@@ -85,11 +85,20 @@ final class Company
         return $out;
     }
 
-    /** Sözleşme metnindeki {{COMPANY_*}} yer tutucularını güncel künye ile doldurur (HTML kaçışlı). */
+    /**
+     * Sözleşme metinlerinde ayardan okunan süreler → Settings anahtarı. Metin "24 saat" gibi sabit rakam taşımaz; panel ayarı
+     * değişince metin de değişir (yayın öncesi denetim P9).
+     */
+    public const SETTING_TOKENS = [
+        '{{AUTO_APPROVAL_HOURS}}' => 'delivery_auto_approval_hours',
+        '{{OFFER_PAYMENT_HOURS}}' => 'offer_payment_hours',
+    ];
+
+    /** Sözleşme metnindeki {{COMPANY_*}} ve süre ({{AUTO_APPROVAL_HOURS}} vb.) yer tutucularını güncel değerlerle doldurur (HTML kaçışlı). */
     public static function fillTokens(?string $html): string
     {
         $html = (string) $html;
-        if (! str_contains($html, '{{COMPANY_')) {
+        if (! str_contains($html, '{{')) {
             return $html;
         }
 
@@ -97,6 +106,9 @@ final class Company
         foreach (self::TOKENS as $token => $key) {
             $value = self::get($key);
             $map[$token] = e($value !== '' ? $value : '—');
+        }
+        foreach (self::SETTING_TOKENS as $token => $key) {
+            $map[$token] = (string) max(1, Settings::int($key));
         }
 
         return strtr($html, $map);

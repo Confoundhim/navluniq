@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Payments;
 
+use App\Models\BankAccount;
 use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverTrip;
@@ -13,17 +14,15 @@ use App\Models\Payout;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Models\UserNotification;
-use App\Payments\Contracts\PaymentGateway;
-use App\Payments\Data\Checkout;
-use App\Payments\Data\RefundResult;
-use App\Payments\Data\TransferResult;
-use App\Payments\Data\WebhookResult;
 use App\Payments\GatewayManager;
 use App\Services\DisputeService;
 use App\Services\KycService;
 use App\Services\LoadService;
+use App\Services\LoadStatsService;
 use App\Services\OfferService;
 use App\Services\PaymentService;
+use App\Services\PayoutService;
+use App\Services\ReviewService;
 use App\Services\ShipmentService;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -31,76 +30,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use RuntimeException;
 use Tests\TestCase;
-
-/** İadesi ayarlanabilir sahte ödeme kuruluşu. */
-final class RefundableFakeGateway implements PaymentGateway
-{
-    public bool $refundSucceeds = true;
-
-    public int $refunds = 0;
-
-    public function id(): string
-    {
-        return 'fake';
-    }
-
-    public function label(): string
-    {
-        return 'Sahte Kuruluş';
-    }
-
-    public function isConfigured(): bool
-    {
-        return true;
-    }
-
-    public function isSandbox(): bool
-    {
-        return true;
-    }
-
-    public function createCheckout(PaymentOrder $order, array $context): Checkout
-    {
-        $order->update(['status' => 'pending', 'request_snapshot' => $context]);
-
-        return new Checkout('iframe', 'https://fake.test/pay/'.$order->merchant_oid, 'tok', 600);
-    }
-
-    public function parseWebhook(Request $request): WebhookResult
-    {
-        $oid = (string) $request->input('merchant_oid');
-        $status = (string) $request->input('status', 'success');
-
-        return new WebhookResult($request->input('sig') === 'ok', $oid, $status, $request->input('amount') !== null ? (float) $request->input('amount') : null, $oid.':'.$status, $request->all(), 'fake-ref');
-    }
-
-    public function refund(PaymentOrder $order, float $amount): RefundResult
-    {
-        $this->refunds++;
-
-        return $this->refundSucceeds ? new RefundResult(true, '{"ok":1}') : new RefundResult(false, '{"ok":0}', 'Kuruluş reddetti');
-    }
-
-    public function supportsSubMerchants(): bool
-    {
-        return false;
-    }
-
-    public function registerSubMerchant(array $data): ?string
-    {
-        return null;
-    }
-
-    public function transferToSubMerchant(Payout $payout, string $subMerchantRef): TransferResult
-    {
-        return new TransferResult(false, null, 'desteklenmiyor');
-    }
-}
 
 /**
  * Yayın öncesi denetim P1-P6: iptal/ödeme yarışı, tutar uyuşmazlığı, ödenmiş ilanda yönetici iptal+iade, reddedilen iadenin
@@ -132,10 +67,13 @@ class MoneySafetyTest extends TestCase
     private function driver(): User
     {
         $user = User::factory()->driver()->create();
-        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved']);
-        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34ABC123', 'vehicle_type' => 'tir', 'is_active' => true]);
+        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved', 'identity_number' => '10000000146']);
+        DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34ABC'.$user->id, 'vehicle_type' => 'tir', 'is_active' => true]);
+        // "Yola çıktım" için kayıtlı IBAN şart (A5); uydurma ama sağlaması doğru IBAN
+        $iban = 'TR330006100519786457841326';
+        BankAccount::create(['user_id' => $user->id, 'encrypted_iban' => Crypt::encryptString($iban), 'iban_hash' => hash('sha256', $iban.$user->id), 'iban_last4' => '1326', 'account_holder' => 'Test Şoför', 'is_default' => true]);
 
-        return $user;
+        return $user->fresh();
     }
 
     private function assignedLoad(User $ownerUser, User $driverUser): Load
@@ -200,21 +138,41 @@ class MoneySafetyTest extends TestCase
         $this->assertCount(1, $this->notificationsOf($owner, 'Ödemeniz iade edildi'));
     }
 
-    public function test_amount_mismatch_is_rejected_and_reported_instead_of_being_accepted_as_paid(): void
+    /**
+     * P6 (2026-10-05): tutar uyuşmazlığında çekilen para artık askıda kalmaz; yetim ödeme gibi muhasebeye yazılır ve hemen iade edilir.
+     * Önceki davranış (yalnız "failed" + bildirim) para çekilmişken iadeyi finans ekibine bile söylemiyordu; yeni davranış kesinlikle daha iyi.
+     * Sipariş yine "failed" kalır (yeniden ödeme yapılabilir), iade reddedilirse "refund_pending".
+     */
+    public function test_amount_mismatch_is_rejected_refunded_and_reported_instead_of_being_accepted_as_paid(): void
     {
         $owner = User::factory()->create();
         $load = $this->assignedLoad($owner, $this->driver());
         $order = $this->pay($load, $owner, 9000.0); // sipariş 10.000, sağlayıcı 9.000 bildirdi
 
         $this->assertSame('failed', $order->status);
+        $this->assertNotNull($order->refunded_at, 'çekilen tutar iade edildi');
+        $this->assertSame([9000.0], $this->gateway->refundedAmounts, 'yalnız çekilen tutar iade edilir');
         $this->assertStringContainsString('Tutar uyuşmazlığı', (string) $order->failure_message);
+        $this->assertStringContainsString('iade edildi', (string) $order->failure_message);
         $this->assertSame(Load::ESCROW_PENDING, $load->fresh()->escrow_status);
         $this->assertCount(1, $this->notificationsOf($this->admin, 'Ödeme tutarı uyuşmuyor'));
-        $this->assertCount(1, $this->notificationsOf($owner, 'Ödemeniz doğrulanamadı'));
+        $this->assertStringContainsString('iade edildi', implode(' ', (array) $this->notificationsOf($owner, 'Ödemeniz doğrulanamadı')->first()->lines));
 
         // Doğru tutarlı yeni bildirim (yeni emir) yine ödeme alır
         $this->assertSame('paid', $this->pay($load, $owner, 10000.0)->status);
         $this->assertSame(Load::ESCROW_PAID, $load->fresh()->escrow_status);
+
+        // Kuruluş iadeyi reddederse sipariş "refund_pending" olur ve finans "İade yapıldı" ile kapatır (ilan havuzu etkilenmez)
+        $this->gateway->refundSucceeds = false;
+        $other = $this->assignedLoad(User::factory()->create(), $this->driver());
+        $ownerTwo = $other->cargoOwnerProfile->user;
+        $refused = $this->pay($other, $ownerTwo, 9500.0);
+        $this->assertSame('refund_pending', $refused->status);
+        $this->assertSame(Load::ESCROW_PENDING, $other->fresh()->escrow_status);
+        $this->assertCount(1, $this->notificationsOf($this->admin, 'İade tamamlanamadı, elle yapılmalı'));
+        $this->actingAs($this->admin);
+        Volt::test('admin.finance-manager')->set('activeTab', 'orders')->set('reference.order-'.$refused->id, 'IADE-9')->call('markRefunded', $refused->id)->assertHasNoErrors();
+        $this->assertSame(['refunded', Load::ESCROW_PENDING], [$refused->fresh()->status, $other->fresh()->escrow_status], 'ödeme bekleyen ilanın havuz durumu değişmez');
     }
 
     public function test_admin_cancels_a_paid_load_with_refund_from_the_operations_screen(): void
@@ -260,7 +218,17 @@ class MoneySafetyTest extends TestCase
         app(DisputeService::class)->resolve($dispute, $this->admin, 'owner_refunded', 'Hasar fotoğrafı açık');
         $load->refresh();
         $this->assertSame('refund_pending', $order->fresh()->status);
-        $this->assertSame(Load::ESCROW_ON_HOLD, $load->escrow_status, 'para gitmeden "iade edildi" denmez');
+        // V2 (2026-10-05): eski davranış havuzu "askıda" bırakıyor ve ilan "Tamamlandı" görünüyordu; artık "iade bekleniyor" (puan/istatistik dışı).
+        $this->assertSame(Load::ESCROW_REFUND_PENDING, $load->escrow_status, 'para gitmeden "iade edildi" denmez; durum "iade bekleniyor"');
+        $this->assertSame('İade bekleniyor', $load->statusLabel());
+        $this->assertTrue($load->isClosedWithRefund());
+        $this->assertSame('İade bekleniyor', DriverTrip::query()->where('load_id', $load->id)->first()->displayStatusLabel());
+        $this->assertSame(0, app(LoadStatsService::class)->summary()['completed'] ?? 0, 'iadesi beklenen teslimat sayılmaz');
+        try {
+            app(ReviewService::class)->submit($load, $owner, 5, 'x');
+            $this->fail('iade bekleyen sevkiyat puanlanamaz');
+        } catch (RuntimeException) {
+        }
         $this->assertCount(1, $this->notificationsOf($this->admin, 'İade tamamlanamadı, elle yapılmalı'));
         $decision = $this->notificationsOf($owner, 'Uyuşmazlık karara bağlandı')->first();
         $this->assertStringStartsWith('http', (string) $decision->action_url, 'karar bildiriminin bağlantısı gerçek adres olmalı');
@@ -312,5 +280,48 @@ class MoneySafetyTest extends TestCase
         $load = $this->assignedLoad($owner, $this->driver());
         $again = app(LoadService::class)->repeat($load, $owner->cargoOwnerProfile);
         $this->assertSame([['tenteli'], 'komple'], [$again->body_types, $again->load_kind]);
+    }
+
+    /** V4: aynı ilan için ikinci bir emrin "başarılı" bildirimi havuzu ikinci kez doldurmaz; para iade edilir. */
+    public function test_second_successful_order_for_an_already_paid_load_is_refunded_not_double_counted(): void
+    {
+        $owner = User::factory()->create();
+        $driver = $this->driver();
+        $load = $this->assignedLoad($owner, $driver);
+        $first = $this->pay($load, $owner);
+        $this->assertSame(['paid', Load::ESCROW_PAID], [$first->status, $load->fresh()->escrow_status]);
+
+        $second = PaymentOrder::create([
+            'load_id' => $load->id, 'user_id' => $owner->id, 'purpose' => 'escrow', 'provider' => 'fake',
+            'merchant_oid' => 'NQ'.$load->id.'-IKINCI', 'amount' => $first->amount, 'currency' => 'TRY', 'service_fee_amount' => 0, 'status' => 'pending',
+        ]);
+        $this->post('/odeme/bildirim/fake', ['merchant_oid' => $second->merchant_oid, 'status' => 'success', 'sig' => 'ok'])->assertOk();
+        $this->assertSame('refunded', $second->fresh()->status);
+        $this->assertSame(1, $this->gateway->refunds);
+        $this->assertSame(Load::ESCROW_PAID, $load->fresh()->escrow_status);
+        $this->assertSame('paid', $first->fresh()->status);
+    }
+
+    /** V3: ödenmiş hakediş "başarısız" olarak işaretlenemez. */
+    public function test_paid_payout_cannot_be_marked_failed(): void
+    {
+        $owner = User::factory()->create();
+        $driver = $this->driver();
+        $load = $this->assignedLoad($owner, $driver);
+        $payout = Payout::create([
+            'load_id' => $load->id, 'user_id' => $driver->id, 'driver_profile_id' => $driver->driverProfile->id,
+            'total_amount' => 10000, 'commission_amount' => 500, 'net_amount' => 9500, 'status' => 'paid', 'channel' => 'manual', 'paid_at' => now(), 'available_at' => now(),
+        ]);
+        try {
+            app(PayoutService::class)->markFailed($payout, $this->admin, 'IBAN hatalı');
+            $this->fail('ödenmiş hakediş başarısız olmamalıydı');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Yalnız bekleyen', $e->getMessage());
+        }
+        $this->assertSame('paid', $payout->fresh()->status);
+
+        $payout->forceFill(['status' => 'pending', 'paid_at' => null])->save();
+        app(PayoutService::class)->markFailed($payout->fresh(), $this->admin, 'IBAN hatalı');
+        $this->assertSame(['failed', 'IBAN hatalı'], [$payout->fresh()->status, $payout->fresh()->failure_reason]);
     }
 }

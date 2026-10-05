@@ -46,9 +46,11 @@ class extends Component {
     {
         $order = $this->order();
         $isSubscription = $order?->purpose === PaymentService::PURPOSE_SUBSCRIPTION;
+        // 'indeterminate': para çekilmiş olabilir (iade bekleyen/edilmiş, süresi dolmuş ya da tutar uyuşmazlığı); "çekim yapılmadı" denmez.
         $state = match (true) {
             $order?->status === 'paid' => 'paid',
-            in_array($order?->status, ['failed', 'refund_pending', 'refunded'], true) => 'failed',
+            in_array($order?->status, ['refund_pending', 'refunded', 'expired'], true) || ($order?->status === 'failed' && $order?->refunded_at) => 'indeterminate',
+            $order?->status === 'failed' => 'failed',
             $this->outcome === 'basarisiz' => 'failed_hint',
             default => 'pending',
         };
@@ -95,13 +97,21 @@ class extends Component {
                     <p class="text-xs text-amber-600 dark:text-amber-400">Onay beklenenden uzun sürdü. Kartınızdan çekim yapıldıysa ödeme birkaç dakika içinde yansır; yansımazsa destek ekibine sipariş numaranızla ulaşın.</p>
                 @endif
             </div>
+        @elseif($state === 'indeterminate')
+            <div class="w-16 h-16 mx-auto rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z"/></svg>
+            </div>
+            <div class="space-y-2">
+                <h1 class="text-2xl font-black text-neutral-950 dark:text-white">Ödeme doğrulanamadı</h1>
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">Ödeme doğrulanamadı; kartınızdan çekim olduysa tutar iade edilir (bankanıza göre 1-10 iş günü). Durumu bildirimlerinizden takip edebilir, ödemeyi yeniden deneyebilirsiniz.</p>
+            </div>
         @else
             <div class="w-16 h-16 mx-auto rounded-full bg-rose-500/10 text-rose-600 flex items-center justify-center">
                 <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </div>
             <div class="space-y-2">
                 <h1 class="text-2xl font-black text-neutral-950 dark:text-white">Ödeme tamamlanamadı</h1>
-                <p class="text-sm text-neutral-500 dark:text-neutral-400">Kartınızdan çekim yapılmadı. Farklı bir kartla tekrar deneyebilir ya da bankanızla görüşebilirsiniz.</p>
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">Ödeme kuruluşu işlemi onaylamadı. Farklı bir kartla tekrar deneyebilir ya da bankanızla görüşebilirsiniz; bir çekim görürseniz kendiliğinden iade edilir.</p>
             </div>
         @endif
 
@@ -110,7 +120,7 @@ class extends Component {
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Sipariş no</span><span class="font-mono font-semibold text-neutral-900 dark:text-white">{{ $order->merchant_oid }}</span></div>
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Tutar</span><span class="font-bold tabular-nums text-neutral-900 dark:text-white">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺</span></div>
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Konu</span><span class="text-neutral-900 dark:text-white">{{ $isSubscription ? 'Premium şoför üyeliği (1 ay)' : 'Navlun bedeli #'.$order->load_id }}</span></div>
-                <div class="flex justify-between py-2.5"><span class="text-neutral-500">Durum</span><span class="text-neutral-900 dark:text-white">{{ ['created' => 'Ödeme bekleniyor', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => 'Başarısız', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi'][$order->status] ?? $order->status }}</span></div>
+                <div class="flex justify-between py-2.5"><span class="text-neutral-500">Durum</span><span class="text-neutral-900 dark:text-white">{{ ['created' => 'Ödeme bekleniyor', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => $order->refunded_at ? 'Kabul edilmedi, iade edildi' : 'Başarısız', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi', 'expired' => 'Süresi doldu', 'cancelled' => 'İptal edildi'][$order->status] ?? $order->status }}</span></div>
                 @if($order->paid_at)<div class="flex justify-between py-2.5"><span class="text-neutral-500">Ödeme zamanı</span><span class="text-neutral-900 dark:text-white">{{ $order->paid_at->format('d.m.Y H:i') }}</span></div>@endif
             </div>
         @endif

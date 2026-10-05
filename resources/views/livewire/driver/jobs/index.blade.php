@@ -74,6 +74,8 @@ class extends Component {
             'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
             'radiusKm' => \App\Support\Settings::int('return_load_radius_km'),
             'isPremium' => $profile?->isPremium() ?? false,
+            // IBAN yoksa "Yola çıktım" engellenir; şoför sürprizle karşılaşmasın diye liste başında uyarı.
+            'ibanWarning' => $profile && $this->tab === 'open' && $trips->contains(fn ($t) => $t->isSystem()) ? \App\Services\ShipmentService::startBlocker($profile) : null,
         ];
     }
 }; ?>
@@ -97,6 +99,13 @@ class extends Component {
             @endforeach
         </div>
     </div>
+
+    @if($ibanWarning)
+        <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <span>{{ $ibanWarning }}</span>
+            <a href="{{ route('driver.wallet.index') }}" wire:navigate class="font-bold underline whitespace-nowrap">IBAN ekle</a>
+        </div>
+    @endif
 
     <div class="space-y-3">
         @forelse($trips as $trip)

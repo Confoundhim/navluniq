@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Mail\PasswordResetMail;
 use App\Models\Concerns\HasPublicId;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -40,8 +41,11 @@ class User extends Authenticatable
         'is_active',
         'banned_at',
         'ban_reason',
+        'banned_by',
         'email_verified_at',
         'phone_verified_at',
+        'marketing_consent_at',
+        'marketing_consent_revoked_at',
         'last_login_at',
     ];
 
@@ -70,9 +74,17 @@ class User extends Authenticatable
         'banned_at' => 'datetime',
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
+        'marketing_consent_at' => 'datetime',
+        'marketing_consent_revoked_at' => 'datetime',
         'last_login_at' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    /** Engelleme kararını veren yönetici. */
+    public function bannedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'banned_by');
+    }
 
     public function isAdminPanelUser(): bool
     {

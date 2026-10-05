@@ -6,6 +6,7 @@ use App\Console\Commands\RefreshLegalTextsCommand;
 use App\Models\BankAccount;
 use App\Models\CmsContent;
 use App\Models\DriverProfile;
+use App\Payments\Contracts\PaymentGateway;
 use App\Payments\GatewayManager;
 
 /**
@@ -14,6 +15,28 @@ use App\Payments\GatewayManager;
  */
 final class PaymentReadiness
 {
+    /**
+     * Navlun (escrow) tahsilatının CANLI ortamda açılabilmesi için gereken tek model: iyzico Pazaryeri (alt üye işyeri).
+     * NavlunIQ hiç para tutmaz; şoför payı ve komisyon ödeme kuruluşunda ayrışır (Osman'ın kararı, 2026-10-05).
+     * Engel varsa gerekçe metni döner (ödeme emri açılmaz, ödeme ekranı çıkmaz); yoksa null. Test (sandbox) modunda
+     * geçit sahte para kullandığı için pazaryeri şartı aranmaz.
+     */
+    public static function escrowBlocker(?PaymentGateway $gateway = null): ?string
+    {
+        $gateway ??= app(GatewayManager::class)->active();
+        if (! $gateway->isConfigured()) {
+            return 'Ödeme altyapısı henüz etkin değil.';
+        }
+        if ($gateway->isSandbox()) {
+            return null;
+        }
+        if (! $gateway->supportsSubMerchants()) {
+            return 'Navlun tahsilatı yalnız pazaryeri (alt üye işyeri) modeliyle yapılır; ödeme kuruluşunda pazaryeri ürünü henüz açık değil. Yönetici panelinde Ödeme altyapısı → "Pazaryeri ürünü aktif" işaretlenince ödeme açılır.';
+        }
+
+        return null;
+    }
+
     /** @return list<array{group:string,label:string,ok:bool,detail:string,fix:?string}> */
     public static function checks(): array
     {
@@ -27,16 +50,24 @@ final class PaymentReadiness
         // 1) Ödeme kuruluşu
         $checks[] = self::item('Ödeme kuruluşu', 'Sağlayıcı seçili', $selected->id() !== 'none', $selected->label(), 'Bu sekmedeki "Ödeme kuruluşu ve anahtarlar" formundan sağlayıcı seçin.');
         $checks[] = self::item('Ödeme kuruluşu', 'Anahtarlar tanımlı', $active->isConfigured(), $active->isConfigured() ? 'Etkin: '.$active->label() : 'Anahtarlar boş; kart tahsilatı kapalı',
-            'iyzico: bu sekmedeki formdan API anahtarı ve gizli anahtarı girin. PayTR: sunucu .env (PAYTR_*).');
+            'iyzico: bu sekmedeki formdan API anahtarı ve gizli anahtarı girin.');
         $checks[] = self::item('Ödeme kuruluşu', 'Canlı mod', $active->isConfigured() && ! $active->isSandbox(), $active->isSandbox() ? 'Test (sandbox) modu' : 'Canlı',
             'Canlı anahtarları girip test (sandbox) modunu kapatın.');
+        $sandboxInProduction = app()->environment('production') && $active->isConfigured() && $active->isSandbox();
+        $checks[] = self::item('Ödeme kuruluşu', 'Canlı ortamda test modu kapalı', ! $sandboxInProduction,
+            $sandboxInProduction ? 'Canlı sitede test (sandbox) geçidi açık: ödemeler sahte para ile "başarılı" olur' : 'Uygun',
+            'Canlı sitede test modu kapalı olmalı; iyzico canlı anahtarlarını girip "Test (sandbox) modu" kutusunu kaldırın.');
+        $blocker = self::escrowBlocker($active);
+        $checks[] = self::item('Ödeme kuruluşu', 'Navlun tahsilatı açık (pazaryeri modeli)', $blocker === null,
+            $blocker ?? ($active->isSandbox() ? 'Test modunda açık' : 'Pazaryeri ile açık'),
+            'Navlun tahsilatı yalnız iyzico Pazaryeri ile yapılır; sözleşme imzalanınca "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
         $checks[] = self::item('Ödeme kuruluşu', 'HTTPS adres', $https, $appUrl, 'APP_URL https:// ile başlamalı; SSL sertifikası kurulu olmalı.');
         $checks[] = self::item('Ödeme kuruluşu', 'Sunucu bildirimi (webhook) adresi', true, $appUrl.'/odeme/bildirim/'.$selected->id(), null);
         $checks[] = self::item('Ödeme kuruluşu', 'Sonuç sayfaları', true, $appUrl.'/odeme/sonuc/{sipariş}/basarili · …/basarisiz', null);
         $logos = file_exists(public_path('images/payment/iyzico-band-colored.svg')) && file_exists(public_path('images/payment/iyzico-ile-ode.svg'));
         $checks[] = self::item('Ödeme kuruluşu', 'Kart markaları ve "iyzico ile Öde" logoları', $logos, $logos ? 'Altbilgi ve ödeme sayfalarında' : 'Eksik', 'public/images/payment altındaki logo dosyaları eksik.');
         $checks[] = self::item('Ödeme kuruluşu', 'Pazaryeri (alt üye işyeri) aktarımı', $active->supportsSubMerchants(),
-            $active->supportsSubMerchants() ? 'Destekleniyor; şoför ödemeleri kuruluş üzerinden' : 'Desteklenmiyor; şoför ödemeleri finans ekibince banka transferiyle',
+            $active->supportsSubMerchants() ? 'Destekleniyor; şoför ödemeleri kuruluş üzerinden' : 'Kapalı; canlıda navlun tahsilatı açılmaz (elle banka transferi yalnız başarısız aktarımda yedek yoldur)',
             'iyzico pazaryeri sözleşmesi imzalanınca formdaki "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
 
         // 2) Şirket bilgileri (sitede görünür olmalı)
@@ -74,8 +105,10 @@ final class PaymentReadiness
         $drivers = DriverProfile::query()->count();
         $withIban = BankAccount::query()->where('is_default', true)->count();
         $withRef = DriverProfile::query()->whereNotNull('payout_provider_ref')->count();
+        $withIdentity = DriverProfile::query()->where(fn ($q) => $q->whereNotNull('identity_number')->orWhereNotNull('tax_number'))->count();
         $checks[] = self::item('Şoför ödemeleri', 'Kayıtlı IBAN', true, "{$withIban} şoför IBAN girdi ({$drivers} şoför)", null);
-        $checks[] = self::item('Şoför ödemeleri', 'Alt üye işyeri kaydı', ! $active->supportsSubMerchants() || $withRef > 0, "{$withRef} şoför ödeme kuruluşuna kayıtlı", 'Pazaryeri sağlayıcısı devreye alınınca şoförler otomatik kaydedilir.');
+        $checks[] = self::item('Şoför ödemeleri', 'Kimlik / vergi numarası (alt üye işyeri için)', true, "{$withIdentity} şoför TC/VKN girdi ({$drivers} şoför)", null);
+        $checks[] = self::item('Şoför ödemeleri', 'Alt üye işyeri kaydı', ! $active->supportsSubMerchants() || $withRef > 0, "{$withRef} şoför ödeme kuruluşuna kayıtlı", 'Şoförler Ödemelerim sayfasından TC/VKN ve IBAN girince teklif kabulünde otomatik kaydedilir.');
 
         // 6) E-posta ve bildirim
         $mailFrom = (string) config('mail.from.address');

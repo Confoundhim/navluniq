@@ -5,12 +5,15 @@ use App\Http\Controllers\Admin\MacroDownloadController;
 use App\Http\Controllers\Admin\PanelSwitchController;
 use App\Http\Controllers\Admin\ToplayiciDumpController;
 use App\Http\Controllers\Admin\UpdateStatusController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
 use App\Http\Controllers\Payment\PaytrController;
 use App\Http\Middleware\EnsureCargoOwner;
 use App\Http\Middleware\EnsureDriver;
+use App\Models\User;
+use App\Services\MarketingConsentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -62,6 +65,15 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
     return view('frontend.contract-page', ['activeContract' => $slug]);
 })->name('contracts');
 
+// Pazarlama e-postalarındaki tek tıklık çıkış bağlantısı: imzalı, giriş gerektirmez (ETK/İYS: ret her zaman ücretsiz ve kolay).
+Route::get('/e-posta/abonelikten-cik/{user}', function (string $user) {
+    $model = User::query()->where('public_id', $user)->orWhere('id', ctype_digit($user) ? (int) $user : 0)->first();
+    abort_unless($model, 404);
+    app(MarketingConsentService::class)->revoke($model, 'e-posta bağlantısı');
+
+    return view('frontend.unsubscribed-page');
+})->middleware(['signed', 'throttle:marketing-unsubscribe'])->name('marketing.unsubscribe');
+
 // Arama motorları: yalnız herkese açık tanıtım ve sözleşme sayfaları (panel, giriş, ödeme adresleri robots.txt ile kapalı).
 Route::get('/sitemap.xml', function () {
     $pages = [
@@ -102,6 +114,9 @@ Route::middleware('auth')->get('/panel', function () {
 
     return redirect()->route('cargo-owner.dashboard');
 })->name('panel');
+
+// Tarayıcının içerik güvenliği politikası (CSP) ihlal raporu: CSRF yok, adlı sınırlayıcı, yalnız günlüğe yazar (I14).
+Route::post('/csp-rapor', CspReportController::class)->middleware('throttle:csp-report')->name('csp.report');
 
 // Ödeme kuruluşu sunucu bildirimi (sağlayıcıdan bağımsız) ve eski PayTR adresleri
 Route::post('/odeme/bildirim/{provider}', [PaymentWebhookController::class, 'handle'])->whereAlpha('provider')->name('payment.webhook');
@@ -169,9 +184,6 @@ Route::prefix('adminsystem')->group(function () {
         Route::get('/cms', function () {
             return view('admin.cms-page');
         })->name('admin.cms');
-        Route::get('/languages', function () {
-            return view('admin.languages-page');
-        })->name('admin.languages');
         Route::get('/settings', function () {
             return view('admin.settings-page');
         })->name('admin.settings');
@@ -240,7 +252,7 @@ Route::middleware(['auth', EnsureDriver::class])->prefix('panel/sofor')->name('d
     });
 
     Volt::route('/dashboard', 'driver.dashboard')->name('dashboard');
-    Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:60,1')->name('location.store');
+    Route::post('/konum', [LocationController::class, 'store'])->middleware('throttle:driver-location')->name('location.store');
     Volt::route('/ilan-havuzu', 'driver.loads.index')->name('loads.index');
     // İşlerim: NavlunIQ işleri ve gruptan alınan işler tek listede. Eski adresler (Sevkiyatlarım, Seferlerim) buraya yönlenir.
     Volt::route('/islerim', 'driver.jobs.index')->name('jobs.index');
