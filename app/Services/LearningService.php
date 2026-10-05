@@ -41,7 +41,9 @@ class LearningService
             $phone = $load->plainPhone();
             if ($byAdmin && ! $bulk && $phone && $load->pickup_province_code && $load->delivery_province_code) {
                 $goodsKey = array_search((string) $load->goods_type, GoodsCatalog::labels(), true);
-                $this->templates->learn($phone, (string) $load->raw_message, $load->pickup_location, $load->delivery_location, $load->vehicle_type, $goodsKey !== false ? (string) $goodsKey : null, true, 1.0, $load->id);
+                // Kalıba yalnız kesin araç yazılır (açık ad / yönetici); tonaj-yük-ipucundan çıkarılan tahmin "kesin" diye öğrenilmez.
+                $vehicle = in_array($load->vehicle_type_source, ['keyword', 'admin'], true) ? $load->vehicle_type : null;
+                $this->templates->learn($phone, (string) $load->raw_message, $load->pickup_location, $load->delivery_location, $vehicle, $goodsKey !== false ? (string) $goodsKey : null, true, 1.0, $load->id);
             }
         } catch (Throwable) {
         }
@@ -183,6 +185,10 @@ class LearningService
             if (in_array(TurkishCities::ascii($w), array_map([TurkishCities::class, 'ascii'], $noise), true)) {
                 return true;
             }
+        }
+        // Yük adı ("kömür", "mermer") yer takma adı olamaz: "Kömür - Ankara" satırının ilk ucu yük sözcüğüdür.
+        if (GoodsCatalog::detect(' '.$normalizedTerm.' ') !== null || Lexicon::matchGoods($normalizedTerm) !== null) {
+            return true;
         }
 
         return false;

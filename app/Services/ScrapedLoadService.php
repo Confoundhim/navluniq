@@ -10,6 +10,7 @@ use App\Models\Scraper;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
@@ -152,8 +153,14 @@ class ScrapedLoadService
             return 0;
         }
         $done = 0;
-        ScrapedLoad::query()->where('ai_status', 'pending')->where('visibility', 'private')->where('status', '!=', 'rejected')
-            ->orderBy('id')->limit($limit)->get()->each(function (ScrapedLoad $load) use ($parser, &$done): void {
+        // Bekleyenler: kuyruktaki adaylar ve eksik bilgili yayındaki ilanlar (araç yapay zekayla çözülünce normal listeye geçer).
+        // Sıra: hiç denenmemiş önce, sonra en eski deneme; denenen aday 5 dk sonra yeniden sıraya girer (ai_checked_at denemede yazılır).
+        ScrapedLoad::query()->where('ai_status', 'pending')->where('status', '!=', 'rejected')
+            ->where(fn ($q) => $q->where('visibility', 'private')->orWhere('is_incomplete', true))
+            ->where(fn ($q) => $q->whereNull('ai_checked_at')->orWhere('ai_checked_at', '<', now()->subMinutes(5)))
+            ->orderByRaw('CASE WHEN ai_checked_at IS NULL THEN 0 ELSE 1 END')->orderBy('ai_checked_at')->orderBy('id')
+            ->limit($limit)->get()->each(function (ScrapedLoad $load) use ($parser, &$done): void {
+                ScrapedLoad::query()->whereKey($load->id)->update(['ai_checked_at' => now()]);
                 // Zamanlanmış iş: kotası dolmuş sağlayıcılar atlanır (manual=false); eski sürüm her 5 dakikada tükenmiş sağlayıcıları dövüyordu.
                 if ($this->reparseWithAi($load, $parser, manual: false)) {
                     $done++;
@@ -213,6 +220,7 @@ class ScrapedLoadService
             'delivery_location', 'delivery_province_code', 'delivery_district', 'delivery_lat', 'delivery_lng',
             'goods_type', 'vehicle_type', 'vehicle_type_source', 'vehicle_any', 'weight', 'price',
         ])), [
+            'route_key' => LoadIntakeService::routeKey($current['sender_phone'], $std['pickup_location'], $std['delivery_location'], (bool) ($meta['series'] ?? false)), // konum değişmişse tekrar denetimi yeni rotayı görsün
             'status' => $load->status === 'rejected' ? 'rejected' : (($std['pickup_province_code'] && $std['delivery_province_code']) ? 'parsed_success' : 'parsed_partial'),
             'parsed_by_llm' => $merged['parsed_by_llm'] ?? $load->parsed_by_llm,
             'parse_confidence' => $ai['data']['confidence'] ?? null,
@@ -226,6 +234,18 @@ class ScrapedLoadService
                 'phone_count' => count($extra) > 0 ? count($extra) + 1 : null,
             ])),
         ]))->save();
+        // Yapay zeka yüksek güvenle "ilan değil" dediyse kuyruktaki aday elenir (alım yolu zaten eler; kuyruk yolu eski sürümde yok sayıyordu).
+        if (($ai['data']['is_load'] ?? true) === false && (float) ($ai['data']['confidence'] ?? 0) >= 0.8 && $load->visibility !== 'public' && $load->status !== 'rejected') {
+            $this->autoReject($load, 'yapay zeka: yük ilanı değil');
+
+            return true;
+        }
+        // Eksik bilgili yayındaki ilanda yapay zeka aracı çelişkisiz ve yüksek güvenle çözdüyse ilan normal listeye geçer (şoför aramadan);
+        // alım yolunda aynı kanıt ilanı zaten tam yayınlar.
+        if ($load->is_incomplete && $load->visibility === 'public' && ($load->vehicle_type || $load->vehicle_any)
+            && (float) $load->parse_confidence >= 0.8 && empty($load->meta('ai_conflict'))) {
+            $load->forceFill(['is_incomplete' => false, 'completed_by' => 'ai'])->save();
+        }
         // Öğrenme çemberi: kuyrukta yapay zekanın çözdüğü, kuralın çözemediği yazımlar öneri olur.
         app(RuleFeedbackService::class)->fromAi($current, $ai['data'], (string) $load->raw_message, $load->id, 'kuyruk');
 
@@ -246,7 +266,7 @@ class ScrapedLoadService
         // Yayın anında son tekrar denetimi: aynı metin ya da aynı numara+rota zaten yayındaysa ikinci ilan açılmaz;
         // alımda "değişmiş ilan" diye işaretlenen aday (supersedes) eskisinin yerine geçer.
         if ($twin = $this->publishedDuplicateOf($load)) {
-            if ((int) $load->meta('supersedes') === $twin->id && $twin->normalized_hash !== $load->normalized_hash) {
+            if ($this->resolveTwin($load, $twin) === 'supersede') {
                 $this->retireSuperseded($twin, $load);
             } else {
                 $this->markDuplicate($load, $twin, $userId);
@@ -332,8 +352,8 @@ class ScrapedLoadService
      */
     public function supersede(ScrapedLoad $old, ScrapedLoad $new): void
     {
-        if ($old->visibility === 'public') {
-            return; // şoförler ilanı görmeye devam eder; yeni aday yayınlanınca eskisi onun yerini bırakır
+        if ($old->visibility === 'public' || $old->status === 'rejected') {
+            return; // yayındaki ilan yeni aday yayınlanınca yerini bırakır; reddedilmiş kayıt (yöneticinin "ilan değil" örneği) olduğu gibi kalır
         }
         $old->forceFill(['content_hash' => null, 'parse_metadata' => array_merge((array) $old->parse_metadata, ['superseded_by' => $new->id])])->saveQuietly();
         $old->delete();
@@ -348,6 +368,41 @@ class ScrapedLoadService
         $twin->forceFill(['visibility' => 'private', 'content_hash' => null, 'parse_metadata' => array_merge((array) $twin->parse_metadata, ['superseded_by' => $load->id])])->saveQuietly();
         $twin->delete();
         ActivityLog::record('scraped_load.superseded', "Dış kaynak ilanı #{$twin->id} yeni paylaşım #{$load->id} ile değişti; eski arşivlendi", null, $twin);
+    }
+
+    /** Birebir aynı metin bu kadar günden eski bir kaydı tazelemez: yeni kayıt açılır, eskisi onun yerini bırakır (spam yeniden paylaşım sonsuza dek üstte kalmasın). */
+    public const TWIN_MAX_AGE_DAYS = 30;
+
+    /**
+     * Yayındaki ikizle yeni adayın hangisinin kalacağı — elle onay ve otomatik onay aynı kararı verir (eski sürümde zıt davranıyordu).
+     * "duplicate": aday tekrar, ikiz tazelenir. "supersede": aday ikizin yerine geçer (alımda fiyat/tonaj/araç değişti diye açıldı,
+     * ikiz 48 saatten yaşlı ve metin farklı, ya da ikiz 30 günü geçmiş). Yan etkisizdir.
+     */
+    public function resolveTwin(ScrapedLoad $load, ScrapedLoad $twin): string
+    {
+        $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
+        if ($twin->created_at !== null && $twin->created_at->lt(now()->subDays(self::TWIN_MAX_AGE_DAYS))) {
+            return 'supersede';
+        }
+        if ($sameText) {
+            return 'duplicate';
+        }
+        if ((int) $load->meta('supersedes') === $twin->id) {
+            return 'supersede';
+        }
+
+        return $twin->created_at !== null && $twin->created_at->lt(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)) ? 'supersede' : 'duplicate';
+    }
+
+    /** Onay hatası yapışkan değildir: 1 saat sonra yeniden denenir; 3 denemeden sonra yönetici düzenleyene kadar bekler. */
+    public static function autoApproveErrorHolds(array $error): bool
+    {
+        if ((int) ($error['attempts'] ?? 1) >= 3) {
+            return true;
+        }
+        $at = isset($error['at']) ? Carbon::parse((string) $error['at'], config('app.timezone')) : null;
+
+        return $at !== null && $at->gt(now()->subHour());
     }
 
     /** Adayı tekrar olarak reddeder; görüldüğü kaynak yayındaki ilanın sayacına eklenir. */
@@ -371,21 +426,16 @@ class ScrapedLoadService
         if ($load->visibility === 'public' || $load->status === 'rejected') {
             return 'durum';
         }
-        if ($twin = $this->publishedDuplicateOf($load)) {
-            $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
-            $supersedes = ! $sameText && (int) $load->meta('supersedes') === $twin->id; // alımda fiyat/tonaj/araç değişti diye açıldı
-            if ($sameText || (! $supersedes && $twin->created_at !== null && $twin->created_at->gte(now()->subHours(LoadIntakeService::ROUTE_DEDUPE_HOURS)))) {
-                $this->markDuplicate($load, $twin, null);
-
-                return "tekrar (#{$twin->id} yayında)";
-            }
-            $this->retireSuperseded($twin, $load); // eski ikiz 48 saatten yaşlı ya da içerik değişmiş: yeni paylaşım onun yerine geçer
+        // Yayındaki ikiz: karar tek yerde (resolveTwin) verilir; burada yalnız okunur. Eski sürüm ikizi hemen arşivliyordu ve yeni aday
+        // sonraki denetimlerden birine takılınca şoför hiçbir ilan göremiyordu (yönetici listesi de bu fonksiyonu çağırıyordu).
+        if (($twin = $this->publishedDuplicateOf($load)) && $this->resolveTwin($load, $twin) === 'duplicate') {
+            return "tekrar (#{$twin->id} yayında)";
         }
         if (! $load->scraper || ! $load->scraper->is_active) {
             return 'kaynak pasif';
         }
         $meta = (array) ($load->parse_metadata ?? []);
-        if (! empty($meta['auto_approve_error']) && empty($meta['admin_edited'])) {
+        if (! empty($meta['auto_approve_error']) && empty($meta['admin_edited']) && self::autoApproveErrorHolds($meta['auto_approve_error'])) {
             return 'onay hatası: '.($meta['auto_approve_error']['message'] ?? 'bilinmiyor');
         }
         if (! $load->pickup_location || ! $load->delivery_location) {
@@ -574,6 +624,9 @@ class ScrapedLoadService
             $rule = min(1.0, $rule);
         }
         $ai = $load->ai_status === 'done' && $load->parse_confidence !== null ? max(0.0, min(1.0, (float) $load->parse_confidence)) : null;
+        if ($ai !== null && (($load->meta('ai')['is_load'] ?? true) === false)) {
+            $ai = round(1.0 - $ai, 4); // "%90 ilan değil" olumlu kanıt değildir
+        }
         $local = $this->localConfidence($load);
 
         $parser = app(AiParserService::class);
@@ -584,7 +637,9 @@ class ScrapedLoadService
             $score = ($rule + $ai) / 2;
             $basis = 'kural + yapay zeka';
         } elseif ($local !== null) {
-            $score = ($rule + $local) / 2;
+            // Yerel sınıflandırıcı yalnız 0,5'ten uzaklığı kadar etkiler: tanımadığı metne verdiği 0,5 "kararsız"dır, kural kanıtını
+            // yarıya indirmez (eski ortalama 0,88'lik adayı 0,69'a düşürüp eksik bilgiliye atıyordu).
+            $score = max(0.0, min(1.0, $rule + ($local - 0.5) * 0.8));
             $basis = 'kural + yerel';
         } else {
             $score = $rule;
@@ -634,11 +689,21 @@ class ScrapedLoadService
                 $load->delete();
                 $count++;
             });
-        if ($count > 0) {
-            ActivityLog::record('scraped_load.purged', "Saklama süresi dolan {$count} dış kaynak ilanı arşivlendi", null);
+        // Yayınlanmamış aday da sonsuza dek kuyrukta kalmaz: saklama süresi (alımda 30 gün) dolunca arşivlenir (listede sayılmaz, silinmez).
+        $stale = 0;
+        ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')
+            ->where('retention_expires_at', '<', now())->whereNull('parse_metadata->admin_edited')
+            ->orderBy('id')->limit(2000)->get()
+            ->each(function (ScrapedLoad $load) use (&$stale): void {
+                $load->update(['content_hash' => null, 'parse_metadata' => array_merge((array) $load->parse_metadata, ['expired_in_queue' => now()->toDateTimeString()])]);
+                $load->delete();
+                $stale++;
+            });
+        if ($count > 0 || $stale > 0) {
+            ActivityLog::record('scraped_load.purged', "Saklama süresi dolan {$count} dış kaynak ilanı ve {$stale} bekleyen aday arşivlendi", null);
         }
 
-        return $count;
+        return $count + $stale;
     }
 
     /** Ayar açıksa bekleyen adayları tarar; kriterleri sağlayanları yayınlar ve sayısını döndürür. */
@@ -699,6 +764,11 @@ class ScrapedLoadService
                         } catch (\Throwable $e) {
                             Log::warning('Eksik bilgili yayın başarısız.', ['scraped_load_id' => $load->id, 'error' => $e->getMessage()]);
                         }
+
+                        continue;
+                    }
+                    if ($blocker !== null && str_starts_with($blocker, 'tekrar (#') && ($twin = $this->publishedDuplicateOf($load))) {
+                        $this->markDuplicate($load, $twin, null); // denetim yan etkisiz; uygulama yalnız tarama döngüsünde
 
                         continue;
                     }

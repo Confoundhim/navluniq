@@ -206,9 +206,10 @@ class LoadStandardizer
         if ($load->status === 'parsed_partial' && $std['pickup_province_code'] !== null && $std['delivery_province_code'] !== null) {
             $changes['status'] = 'parsed_success'; // iki uç da çözüldü: aday artık eksik değil
         }
-        // Konum değiştiyse rota anahtarı da yenilenir; eski anahtar yanlış rotanın tekrar denetimine takılıyordu.
-        if (isset($changes['pickup_location']) || isset($changes['delivery_location'])) {
-            $changes['route_key'] = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        // Rota anahtarı her seferinde yenilenir: konum başka yoldan (yapay zeka, yönetici) değişmiş olabilir, eski anahtar tekrar denetimini atlatıyordu.
+        $routeKey = LoadIntakeService::routeKey($load->plainPhone(), $changes['pickup_location'] ?? $load->pickup_location, $changes['delivery_location'] ?? $load->delivery_location, (bool) ($meta['series'] ?? false));
+        if ($routeKey !== $load->route_key) {
+            $changes['route_key'] = $routeKey;
         }
         $changes['parse_metadata'] = array_merge($meta, $std['metadata']);
         $load->forceFill($changes)->save();

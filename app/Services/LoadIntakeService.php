@@ -452,7 +452,7 @@ class LoadIntakeService
             'ai_status' => $ai['status'],
             'ai_checked_at' => in_array($ai['status'], ['done', 'failed'], true) ? now() : null,
             'parse_metadata' => array_merge($std['metadata'], array_filter([
-                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'ad_index', 'ad_count', 'template_id'])) : null,
+                'ai' => $ai['data'] !== null ? array_intersect_key($ai['data'], array_flip(['provider', 'model', 'confidence', 'notes', 'pickup_date_text', 'multiple_loads', 'is_load', 'ad_index', 'ad_count', 'template_id'])) : null,
                 'ai_conflict' => $parsed['ai_conflict'] ?? null,
                 // Aynı ilandaki diğer numaralar (şifreli); ilk numara ana kolonda.
                 'extra_phones_enc' => $extraPhones !== [] ? array_map(fn (string $p) => Crypt::encryptString($p), $extraPhones) : null,
@@ -532,6 +532,10 @@ class LoadIntakeService
     {
         $std = $this->standardizer->standardize($text, $parsed);
         $differs = fn ($a, $b): bool => $a !== null && $a !== '' && $b !== null && $b !== '' && (string) $a !== (string) $b;
+        // Daha dolu paylaşım: eski kayıtta araç yokken (eksik bilgili yayın) yeni parça açık araç adı getiriyorsa yeni kayıt eskisinin yerine geçer.
+        if (! $existing->vehicle_type && ! $existing->vehicle_any && ($std['vehicle_any'] || ($std['vehicle_type'] && in_array($std['vehicle_type_source'], ['keyword', 'template'], true)))) {
+            return true;
+        }
         if ($differs($std['price'] !== null ? (float) $std['price'] : null, $existing->price !== null ? (float) $existing->price : null)) {
             return true;
         }
@@ -1216,10 +1220,16 @@ class LoadIntakeService
     /** Aynı metin: yayındaki ya da bekleyen kayıt 7 gün boyunca (son görülmeye göre) tazelenir; reddedilmiş kayıt yalnız açılıştan 7 gün tutar. */
     private function recentByText(string $normalizedHash): ?ScrapedLoad
     {
+        // Reddedilmiş kayıt yalnız yöneticinin "ilan değil" dediyse tutar: kendiliğinden ret (il çözülemedi, yaş), tekrar, eski, yanlış rota
+        // gerekçeli kayıtlar ilanın ilan olmadığı anlamına gelmez; sözlük düzeltilince yeniden paylaşım yeni aday açsın.
+        // 30 günü geçmiş kayıt tazelenmez: yeni kayıt açılır ve yayında eskisinin yerine geçer (resolveTwin).
         return ScrapedLoad::query()->where('normalized_hash', $normalizedHash)
             ->where(fn ($q) => $q
-                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
-                ->orWhere('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS)))
+                ->where(fn ($w) => $w->where('status', '!=', 'rejected')->where('last_seen_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))
+                    ->where('created_at', '>=', now()->subDays(ScrapedLoadService::TWIN_MAX_AGE_DAYS)))
+                ->orWhere(fn ($w) => $w->where('status', 'rejected')->where('created_at', '>=', now()->subDays(self::TEXT_DEDUPE_DAYS))
+                    ->whereNull('parse_metadata->auto_rejected')->whereNull('parse_metadata->duplicate_of')->whereNull('parse_metadata->superseded_by')
+                    ->where(fn ($r) => $r->whereNull('parse_metadata->reject_reason')->orWhere('parse_metadata->reject_reason', 'not_load'))))
             ->orderByRaw("CASE WHEN visibility = 'public' THEN 0 ELSE 1 END")->orderByRaw("CASE WHEN status = 'rejected' THEN 1 ELSE 0 END")->latest('id')->first();
     }
 

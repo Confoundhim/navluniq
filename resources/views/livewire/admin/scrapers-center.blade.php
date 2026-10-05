@@ -459,6 +459,7 @@ new class extends Component {
             'price' => $this->edit['price'] !== '' ? round((float) $this->edit['price'], 2) : null,
             'price_unit' => $this->edit['price'] !== '' ? $this->edit['price_unit'] : null,
             'status' => $load->status === 'parsed_partial' ? 'parsed_success' : $load->status,
+            'route_key' => \App\Services\LoadIntakeService::routeKey($load->plainPhone(), $pickup['label'], $delivery['label'], (bool) $load->meta('series')),
             'parse_metadata' => array_merge((array) ($load->parse_metadata ?? []), ['admin_edited' => true, 'warnings' => []]),
         ])->save();
         ActivityLog::record('scraped_load.edited', "Dış kaynak ilanı #{$load->id} düzenlendi", auth()->id(), $load);

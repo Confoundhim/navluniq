@@ -86,6 +86,8 @@ class ScrapedLoad extends Model
         'vehicle_any' => 'boolean',
         'is_incomplete' => 'boolean',
         'auto_checked_at' => 'datetime',
+        'ai_checked_at' => 'datetime',
+        'retention_expires_at' => 'datetime',
         'price' => 'decimal:2',
         'seen_sources' => 'array',
         'parse_metadata' => 'array',

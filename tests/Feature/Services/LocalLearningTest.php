@@ -164,7 +164,7 @@ class LocalLearningTest extends TestCase
         $this->assertStringContainsString('elle kontrol', $service->autoApprovalBlocker($low->fresh()));
         $veryLow = $this->candidate($source, ['ai_status' => 'pending', 'weight' => null, 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.0]]);
         ScrapedLoad::whereKey($veryLow->id)->update(['created_at' => now()->subMinutes(20)]);
-        $this->assertSame(0.325, $service->decision($veryLow->fresh())['score']); // (kural 0,65 + yerel 0) / 2
+        $this->assertSame(0.25, $service->decision($veryLow->fresh())['score']); // kural 0,65 + (yerel 0 − 0,5) × 0,8
         Settings::set('scraper_auto_reject_max_score', '35');
         $this->assertStringContainsString('otomatik ret', $service->autoApprovalBlocker($veryLow->fresh()));
         Settings::set('scraper_auto_reject_max_score', '25');
@@ -254,13 +254,13 @@ class LocalLearningTest extends TestCase
         $source = $this->source();
         $service = app(ScrapedLoadService::class);
 
-        // il çifti + telefon = kural %65; yerel %50 ile puan %57,5 → ret (25) ile yayın eşiği (75) arasında: eksik bilgili yayın
+        // il çifti + telefon = kural %65; yerel %50 kararsızdır, puan %65 kalır → ret (35) ile yayın eşiği (75) arasında: eksik bilgili yayın
         $mid = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
         // yerel yoksa puan %65 → eskiden 60-75 bandı kuyrukta bekleyip 48 saatte reddediliyordu; artık o da eksik bilgili yayınlanır
         $queue = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null]);
         // varış ili çözülemeyen aday puanı ne olursa olsun eksik bilgili yayınlanmaz
         $noRoute = $this->candidate($source, ['ai_status' => 'skipped', 'delivery_location' => 'Bilinmeyenköy', 'delivery_province_code' => null, 'parse_metadata' => ['local_confidence' => 0.5]]);
-        // puanı %25 altı: otomatik ret
+        // yerel %0 ("ilan değil"): puan %65 − 40 = %25, ret sınırının altında: otomatik ret
         $low = $this->candidate($source, ['ai_status' => 'skipped', 'vehicle_type' => null, 'vehicle_type_source' => null, 'parse_metadata' => ['local_confidence' => 0.0]]);
         Settings::set('scraper_auto_reject_max_score', '35');
 

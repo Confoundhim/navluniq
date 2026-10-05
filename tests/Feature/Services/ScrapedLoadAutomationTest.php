@@ -197,7 +197,11 @@ class ScrapedLoadAutomationTest extends TestCase
         $service = app(ScrapedLoadService::class);
 
         // Aynı anda gelen iki grup mesajı iki aday açtıysa ikincisi yayına alınmaz; yayındakinin sayacına yazılır.
+        // Denetim (blocker) yan etkisizdir: liste ekranı çağırınca veri değişmez; uygulama tarama döngüsünde olur.
         $this->assertSame("tekrar (#{$published->id} yayında)", $service->autoApprovalBlocker($twin));
+        $this->assertSame(['parsed_success', 'private', null], [$twin->fresh()->status, $twin->fresh()->visibility, $twin->fresh()->meta('duplicate_of')]);
+        Settings::set('scraper_auto_approve', '1');
+        $service->autoApproveDue();
         $this->assertSame(['rejected', 'private', $published->id], [$twin->fresh()->status, $twin->fresh()->visibility, $twin->fresh()->meta('duplicate_of')]);
         $this->assertSame(['Grup A', 'Grup B'], $published->fresh()->seen_sources);
         $this->assertSame(2, $published->fresh()->duplicate_count);

@@ -216,10 +216,19 @@ final class Settings
             $value = Crypt::encryptString((string) $value);
         }
         CmsContent::setVal($key, $value === null ? null : (string) $value, $updatedBy);
-        if (str_starts_with($key, 'scraper_') || str_starts_with($key, 'ai_')) {
+        if ((str_starts_with($key, 'scraper_') || str_starts_with($key, 'ai_')) && ! self::isCounterKey($key)) {
             // Otomatik onay taraması: eşik / kural değişince bekleyen adaylar ilk taramada yeniden değerlendirilir
             Cache::put('scraper.settings_changed_at', now()->timestamp, now()->addDays(30));
         }
+    }
+
+    /**
+     * Kodun kendi yazdığı sayaç/imleç anahtarları: ayar değil, "yeniden değerlendir" damgası basmaz. Eski sürümde sınıflandırıcının her
+     * eğitimi (her onay/ret) damgayı yeniliyor, tüm kuyruk her dakika baştan taranıyor ve 20 sn bütçede yeni adaylar sıraya gelemiyordu.
+     */
+    public static function isCounterKey(string $key): bool
+    {
+        return str_starts_with($key, 'ai_local_docs_') || str_starts_with($key, 'scraper_relocate_force_') || $key === 'scraper_api_token';
     }
 
     /** Dış kaynak / yapay zeka ayarlarının son değiştiği an (otomatik onay taramasının "yeniden bak" eşiği). */
