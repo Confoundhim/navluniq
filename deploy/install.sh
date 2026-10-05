@@ -79,6 +79,36 @@ apt-get install -y -qq nginx redis-server supervisor \
 systemctl enable --now redis-server supervisor >/dev/null 2>&1 || true
 ok "nginx, redis, supervisor ve PHP ${PHP_VERSION} hazır"
 
+# Redis (I6): bellek sınırı yoksa önbellek büyüyüp sunucuyu yavaşlatır; sınır dolunca en az kullanılan anahtar silinir
+# (önbellek semantiği; oturum ve kuyruk veritabanında). Düşerse systemd 3 sn'de yeniden başlatır; bekçi ping ile izler.
+if [[ -f /etc/redis/redis.conf ]]; then
+    REDIS_DROPIN="/etc/redis/navluniq.conf"
+    REDIS_WANT=$'# NavlunIQ (deploy/install.sh tarafından yazılır)\nmaxmemory 256mb\nmaxmemory-policy allkeys-lru\n'
+    REDIS_CHANGED=0
+    if [[ ! -f "$REDIS_DROPIN" ]] || [[ "$(cat "$REDIS_DROPIN")" != "$(printf '%s' "$REDIS_WANT")" ]]; then
+        printf '%s' "$REDIS_WANT" > "$REDIS_DROPIN"
+        chown redis:redis "$REDIS_DROPIN" 2>/dev/null || true
+        REDIS_CHANGED=1
+    fi
+    # include dosyanın SONUNDA olmalı: aynı yönerge son yazılan değeri alır, böylece paket varsayılanını ezer.
+    if ! grep -qxF "include ${REDIS_DROPIN}" /etc/redis/redis.conf; then
+        printf '\ninclude %s\n' "$REDIS_DROPIN" >> /etc/redis/redis.conf
+        REDIS_CHANGED=1
+    fi
+    mkdir -p /etc/systemd/system/redis-server.service.d
+    REDIS_OVERRIDE="/etc/systemd/system/redis-server.service.d/navluniq.conf"
+    REDIS_OVERRIDE_WANT=$'[Service]\nRestart=always\nRestartSec=3\n'
+    if [[ ! -f "$REDIS_OVERRIDE" ]] || [[ "$(cat "$REDIS_OVERRIDE")" != "$(printf '%s' "$REDIS_OVERRIDE_WANT")" ]]; then
+        printf '%s' "$REDIS_OVERRIDE_WANT" > "$REDIS_OVERRIDE"
+        systemctl daemon-reload
+        REDIS_CHANGED=1
+    fi
+    if [[ $REDIS_CHANGED -eq 1 ]]; then
+        systemctl restart redis-server >/dev/null 2>&1 || true
+        ok "Redis: maxmemory 256mb, allkeys-lru, Restart=always"
+    fi
+fi
+
 update-alternatives --set php "/usr/bin/php${PHP_VERSION}" >/dev/null 2>&1 || true
 
 # PHP sınırları: KYC belgeleri 10 MB'a kadar kabul edilir; PHP'nin varsayılan 2 MB
