@@ -45,14 +45,26 @@ final class SeriesAd
     /** Mesajda kalkış bulunduğunu gösteren işaretler yoksa ve satırlar "yer + araç" biçimindeyse: kalkışsız varış listesi. */
     public static function isDestinationListWithoutPickup(string $prepared): bool
     {
+        return count(self::destinationOnlyLines($prepared)) >= 2;
+    }
+
+    /**
+     * Fiilsiz, yalnız "yer + araç/adet" satırlarından oluşan liste ("SAMSUN KAPALI TIR ⏎ İZMİR KAPALI TIR ⏎ …"): satırları
+     * döner (sıra korunur). Herhangi bir satırda kalkış/varış fiili, hal eki ya da rota bağlacı varsa, ya da yer taşıyan bir satır
+     * bu biçime uymuyorsa boş döner (olağan ilan).
+     *
+     * @return list<array{line:string, place:array}>
+     */
+    public static function destinationOnlyLines(string $prepared): array
+    {
         $lines = array_values(array_filter(array_map('trim', preg_split('/\n/u', $prepared) ?: []), fn ($l) => $l !== '' && AiParserService::phonesIn($l) === []));
-        $destLines = 0;
+        $dest = [];
         $placeLines = 0;
         foreach ($lines as $line) {
             $lower = TurkishCities::lower($line);
             if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(self::PICKUP_SUFFIX, $lower) === 1 || preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1
                 || AiParserService::connectorMatches($line) !== [] || preg_match('/^(.{2,40}?)\s*(?:=>|=|→|->)\s*(.{2,60})$/u', $line) === 1) {
-                return false; // kalkış/varış fiili ya da rota bağlacı var: olağan ilan
+                return []; // kalkış/varış fiili ya da rota bağlacı var: olağan ilan
             }
             $places = AiParserService::placesIn($line, 2);
             if ($places === []) {
@@ -60,11 +72,11 @@ final class SeriesAd
             }
             $placeLines++;
             if (count($places) === 1 && self::isPlaceOnly($line, $places) && preg_match('/(?<!\p{L})(?:'.implode('|', array_filter(self::VEHICLE_FILLER, fn ($w) => strlen($w) >= 3)).')(?!\p{L})/u', TurkishCities::ascii($line)) === 1) {
-                $destLines++;
+                $dest[] = ['line' => $line, 'place' => $places[0]];
             }
         }
 
-        return $destLines >= 2 && $destLines === $placeLines;
+        return count($dest) >= 2 && count($dest) === $placeLines ? $dest : [];
     }
 
     /**
