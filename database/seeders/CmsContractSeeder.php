@@ -196,6 +196,14 @@ HTML;
         </p>
     </div>
 
+    <!-- Madde 7A: Ticari Elektronik İleti -->
+    <div class="space-y-2">
+        <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 7A: Ticari Elektronik İleti</h3>
+        <p style="font-size:12pt;">
+            Kampanya, tanıtım ve duyuru içerikli ticari elektronik iletiler yalnız kayıt sırasında ya da profil sayfasında <strong>ayrıca ve açıkça</strong> verilen onay üzerine gönderilir; onay üyelik için zorunlu değildir. Üye, her iletideki bağlantıyla ya da profilinden onayını dilediği an ücretsiz olarak geri alabilir; ret talebi en geç üç iş günü içinde uygulanır ve İleti Yönetim Sistemi'ne (İYS) kaydedilir. Teklif, ödeme, sevkiyat ve hesap güvenliği gibi hizmetin ifası için zorunlu bildirimler ticari elektronik ileti sayılmaz ve onaydan bağımsız olarak gönderilir.
+        </p>
+    </div>
+
     <!-- Madde 8: Fikri Mülkiyet ve Veri Güvenliği -->
     <div class="space-y-2">
         <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Madde 8: Fikri Mülkiyet ve Veri Güvenliği</h3>

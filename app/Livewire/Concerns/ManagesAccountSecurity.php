@@ -5,6 +5,7 @@ namespace App\Livewire\Concerns;
 use App\Mail\SystemNoticeMail;
 use App\Models\User;
 use App\Services\AccountService;
+use App\Services\MarketingConsentService;
 use App\Services\NotificationService;
 use App\Services\OtpService;
 use App\Support\Phone;
@@ -39,6 +40,9 @@ trait ManagesAccountSecurity
 
     public bool $emailChangePending = false;
 
+    /** Ticari elektronik ileti onayı (pazarlama e-postaları). */
+    public bool $marketing_consent = false;
+
     public string $current_password = '';
 
     public string $new_password = '';
@@ -52,6 +56,7 @@ trait ManagesAccountSecurity
         $this->email = $user->email;
         $this->phone = Phone::format($user->phone);
         $this->emailChangePending = $user->pending_email !== null;
+        $this->marketing_consent = MarketingConsentService::hasConsent($user);
     }
 
     public function updateProfile(): void
@@ -70,7 +75,7 @@ trait ManagesAccountSecurity
 
         $phone = Phone::normalize($this->phone);
         $email = mb_strtolower(trim($this->email));
-        $phoneChanged = $phone !== $user->phone;
+        $phoneChanged = $phone !== (Phone::normalize((string) $user->phone) ?: $user->phone); // eski kayıtlar başında 0 ile duruyor olabilir
         $emailChanged = $email !== mb_strtolower((string) $user->email);
 
         if ($phoneChanged && User::query()->whereKeyNot($user->id)->whereIn('phone', Phone::variants($phone))->exists()) {
@@ -96,6 +101,11 @@ trait ManagesAccountSecurity
             $data['phone_verified_at'] = null;
         }
         $user->update($data);
+
+        // Pazarlama onayı: değişiklik varsa onay/ret kaydı (zaman, IP) tutulur.
+        if ($this->marketing_consent !== MarketingConsentService::hasConsent($user)) {
+            $this->marketing_consent ? app(MarketingConsentService::class)->grant($user) : app(MarketingConsentService::class)->revoke($user, 'profil');
+        }
 
         if ($emailChanged) {
             $user->forceFill(['pending_email' => $email])->save();

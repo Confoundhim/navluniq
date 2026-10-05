@@ -11,6 +11,8 @@ use App\Http\Controllers\Payment\PaymentWebhookController;
 use App\Http\Controllers\Payment\PaytrController;
 use App\Http\Middleware\EnsureCargoOwner;
 use App\Http\Middleware\EnsureDriver;
+use App\Models\User;
+use App\Services\MarketingConsentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -61,6 +63,15 @@ Route::get('/sozlesmeler/{slug?}', function (string $slug = 'kvkk') {
 
     return view('frontend.contract-page', ['activeContract' => $slug]);
 })->name('contracts');
+
+// Pazarlama e-postalarındaki tek tıklık çıkış bağlantısı: imzalı, giriş gerektirmez (ETK/İYS: ret her zaman ücretsiz ve kolay).
+Route::get('/e-posta/abonelikten-cik/{user}', function (string $user) {
+    $model = User::query()->where('public_id', $user)->orWhere('id', ctype_digit($user) ? (int) $user : 0)->first();
+    abort_unless($model, 404);
+    app(MarketingConsentService::class)->revoke($model, 'e-posta bağlantısı');
+
+    return view('frontend.unsubscribed-page');
+})->middleware(['signed', 'throttle:marketing-unsubscribe'])->name('marketing.unsubscribe');
 
 // Arama motorları: yalnız herkese açık tanıtım ve sözleşme sayfaları (panel, giriş, ödeme adresleri robots.txt ile kapalı).
 Route::get('/sitemap.xml', function () {

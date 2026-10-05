@@ -42,6 +42,8 @@ class User extends Authenticatable
         'ban_reason',
         'email_verified_at',
         'phone_verified_at',
+        'marketing_consent_at',
+        'marketing_consent_revoked_at',
         'last_login_at',
     ];
 
@@ -70,6 +72,8 @@ class User extends Authenticatable
         'banned_at' => 'datetime',
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
+        'marketing_consent_at' => 'datetime',
+        'marketing_consent_revoked_at' => 'datetime',
         'last_login_at' => 'datetime',
         'is_active' => 'boolean',
     ];

@@ -10,6 +10,10 @@ Merhaba{{ $recipientName ? ' '.$recipientName : '' }},
 {{ $actionText ?? 'Panele git' }}: {{ $actionUrl }}
 
 @endif
+@if(! empty($unsubscribeUrl))
+Bu bir kampanya/duyuru e-postasıdır. Almak istemiyorsanız: {{ $unsubscribeUrl }}
+
+@endif
 Saygılarımızla,
 NavlunIQ Ekibi
 {{ \App\Support\Company::get('phone') }} · {{ \App\Support\Company::get('email') }} · {{ rtrim((string) config('app.url'), '/') }}

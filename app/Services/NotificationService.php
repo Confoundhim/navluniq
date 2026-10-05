@@ -66,9 +66,18 @@ class NotificationService
             return false;
         }
 
+        // Pazarlama (ticari elektronik ileti): onayı olmayana hiç gönderilmez; gönderilende tek tıklık çıkış bağlantısı bulunur.
+        $marketing = $notification->type === 'marketing';
+        if ($marketing && ! MarketingConsentService::hasConsent($user)) {
+            $notification->forceFill(['mail_status' => UserNotification::MAIL_SKIPPED])->save();
+
+            return false;
+        }
+
         try {
             Mail::to($user->email, $user->full_name)->send(new SystemNoticeMail(
-                $notification->title, $notification->lines, $notification->action_url, $notification->action_text, $user->first_name
+                $notification->title, $notification->lines, $notification->action_url, $notification->action_text, $user->first_name,
+                $marketing ? MarketingConsentService::unsubscribeUrl($user) : null
             ));
             $notification->forceFill([
                 'mail_status' => UserNotification::MAIL_SENT,

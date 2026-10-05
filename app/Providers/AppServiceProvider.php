@@ -51,5 +51,6 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('intake-ping', fn (Request $r) => Limit::perMinute(30)->by('ping|'.$r->ip()));
         RateLimiter::for('intake-version', fn (Request $r) => Limit::perMinute(60)->by('version|'.$r->ip()));
         RateLimiter::for('scraper-webhook', fn (Request $r) => Limit::perMinute(60)->by('scraper|'.$r->ip()));
+        RateLimiter::for('marketing-unsubscribe', fn (Request $r) => Limit::perMinute(20)->by('unsub|'.$r->ip()));
     }
 }

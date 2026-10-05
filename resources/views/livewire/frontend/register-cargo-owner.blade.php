@@ -39,6 +39,9 @@ new class extends Component {
     public string $password_confirmation = '';
     public bool $acceptTerms = false;
 
+    /** Ticari elektronik ileti onayı: ayrı ve işaretlenmemiş kutu (ETK/İYS); kayıt için zorunlu değildir. */
+    public bool $acceptMarketing = false;
+
     public string $tcNo = '';
     public string $birthYear = '';
     public string $taxNo = '';
@@ -301,6 +304,9 @@ new class extends Component {
             'last_login_at' => now(),
         ])->save();
 
+        if ($this->acceptMarketing) {
+            app(\App\Services\MarketingConsentService::class)->grant($user);
+        }
         Auth::login($user, true);
         session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
@@ -426,6 +432,12 @@ new class extends Component {
                         </span>
                     </label>
                     @error('acceptTerms') <span class="form-error">{{ $message }}</span> @enderror
+                    <label class="flex items-start gap-3 cursor-pointer select-none mt-2">
+                        <input type="checkbox" wire:model="acceptMarketing" class="w-4 h-4 mt-0.5 accent-brand-500 rounded">
+                        <span class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                            <span class="font-semibold">Ticari elektronik ileti:</span> kampanya ve duyuru e-postaları almayı kabul ediyorum (isteğe bağlı; her iletideki bağlantıyla ya da profilimden istediğim an vazgeçebilirim).
+                        </span>
+                    </label>
                 </div>
 
                 <button type="submit" class="btn-primary w-full py-3">

@@ -14,4 +14,7 @@
         </table>
         <p style="margin:0 0 8px;font-size:11px;line-height:16px;color:#a1a1aa;">Düğme çalışmazsa bu adresi tarayıcınıza yapıştırın:<br><a href="{{ $actionUrl }}" style="color:#a1a1aa;word-break:break-all;">{{ $actionUrl }}</a></p>
     @endif
+    @if(! empty($unsubscribeUrl))
+        <p style="margin:18px 0 0;font-size:11px;line-height:16px;color:#a1a1aa;">Bu bir kampanya/duyuru e-postasıdır. Almak istemiyorsanız <a href="{{ $unsubscribeUrl }}" style="color:#a1a1aa;">tek tıkla çıkabilirsiniz</a>; işlem bildirimleri etkilenmez.</p>
+    @endif
 </x-mail-base>
