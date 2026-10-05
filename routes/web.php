@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\MacroDownloadController;
 use App\Http\Controllers\Admin\PanelSwitchController;
 use App\Http\Controllers\Admin\ToplayiciDumpController;
 use App\Http\Controllers\Admin\UpdateStatusController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\Driver\LocationController;
 use App\Http\Controllers\Files\ProtectedFileController;
 use App\Http\Controllers\Payment\PaymentWebhookController;
@@ -102,6 +103,9 @@ Route::middleware('auth')->get('/panel', function () {
 
     return redirect()->route('cargo-owner.dashboard');
 })->name('panel');
+
+// Tarayıcının içerik güvenliği politikası (CSP) ihlal raporu: CSRF yok, adlı sınırlayıcı, yalnız günlüğe yazar (I14).
+Route::post('/csp-rapor', CspReportController::class)->middleware('throttle:csp-report')->name('csp.report');
 
 // Ödeme kuruluşu sunucu bildirimi (sağlayıcıdan bağımsız) ve eski PayTR adresleri
 Route::post('/odeme/bildirim/{provider}', [PaymentWebhookController::class, 'handle'])->whereAlpha('provider')->name('payment.webhook');

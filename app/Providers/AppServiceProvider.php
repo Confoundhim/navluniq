@@ -54,6 +54,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('intake-ping', fn (Request $r) => Limit::perMinute(30)->by('ping|'.$r->ip()));
         RateLimiter::for('intake-version', fn (Request $r) => Limit::perMinute(60)->by('version|'.$r->ip()));
         RateLimiter::for('scraper-webhook', fn (Request $r) => Limit::perMinute(60)->by('scraper|'.$r->ip()));
+        RateLimiter::for('csp-report', fn (Request $r) => Limit::perMinute(30)->by('csp|'.$r->ip()));
 
         // /up adresi gerçek sağlık döner (veritabanı, önbellek, zamanlayıcı nabzı); dış izleme (UptimeRobot) buna bakar (I1).
         Event::listen(DiagnosingHealth::class, fn () => SystemWatchdog::diagnose());
