@@ -32,8 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(LogSlowRequests::class);
 
         // Panelden güncelleme sırasında site bakım modundadır; durum adresi muaf tutulur ki Sistem Sağlığı
-        // sayfası çıktıyı izleyip bitince kendini yenileyebilsin.
-        $middleware->preventRequestsDuringMaintenance(except: ['adminsystem/health/update-status']);
+        // sayfası çıktıyı izleyip bitince kendini yenileyebilsin. Ödeme kuruluşunun sunucudan sunucuya bildirimi de
+        // muaftır: bakım sayfasına çarpan geri çağrı "para çekildi ama ilan ödenmedi" bırakıyordu (I3).
+        $middleware->preventRequestsDuringMaintenance(except: ['adminsystem/health/update-status', 'odeme/bildirim/*', 'odeme/paytr/bildirim']);
 
         // Ödeme sağlayıcısı sunucudan sunucuya bildirir; CSRF yerine imza doğrulaması yapılır.
         $middleware->validateCsrfTokens(except: ['odeme/paytr/bildirim', 'odeme/bildirim/*']);
