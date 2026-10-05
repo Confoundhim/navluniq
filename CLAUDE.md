@@ -16,8 +16,8 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 
 ## 2. Çalışma düzeni (değişmez kurallar)
 
-- Geliştirme dalı: oturumun verdiği `claude/...` dalı (bu oturumda `claude/navluniq-continuation-mok1oc`; önceki
-  `claude/laravel-marketplace-mobile-a68zgo` main'e birleşti). Osman'ın verdiği dal adı oturumunkinden farklıysa
+- Geliştirme dalı: oturumun verdiği `claude/...` dalı (önceki oturumların dalları `claude/laravel-marketplace-mobile-a68zgo` ve
+  `claude/navluniq-continuation-mok1oc` main'e birleşti; yeni oturum kendi dalını kullanır). Osman'ın verdiği dal adı oturumunkinden farklıysa
   oturumun dalı kullanılır ve Osman'a tek satırla söylenir. Her iş bu dala commit edilir, push edilir ve `main`'e PR açılır. Osman PR'ları hemen birleştirir; **push etmeden önce PR durumunu kontrol et**:
   PR birleşmişse `git fetch origin main && git merge --no-edit origin/main` yap, push et ve **yeni PR** aç.
   Asla force-push yapma, asla başka dala push etme.
@@ -38,6 +38,10 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   "birleştirdikten sonra panelden **Siteyi güncelle**" notuyla verilir.
 - Osman "olur mu / öneriniz var mı" diye sorduğunda önce değerlendirme ve öneri yazılır, onay gelince yapılır.
   Doğrudan iş istediğinde sorulmadan yapılır.
+- **Dependabot PR'ları Osman'a sorulmadan birleştirilmez** (2026-10-05: Tailwind 3→4 ve Vite 5→8 önerisi birleşince derleme bozuldu,
+  site önceki sürüme döndü). `.github/dependabot.yml` artık büyük sürüm (major) önermez; gelen PR'ı önce bu ortamda `npm ci && npm run build`
+  ve `php artisan test` ile sına, sonra Osman'a "birleştirebilirsin" de. CI GitHub faturalandırma kilidi yüzünden çalışmıyor
+  (Osman Settings → Billing'i düzeltene kadar PR'lar sınanmadan birleşir; bu yüzden her PR öncesi tam paket burada çalıştırılır).
 
 ## 3. Sunucu ve güncelleme
 
@@ -70,8 +74,17 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   `FORCE_IMPORT=1` dolu veritabanını yeniden yükler; `--deneme` IP ile açılan yalıtılmış kopya: `MAIL_MAILER=log` +
   `php artisan deneme:izole` (e-posta/Telegram kapalı, ödeme sağlayıcısı boş, süper yöneticiler kod 123456 ile girer)). `install.sh` artık php-fpm işçi sayısını belleğe göre ayarlar,
   MySQL `99-navluniq.cnf` yazar, supervisor işçisini `.env` bağlantısıyla kurar; var olan `.env`'in önbellek/oturum seçimini bozmaz.
-- Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu.
-  Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
+- **Güncelleme hata verirse** (2026-10-05 örneği): `deploy/update.sh` derleme adımında hata alınca önceki commit'e döner ve siteyi açar; panel
+  "Son güncelleme hata verdi" + çıktının sonunda "✘ … geri dönülüyor" yazar. Sağlık ekranı "Çalışan sürüm" satırı GitHub main ile
+  karşılaştırılır (`git log -1 origin/main`); aynıysa güncelleme uygulanmıştır. Hata sebebi çoğunlukla bağımlılık (npm/composer) ya da migration.
+- **Bu bulut ortamı navluniq.com'a erişemez** (ağ kuralı 403); canlı denetim yalnız Osman'ın ekran görüntüleriyle yapılır. Osman isterse
+  ortam ayarlarından (Edit → Network access → Allowed domains) navluniq.com'u ekler, o zaman `/up` ve sayfalar curl ile denetlenir.
+  Ortamda `composer install` için `COMPOSER_ALLOW_SUPERUSER=1 composer install --no-plugins --prefer-dist` (vendor kaynak kopyasıysa
+  "uncommitted changes" der; `rm -rf vendor` sonra kur). npm kayıt deposu açık.
+- Bekleyen dış işler (Osman'ın yapacağı): Google faturalandırma anahtarı, Brevo/DMARC/DKIM kurulumu, GitHub faturalandırma kilidi (CI),
+  iyzico pazaryeri sözleşmesi ve canlı anahtarlar (sağlık ekranında "Ödeme kuruluşu" kırmızı), İYS kaydı, depoyu gizliye alma (sonra
+  `android/keystore` yenilenir), UptimeRobot `/up`, Telegram `alert_telegram_chat_id`. Şoförlere duyuru: Araçlarım'dan kasa tipini seçsinler.
+  iyzico inceleme hesapları (`iyzico.yuksahibi@…`, `iyzico.sofor@…`) sabit kodla giriyor; inceleme bitince Ayarlar → Genel'den kod silinir.
 
 ## 4. Alan bilgisi (sektör kuralları)
 
@@ -331,6 +344,11 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   (`driver|cargo|admin|public`, kip `normal|large`). Playwright depoda bağımlılık değil: çalışma klasöründe
   `npm i --no-save playwright` (indirme yapmaz; tarayıcı `/opt/pw-browsers` altında hazır). Etkileşim gerektiren
   denetimler için aynı betiği temel alıp geçici bir betik yazılır. Toplu taşma denetimi: `scripts/mobile-audit.cjs`.
+- **Uçtan uca yerel deneme (canlıya giremeyince):** `APP_ENV=testing DB_CONNECTION=sqlite DB_DATABASE=<dosya> CACHE_STORE=array
+  SESSION_DRIVER=array QUEUE_CONNECTION=sync MAIL_MAILER=array php artisan migrate --force && php artisan db:seed --force &&
+  php artisan db:seed --class=LocalDemoSeeder --force`, sonra tinker betiğiyle `LoadIntakeService::intake([...])` → `ScrapedLoadService::
+  autoApproveDue()` → `LoadFilterService::applyToScraped(...)` (demo TIR şoförü ne görüyor). 2026-10-05'te 9 uydurma mesajla doğrulandı.
+  Hat karnesi yönetici bileşenindedir (`scrapers-center.blade.php::scorecard`), servis değil.
 - Yönetici sekme bağlantıları: `/adminsystem/scrapers?sekme=published`, `/adminsystem/operations`,
   `/adminsystem/settings`, `/adminsystem/health`. Şoför: `/panel/sofor/...` (ilan-havuzu, seferlerim, bildirimler).
 
@@ -394,7 +412,26 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
   Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
 
-## 10. Bekleyen fikirler (Osman onaylarsa)
+## 10. Devir durumu (2026-10-05, bu dosya yeni sohbete aktarım içindir)
+
+- **Canlı:** sürüm 8a0e118 (PR #123 canlıya hazırlık C1/C2 + pazarlama rızası, #127 ilan hattı denetimi 53 bulgu + 1406 düzeltmesi,
+  #128 derleme geri dönüşü + Dependabot, #131 axios). Sağlık ekranı: başarısız iş 0, kuyruk/zamanlayıcı/telefon akışı/yapay zeka yeşil;
+  kırmızı yalnız "Ödeme kuruluşu" (iyzico anahtarı yok) ve "Sabit kodla giriş" (iyzico inceleme hesapları, bilinçli).
+  Test: 710 test, altın set 250/250, pint ve composer audit temiz; npm audit'teki kalan uyarılar yalnız derleme araçlarında.
+- **Osman'ın kararını bekleyen konular:** (1) sabit hat / 0850 numaralı ilanlar alınsın mı (bugün yalnız 5xx cep); (2) aynı ilanı kendi
+  numarasıyla paylaşan komisyoncu için "benzer ilan" rozeti; (3) iki satırlık "İSTANBUL HADIMKÖY TENTELİ TIR / ANKARA 2 ARAÇ" mesajı
+  eksik bilgili yayınlansın mı (bugün kalkışsız liste diye eleniyor); (4) "TORBALI YÜKLER" gibi yük-benzeri ilçe adıyla başlayan başlık
+  fiil varsa kabul edilsin mi; (5) depo gizliliği + keystore; (6) yük sigortası ortağı (Tamamliyo önerildi); (7) Toplayıcı'ya "Ana sayfa
+  akışı da dahil / yalnız gruplar" ayarı (Engin Abi 2026-10-05: nakliyecileri takip edip ana sayfadan toplama; cevap: teknik olarak çalışır,
+  arkadaş eklemek yerine "takip et", yalnız herkese açık gönderiler, ana sayfa grupların yerine değil yanına).
+- **Sıradaki kod işleri (öncelik sırası, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §3-§6):** Paket C3 (yapılandırılmış yük ilanı formu il/ilçe
+  seçici + gizli adres, "doğrulanmış yük sahibi" rozeti, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
+  detayı, destek talebi), Paket C4 (indeksler, temizlik, durum makinesi testleri), cihaz başına alım anahtarı (I13), bildirim kuyruğu,
+  SMS doğrulama (Netgsm anahtarı gelince), sigorta entegrasyonu, Tailwind 4 / Vite 8 geçişi (elle, testle, ayrı PR).
+- **Çalışma kuralı hatırlatması:** her işte dal = oturumun `claude/...` dalı, PR aç, Osman birleştirir, "Siteyi güncelle" notu; Osman
+  Dependabot PR'ı görürse önce sorar.
+
+## 11. Bekleyen fikirler (Osman onaylarsa)
 
 - "Merkezim" (şoförün ev/park adresi) ve yol üstü parça yük önerisi.
 - Konuma göre anlık bildirim (Paket C) ve PWA / Play Store — mobil uygulama ile birlikte, şimdilik ertelendi.
