@@ -92,9 +92,14 @@ final class Company
     public const SETTING_TOKENS = [
         '{{AUTO_APPROVAL_HOURS}}' => 'delivery_auto_approval_hours',
         '{{OFFER_PAYMENT_HOURS}}' => 'offer_payment_hours',
+        '{{PREMIUM_LEAD_MINUTES}}' => 'scraper_free_delay_minutes',
+        '{{EXTERNAL_LIST_DAYS}}' => 'scraper_list_days',
     ];
 
-    /** Sözleşme metnindeki {{COMPANY_*}} ve süre ({{AUTO_APPROVAL_HOURS}} vb.) yer tutucularını güncel değerlerle doldurur (HTML kaçışlı). */
+    /** Sıfır değeri anlamlı olan süre yer tutucuları (gecikme 0 dk = ilan herkese aynı anda açılır); diğerleri en az 1 gösterir. */
+    public const ZERO_ALLOWED_TOKENS = ['{{PREMIUM_LEAD_MINUTES}}'];
+
+    /** Sözleşme metnindeki {{COMPANY_*}} ve süre ({{AUTO_APPROVAL_HOURS}}, {{PREMIUM_LEAD_MINUTES}} vb.) yer tutucularını güncel değerlerle doldurur (HTML kaçışlı). */
     public static function fillTokens(?string $html): string
     {
         $html = (string) $html;
@@ -108,7 +113,7 @@ final class Company
             $map[$token] = e($value !== '' ? $value : '—');
         }
         foreach (self::SETTING_TOKENS as $token => $key) {
-            $map[$token] = (string) max(1, Settings::int($key));
+            $map[$token] = (string) max(in_array($token, self::ZERO_ALLOWED_TOKENS, true) ? 0 : 1, Settings::int($key));
         }
 
         return strtr($html, $map);

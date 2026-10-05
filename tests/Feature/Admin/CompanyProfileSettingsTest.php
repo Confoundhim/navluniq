@@ -7,6 +7,7 @@ use App\Models\CmsContent;
 use App\Models\User;
 use App\Support\Company;
 use App\Support\Settings;
+use Database\Seeders\CmsContractSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -98,6 +99,65 @@ class CompanyProfileSettingsTest extends TestCase
         CmsContent::setVal('contract_privacy', '<p>{{COMPANY_NAME}} özel gizlilik metni</p>');
         $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
         $this->assertSame('<p>{{COMPANY_NAME}} özel gizlilik metni</p>', CmsContent::getVal('contract_privacy'));
+
+        // Kodda olmayan özellikler metinde geçmez; kodda olanlar anlatılır (panel düğmesi: tam yenileme).
+        $this->artisan('legal:refresh')->assertSuccessful();
+        $all = implode(' ', array_map(fn ($k) => (string) CmsContent::getVal($k), CmsContractSeeder::KEYS));
+        foreach (['OCR', 'biyometrik veri (profil', 'U-ETDS', 'PWA', 'mesajlaşma modülü', 'selfie', 'uzman ekibimizce', 'SMS', '20 dakikaya', '30 gün sonunda', 'havale/EFT', 'e-belge sağlayıcı'] as $gone) {
+            $this->assertStringNotContainsString($gone, $all, "Kodda olmayan \"{$gone}\" metinde kalmamalı");
+        }
+        $kvkk = (string) CmsContent::getVal('contract_kvkk');
+        $this->assertStringContainsString('data-clause="yurt-disi-aktarim"', $kvkk);
+        $this->assertStringContainsString('KVKK m. 9', $kvkk);
+        $this->assertStringContainsString('aktarıldığı üçüncü kişileri bilme', $kvkk);
+        $this->assertStringContainsString('30 gün', $kvkk);
+        $this->assertStringContainsString('NVİ', $kvkk);
+        $this->assertStringContainsString('{{EXTERNAL_LIST_DAYS}} gün', $kvkk);
+        $this->assertStringContainsString('{{PREMIUM_LEAD_MINUTES}} dakika', (string) CmsContent::getVal('contract_distance_sale'));
+        $this->assertStringContainsString('15/1-ğ', (string) CmsContent::getVal('contract_distance_sale'));
+        $this->assertStringContainsString('data-clause="surum-onay"', (string) CmsContent::getVal('contract_terms'));
+        $this->assertStringContainsString('Üçüncü taraf analitik, reklam ya da izleme çerezi kullanılmaz', (string) CmsContent::getVal('contract_privacy'));
+        $this->assertStringContainsString('data-clause="iptal-asamalari"', (string) CmsContent::getVal('contract_cancellation'));
+        $this->assertStringContainsString('İptal et ve iade al', (string) CmsContent::getVal('contract_cancellation'));
+        // Yer tutucular sayfada güncel ayarla dolar; gecikme sıfırsa "0 dakika" yazılır (max 1 uygulanmaz).
+        Settings::set('scraper_free_delay_minutes', '0');
+        Settings::set('scraper_list_days', '9');
+        $filled = Company::fillTokens('{{PREMIUM_LEAD_MINUTES}} dakika · {{EXTERNAL_LIST_DAYS}} gün · {{OFFER_PAYMENT_HOURS}} saat');
+        $this->assertSame('0 dakika · 9 gün · '.max(1, Settings::int('offer_payment_hours')).' saat', $filled);
+        $this->get('/sozlesmeler/mesafeli-satis')->assertOk()->assertDontSee('{{PREMIUM_LEAD_MINUTES}}');
+    }
+
+    public function test_legal_refresh_tracks_seed_marks_and_respects_admin_edits(): void
+    {
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertSame([], RefreshLegalTextsCommand::staleKeys());
+        $mark = (string) CmsContent::getVal(CmsContractSeeder::SEED_MARK_PREFIX.'contract_kvkk');
+        $this->assertSame(CmsContractSeeder::templateHash('contract_kvkk').'|'.sha1((string) CmsContent::getVal('contract_kvkk')), $mark);
+
+        // Şablon değişmiş gibi: iz eski özeti taşıyor, metin dokunulmamış → yalnız o metin yenilenir.
+        CmsContent::setVal(CmsContractSeeder::SEED_MARK_PREFIX.'contract_kvkk', 'eski-sablon|'.sha1((string) CmsContent::getVal('contract_kvkk')));
+        $this->assertSame(['contract_kvkk'], RefreshLegalTextsCommand::staleKeys());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful()->expectsOutputToContain('contract_kvkk');
+        $this->assertSame([], RefreshLegalTextsCommand::staleKeys());
+
+        // Yönetici güncel biçimdeki metni elle değiştirdi, iz eski şablonu gösteriyor → yine de dokunulmaz.
+        $edited = str_replace('Madde 1: Veri Sorumlusunun Kimliği', 'Madde 1: Veri Sorumlusu', (string) CmsContent::getVal('contract_kvkk'));
+        CmsContent::setVal('contract_kvkk', $edited);
+        CmsContent::setVal(CmsContractSeeder::SEED_MARK_PREFIX.'contract_kvkk', 'eski-sablon|baska-ozet');
+        $this->assertSame([], RefreshLegalTextsCommand::staleKeys());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertSame($edited, CmsContent::getVal('contract_kvkk'));
+
+        // İz hiç yoksa (bu izleme eklenmeden önceki canlı metin) bir kez yenilenir ve iz yazılır.
+        CmsContent::query()->where('key', CmsContractSeeder::SEED_MARK_PREFIX.'contract_terms')->first()?->delete();
+        $this->assertSame(['contract_terms'], RefreshLegalTextsCommand::staleKeys());
+        $this->artisan('legal:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertNotSame('', (string) CmsContent::getVal(CmsContractSeeder::SEED_MARK_PREFIX.'contract_terms'));
+        $this->assertSame([], RefreshLegalTextsCommand::staleKeys());
+
+        // Panel düğmesi (--if-stale yok) her şeyi şablona döndürür.
+        $this->artisan('legal:refresh')->assertSuccessful();
+        $this->assertStringContainsString('Madde 1: Veri Sorumlusunun Kimliği', (string) CmsContent::getVal('contract_kvkk'));
     }
 
     public function test_admin_saves_company_profile_and_vat_from_settings_page(): void
