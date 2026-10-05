@@ -29,7 +29,6 @@ class LoadService
         if ((float) $data['price'] < $minPrice) {
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
         }
-
         // Adres metninden il/ilçe ve koordinat çözümlenir; koordinat açıkça verildiyse o korunur.
         $pickupGeo = TurkishLocations::resolve($data['pickup_location'] ?? null);
         $deliveryGeo = TurkishLocations::resolve($data['delivery_location'] ?? null);

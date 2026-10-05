@@ -3,6 +3,7 @@
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Offer;
+use App\Services\CargoOwnerVerificationService;
 use App\Services\OfferService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -18,6 +19,13 @@ class extends Component {
     public int $loadId = 0;
 
     public string $sortBy = 'amount';
+
+    /** Kimlik adımı: ilk teklif kabulünde bireysel yük sahibi TC + doğum yılını bir kez verir (NVİ); sonra hiç sorulmaz. */
+    public ?int $verifyOfferId = null;
+
+    public string $verify_tc = '';
+
+    public string $verify_birth_year = '';
 
     public function mount(int $loadId): void
     {
@@ -48,6 +56,52 @@ class extends Component {
             return;
         }
 
+        $profile = Auth::user()->cargoOwnerProfile;
+        if ($profile?->needsIdentityStep() && $offer->status === 'pending') {
+            // Para akışı burada başlıyor: kimlik yalnız bu anda, bir kez sorulur.
+            $this->verifyOfferId = $offer->id;
+            $this->verify_tc = (string) ($profile->tc_no ?? '');
+            $this->verify_birth_year = (string) ($profile->birth_year ?? '');
+            $this->resetErrorBag();
+
+            return;
+        }
+
+        $this->finishAccept($load, $offer, $offers);
+    }
+
+    /** Kimlik adımındaki "Doğrula ve kabul et": NVİ eşleşirse teklif aynı istekte kabul edilir. */
+    public function verifyAndAccept(CargoOwnerVerificationService $verification, OfferService $offers): void
+    {
+        $load = $this->ownerLoad();
+        $offer = $load && $this->verifyOfferId ? Offer::query()->whereKey($this->verifyOfferId)->where('load_id', $load->id)->first() : null;
+        if (! $load || ! $offer) {
+            $this->verifyOfferId = null;
+            session()->flash('error_message', 'Teklif bulunamadı.');
+
+            return;
+        }
+        $this->validate(
+            ['verify_tc' => CargoOwnerVerificationService::rules()['tc'], 'verify_birth_year' => CargoOwnerVerificationService::rules()['birth_year']],
+            CargoOwnerVerificationService::messages('verify_tc', 'verify_birth_year'),
+        );
+        if ($error = $verification->verifyIdentity(Auth::user(), $this->verify_tc, $this->verify_birth_year)) {
+            $this->addError('verify_tc', $error);
+
+            return;
+        }
+        $this->verifyOfferId = null;
+        $this->finishAccept($load, $offer, $offers);
+    }
+
+    public function closeIdentityStep(): void
+    {
+        $this->verifyOfferId = null;
+        $this->resetErrorBag();
+    }
+
+    private function finishAccept(Load $load, Offer $offer, OfferService $offers): void
+    {
         try {
             $offers->accept($load, $offer, (int) Auth::id());
         } catch (\RuntimeException $e) {
@@ -119,6 +173,7 @@ class extends Component {
             'pendingOffers' => $pending->values(),
             'closedOffers' => $all->whereIn('status', ['rejected', 'withdrawn', 'expired'])->values(),
             'acceptedOffer' => $all->firstWhere('status', 'accepted'),
+            'verifyOffer' => $this->verifyOfferId ? $all->firstWhere('id', $this->verifyOfferId) : null,
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
         ];
     }
@@ -319,4 +374,40 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">İlan bulunamadı.</div>
     @endif
 
+    @if($verifyOfferId && $verifyOffer)
+        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeIdentityStep"></div>
+            <form wire:submit.prevent="verifyAndAccept" class="relative w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 shadow-2xl">
+                <div class="space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-brand-500">Tek seferlik kimlik adımı</span>
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">Teklifi kabul etmeden önce kimliğinizi doğrulayın</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Ödeme güvenliği için T.C. kimlik numaranız ve doğum yılınız Nüfus Müdürlüğü kaydıyla bir kez eşleştirilir; bir daha sorulmaz. Bilgileriniz şoföre gösterilmez.</p>
+                </div>
+                <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs flex items-center justify-between gap-3">
+                    <span class="text-neutral-500">Kabul edilecek teklif</span>
+                    <span class="font-bold text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) $verifyOffer->amount, 2, ',', '.') }} ₺</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="form-label">T.C. kimlik numarası</label>
+                        <input type="text" wire:model="verify_tc" maxlength="11" inputmode="numeric" autocomplete="off" class="form-input font-mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="form-label">Doğum yılı</label>
+                        <input type="text" wire:model="verify_birth_year" maxlength="4" inputmode="numeric" placeholder="1985" class="form-input font-mono">
+                    </div>
+                </div>
+                @error('verify_tc') <p class="form-error">{{ $message }}</p> @enderror
+                @error('verify_birth_year') <p class="form-error">{{ $message }}</p> @enderror
+                <p class="text-[11px] text-neutral-500 leading-relaxed">Hesabınızdaki ad ve soyad ({{ auth()->user()->first_name }} {{ auth()->user()->last_name }}) nüfus kaydınızla aynı olmalı; farklıysa önce Profil sayfasından düzeltin.</p>
+                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                    <button type="button" wire:click="closeIdentityStep" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
+                    <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/25 transition-all">
+                        <span wire:loading.remove wire:target="verifyAndAccept">Doğrula ve kabul et</span>
+                        <span wire:loading wire:target="verifyAndAccept">Sorgulanıyor…</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    @endif
 </div>

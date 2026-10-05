@@ -21,6 +21,7 @@ final class Settings
         'load_expiry_grace_days' => 1,          // Yükleme tarihi bu kadar gün geçmiş, hâlâ teklif bekleyen ilan kapatılır
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
+        'cargo_owner_verification_required' => 1, // 1: bireysel yük sahibi ilk teklif kabulünde kimliğini NVİ ile bir kez doğrular; kurumsalda vergi numarası yeter (karar 3, 2026-10-05)
         'return_load_radius_km' => 150,         // Dönüş yükü: varış noktasına bu kadar km içinden çıkan ilanlar bildirilir (aynı il her zaman)
         'return_load_mail_hours' => 3,          // Dönüş yükü e-postası sefer başına en çok bu kadar saatte bir (uygulama içi bildirim her zaman)
         'trip_auto_close_days' => 3,            // Teslim edildikten bu kadar gün sonra sefer kendiliğinden kapanır

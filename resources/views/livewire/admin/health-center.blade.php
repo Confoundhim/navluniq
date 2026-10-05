@@ -186,7 +186,15 @@ new class extends Component {
                 throw new RuntimeException($gateway->label().': anahtarlar tanımlı değil; navlun ve premium ödemesi alınamaz.');
             }
 
-            return $payments->isSandbox() ? ['warn' => true, 'detail' => $gateway->label().' · TEST (sandbox) modu; gerçek para çekilmez'] : $gateway->label().' · canlı';
+            if ($payments->isSandbox()) {
+                return ['warn' => true, 'detail' => $gateway->label().' · TEST (sandbox) modu; gerçek para çekilmez'];
+            }
+            // Canlı anahtar var ama pazaryeri ürünü kapalıysa navlun tahsilatı yine kapalıdır (escrowBlocker); ışık yeşil yanmasın
+            if (($blocker = \App\Support\PaymentReadiness::escrowBlocker($gateway)) !== null) {
+                return ['warn' => true, 'detail' => $gateway->label().' · canlı anahtar var, navlun tahsilatı kapalı: '.$blocker];
+            }
+
+            return $gateway->label().' · canlı · pazaryeri açık';
         });
 
         $this->checks[] = $this->probe('Telefon akışı', function (): string|array {

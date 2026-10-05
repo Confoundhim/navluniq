@@ -140,6 +140,32 @@ new class extends Component {
 
     public const NVI_DAILY_LIMIT = 5;
 
+    /** Kurumsal yük sahibi: vergi bilgileri teyit edildi → doğrulanmış (teklif kabul edebilir, şoför kartında rozet). */
+    public function setCompanyVerified(bool $verified): void
+    {
+        if (! auth()->user()->can('verify kyc')) {
+            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+
+            return;
+        }
+        $user = $this->selectedId ? User::query()->with('cargoOwnerProfile')->find($this->selectedId) : null;
+        $profile = $user?->cargoOwnerProfile;
+        if (! $profile || $profile->type !== 'corporate') {
+            return;
+        }
+        if ($verified && ! (app(GibService::class)->verifyTax((string) $profile->tax_no)['is_match'] ?? false)) {
+            session()->flash('error_message', 'Vergi kimlik numarası biçimsel olarak geçersiz; önce kullanıcı düzeltmeli.');
+
+            return;
+        }
+        $profile->update(['gib_verified' => $verified, 'gib_verified_at' => $verified ? now() : null, 'gib_verified_by' => $verified ? auth()->id() : null]);
+        ActivityLog::record($verified ? 'kyc.company_verified' : 'kyc.company_unverified', ($verified ? 'Şirket doğrulandı' : 'Şirket doğrulaması kaldırıldı')." (kullanıcı #{$user->id})", auth()->id(), $profile);
+        if ($verified) {
+            app(\App\Services\NotificationService::class)->notify($user, 'Şirketiniz doğrulandı', ['Vergi bilgileriniz teyit edildi; artık teklif kabul edebilirsiniz ve ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür.'], route('cargo-owner.loads.index'), 'İlanlarım', 'kyc');
+        }
+        session()->flash('success_message', $verified ? 'Şirket doğrulandı; kullanıcıya haber verildi.' : 'Şirket doğrulaması kaldırıldı.');
+    }
+
     public function verifyGib(): void
     {
         if (! auth()->user()->can('verify kyc')) {
@@ -290,6 +316,7 @@ new class extends Component {
                                 <td class="p-4" data-label="Durum">
                                     @php $st = $p?->kyc_status ?? 'unsubmitted'; @endphp
                                     <span class="px-2.5 py-1 rounded-full font-semibold text-[10px] {{ $badge[$st] ?? '' }}">{{ $kycLabels[$st] ?? $st }}</span>
+                                    @if($role === 'cargo_owner' && $p)<div class="text-[11px] mt-1 {{ $p->isVerified() ? 'text-emerald-600' : 'text-amber-600' }}">{{ $p->verificationLabel() }}</div>@endif
                                 </td>
                             </tr>
                         @empty
@@ -367,6 +394,17 @@ new class extends Component {
                                 @if($gibResult)
                                     <div class="p-3 rounded-xl text-[11px] {{ $gibResult['is_match'] ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}">{{ $gibResult['message'] }}</div>
                                 @endif
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-neutral-50 dark:bg-neutral-900 p-3.5 rounded-2xl border border-neutral-200/40 dark:border-neutral-700/40">
+                                    <div class="text-xs">
+                                        <span class="font-semibold block">Şirket doğrulaması: {{ $profile->gib_verified ? 'doğrulandı'.($profile->gib_verified_at ? ' · '.$profile->gib_verified_at->format('d.m.Y') : '') : 'bekliyor' }}</span>
+                                        <span class="text-[11px] text-neutral-400">Unvan, VKN ve vergi dairesini (varsa vergi levhasıyla) teyit edince işaretleyin; kullanıcı teklif kabul edebilir ve kartında rozet çıkar.</span>
+                                    </div>
+                                    @if($profile->gib_verified)
+                                        <button type="button" wire:click="setCompanyVerified(false)" wire:confirm="Şirket doğrulaması kaldırılacak; kullanıcı teklif kabul edemez." @disabled(! $canVerify) class="btn-apple-secondary py-1.5 px-3 text-[11px] disabled:opacity-40">Doğrulamayı kaldır</button>
+                                    @else
+                                        <button type="button" wire:click="setCompanyVerified(true)" wire:loading.attr="disabled" @disabled(! $canVerify) class="btn-apple-brand py-1.5 px-3 text-[11px] disabled:opacity-40">Şirketi doğrula</button>
+                                    @endif
+                                </div>
                             @endif
                         </div>
                     @endif

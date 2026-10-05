@@ -462,8 +462,54 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - **Bu bulut ortamında PHP 8.3 var, proje 8.4 ister:** `composer install --ignore-platform-req=php` ile kurulur; iki test yalnız bu
   yüzden düşer (`SystemWatchdogTest` `ReflectionProperty::isVirtual` 8.4'e özgü, `ScheduleLocksTest` kırpma testi); canlıda sorun yok.
   Playwright kurulumu (`npm i --no-save playwright`) 2026-10-05 oturumunda izin denetimine takıldı; ekran görüntüsü alınamadıysa Osman'a söylenir.
+- **Canlıya geçiş planı (2026-10-05 gece, `docs/CANLIYA_GECIS_PLANI.md`):** Osman'ın bu haftaki dört işi (iyzico, Netgsm, Rota Bulut ERP,
+  Tamamliyo) tek başına yetmez; ERP ve sigorta canlı için şart değil. Listede olmayan engelleyiciler: yük sahibi doğrulama kuralı/rozet
+  (E1-E5), açık adres ve ad gizliliği + yapılandırılmış ilan formu (E6/E7), KVKK yurt dışı aktarım ve sözleşme metinleri (E9/E10),
+  defter düzeltmesi P4 (ERP'den önce), premium satın alma yolu, depo/keystore. Aynı gece düzeltilenler: mesafeli satış bağlantısı 404,
+  yeniden onay "Çıkış yap", yapay zeka komutu sabit hat (PROMPT_VERSION 2026-10-05b), sağlık "Ödeme kuruluşu" ışığı escrowBlocker'a
+  bakar, NVİ XML kaçışı. Haftalık sıra belgenin §7'sinde.
+- **Yük sahibi doğrulama paketi (2026-10-05, E1-E5, `docs/CANLIYA_GECIS_PLANI.md` §3a; Osman: "diğer firmalar nasıl yapıyor, bize ne
+  kadarı yeterse" → sonra "kullanıcıları sıkmadan bir formül"):** **"sorma, para anında bir kez doğrula."** Kayıtta kimlik istenmez
+  (bireysel: ad, soyad, telefon, e-posta, şifre; kurumsal: + VKN ve unvan). Bireysel yük sahibi **ilk teklifi kabul ederken** TC + doğum
+  yılını bir kez verir: `cargo-owner.loads.offers` kabul düğmesi `needsIdentityStep()` ise kimlik adımını açar, `verifyAndAccept` NVİ
+  eşleşince teklifi aynı istekte kabul eder; ortak servis `App\Services\CargoOwnerVerificationService::verifyIdentity` (günde 3 deneme
+  `nvi:self:{id}`, `tc_no` başka hesapta ise reddeder, ActivityLog `kyc.nvi_checked`); profil sayfası da aynı servisi kullanır (isteyen
+  önceden doğrular). Kurumsal: 10 haneli VKN + unvan = **ön doğrulama** (`hasPreverifiedTaxNo`, teklif kabulü açık); yönetici KYC
+  ekranında "Şirketi doğrula" yalnız rozeti verir (`gib_verified_at/by`, bildirim). Belge fotoğrafı zorunlu değil
+  (`KycDocument::CARGO_OWNER_REQUIRED` boş). İlan açmak serbest (açık ilan sınırı yok; `cargo_owner_unverified_max_active_loads` kaldırıldı).
+  Şoför kartında yalnız olumlu rozet (`isVerified()` → "✓ Doğrulanmış yük sahibi"; doğrulanmamışa damga yok) ve `publicName()` ("Ad S.",
+  kurumsal unvan). Ayar `cargo_owner_verification_required` (varsayılan açık; kapalıysa kimlik adımı hiç çıkmaz). **Testlerde zorunluluk
+  `tests/TestCase::setUp` ile kapalıdır** (eski testler doğrulanmamış yük sahibiyle teklif kabul eder); `VerificationTest` kendi setUp'ında
+  açar. Migration `0001_01_55`.
+- **Ana sayfa karşılama sahnesi (2026-10-05, Osman: "slider kısmını uç seviyeye çıkar, waooow demeliyim"):** `livewire/frontend/home.blade.php`
+  1. bölüm Alpine ile çalışır (sunucuya gitmez): rol anahtarı (Yük Sahibi / Şoför) + yaşayan sahne. Yük sahibi: SVG rota üzerinde
+  `animateMotion` ile ilerleyen araç, sırayla yanan 4 adım çipi (`.hero-chip`, konum dış `<g transform>`'da; CSS transform animasyonu
+  attribute'u ezdiğinden iç/dış `<g>` ayrı), kayan ödeme kartı. Şoför: dağınık grup mesajları → NavlunIQ çipi → temiz ilan kartları,
+  dönüş yükü radarı; hepsi hep görünür, 9 sn'lik döngüde sırayla vurgulanır. İlk dokunuşa kadar 9 sn'de bir rol değişir (segmentte ince
+  ilerleme çizgisi), dokununca/ekran dışına çıkınca/sekme gizlenince durur; `prefers-reduced-motion` → sabit sahne, araç rota ortasında.
+  Yük sahibi blokları `x-show` (JS yüklenmeden görünür), şoför blokları `x-if` (her açılışta `hero-reveal` yeniden oynar). Stiller
+  `resources/css/app.css` "Ana sayfa karşılama sahnesi" bölümünde. **Tuzak:** `app.css` 767 px altında `main .flex.items-center.justify-between`
+  satırlarını sarar (`flex-wrap`); sarmaması gereken kart satırları için `.hero-row` gibi kendi sınıfı kullanılır. Bugün derlenen ilan sayısı
+  `LoadStatsService::summary()['external_today']` ile güven şeridinde. Yerel inceleme: `?rol=sofor` ilk rolü şoför yapar.
+- **Sözleşmeler A'dan Z'ye (2026-10-05, Osman: "mevcut yapıyı koruyup hatalı kısımları düzelt"):** beş metin (`CmsContractSeeder::templates()`)
+  kodla birebir hizalandı: OCR / selfie-biyometrik / U-ETDS / PWA / mesajlaşma / havale-EFT / e-belge sağlayıcı / "mobil uygulama" iddiaları
+  çıktı; KVKK'ya **m. 9 yurt dışına aktarım** maddesi (`data-clause="yurt-disi-aktarim"`: dış kaynak ilan metinleri yurt dışı yapay zeka
+  sağlayıcılarına gider), m. 11 hakların tamamı, saklama süreleri, 5/2-e; Kullanıcı Sözleşmesi 4.2 gönderici doğrulaması (yeni formül),
+  5.x ödeme/komisyon/IBAN kodla aynı, 6.x iptal-iade `LoadService`/`DisputeService` ile birebir, 8A sürüm-yeniden onay, 8B fesih, 8C mücbir
+  sebep; Mesafeli Satış m. 15/1-ğ cayma istisnası; İade Politikası aşama aşama (`data-clause="iptal-asamalari"`). Yeni yer tutucular
+  `Company::SETTING_TOKENS`: `{{PREMIUM_LEAD_MINUTES}}` (`scraper_free_delay_minutes`, 0 olabilir: `ZERO_ALLOWED_TOKENS`),
+  `{{EXTERNAL_LIST_DAYS}}` (`scraper_list_days`). **Canlıda yenileme:** seeder her metin için `legal_seed_<key>` izi yazar
+  (`sha1(şablon)|sha1(yazılan)`); `legal:refresh --if-stale` (update.sh çağırır) iz yoksa bir kez, şablon değiştiyse ve yönetici metne
+  dokunmadıysa yeniler; yönetici elle değiştirdiyse dokunmaz; panel düğmesi (`legal:refresh`) tümünü şablona döndürür. Sürüm
+  (`legal_document_version`) kendiliğinden artmaz: Osman panelden "Sürümü artır" der. Hukukçuya sorulacak 5 nokta PR açıklamasında.
+- **Ekran görüntüsü, Playwright olmadan (2026-10-05):** `npm i playwright` izin denetimine takılıyor; doğrudan Chromium çalışıyor:
+  `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --screenshot=cikti.png
+  --window-size=1280,980 --virtual-time-budget=8000 --run-all-compositor-stages-before-draw URL`. Headless pencere 500 px'in altına
+  inmediğinden telefon genişliği için sayfa 390 px'lik bir `<iframe>` içeren yerel HTML dosyasıyla çekilir (`--force-device-scale-factor=2`).
+  CSS animasyonları sanal zamanda belirsiz ilerler: düzen denetimi için `--force-prefers-reduced-motion`, koyu tema için `--force-dark-mode`.
+  Uygulama `php artisan serve` + SQLite demo veritabanı ile (bkz. §6 "Uçtan uca yerel deneme").
 - **Sıradaki kod işleri (öncelik sırası, `docs/CANLIYA_HAZIRLIK_INCELEMESI.md` §3-§6):** Paket C3 (yapılandırılmış yük ilanı formu il/ilçe
-  seçici + gizli adres, "doğrulanmış yük sahibi" rozeti, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
+  seçici + gizli adres, belge süresi takibi, yönetici araçları: etkinlik günlüğü görüntüleyici, kullanıcı
   detayı, destek talebi), Paket C4 (indeksler, temizlik, durum makinesi testleri), cihaz başına alım anahtarı (I13), bildirim kuyruğu,
   SMS doğrulama (Netgsm anahtarı gelince), sigorta entegrasyonu, Tailwind 4 / Vite 8 geçişi (elle, testle, ayrı PR).
 - **Çalışma kuralı hatırlatması:** her işte dal = oturumun `claude/...` dalı, PR aç, Osman birleştirir, "Siteyi güncelle" notu; Osman

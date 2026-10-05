@@ -3,9 +3,11 @@
 use Livewire\Volt\Component;
 use App\Models\CmsContent;
 use App\Models\Faq;
+use App\Services\LoadStatsService;
 
 new class extends Component {
-    public string $activeSlider = 'owner';
+    /** Karşılama şeridi: bugün derlenen dış kaynak ilanı (LoadStatsService önbelleği, 1 dk). */
+    public int $todayLoads = 0;
 
     // Dinamik Metin Verileri
     public string $ownerTitle = '';
@@ -17,6 +19,7 @@ new class extends Component {
     public function mount(): void
     {
         $this->loadData();
+        $this->todayLoads = (int) (app(LoadStatsService::class)->summary()['external_today'] ?? 0);
     }
 
     public function loadData(): void
@@ -62,90 +65,284 @@ new class extends Component {
     </style>
 
     <!-- ========================================================= -->
-    <!-- 1. BÖLÜM: DİNAMİK HERO SLIDER (SAF CAM & FERAHLATILMIŞ ALAN) -->
+    <!-- 1. BÖLÜM: KARŞILAMA SAHNESİ (rol anahtarı + yaşayan sevkiyat sahnesi) -->
+    <!-- Alpine tarafında çalışır: rol değişimi sunucuya gitmez, sahne yerinde değişir. İlk dokunuşa kadar 9 sn'de bir rol değişir, -->
+    <!-- kullanıcı dokununca ya da ekran dışına çıkınca durur; "hareketi azalt" tercihinde kendiliğinden döner ve sahne sabit kalır.     -->
     <!-- ========================================================= -->
     <section class="max-w-7xl mx-auto px-6 md:px-12 pt-0">
-        <div class="apple-glass rounded-3xl md:rounded-[36px] p-6 sm:p-8 md:p-10 lg:p-12 relative overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 shadow-apple-lg">
+        <div class="hero-shell apple-glass rounded-3xl md:rounded-[36px] relative overflow-hidden border border-neutral-200/60 dark:border-neutral-800/60 shadow-apple-lg"
+             x-data="{
+                role: {{ request()->query('rol') === 'sofor' ? "'driver'" : "'owner'" }}, auto: true, pause: false, visible: true, cycle: 0, timer: null, period: 9000,
+                reduce: !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches),
+                init() {
+                    if (this.reduce) { this.auto = false; return; }
+                    if ('IntersectionObserver' in window) {
+                        new IntersectionObserver(es => { this.visible = es[0].isIntersecting; }, { threshold: 0.35 }).observe(this.$el);
+                    }
+                    this.timer = setInterval(() => { if (this.auto && this.visible && !this.pause && !document.hidden) this.flip(); }, this.period);
+                },
+                flip() { this.role = this.role === 'owner' ? 'driver' : 'owner'; this.cycle++; },
+                select(r) { this.stopAuto(); if (this.role !== r) { this.role = r; this.cycle++; } },
+                stopAuto() { this.auto = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+                restart(el) { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; }
+             }"
+             @pointerdown="stopAuto()" @keydown="stopAuto()" @mouseenter="pause = true" @mouseleave="pause = false"
+             :class="{ 'hero-static': reduce }">
 
-            <!-- Rol Değiştirici Segment Kontrolü -->
-            <div class="flex justify-center mb-6 md:mb-8">
-                <div class="p-1 bg-neutral-100 dark:bg-neutral-900 rounded-2xl inline-flex border border-neutral-200/40 shadow-apple-sm">
-                    <button wire:click="$set('activeSlider', 'owner')" class="px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300 {{ $activeSlider === 'owner' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm scale-100' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white scale-95' }}">
-                         Yük Sahibi
-                    </button>
-                    <button wire:click="$set('activeSlider', 'driver')" class="px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300 {{ $activeSlider === 'driver' ? 'bg-brand-500 text-white shadow-apple-sm scale-100' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white scale-95' }}">
-                         Şoför
-                    </button>
-                </div>
-            </div>
+            <!-- Ortam: yumuşak ışık lekeleri ve nokta ızgarası -->
+            <div class="hero-aurora hero-aurora-a" aria-hidden="true"></div>
+            <div class="hero-aurora hero-aurora-b" aria-hidden="true"></div>
+            <div class="hero-dots" aria-hidden="true"></div>
 
-            <!-- Slider İçeriği -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+            <div class="relative p-6 sm:p-8 md:p-10 lg:p-12">
 
-                <!-- Sol Metin Alanı -->
-                <div class="lg:col-span-7 space-y-4 md:space-y-5 text-center lg:text-left">
-                    <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-extrabold uppercase tracking-wider">
-                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                        <span>{{ $activeSlider === 'owner' ? 'Kontrollü Ödeme Süreci' : 'Tek Panelden Tüm İlanlar' }}</span>
-                    </div>
-
-                    <h1 class="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-neutral-950 dark:text-white leading-[1.15]">
-                        {{ $activeSlider === 'owner' ? $ownerTitle : $driverTitle }}
-                    </h1>
-
-                    <p class="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                        {{ $activeSlider === 'owner' ? $ownerDesc : $driverDesc }}
-                    </p>
-
-                    <!-- Butonlar -->
-                    <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-2">
-                        @if($activeSlider === 'owner')
-                            <a href="{{ route('register.cargo-owner') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md">
-                                Hemen İlan Ver
-                            </a>
-                            <a href="{{ route('how-it-works') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
-                                Süreç Nasıl İşler?
-                            </a>
-                        @else
-                            <a href="{{ route('register.driver') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md">
-                                Belgelerini Yükle
-                            </a>
-                            <a href="{{ route('subscription') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">
-                                Premium Avantajları
-                            </a>
-                        @endif
+                <!-- Rol anahtarı -->
+                <div class="flex justify-center mb-6 md:mb-8">
+                    <div class="p-1 bg-neutral-100/90 dark:bg-neutral-900/90 rounded-2xl inline-flex border border-neutral-200/40 dark:border-neutral-800/60 shadow-apple-sm" role="tablist" aria-label="Kimin için">
+                        <button type="button" role="tab" :aria-selected="role === 'owner'" @click="select('owner')"
+                                class="relative overflow-hidden px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300"
+                                :class="role === 'owner' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'">
+                            Yük Sahibi
+                            <span class="hero-progress bg-brand-500/70" x-show="auto && role === 'owner'" x-effect="cycle; restart($el)" :style="'animation-duration:' + period + 'ms'" aria-hidden="true"></span>
+                        </button>
+                        <button type="button" role="tab" :aria-selected="role === 'driver'" @click="select('driver')"
+                                class="relative overflow-hidden px-5 sm:px-6 py-2.5 rounded-xl text-xs font-black transition-all duration-300"
+                                :class="role === 'driver' ? 'bg-brand-500 text-white shadow-apple-sm' : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-white'">
+                            Şoför
+                            <span class="hero-progress bg-white/80" x-show="auto && role === 'driver'" x-effect="cycle; restart($el)" :style="'animation-duration:' + period + 'ms'" aria-hidden="true"></span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Sağ Görsel Kartı -->
-                <div class="lg:col-span-5 flex justify-center w-full">
-                    <div class="w-full max-w-sm bg-gradient-to-tr from-brand-500/20 via-brand-500/5 to-transparent rounded-3xl p-5 sm:p-6 flex flex-col justify-between border border-brand-500/20 shadow-apple-md space-y-4">
-                        <div class="flex justify-between items-center border-b border-neutral-200/50 dark:border-neutral-800/60 pb-3">
-                            <span class="text-xs font-black tracking-wider uppercase text-brand-600 dark:text-brand-400">Örnek sevkiyat akışı</span>
-                            <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-bold text-[10px]">Örnek</span>
-                        </div>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
 
-                        <div class="space-y-2.5">
-                            <div class="p-3.5 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-apple rounded-2xl border border-neutral-200/50 dark:border-neutral-800 space-y-1 shadow-apple-sm">
-                                <span class="text-[10px] text-neutral-400 font-semibold block">Güzergah & Ödeme Durumu</span>
-                                <div class="text-xs sm:text-sm font-black text-neutral-900 dark:text-white">Ankara Ostim → İzmir Aliağa</div>
-                                <div class="text-xs text-brand-500 font-bold tabular-nums">18.500,00 ₺ • Ödendi, teslimat onayı bekleniyor</div>
+                    <!-- Sol: Metin -->
+                    <div class="lg:col-span-6 text-center lg:text-left min-w-0">
+                            <div class="space-y-4 md:space-y-5" x-show="role === 'owner'" x-transition:enter.opacity.duration.300ms>
+                                <div class="hero-reveal inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-extrabold uppercase tracking-wider" style="--d: 0ms">
+                                    <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+                                    <span>Teslimat onaylı güvenli ödeme</span>
+                                </div>
+                                <h1 class="hero-reveal text-3xl sm:text-4xl lg:text-[3.25rem] font-black tracking-tight text-neutral-950 dark:text-white leading-[1.15] sm:leading-[1.1] lg:leading-[1.06]" style="--d: 80ms">
+                                    {{ $ownerTitle }}
+                                </h1>
+                                <p class="hero-reveal text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl mx-auto lg:mx-0" style="--d: 160ms">
+                                    {{ $ownerDesc }}
+                                </p>
+                                <div class="hero-reveal flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-1" style="--d: 240ms">
+                                    <a href="{{ route('register.cargo-owner') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md hero-cta">
+                                        <span>Hemen İlan Ver</span>
+                                        <svg class="w-4 h-4 hero-cta-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                                    </a>
+                                    <a href="{{ route('how-it-works') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">Süreç Nasıl İşler?</a>
+                                </div>
+                                <div class="hero-reveal flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-[11px] text-neutral-500 dark:text-neutral-400 pt-1" style="--d: 320ms">
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>İlan vermek ücretsiz</span>
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Teklifleri karşılaştır, sen seç</span>
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Para teslimata kadar güvende</span>
+                                </div>
                             </div>
 
-                            <div class="p-3 bg-white/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/40 dark:border-neutral-800/40 flex items-center justify-between text-[11px]">
-                                <span class="text-neutral-500">Sürücü Durumu:</span>
-                                <span class="text-emerald-500 font-bold">Belgeleri doğrulanmış</span>
+                        <template x-if="role === 'driver'">
+                            <div class="space-y-4 md:space-y-5">
+                                <div class="hero-reveal inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-extrabold uppercase tracking-wider" style="--d: 0ms">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Tüm ilanlar tek panelde</span>
+                                </div>
+                                <h1 class="hero-reveal text-3xl sm:text-4xl lg:text-[3.25rem] font-black tracking-tight text-neutral-950 dark:text-white leading-[1.15] sm:leading-[1.1] lg:leading-[1.06]" style="--d: 80ms">
+                                    {{ $driverTitle }}
+                                </h1>
+                                <p class="hero-reveal text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-xl mx-auto lg:mx-0" style="--d: 160ms">
+                                    {{ $driverDesc }}
+                                </p>
+                                <div class="hero-reveal flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 pt-1" style="--d: 240ms">
+                                    <a href="{{ route('register.driver') }}" class="w-full sm:w-auto btn-apple-brand py-3.5 px-7 font-bold text-xs shadow-apple-md hero-cta">
+                                        <span>Ücretsiz Şoför Hesabı Aç</span>
+                                        <svg class="w-4 h-4 hero-cta-arrow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                                    </a>
+                                    <a href="{{ route('subscription') }}" class="w-full sm:w-auto btn-apple-secondary py-3.5 px-6 font-bold text-xs">Premium Avantajları</a>
+                                </div>
+                                <div class="hero-reveal flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-[11px] text-neutral-500 dark:text-neutral-400 pt-1" style="--d: 320ms">
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Teklif vermek her zaman ücretsiz</span>
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Aracına ve rotana göre filtre</span>
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Dönüş yükü kendiliğinden bulunur</span>
+                                </div>
                             </div>
-                        </div>
+                        </template>
+                    </div>
 
-                        <div class="text-[10px] text-neutral-400 font-medium text-center pt-1 border-t border-neutral-200/40 dark:border-neutral-800/40">
-                            Ödeme teslimat onayıyla tamamlanır
-                        </div>
+                    <!-- Sağ: Yaşayan sahne -->
+                    <div class="lg:col-span-6 w-full min-w-0">
+
+                        <!-- Yük sahibi sahnesi: rota üzerinde ilerleyen araç, sırayla yanan dört adım, güvende duran ödeme -->
+                            <div class="hero-scene hero-reveal relative w-full max-w-xl mx-auto rounded-3xl border border-neutral-200/70 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-apple shadow-apple-md overflow-hidden" style="--d: 120ms" x-show="role === 'owner'" x-transition:enter.opacity.duration.300ms>
+                                <div class="flex items-center justify-between px-4 sm:px-5 pt-4">
+                                    <span class="text-[10px] sm:text-[11px] font-black tracking-wider uppercase text-brand-600 dark:text-brand-400">Örnek sevkiyat akışı</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>Canlı konum</span>
+                                </div>
+
+                                <svg viewBox="0 0 560 300" class="w-full h-auto block text-neutral-900 dark:text-white" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true"
+                                     x-init="if (reduce) { $el.querySelectorAll('animateMotion').forEach(a => a.remove()); $el.querySelector('.hero-truck').setAttribute('transform', 'translate(280 196)'); }">
+                                    <defs>
+                                        <path id="heroRoute" d="M 64 236 C 150 110, 290 300, 496 92" fill="none"/>
+                                        <linearGradient id="heroRouteGrad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0" stop-color="#f97316" stop-opacity="0.15"/>
+                                            <stop offset="1" stop-color="#f97316" stop-opacity="0.9"/>
+                                        </linearGradient>
+                                    </defs>
+
+                                    <!-- Rota: sabit zemin + akan kesikli çizgi -->
+                                    <use href="#heroRoute" xlink:href="#heroRoute" class="hero-route-base" stroke-width="6" stroke-linecap="round"/>
+                                    <use href="#heroRoute" xlink:href="#heroRoute" class="hero-route-flow" stroke="url(#heroRouteGrad)" stroke-width="3" stroke-linecap="round"/>
+
+                                    <!-- Kalkış ve varış -->
+                                    <g class="hero-pin">
+                                        <circle cx="64" cy="236" r="16" class="fill-brand-500/15"/>
+                                        <circle cx="64" cy="236" r="6" class="fill-brand-500"/>
+                                        <text x="64" y="272" text-anchor="middle" class="hero-svg-label">Ankara</text>
+                                    </g>
+                                    <g class="hero-pin">
+                                        <circle cx="496" cy="92" r="16" class="fill-emerald-500/15"/>
+                                        <circle cx="496" cy="92" r="6" class="fill-emerald-500"/>
+                                        <text x="496" y="66" text-anchor="middle" class="hero-svg-label">İzmir</text>
+                                    </g>
+
+                                    <!-- Adım çipleri: araç yaklaştıkça sırayla yanar (9 sn'lik döngü) -->
+                                    <g transform="translate(112 250)"><g class="hero-chip" style="--i: 0">
+                                            <rect width="172" height="32" rx="16" class="hero-chip-bg"/>
+                                            <circle cx="17" cy="16" r="5" class="fill-brand-500"/>
+                                            <text x="32" y="21" class="hero-svg-chip">Teklif kabul edildi</text>
+                                    </g></g>
+                                    <g transform="translate(196 214)"><g class="hero-chip" style="--i: 1">
+                                            <rect width="138" height="32" rx="16" class="hero-chip-bg"/>
+                                            <circle cx="17" cy="16" r="5" class="fill-brand-500"/>
+                                            <text x="32" y="21" class="hero-svg-chip">Ödeme güvende</text>
+                                    </g></g>
+                                    <g transform="translate(262 110)"><g class="hero-chip" style="--i: 2">
+                                            <rect width="176" height="32" rx="16" class="hero-chip-bg"/>
+                                            <circle cx="17" cy="16" r="5" class="fill-brand-500"/>
+                                            <text x="32" y="21" class="hero-svg-chip">Yolda · canlı konum</text>
+                                    </g></g>
+                                    <g transform="translate(378 200)"><g class="hero-chip" style="--i: 3">
+                                            <rect width="172" height="32" rx="16" class="hero-chip-bg"/>
+                                            <circle cx="17" cy="16" r="5" class="fill-emerald-500"/>
+                                            <text x="32" y="21" class="hero-svg-chip">Ödeme şoföre geçti</text>
+                                    </g></g>
+
+                                    <!-- Araç: rota boyunca ilerler -->
+                                    <g class="hero-truck">
+                                        <g transform="translate(-22 -12)">
+                                            <rect x="0" y="2" width="28" height="18" rx="3" class="fill-neutral-900 dark:fill-white"/>
+                                            <rect x="28" y="7" width="14" height="13" rx="3" class="fill-brand-500"/>
+                                            <rect x="31" y="9" width="7" height="5" rx="1" class="fill-white/80"/>
+                                            <circle cx="8" cy="22" r="3.5" class="fill-neutral-700 dark:fill-neutral-300"/>
+                                            <circle cx="20" cy="22" r="3.5" class="fill-neutral-700 dark:fill-neutral-300"/>
+                                            <circle cx="36" cy="22" r="3.5" class="fill-neutral-700 dark:fill-neutral-300"/>
+                                        </g>
+                                        <animateMotion dur="9s" repeatCount="indefinite" rotate="auto" calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.4 0 0.6 1">
+                                            <mpath href="#heroRoute" xlink:href="#heroRoute"/>
+                                        </animateMotion>
+                                    </g>
+                                </svg>
+
+                                <!-- Kayan ödeme kartı -->
+                                <div class="hero-float absolute left-3 sm:left-5 top-11 sm:top-12 flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-2xl bg-white/90 dark:bg-neutral-950/90 border border-neutral-200/70 dark:border-neutral-800 shadow-apple-md backdrop-blur-apple">
+                                    <span class="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 11V8a5 5 0 0110 0v3M6 11h12v9H6z"/></svg>
+                                    </span>
+                                    <span class="leading-tight">
+                                        <span class="block text-sm sm:text-base font-black text-neutral-900 dark:text-white tabular-nums">18.500 ₺</span>
+                                        <span class="block text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Teslimata kadar ödeme kuruluşunda</span>
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-3 px-4 sm:px-5 pb-4 text-[10px] sm:text-[11px]">
+                                    <span class="text-neutral-500 dark:text-neutral-400 truncate">Şoför: <span class="text-emerald-600 dark:text-emerald-400 font-bold">Belgeleri doğrulanmış ✓</span></span>
+                                    <span class="text-neutral-400 whitespace-nowrap">TIR · tenteli 13.60</span>
+                                </div>
+                            </div>
+
+                        <!-- Şoför sahnesi: dağınık grup mesajları NavlunIQ'da temiz ilan kartına dönüşür, dönüş yükü radarı tarar -->
+                        <template x-if="role === 'driver'">
+                            <div class="hero-scene hero-reveal relative w-full max-w-xl mx-auto rounded-3xl border border-neutral-200/70 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-apple shadow-apple-md overflow-hidden p-4 sm:p-5 space-y-4" style="--d: 120ms">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] sm:text-[11px] font-black tracking-wider uppercase text-emerald-600 dark:text-emerald-400">Gruplardan panele</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></span>Yapay zeka okuyor</span>
+                                </div>
+
+                                <div class="relative grid grid-cols-2 gap-x-11 gap-y-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3 items-center">
+                                    <!-- Dağınık mesajlar -->
+                                    <div class="space-y-2 min-w-0">
+                                        @foreach([['t' => 'ANK ÇIKIŞLI İZMİR 13.60 TENTELİ ACİL ARAÇ', 'd' => 0], ['t' => 'adana - istanbul 8 tkr kamyon hazır fiyat görüşülür', 'd' => 1], ['t' => 'SAMSUN 2 YER KAPALI TIR YÜKLER …', 'd' => 2]] as $msg)
+                                            <div class="hero-bubble rounded-2xl rounded-tl-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/70 dark:border-neutral-700/60 px-2.5 py-2" style="--i: {{ $msg['d'] }}">
+                                                <div class="text-[8px] text-neutral-400 font-semibold mb-0.5">Grup mesajı</div>
+                                                <div class="text-[9px] sm:text-[10px] leading-snug text-neutral-500 dark:text-neutral-400 break-words line-clamp-2">{{ $msg['t'] }}</div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    <!-- Dönüştürücü -->
+                                    <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 sm:static sm:translate-x-0 sm:translate-y-0 flex flex-col items-center justify-center">
+                                        <span class="hero-ring absolute w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-brand-500/40"></span>
+                                        <span class="hero-ring hero-ring-2 absolute w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-brand-500/40"></span>
+                                        <span class="relative w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-b from-brand-500 to-brand-600 shadow-lg shadow-brand-500/30 flex items-center justify-center">
+                                            <img src="{{ asset_v('/images/white-symbol-logo.png') }}" alt="" class="w-6 h-6 sm:w-7 sm:h-7 object-contain">
+                                        </span>
+                                        <svg class="w-4 h-4 text-brand-500 mt-1 hero-arrow-pulse hidden sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                                    </div>
+
+                                    <!-- Temiz ilan kartları -->
+                                    <div class="space-y-2 min-w-0">
+                                        @foreach([['r' => 'Ankara → İzmir', 'v' => 'TIR · Tenteli 13.60', 'p' => '18.500 ₺', 'd' => 0], ['r' => 'Adana → İstanbul', 'v' => '8 teker kamyon', 'p' => 'Görüşülür', 'd' => 1], ['r' => 'Samsun → 2 nokta', 'v' => 'Kapalı TIR · 2 araç', 'p' => 'Seri ilan', 'd' => 2]] as $card)
+                                            <div class="hero-card rounded-2xl bg-white dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 px-2.5 py-2 shadow-apple-sm" style="--i: {{ $card['d'] }}">
+                                                <div class="hero-row">
+                                                    <span class="text-[9px] sm:text-[10px] font-black text-neutral-900 dark:text-white truncate">{{ $card['r'] }}</span>
+                                                    <span class="hidden sm:inline-flex text-[8px] font-bold px-1.5 py-px rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">Yeni</span>
+                                                </div>
+                                                <div class="hero-row mt-0.5">
+                                                    <span class="text-[8px] sm:text-[9px] text-neutral-500 dark:text-neutral-400 truncate">{{ $card['v'] }}</span>
+                                                    <span class="text-[9px] sm:text-[10px] font-bold text-brand-500 tabular-nums shrink-0">{{ $card['p'] }}</span>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+
+                                <!-- Dönüş yükü radarı -->
+                                <div class="flex items-center gap-3 rounded-2xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                                    <span class="relative flex items-center justify-center w-8 h-8 shrink-0">
+                                        <span class="hero-radar absolute inset-0 rounded-full bg-emerald-500/30"></span>
+                                        <span class="hero-radar hero-radar-2 absolute inset-0 rounded-full bg-emerald-500/30"></span>
+                                        <span class="relative w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                    </span>
+                                    <div class="min-w-0">
+                                        <div class="text-[10px] sm:text-[11px] font-black text-neutral-900 dark:text-white">Dönüş yükü radarı</div>
+                                        <div class="text-[9px] sm:text-[10px] text-neutral-500 dark:text-neutral-400 truncate">Varışta dönüş yükü senin için taranır</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
+                <!-- Güven şeridi -->
+                <div class="mt-8 md:mt-10 pt-6 border-t border-neutral-200/60 dark:border-neutral-800/60 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                    @foreach([
+                        ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/>', 'title' => 'Belgeleri doğrulanmış şoförler', 'text' => 'Ehliyet, SRC ve araç belgeleri onaylı'],
+                        ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M7 11V8a5 5 0 0110 0v3M6 11h12v9H6z"/>', 'title' => 'Ödeme teslimat onayıyla', 'text' => 'Para teslimata kadar ödeme kuruluşunda bekler'],
+                        ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/>', 'title' => 'iyzico güvenli ödeme', 'text' => 'Kartla, 3D Secure ile; kart bilgisi bizde kalmaz'],
+                        ['icon' => '<circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/>', 'title' => 'Canlı ilan akışı', 'text' => $todayLoads > 0 ? 'Bugün '.number_format($todayLoads, 0, ',', '.').' yeni ilan derlendi' : 'Gruplardan derlenen ilanlar anında panelde'],
+                    ] as $i => $chip)
+                        <div class="hero-reveal flex items-start gap-2.5 min-w-0" style="--d: {{ 360 + $i * 60 }}ms">
+                            <span class="w-8 h-8 shrink-0 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">{!! $chip['icon'] !!}</svg></span>
+                            <div class="min-w-0">
+                                <div class="text-[11px] sm:text-xs font-bold text-neutral-900 dark:text-white leading-tight">{{ $chip['title'] }}</div>
+                                <div class="text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">{{ $chip['text'] }}</div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
-
         </div>
     </section>
 

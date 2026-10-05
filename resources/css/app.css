@@ -256,3 +256,85 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .load-card-phone { @apply flex items-center justify-between gap-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 sm:border-0 sm:bg-transparent dark:sm:bg-transparent sm:px-0 sm:py-0; }
     .load-card-wa { @apply inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 whitespace-nowrap; }
 }
+
+/* =========================================================
+   Ana sayfa karşılama sahnesi (livewire/frontend/home.blade.php)
+   Rol değişiminde içerik yeniden çizilir (x-if) ve hero-reveal sırayla belirir; sahne 9 sn'lik döngüyle yaşar.
+   ========================================================= */
+.hero-shell { isolation: isolate; }
+.hero-aurora {
+    position: absolute; border-radius: 9999px; filter: blur(70px); pointer-events: none; opacity: .55;
+    animation: heroAurora 18s ease-in-out infinite alternate;
+}
+.hero-aurora-a { width: 46rem; height: 46rem; left: -14rem; top: -18rem; background: radial-gradient(closest-side, rgba(249,115,22,.28), transparent 70%); }
+.hero-aurora-b { width: 40rem; height: 40rem; right: -12rem; bottom: -16rem; background: radial-gradient(closest-side, rgba(16,185,129,.22), transparent 70%); animation-delay: -9s; }
+.dark .hero-aurora { opacity: .35; }
+.hero-dots {
+    position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(120,120,128,.18) 1px, transparent 1px); background-size: 22px 22px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%); -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 85%);
+}
+.dark .hero-dots { background-image: radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px); }
+@keyframes heroAurora { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(4rem, 2.5rem, 0) scale(1.12); } }
+
+.hero-reveal { animation: heroReveal .6s cubic-bezier(0.25, 1, 0.5, 1) both; animation-delay: var(--d, 0ms); }
+@keyframes heroReveal { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+.hero-progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; border-radius: 9999px; animation: heroProgress linear forwards; }
+@keyframes heroProgress { from { width: 0; } to { width: 100%; } }
+
+.hero-cta .hero-cta-arrow { transition: transform .3s cubic-bezier(0.25, 1, 0.5, 1); }
+.hero-cta:hover .hero-cta-arrow { transform: translateX(3px); }
+
+/* Yük sahibi sahnesi */
+.hero-route-base { stroke: rgba(120,120,128,.22); fill: none; }
+.dark .hero-route-base { stroke: rgba(255,255,255,.14); }
+.hero-route-flow { fill: none; stroke-dasharray: 10 12; animation: heroDash 1.4s linear infinite; }
+@keyframes heroDash { to { stroke-dashoffset: -22; } }
+.hero-svg-label { font-size: 15px; font-weight: 800; fill: currentColor; font-family: inherit; }
+.hero-svg-chip { font-size: 13px; font-weight: 700; fill: currentColor; font-family: inherit; }
+.hero-chip-bg { fill: rgba(255,255,255,.92); stroke: rgba(120,120,128,.25); }
+.dark .hero-chip-bg { fill: rgba(10,10,12,.9); stroke: rgba(255,255,255,.14); }
+.hero-chip { opacity: .4; transform-box: fill-box; transform-origin: center; animation: heroChip 9s cubic-bezier(0.25, 1, 0.5, 1) infinite; animation-delay: calc(var(--i, 0) * 2.25s); }
+@keyframes heroChip {
+    0%, 100% { opacity: .4; transform: translateY(0) scale(1); }
+    4% { opacity: 1; transform: translateY(-3px) scale(1.04); }
+    22% { opacity: 1; transform: translateY(0) scale(1); }
+    32% { opacity: .4; }
+}
+.hero-truck { filter: drop-shadow(0 4px 6px rgba(0,0,0,.18)); }
+.hero-float { animation: heroFloat 6s ease-in-out infinite; }
+@keyframes heroFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
+/* Kart satırı: telefondaki genel ".flex.items-center.justify-between" sarma kuralından etkilenmesin */
+.hero-row { display: flex; align-items: center; justify-content: space-between; gap: .25rem; flex-wrap: nowrap; }
+/* Şoför sahnesi: mesajlar ve kartlar hep görünür; 9 sn'lik döngüde sırayla bir mesaj parlar, 1,2 sn sonra karşılığı olan kart vurgulanır */
+.hero-bubble { opacity: .55; animation: heroBubble 9s cubic-bezier(0.25, 1, 0.5, 1) infinite; animation-delay: calc(var(--i, 0) * 3s); }
+@keyframes heroBubble {
+    0%, 100% { opacity: .55; transform: translateX(0); }
+    5% { opacity: 1; transform: translateX(3px); }
+    20% { opacity: 1; transform: translateX(0); }
+    32% { opacity: .55; }
+}
+.hero-card { animation: heroCard 9s cubic-bezier(0.25, 1, 0.5, 1) infinite; animation-delay: calc(var(--i, 0) * 3s + 1.2s); }
+@keyframes heroCard {
+    0%, 100% { transform: scale(1); box-shadow: 0 1px 2px rgba(0,0,0,.02); }
+    6% { transform: scale(1.04); box-shadow: 0 0 0 3px rgba(249,115,22,.28), 0 8px 20px rgba(249,115,22,.18); }
+    22% { transform: scale(1); box-shadow: 0 0 0 3px rgba(249,115,22,.0), 0 1px 2px rgba(0,0,0,.02); }
+}
+.hero-ring { animation: heroRing 2.4s ease-out infinite; }
+.hero-ring-2 { animation-delay: 1.2s; }
+@keyframes heroRing { 0% { transform: scale(.7); opacity: .9; } 100% { transform: scale(1.5); opacity: 0; } }
+.hero-arrow-pulse { animation: heroArrow 1.6s ease-in-out infinite; }
+@keyframes heroArrow { 0%, 100% { transform: translateX(0); opacity: .6; } 50% { transform: translateX(4px); opacity: 1; } }
+.hero-radar { animation: heroRadar 2.2s ease-out infinite; }
+.hero-radar-2 { animation-delay: 1.1s; }
+@keyframes heroRadar { 0% { transform: scale(.4); opacity: .8; } 100% { transform: scale(1.6); opacity: 0; } }
+
+/* Hareketi azalt: her şey sabit, içerik anında görünür; animateMotion Alpine tarafında kaldırılır */
+@media (prefers-reduced-motion: reduce) {
+    .hero-shell *, .hero-shell *::before, .hero-shell *::after { animation: none !important; transition-duration: .01ms !important; }
+    .hero-reveal, .hero-bubble, .hero-card { opacity: 1 !important; transform: none !important; }
+    .hero-chip { opacity: 1 !important; }
+}
+.hero-static .hero-reveal, .hero-static .hero-bubble, .hero-static .hero-card, .hero-static .hero-chip { opacity: 1; animation: none; transform: none; }

@@ -4,7 +4,6 @@ use App\Models\CargoOwnerProfile;
 use App\Models\User;
 use App\Models\UserConsent;
 use App\Services\GibService;
-use App\Services\NviService;
 use App\Services\OtpService;
 use App\Support\Phone;
 use Illuminate\Support\Facades\Auth;
@@ -25,9 +24,6 @@ new class extends Component {
     #[Locked]
     public bool $roleAddPending = false;
 
-    #[Locked]
-    public bool $nviVerified = false;
-
     public string $otp = '';
 
     public string $type = 'individual';
@@ -42,8 +38,6 @@ new class extends Component {
     /** Ticari elektronik ileti onayı: ayrı ve işaretlenmemiş kutu (ETK/İYS); kayıt için zorunlu değildir. */
     public bool $acceptMarketing = false;
 
-    public string $tcNo = '';
-    public string $birthYear = '';
     public string $taxNo = '';
     public string $companyTitle = '';
     public string $taxOffice = '';
@@ -84,10 +78,8 @@ new class extends Component {
             'acceptTerms' => 'accepted',
         ];
 
-        if ($this->type === 'individual') {
-            $rules['tcNo'] = ['required', 'digits:11', Rule::unique('cargo_owner_profiles', 'tc_no')->where(fn ($q) => $q->whereNotIn('user_id', $this->draftUserIds()))];
-            $rules['birthYear'] = 'required|digits:4|integer|min:1920|max:'.(date('Y') - 18);
-        } else {
+        // Bireysel yük sahibinden kayıtta kimlik istenmez; TC + doğum yılı ilk teklif kabulünde bir kez doğrulanır (2026-10-05 sadeleştirme).
+        if ($this->type === 'corporate') {
             $rules['taxNo'] = ['required', 'digits:10', Rule::unique('cargo_owner_profiles', 'tax_no')->where(fn ($q) => $q->whereNotIn('user_id', $this->draftUserIds()))];
             $rules['companyTitle'] = 'required|string|min:3|max:255';
             $rules['taxOffice'] = 'nullable|string|max:120';
@@ -97,9 +89,6 @@ new class extends Component {
             'acceptTerms.accepted' => 'Sözleşmeleri ve KVKK metnini onaylamadan kayıt olamazsınız.',
             'password.confirmed' => 'Girdiğiniz şifreler birbiriyle eşleşmiyor.',
             'phone.regex' => 'Geçerli bir cep telefonu numarası girin (05XX XXX XX XX).',
-            'birthYear.max' => 'Platforma 18 yaşından büyükler kayıt olabilir.',
-            'birthYear.required' => 'NVİ doğrulaması için doğum yılınızı girmeniz gerekmektedir.',
-            'tcNo.unique' => 'Bu T.C. kimlik numarası ile zaten bir yük sahibi profili var.',
             'taxNo.unique' => 'Bu vergi kimlik numarası ile zaten bir yük sahibi profili var.',
         ]);
 
@@ -169,11 +158,6 @@ new class extends Component {
             }
         }
 
-        $this->nviVerified = false;
-        if ($this->type === 'individual') {
-            $this->nviVerified = (bool) ((new NviService)->verify($this->tcNo, $firstName, $lastName, $this->birthYear)['is_match'] ?? false);
-        }
-
         if ($existingUser && ! $isDraft) {
             // Doğrulanmış hesap: şifre bilinse bile profil yalnız e-posta kodu doğrulanınca açılır.
             $this->roleAddPending = true;
@@ -222,11 +206,12 @@ new class extends Component {
         CargoOwnerProfile::create([
             'user_id' => $user->id,
             'type' => $this->type,
-            'tc_no' => $this->type === 'individual' ? $this->tcNo : null,
+            'tc_no' => null,
             'tax_no' => $this->type === 'corporate' ? $this->taxNo : null,
             'company_title' => $this->type === 'corporate' ? trim($this->companyTitle) : null,
             'tax_office' => $this->type === 'corporate' ? (trim($this->taxOffice) ?: null) : null,
-            'nvi_verified' => $this->nviVerified,
+            'birth_year' => null,
+            'nvi_verified' => false,
             'gib_verified' => false,
             'kyc_status' => 'unsubmitted',
         ]);
@@ -286,9 +271,8 @@ new class extends Component {
         }
 
         if ($this->roleAddPending && ! $user->cargoOwnerProfile()->exists()) {
-            $idTaken = $this->type === 'individual'
-                ? CargoOwnerProfile::query()->where('tc_no', $this->tcNo)->whereNotIn('user_id', $this->draftUserIds())->exists()
-                : CargoOwnerProfile::query()->where('tax_no', $this->taxNo)->whereNotIn('user_id', $this->draftUserIds())->exists();
+            $idTaken = $this->type === 'corporate'
+                && CargoOwnerProfile::query()->where('tax_no', $this->taxNo)->whereNotIn('user_id', $this->draftUserIds())->exists();
             if ($idTaken) {
                 $this->addError('otp', 'Bu kimlik/vergi numarası bu arada başka bir hesaba kayıt edildi. Lütfen formu yeniden doldurun.');
 
@@ -378,20 +362,7 @@ new class extends Component {
                     </div>
                 </div>
 
-                @if($type === 'individual')
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="sm:col-span-2 space-y-1.5">
-                            <label class="form-label">T.C. Kimlik Numarası</label>
-                            <input type="text" wire:model="tcNo" maxlength="11" placeholder="11 Haneli T.C. Kimlik No" class="form-input font-mono">
-                            @error('tcNo') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-                        <div class="space-y-1.5">
-                            <label class="form-label">Doğum Yılı</label>
-                            <input type="text" wire:model="birthYear" maxlength="4" placeholder="1990" class="form-input font-mono">
-                            @error('birthYear') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                @else
+                @if($type === 'corporate')
                     <div class="space-y-1">
                         <label class="form-label">Vergi Kimlik Numarası (VKN)</label>
                         <input type="text" wire:model.live="taxNo" maxlength="10" placeholder="10 haneli VKN" class="form-input font-mono">

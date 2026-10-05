@@ -222,7 +222,7 @@ class extends Component {
                             <div class="load-card-main">
                                 <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                                 <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif</div>
-                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->displayName() ?: 'Yük sahibi belirtilmemiş' }}</div>
+                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->publicName() ?: 'Yük sahibi belirtilmemiş' }}@if($load->cargoOwnerProfile?->isVerified()) <span class="text-emerald-600 dark:text-emerald-400 font-semibold" title="Doğrulanmış yük sahibi">✓</span>@endif</div>
                                 <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
                             </div>
                             <div class="load-card-side sm:min-h-0">
