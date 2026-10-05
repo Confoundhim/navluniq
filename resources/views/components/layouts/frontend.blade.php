@@ -59,7 +59,7 @@
         class="apple-glass sticky top-0 z-50 px-6 md:px-12 py-3.5 flex justify-between items-center transition-all duration-300 border-b border-neutral-200/60 dark:border-neutral-800/60 shadow-apple-sm">
 
         <!-- Sol: Logo ve Logo Genişliğine Tam Simetrik İnce Alt Slogan -->
-        <a href="{{ route('home') }}" class="flex flex-col items-center justify-center group select-none">
+        <a href="{{ route('home') }}" class="flex flex-col items-center justify-center group select-none shrink-0">
             <!-- Açık Tema Logosu (Koyu Yazılı: logo-dark.png) -->
             <img src="{{ asset_v('/images/logo-dark.png') }}"
                  alt="NavlunIQ Logo"
@@ -81,25 +81,25 @@
         </a>
 
         <!-- Orta: Menü Elemanları -->
-        <nav class="hidden lg:flex items-center space-x-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
+        <nav class="hidden xl:flex items-center space-x-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300">
             <a href="{{ route('home') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('home') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Anasayfa</a>
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('home') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Anasayfa</a>
             <a href="{{ route('about') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('about') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Hakkımızda</a>
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('about') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Hakkımızda</a>
             <a href="{{ route('subscription') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('subscription') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Abonelik
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('subscription') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Abonelik
                 Sistemi</a>
             <a href="{{ route('services') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('services') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Hizmetlerimiz</a>
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('services') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Hizmetlerimiz</a>
             <a href="{{ route('how-it-works') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('how-it-works') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Nasıl
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('how-it-works') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">Nasıl
                 Çalışır?</a>
             <a href="{{ route('contact') }}"
-                class="px-3.5 py-2 rounded-xl hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('contact') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">İletişim</a>
+                class="px-3.5 py-2 rounded-xl whitespace-nowrap hover:text-brand-500 hover:bg-neutral-100 dark:hover:bg-neutral-800/60 transition-all {{ request()->routeIs('contact') ? 'text-brand-500 font-bold bg-brand-500/5' : '' }}">İletişim</a>
         </nav>
 
         <!-- Sağ: Giriş / Panelim Butonu + Tema Değiştirici -->
-        <div class="hidden sm:flex items-center space-x-3 text-xs">
+        <div class="hidden sm:flex items-center space-x-3 text-xs ml-auto xl:ml-0">
             <button @click="$store.textSize.toggle()" :class="$store.textSize.large ? 'text-brand-500' : 'text-neutral-600 dark:text-neutral-300'"
                 class="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:scale-105 transition-all focus:outline-none"
                 title="Yazı boyutu" aria-label="Yazı boyutunu değiştir">
@@ -120,35 +120,35 @@
             </button>
 
             @auth
-                <a href="{{ route('panel') }}" class="btn-apple-brand py-2 px-4 font-bold shadow-apple-sm flex items-center gap-2">
+                <a href="{{ route('panel') }}" class="btn-apple-brand py-2 px-4 text-xs font-bold shadow-apple-sm flex items-center gap-2 whitespace-nowrap">
                     <span>Panelime Git</span>
                     <span>&rarr;</span>
                 </a>
             @else
                 <a href="{{ route('login') }}"
-                    class="px-3.5 py-2 font-bold text-neutral-700 dark:text-neutral-200 hover:text-brand-500 transition-colors">
+                    class="px-3.5 py-2 font-bold text-neutral-700 dark:text-neutral-200 hover:text-brand-500 transition-colors whitespace-nowrap">
                     Giriş Yap
                 </a>
 
-                <a href="{{ route('register.driver') }}" class="btn-apple-secondary py-2 px-3.5 font-bold shadow-apple-sm">
-                    Şoför Olarak Katıl
+                <a href="{{ route('register.driver') }}" class="btn-apple-secondary py-2 px-3.5 text-xs font-bold shadow-apple-sm whitespace-nowrap">
+                    Şoför Kaydı
                 </a>
 
-                <a href="{{ route('register.cargo-owner') }}" class="btn-apple-brand py-2 px-4 font-bold shadow-apple-sm">
-                    Yük Sahibi Olarak Katıl
+                <a href="{{ route('register.cargo-owner') }}" class="btn-apple-brand py-2 px-4 text-xs font-bold shadow-apple-sm whitespace-nowrap">
+                    Yük Sahibi Kaydı
                 </a>
             @endauth
         </div>
 
         <!-- Mobil Menü Butonu -->
         <button type="button" @click="mobileNav = !mobileNav"
-            class="lg:hidden shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" aria-label="Menüyü aç" :aria-expanded="mobileNav">
+            class="xl:hidden shrink-0 ml-3 inline-flex items-center justify-center w-10 h-10 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors" aria-label="Menüyü aç" :aria-expanded="mobileNav">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.9"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
     </header>
 
     <!-- MOBİL MENÜ DRAWER -->
-    <div x-show="mobileNav" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm lg:hidden" @click="mobileNav = false"
+    <div x-show="mobileNav" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm xl:hidden" @click="mobileNav = false"
         style="display: none;">
         <div class="w-4/5 max-w-sm bg-white dark:bg-neutral-900 h-full p-6 space-y-6 flex flex-col justify-between shadow-apple-dark"
             @click.stop>
