@@ -18,7 +18,7 @@ permissions:
 jobs:
   test:
     name: Pint · test · altın set · derleme · audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # sabit sürüm: "ubuntu-latest" Ekim 2026'da Ubuntu 26'ya geçecek, sürpriz olmasın
     timeout-minutes: 25
 
     steps:
