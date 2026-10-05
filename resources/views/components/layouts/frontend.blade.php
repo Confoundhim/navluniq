@@ -131,11 +131,11 @@
                 </a>
 
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary py-2 px-3.5 text-xs font-bold shadow-apple-sm whitespace-nowrap">
-                    Şoför Kaydı
+                    Şoför Üyeliği
                 </a>
 
                 <a href="{{ route('register.cargo-owner') }}" class="btn-apple-brand py-2 px-4 text-xs font-bold shadow-apple-sm whitespace-nowrap">
-                    Yük Sahibi Kaydı
+                    Yük Sahibi Üyeliği
                 </a>
             @endauth
         </div>
