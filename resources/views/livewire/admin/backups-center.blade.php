@@ -16,15 +16,24 @@ new class extends Component {
         abort_unless(auth()->user()->can('manage settings'), 403);
     }
 
+    /** Yedek alma kuyruğa gider (işçi canlıysa); kayıt "Alınıyor" görünür, sayfa bitişe kadar 5 sn'de bir yenilenir. Yetki: manage system. */
     public function createBackup(string $type = 'full'): void
     {
-        if (! auth()->user()?->can('manage settings')) {
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'Yedek almak için sistem yönetimi yetkisi gerekir.');
+
             return;
         }
-        set_time_limit(0);
-        $backup = app(BackupService::class)->create($type === 'database' ? 'database' : 'full', auth()->id());
-        if ($backup->status === 'completed') {
-            app(BackupService::class)->prune();
+        if (Backup::query()->where('status', 'running')->where('created_at', '>=', now()->subMinutes(30))->exists()) {
+            session()->flash('error_message', 'Bir yedek zaten alınıyor; bitmesini bekleyin.');
+
+            return;
+        }
+        $result = app(BackupService::class)->request($type === 'database' ? 'database' : 'full', auth()->id());
+        $backup = $result['backup'];
+        if ($result['queued']) {
+            session()->flash('success_message', "Yedek kuyruğa alındı: {$backup->filename}. Satır \"Alınıyor\" durumunda; bitince burada \"Hazır\" olur ve indirilebilir.");
+        } elseif ($backup->status === 'completed') {
             session()->flash('success_message', "Yedek hazır: {$backup->filename} (".number_format((float) $backup->size_mb, 2, ',', '.').' MB). İndir düğmesiyle bilgisayarınıza alın.');
         } else {
             session()->flash('error_message', 'Yedek alınamadı: '.$backup->failure_message);
@@ -33,7 +42,9 @@ new class extends Component {
 
     public function deleteBackup(int $id): void
     {
-        if (! auth()->user()?->can('manage settings')) {
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'Yedek silmek için sistem yönetimi yetkisi gerekir.');
+
             return;
         }
         if ($backup = Backup::query()->find($id)) {
@@ -49,6 +60,8 @@ new class extends Component {
 
         return [
             'backups' => Backup::query()->latest('id')->paginate(20),
+            'running' => Backup::query()->where('status', 'running')->where('created_at', '>=', now()->subMinutes(30))->exists(),
+            'canSystem' => (bool) auth()->user()?->can('manage system'),
             'total' => (float) Backup::query()->where('status', 'completed')->sum('size_mb'),
             'freeGb' => $free ? round($free / 1073741824, 1) : null,
             'directory' => $dir,
@@ -57,7 +70,7 @@ new class extends Component {
     }
 }; ?>
 
-<div class="max-w-6xl mx-auto space-y-6">
+<div @if($running) wire:poll.5s @endif class="max-w-6xl mx-auto space-y-6">
     @if (session()->has('success_message'))
         <div class="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-800/30 text-emerald-600 dark:text-emerald-400 text-xs rounded-2xl">{{ session('success_message') }}</div>
     @endif
@@ -70,13 +83,17 @@ new class extends Component {
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Yedekleme</h1>
             <p class="page-subtitle">Uygulama kodu, veritabanı (tüm ayarlar, kaynaklar, ilanlar, kullanıcılar), .env ve yüklenen dosyalar tek zip'te; bu dosya siteyi başka bir sunucuda ayağa kaldırmaya yeter (içindeki BENIOKU.txt anlatır). Her gece 03:30'da otomatik yedek alınır; son {{ \App\Services\BackupService::DEFAULT_KEEP }} yedek sunucuda tutulur.</p>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-            <button type="button" wire:click="createBackup('full')" wire:loading.attr="disabled" class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50">
-                <span wire:loading.remove wire:target="createBackup">Şimdi tam yedek al</span>
-                <span wire:loading wire:target="createBackup">Yedek alınıyor… bekleyin</span>
-            </button>
-            <button type="button" wire:click="createBackup('database')" wire:loading.attr="disabled" class="btn-secondary px-4 py-2.5 text-xs font-semibold disabled:opacity-50">Yalnız veritabanı</button>
-        </div>
+        @if($canSystem)
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" wire:click="createBackup('full')" wire:loading.attr="disabled" @disabled($running) class="btn-apple-brand px-4 py-2.5 text-xs font-semibold disabled:opacity-50">
+                    <span wire:loading.remove wire:target="createBackup">{{ $running ? 'Yedek alınıyor…' : 'Şimdi tam yedek al' }}</span>
+                    <span wire:loading wire:target="createBackup">Kuyruğa alınıyor…</span>
+                </button>
+                <button type="button" wire:click="createBackup('database')" wire:loading.attr="disabled" @disabled($running) class="btn-secondary px-4 py-2.5 text-xs font-semibold disabled:opacity-50">Yalnız veritabanı</button>
+            </div>
+        @else
+            <p class="text-[11px] text-neutral-400">Yedek alma ve silme yalnız sistem yönetimi yetkisiyle yapılır.</p>
+        @endif
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -103,7 +120,7 @@ new class extends Component {
                             <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ $backup->created_at?->format('d.m.Y H:i') }}</td>
                             <td class="p-4 whitespace-nowrap space-x-3 tc-actions">
                                 @if($backup->status === 'completed' && auth()->user()->hasRole('super_admin'))<a href="{{ route('admin.backups.download', $backup) }}" class="text-brand-600 font-semibold hover:underline">İndir</a>@endif
-                                <button type="button" wire:click="deleteBackup({{ $backup->id }})" wire:confirm="Bu yedek sunucudan silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
+                                @if($canSystem && $backup->status !== 'running')<button type="button" wire:click="deleteBackup({{ $backup->id }})" wire:confirm="Bu yedek sunucudan silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>@endif
                             </td>
                         </tr>
                     @empty
@@ -118,7 +135,7 @@ new class extends Component {
     <div class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
         <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yedeği bilgisayarınıza alma</h2>
         <p class="text-neutral-500">En kolayı listedeki <strong>İndir</strong> düğmesi. Sunucudan doğrudan almak için bilgisayarınızda PowerShell'de (İndirilenler klasörüne kopyalar):</p>
-        <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">scp "root@185.22.187.140:{{ $directory }}/*.zip" "$HOME\Downloads\"</code>
+        <code class="block px-3 py-2 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 font-mono break-all">scp "{{ 'root@'.request()->getHost() }}:{{ $directory }}/*.zip" "$HOME\Downloads\"</code>
         <p class="text-neutral-500">Sunucuda elle yedek: <span class="font-mono">cd /var/www/navluniq &amp;&amp; sudo -u www-data php artisan system:backup</span>. Zip'in içindeki <span class="font-mono">BENIOKU.txt</span> geri yükleme adımlarını anlatır. Yedek dosyaları .env ve belgeleri içerir; paylaşmayın.</p>
     </div>
 </div>

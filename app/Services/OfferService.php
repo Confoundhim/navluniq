@@ -26,6 +26,9 @@ class OfferService
     /** Şoför bir ilana teklif verir; ilan başına tek aktif teklif tutulur. */
     public function submit(DriverProfile $driver, Load $load, float $amount, ?string $message = null, ?int $estimatedDays = null): Offer
     {
+        if ($driver->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         if (! $driver->isKycApproved()) {
             throw new RuntimeException('Teklif verebilmek için belgelerinizin onaylanmış olması gerekir.');
         }

@@ -3,9 +3,6 @@
 use App\Models\ActivityLog;
 use App\Models\CmsContent;
 use App\Models\Faq;
-use App\Models\Page;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -53,19 +50,6 @@ new class extends Component {
     public string $faqOrder = '0';
 
     public bool $faqActive = true;
-
-    #[Locked]
-    public ?int $pageId = null;
-
-    public string $pageTitle = '';
-
-    public string $pageSlug = '';
-
-    public string $pageContent = '';
-
-    public string $pageStatus = 'draft';
-
-    public bool $pageActive = false;
 
     public function mount(): void
     {
@@ -252,98 +236,12 @@ new class extends Component {
         session()->flash('success_message', 'Soru silindi.');
     }
 
-    public function editPage(int $id): void
-    {
-        $page = Page::query()->find($id);
-        if (! $page) {
-            return;
-        }
-        $this->pageId = $page->id;
-        $this->pageTitle = $page->title;
-        $this->pageSlug = $page->slug;
-        $this->pageContent = (string) $page->content;
-        $this->pageStatus = $page->status;
-        $this->pageActive = (bool) $page->is_active;
-        $this->resetErrorBag();
-    }
-
-    public function resetPageForm(): void
-    {
-        $this->reset(['pageId', 'pageTitle', 'pageSlug', 'pageContent', 'pageStatus', 'pageActive']);
-        $this->resetErrorBag();
-    }
-
-    public function savePage(): void
-    {
-        if (! auth()->user()?->can('manage cms')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
-
-            return;
-        }
-
-        $slug = Str::slug($this->pageSlug !== '' ? $this->pageSlug : $this->pageTitle);
-        $this->pageSlug = $slug;
-
-        $this->validate([
-            'pageTitle' => 'required|string|min:3|max:255',
-            'pageSlug' => ['required', 'string', 'max:255', Rule::unique('pages', 'slug')->ignore($this->pageId)->whereNull('deleted_at')],
-            'pageContent' => 'required|string|min:10|max:200000',
-            'pageStatus' => 'required|in:draft,published',
-        ], ['pageSlug.unique' => 'Bu kısa ad başka bir sayfada kullanılıyor.']);
-
-        $payload = [
-            'title' => trim($this->pageTitle),
-            'slug' => $slug,
-            'content' => $this->sanitizeHtml($this->pageContent),
-            'status' => $this->pageStatus,
-            'is_active' => $this->pageActive,
-            'updated_by' => auth()->id(),
-        ];
-
-        if ($this->pageId) {
-            $page = Page::query()->find($this->pageId);
-            if (! $page) {
-                session()->flash('error_message', 'Sayfa bulunamadı.');
-
-                return;
-            }
-            $payload['published_at'] = $this->pageStatus === 'published' ? ($page->published_at ?? now()) : null;
-            $page->update($payload);
-            ActivityLog::record('page.updated', "Sayfa #{$page->id} ({$slug}) güncellendi", auth()->id(), $page);
-            session()->flash('success_message', 'Sayfa güncellendi.');
-        } else {
-            $payload['published_at'] = $this->pageStatus === 'published' ? now() : null;
-            $page = Page::create($payload);
-            ActivityLog::record('page.created', "Sayfa #{$page->id} ({$slug}) oluşturuldu", auth()->id(), $page);
-            session()->flash('success_message', 'Sayfa kaydedildi.');
-        }
-
-        $this->resetPageForm();
-    }
-
-    public function deletePage(int $id): void
-    {
-        if (! auth()->user()?->can('manage cms')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
-
-            return;
-        }
-
-        Page::query()->whereKey($id)->delete();
-        ActivityLog::record('page.deleted', "Sayfa #{$id} silindi", auth()->id());
-        if ($this->pageId === $id) {
-            $this->resetPageForm();
-        }
-        session()->flash('success_message', 'Sayfa silindi.');
-    }
-
     public function with(): array
     {
         return [
             'textKeys' => self::TEXT_KEYS,
             'contractKeys' => self::CONTRACT_KEYS,
             'faqs' => $this->activeTab === 'faqs' ? Faq::query()->orderBy('order_num')->orderBy('id')->paginate(15) : null,
-            'pages' => $this->activeTab === 'pages' ? Page::query()->latest('id')->paginate(15) : null,
         ];
     }
 }; ?>
@@ -351,7 +249,7 @@ new class extends Component {
 <div class="max-w-7xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
-        $tabs = ['texts' => 'Site metinleri', 'contracts' => 'Sözleşmeler', 'faqs' => 'Sıkça sorulan sorular', 'pages' => 'Sayfalar'];
+        $tabs = ['texts' => 'Site metinleri', 'contracts' => 'Sözleşmeler', 'faqs' => 'Sıkça sorulan sorular']; // "Sayfalar" sekmesi kaldırıldı: herkese açık rotası yoktu (2026-10-05, denetim Y21)
     @endphp
 
     @if (session()->has('success_message'))
@@ -480,76 +378,4 @@ new class extends Component {
         </div>
     @endif
 
-    @if($activeTab === 'pages')
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-            <form wire:submit="savePage" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
-                <h2 class="text-sm font-bold text-neutral-900 dark:text-white">{{ $pageId ? 'Sayfayı düzenle' : 'Yeni sayfa' }}</h2>
-                <div>
-                    <label class="form-label">Başlık</label>
-                    <input type="text" wire:model="pageTitle" class="{{ $input }}">
-                    @error('pageTitle') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="form-label">Kısa ad (slug, boş bırakılırsa başlıktan üretilir)</label>
-                    <input type="text" wire:model="pageSlug" class="{{ $input }} font-mono">
-                    @error('pageSlug') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
-                </div>
-                <div>
-                    <label class="form-label">İçerik (HTML)</label>
-                    <textarea wire:model="pageContent" rows="10" class="{{ $input }} font-mono"></textarea>
-                    @error('pageContent') <span class="text-red-500 text-[11px]">{{ $message }}</span> @enderror
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="form-label">Durum</label>
-                        <select wire:model="pageStatus" class="{{ $input }}">
-                            <option value="draft">Taslak</option>
-                            <option value="published">Yayınlandı</option>
-                        </select>
-                    </div>
-                    <label class="flex items-center gap-2 mt-5"><input type="checkbox" wire:model="pageActive"> Aktif</label>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-2 pt-2">
-                    <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">{{ $pageId ? 'Kaydet' : 'Oluştur' }}</button>
-                    @if($pageId)
-                        <button type="button" wire:click="resetPageForm" class="btn-apple-secondary py-2.5 px-5 text-xs">Vazgeç</button>
-                    @endif
-                </div>
-                <p class="text-[11px] text-neutral-400">Sayfalar için herkese açık bir rota bu sürümde tanımlı değildir; içerik saklanır ve yayın rotası eklendiğinde kısa ad ile sunulur.</p>
-            </form>
-
-            <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
-                <div class="responsive-scroll">
-                    <table class="table-cards w-full text-left text-xs">
-                        <thead>
-                            <tr class="border-b border-neutral-100 dark:border-neutral-800/50 text-[11px] text-neutral-400">
-                                <th class="p-4">Başlık</th>
-                                <th class="p-4">Kısa ad</th>
-                                <th class="p-4">Durum</th>
-                                <th class="p-4">Yayın tarihi</th>
-                                <th class="p-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
-                            @forelse($pages as $page)
-                                <tr>
-                                    <td class="p-4 font-semibold">{{ $page->title }}</td>
-                                    <td class="p-4 font-mono" data-label="Kısa ad">{{ $page->slug }}</td>
-                                    <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $page->status === 'published' && $page->is_active ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $page->status === 'published' ? 'Yayınlandı' : 'Taslak' }}{{ $page->is_active ? '' : ' · pasif' }}</span></td>
-                                    <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Yayın tarihi">{{ $page->published_at ? \Illuminate\Support\Carbon::parse($page->published_at)->format('d.m.Y H:i') : '—' }}</td>
-                                    <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
-                                        <button type="button" wire:click="editPage({{ $page->id }})" class="text-brand-500 font-semibold">Düzenle</button>
-                                        <button type="button" wire:click="deletePage({{ $page->id }})" wire:confirm="Sayfa silinecek. Devam edilsin mi?" class="text-red-500 font-semibold">Sil</button>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="5" class="p-10 text-center text-neutral-500">Henüz sayfa oluşturulmadı.</td></tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $pages->links() }}</div>
-            </div>
-        </div>
-    @endif
 </div>

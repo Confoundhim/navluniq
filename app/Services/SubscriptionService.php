@@ -92,6 +92,9 @@ class SubscriptionService
     /** Şoför için premium ödeme emri; ödeme ekranı PaymentService::checkout ile açılır. */
     public function startCheckout(User $driverUser): PaymentOrder
     {
+        if ($driverUser->driverProfile?->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         $profile = $driverUser->driverProfile;
         if (! $profile) {
             throw new RuntimeException('Premium üyelik yalnız şoför hesapları için geçerlidir.');

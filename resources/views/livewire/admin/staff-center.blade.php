@@ -48,11 +48,22 @@ new class extends Component {
         $this->resetPage();
     }
 
+    /**
+     * Atanabilir roller: süper yönetici hepsini atar; diğer yöneticiler yalnız izinleri kendi izinlerinin alt kümesi olan rolleri
+     * görür (kendi yetkisini aşan hesap açamaz; bugün personel oluşturma zaten yalnız süper yöneticidedir, bu liste ikinci kapıdır).
+     */
     private function assignableRoles(): array
     {
-        $roles = User::ADMIN_PANEL_ROLES;
-        if (! auth()->user()->hasRole('super_admin')) {
-            $roles = array_values(array_diff($roles, ['super_admin']));
+        $me = auth()->user();
+        if ($me->hasRole('super_admin')) {
+            return User::ADMIN_PANEL_ROLES;
+        }
+        $mine = $me->getAllPermissions()->pluck('name')->all();
+        $roles = [];
+        foreach (Role::query()->whereIn('name', array_diff(User::ADMIN_PANEL_ROLES, ['super_admin']))->with('permissions')->get() as $role) {
+            if (array_diff($role->permissions->pluck('name')->all(), $mine) === []) {
+                $roles[] = $role->name;
+            }
         }
 
         return $roles;
@@ -68,6 +79,12 @@ new class extends Component {
 
     public function createStaff(): void
     {
+        // Personel hesabı açmak yalnız süper yöneticidedir: "manage staff" izni finans/KYC hesabı açıp para kararına ulaşabiliyordu (denetim Y5).
+        if (! auth()->user()->hasRole('super_admin')) {
+            session()->flash('error_message', 'Personel hesabını yalnız süper yönetici oluşturabilir.');
+
+            return;
+        }
         $phone = Phone::normalize($this->phone);
 
         $this->validate([
@@ -196,6 +213,9 @@ new class extends Component {
 
     @if($activeTab === 'staff')
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            @if(! $isSuperAdmin)
+                <div class="apple-glass rounded-3xl p-6 text-xs text-neutral-500">Yeni personel hesabını yalnız süper yönetici oluşturur.</div>
+            @else
             <form wire:submit="createStaff" class="apple-glass rounded-3xl p-6 space-y-3 text-xs">
                 <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yeni personel</h2>
                 <div class="grid grid-cols-2 gap-2">
@@ -216,6 +236,7 @@ new class extends Component {
                 </div>
                 <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Hesabı oluştur</button>
             </form>
+            @endif
 
             <div class="xl:col-span-2 apple-glass rounded-3xl overflow-hidden">
                 <div class="responsive-scroll">

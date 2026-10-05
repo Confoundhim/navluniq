@@ -13,19 +13,23 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        // "manage system" (2026-10-05): güncelleme, yedek alma/silme, çöpten kalıcı silme, güvenlik duvarı, yeniden konumlama,
+        // sabit kodla giriş ayarları gibi sunucuyu/kodu etkileyen işler. Yalnız süper yöneticiye verilir; "manage settings" artık tam yetki değildir.
         $permissions = [
             'view users', 'manage users', 'verify kyc',
             'view operations', 'manage operations',
-            'manage scrapers', 'manage ai settings',
+            'manage scrapers',
             'view financials', 'manage payouts',
             'manage disputes', 'manage support tickets',
             'manage cms', 'manage marketing', 'manage settings',
-            'manage staff',
+            'manage staff', 'manage system',
         ];
 
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
+        // Ölü izin: hiçbir ekran bakmıyordu (yapay zeka ayarları "manage settings" altında).
+        Permission::query()->where('name', 'manage ai settings')->where('guard_name', 'web')->delete();
 
         $superAdmin = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
         $superAdmin->syncPermissions($permissions);

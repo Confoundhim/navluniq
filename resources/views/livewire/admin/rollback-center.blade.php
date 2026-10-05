@@ -8,6 +8,8 @@ use App\Models\SettingRevision;
 use App\Models\User;
 use App\Support\Settings;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
 
@@ -59,10 +61,20 @@ new class extends Component {
         session()->flash('success_message', 'Kayıt geri yüklendi.');
     }
 
+    /**
+     * Kalıcı silme yalnız "manage system" iznine açıktır ve kullanıcı kayıtları için kapalıdır: kullanıcı satırı finans
+     * kayıtlarının (emir, hakediş, fatura) bağıdır; silinmesi muhasebe izini koparır (denetim Y13). Kullanıcı çöpte kalır,
+     * gerekirse geri yüklenir; KVKK silme talebi hesap kapatma akışıyla anonimleştirir.
+     */
     public function forceDelete(string $type, int $id): void
     {
-        if (! auth()->user()?->can('manage settings')) {
-            session()->flash('error_message', 'Bu işlem için yetkiniz yok.');
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'Kalıcı silme için sistem yönetimi yetkisi gerekir.');
+
+            return;
+        }
+        if ($type === 'users') {
+            session()->flash('error_message', 'Kullanıcı kayıtları kalıcı silinmez; finans ve işlem kayıtlarının bağı kopar. Kayıt çöp kutusunda kalır ya da geri yüklenir.');
 
             return;
         }
@@ -76,12 +88,41 @@ new class extends Component {
         }
 
         try {
+            $related = self::relatedCounts($type, $id);
             $record->forceDelete();
-            ActivityLog::record('trash.purged', class_basename($model)." #{$id} kalıcı olarak silindi", auth()->id());
+            ActivityLog::record('trash.purged', class_basename($model)." #{$id} kalıcı olarak silindi", auth()->id(), null, ['related' => $related]);
             session()->flash('success_message', 'Kayıt kalıcı olarak silindi.');
         } catch (QueryException $e) {
             session()->flash('error_message', 'Kayıt başka tablolarca referans edildiği için kalıcı silinemedi; bağlı kayıtlar durdukça yalnız çöp kutusunda kalabilir.');
         }
+    }
+
+    /**
+     * Kalıcı silmeden önce gösterilen bağlı kayıt sayıları (tablo adı => adet). Kullanıcı için finans bağları da sayılır
+     * ki "neden silinemez" görünür olsun.
+     *
+     * @return array<string, int>
+     */
+    public static function relatedCounts(string $type, int $id): array
+    {
+        $map = match ($type) {
+            'loads' => ['offers' => 'load_id', 'shipments' => 'load_id', 'payment_orders' => 'load_id', 'payouts' => 'load_id', 'disputes' => 'load_id', 'driver_trips' => 'load_id', 'invoices' => 'load_id'],
+            'vehicles' => ['loads' => 'vehicle_id', 'driver_locations' => 'vehicle_id'],
+            'users' => ['payment_orders' => 'user_id', 'payouts' => 'user_id', 'invoices' => 'user_id', 'activity_logs' => 'user_id', 'support_tickets' => 'user_id', 'user_notifications' => 'user_id'],
+            default => [],
+        };
+        $out = [];
+        foreach ($map as $table => $column) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $column)) {
+                continue;
+            }
+            $count = DB::table($table)->where($column, $id)->count();
+            if ($count > 0) {
+                $out[$table] = $count;
+            }
+        }
+
+        return $out;
     }
 
     public function rollback(int $revisionId): void
@@ -95,6 +136,13 @@ new class extends Component {
         $revision = SettingRevision::query()->find($revisionId);
         if (! $revision) {
             session()->flash('error_message', 'Revizyon bulunamadı.');
+
+            return;
+        }
+        // Gizli anahtarlar revizyona maskeli ("••••abcd") yazılır: geri alma maskeyi gerçek anahtar yapar, SMTP/ödeme/Telegram
+        // sessizce bozulur. Sözleşme sürümü, sabit kod ve telefon anahtarı da geri alınmaz (Settings::NON_ROLLBACK_KEYS).
+        if (! Settings::isRollbackable($revision->key)) {
+            session()->flash('error_message', "'{$revision->setting_label}' ayarı revizyondan geri alınamaz; gizli anahtarlar ve güvenlik ayarları yalnız Sistem Ayarları'ndan yeniden girilir.");
 
             return;
         }
@@ -135,8 +183,17 @@ new class extends Component {
             $trash = $query->paginate(15);
         }
 
+        $related = [];
+        if ($trash !== null && $this->trashType !== 'users') {
+            foreach ($trash as $record) {
+                $related[$record->id] = self::relatedCounts($this->trashType, $record->id);
+            }
+        }
+
         return [
             'trash' => $trash,
+            'related' => $related,
+            'canPurge' => (bool) auth()->user()?->can('manage system'),
             'revisions' => $this->activeTab === 'revisions' ? SettingRevision::query()->with('user')->latest('id')->paginate(15) : null,
         ];
     }
@@ -156,7 +213,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Geri Yükleme</h1>
-        <p class="page-subtitle">Yumuşak silinmiş kayıtlar geri yüklenebilir; kalıcı silme geri alınamaz ve bağlı kayıtlar varsa veritabanı tarafından reddedilir.</p>
+        <p class="page-subtitle">Yumuşak silinmiş kayıtlar geri yüklenebilir. İlan ve araç kalıcı silinebilir (geri alınamaz; bağlı kayıt sayısı düğmenin yanında yazar); kullanıcı kayıtları finans bağları yüzünden kalıcı silinmez, çöp kutusunda kalır.</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
@@ -199,7 +256,11 @@ new class extends Component {
                                 <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Silinme">{{ $record->deleted_at?->format('d.m.Y H:i') }}</td>
                                 <td class="p-4 whitespace-nowrap space-x-2 tc-actions">
                                     <button type="button" wire:click="restore('{{ $trashType }}', {{ $record->id }})" class="text-brand-500 font-semibold">Geri yükle</button>
-                                    <button type="button" wire:click="forceDelete('{{ $trashType }}', {{ $record->id }})" wire:confirm="Kayıt kalıcı olarak silinecek ve geri alınamayacak. Devam edilsin mi?" class="text-red-500 font-semibold">Kalıcı sil</button>
+                                    @if($trashType !== 'users' && $canPurge)
+                                        @php $rel = $related[$record->id] ?? []; $relText = $rel === [] ? 'bağlı kayıt yok' : collect($rel)->map(fn ($n, $t) => "{$t}: {$n}")->join(', '); @endphp
+                                        <button type="button" wire:click="forceDelete('{{ $trashType }}', {{ $record->id }})" wire:confirm="Kayıt kalıcı olarak silinecek ve geri alınamayacak ({{ $relText }}). Devam edilsin mi?" class="text-red-500 font-semibold">Kalıcı sil</button>
+                                        <span class="text-[11px] text-neutral-400 block">{{ $relText }}</span>
+                                    @endif
                                 </td>
                             </tr>
                         @empty
@@ -234,7 +295,13 @@ new class extends Component {
                                 <td class="p-4 max-w-xs truncate" data-label="Eski değer">{{ $rev->old_value ?? '—' }}</td>
                                 <td class="p-4 max-w-xs truncate" data-label="Yeni değer">{{ $rev->new_value ?? '—' }}</td>
                                 <td class="p-4" data-label="Personel">{{ $rev->user?->full_name ?? '—' }}</td>
-                                <td class="p-4 whitespace-nowrap tc-actions"><button type="button" wire:click="rollback({{ $rev->id }})" wire:confirm="Ayar bu revizyondaki eski değere döndürülecek. Devam edilsin mi?" class="text-brand-500 font-semibold">Eski değere dön</button></td>
+                                <td class="p-4 whitespace-nowrap tc-actions">
+                                    @if(Settings::isRollbackable($rev->key))
+                                        <button type="button" wire:click="rollback({{ $rev->id }})" wire:confirm="Ayar bu revizyondaki eski değere döndürülecek. Devam edilsin mi?" class="text-brand-500 font-semibold">Eski değere dön</button>
+                                    @else
+                                        <span class="text-[11px] text-neutral-400">Geri alınamaz (gizli / güvenlik ayarı)</span>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="p-10 text-center text-neutral-500">Henüz ayar revizyonu yok.</td></tr>

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Jobs\CreateBackupJob;
+use App\Jobs\QueueHeartbeat;
 use App\Models\ActivityLog;
 use App\Models\Backup;
 use Illuminate\Support\Facades\DB;
@@ -36,15 +38,48 @@ class BackupService
         ];
     }
 
-    public function create(string $type = 'full', ?int $userId = null): Backup
+    /** "Alınıyor" durumunda kayıt açar; dosya henüz yoktur. create() bu kaydı doldurur. */
+    public function start(string $type = 'full'): Backup
+    {
+        $type = $type === 'database' ? 'database' : 'full';
+        $filename = 'navluniq-'.now()->format('Y-m-d_His').($type === 'database' ? '-db' : '').'.zip';
+
+        return Backup::create(['filename' => $filename, 'backup_type' => $type, 'storage_disk' => 'local', 'storage_path' => 'backups/'.$filename, 'status' => 'running']);
+    }
+
+    /**
+     * Panelden "yedek al": kuyruk işçisi canlıysa iş kuyruğa bırakılır ve kayıt "Alınıyor" olarak hemen döner (Livewire isteği
+     * dakikalarca sürmez, zaman aşımı ve çift kayıt olmaz); işçi yoksa/eskiyse eski gibi istek içinde alınır (telefon mesajlarıyla aynı düzen).
+     *
+     * @return array{backup: Backup, queued: bool}
+     */
+    public function request(string $type = 'full', ?int $userId = null): array
+    {
+        $backup = $this->start($type);
+        if (QueueHeartbeat::alive()) {
+            CreateBackupJob::dispatch($backup->id, $userId);
+
+            return ['backup' => $backup, 'queued' => true];
+        }
+        set_time_limit(0);
+        $backup = $this->create($backup->backup_type, $userId, $backup);
+        if ($backup->status === 'completed') {
+            $this->prune();
+        }
+
+        return ['backup' => $backup, 'queued' => false];
+    }
+
+    public function create(string $type = 'full', ?int $userId = null, ?Backup $backup = null): Backup
     {
         $dir = self::directory();
         if (! is_dir($dir) && ! @mkdir($dir, 0750, true) && ! is_dir($dir)) {
             throw new RuntimeException("Yedek dizini oluşturulamadı: {$dir}");
         }
-        $filename = 'navluniq-'.now()->format('Y-m-d_Hi').($type === 'database' ? '-db' : '').'.zip';
+        $backup ??= $this->start($type);
+        $type = $backup->backup_type;
+        $filename = $backup->filename;
         $path = $dir.'/'.$filename;
-        $backup = Backup::create(['filename' => $filename, 'backup_type' => $type, 'storage_disk' => 'local', 'storage_path' => 'backups/'.$filename, 'status' => 'running']);
         $work = $dir.'/.work-'.$backup->id;
 
         try {
@@ -82,6 +117,13 @@ class BackupService
             @unlink($path);
             $backup->update(['status' => 'failed', 'failure_message' => mb_substr($e->getMessage(), 0, 1000)]);
             Log::error('Yedek alınamadı.', ['error' => $e->getMessage()]);
+            // Gece yedeği sessizce başarısız olmasın: sistem yöneticilerine uygulama içi bildirim + e-posta.
+            try {
+                app(NotificationService::class)->notifyAdmins('manage system', 'Yedek alınamadı',
+                    ["{$filename} yedeği alınamadı: ".mb_substr($e->getMessage(), 0, 300), 'Sistem sağlığı ve Yedekleme ekranından nedenini kontrol edin; disk dolu ya da mysqldump eksik olabilir.'],
+                    route('admin.backups'), 'Yedekleri gör', 'admin');
+            } catch (Throwable) {
+            }
         } finally {
             $this->removeDirectory($work);
         }
