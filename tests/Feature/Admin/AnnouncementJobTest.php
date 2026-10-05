@@ -6,6 +6,7 @@ use App\Jobs\SendAnnouncementJob;
 use App\Models\DriverProfile;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Services\MarketingConsentService;
 use App\Services\NotificationService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,7 +62,7 @@ class AnnouncementJobTest extends TestCase
         $this->assertSame(0, UserNotification::count(), 'Web isteği içinde gönderim yapılmaz');
     }
 
-    public function test_job_notifies_each_active_recipient_and_marketing_needs_consent_column(): void
+    public function test_job_notifies_each_active_recipient_and_marketing_targets_only_consenting_users(): void
     {
         $ids = User::role('driver')->pluck('id')->map(fn ($id) => (int) $id)->all();
         $banned = User::find($ids[0]);
@@ -70,7 +71,13 @@ class AnnouncementJobTest extends TestCase
         (new SendAnnouncementJob($ids, 'Yeni özellik', ['Dönüş yükü taraması açıldı.']))->handle(app(NotificationService::class));
         $this->assertSame(2, UserNotification::query()->where('title', 'Yeni özellik')->count(), 'Kuyrukta beklerken engellenen almaz');
 
+        // Ticari ileti: yalnız açık rıza vermiş (ve geri almamış) kullanıcılar hedeflenir
         $this->actingAs($this->staff('super_admin'));
-        Volt::test('admin.crm-center')->set('category', 'marketing')->call('countTargets')->assertSet('targetCount', 0)->assertSee('Pazarlama rızası henüz toplanmıyor');
+        Volt::test('admin.crm-center')->set('category', 'marketing')->call('countTargets')->assertSet('targetCount', 0);
+        $consenting = User::find($ids[1]);
+        app(MarketingConsentService::class)->grant($consenting);
+        Volt::test('admin.crm-center')->set('category', 'marketing')->call('countTargets')->assertSet('targetCount', 1);
+        app(MarketingConsentService::class)->revoke($consenting->fresh(), 'test');
+        Volt::test('admin.crm-center')->set('category', 'marketing')->call('countTargets')->assertSet('targetCount', 0);
     }
 }

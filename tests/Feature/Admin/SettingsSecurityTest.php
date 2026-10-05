@@ -136,16 +136,18 @@ class SettingsSecurityTest extends TestCase
         $this->actingAs($admin);
         Settings::set('payment_provider', 'iyzico');
         $owner = User::factory()->create();
-        PaymentOrder::create(['user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 1500, 'currency' => 'TRY', 'status' => 'paid']);
-        PaymentOrder::create(['user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 900, 'currency' => 'TRY', 'status' => 'pending']);
-        PaymentOrder::create(['user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 700, 'currency' => 'TRY', 'status' => 'refunded']);
+        PaymentOrder::create(['merchant_oid' => 'T'.uniqid(), 'user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 1500, 'currency' => 'TRY', 'status' => 'paid']);
+        PaymentOrder::create(['merchant_oid' => 'T'.uniqid(), 'user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 900, 'currency' => 'TRY', 'status' => 'pending']);
+        PaymentOrder::create(['merchant_oid' => 'T'.uniqid(), 'user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 700, 'currency' => 'TRY', 'status' => 'refunded']);
 
         $c = Volt::test('admin.settings-center')->set('activeTab', 'payment')->assertSee('2 açık navlun ödeme emri');
-        $c->set('paymentForm.payment_provider', 'paytr')->set('currentPassword', 'Sifre12345!')->call('savePayment')->assertHasErrors(['paymentForm.payment_provider']);
+        $c->set('paymentForm.payment_provider', 'paytr')->set('currentPassword', 'Sifre12345!')->call('savePayment');
+        $this->assertArrayHasKey('paymentForm.payment_provider', $c->errors()->toArray(), 'sağlayıcı değişimi açık emir varken engellenmeli');
         $this->assertSame('iyzico', Settings::string('payment_provider'));
 
         // Sağlayıcı aynı kalırken test modu değişebilir; şifre gerekir ve bildirim düşer.
-        $c->set('paymentForm.payment_provider', 'iyzico')->set('paymentForm.iyzico_sandbox', '0')->call('savePayment')->assertHasErrors(['currentPassword']);
+        // Önceki deneme sağlayıcı kilidinde durduğu için şifre alanı temizlenmemişti; şifresiz deneme için boşaltılır.
+        $c->set('currentPassword', '')->set('paymentForm.payment_provider', 'iyzico')->set('paymentForm.iyzico_sandbox', '0')->call('savePayment')->assertHasErrors(['currentPassword']);
         $c->set('currentPassword', 'Sifre12345!')->call('savePayment')->assertHasNoErrors();
         $this->assertFalse(Settings::bool('iyzico_sandbox'));
         $this->assertSame(1, UserNotification::query()->where('user_id', $admin->id)->where('title', 'Ödeme/gizli ayar değişti')->count());

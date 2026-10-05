@@ -45,7 +45,7 @@ class HealthProbesTest extends TestCase
         Cache::forget('scheduler.heartbeat');
         Backup::create(['filename' => 'navluniq-eski.zip', 'backup_type' => 'full', 'status' => 'completed', 'completed_at' => now()->subHours(30)]);
         $owner = User::factory()->create();
-        PaymentOrder::create(['user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 1500, 'currency' => 'TRY', 'status' => 'refund_pending']);
+        PaymentOrder::create(['merchant_oid' => 'T'.uniqid(), 'user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 1500, 'currency' => 'TRY', 'status' => 'refund_pending']);
         $profile = CargoOwnerProfile::create(['user_id' => $owner->id, 'type' => 'individual', 'kyc_status' => 'approved']);
         $load = Load::create([
             'cargo_owner_profile_id' => $profile->id, 'source_type' => 'internal', 'visibility' => 'public', 'pickup_location' => 'İzmir', 'pickup_province_code' => 35,

@@ -72,7 +72,7 @@ new class extends Component {
 
         // Ticari ileti yalnız açık rıza vermiş kullanıcıya gider; rıza sütunu henüz yoksa kimseye gitmez.
         if ($this->category === 'marketing') {
-            self::marketingConsentAvailable() ? $query->whereNotNull('marketing_consent_at') : $query->whereRaw('1 = 0');
+            self::marketingConsentAvailable() ? $query->whereNotNull('marketing_consent_at')->whereNull('marketing_consent_revoked_at') : $query->whereRaw('1 = 0');
         }
 
         return $query;
