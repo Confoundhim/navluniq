@@ -3,6 +3,10 @@
 # Tek dosya siteyi yeni bir sunucuda ayağa kaldırmaya yeter: deploy/geri-yukle.sh (GitHub gerekmez).
 # Çıktı: /var/backups/navluniq/navluniq-YYYYmmdd-HHMMSS.tar.gz  (son 14 yedek tutulur)
 #   bash /var/www/navluniq/deploy/backup.sh
+#
+# YALNIZ ELLE KULLANIM (2026-10-05, I5): düzenli yedekleri zamanlayıcı alır (php artisan system:backup; gece tam yedek,
+# 6 saatte bir veritabanı dökümü; panelden indirilir, hata halinde bildirim). Bu betik crontab'a eklenmez; taşınma
+# öncesi ya da panel çalışmıyorken tek seferlik yedek için çalıştırılır.
 set -euo pipefail
 
 APP_DIR="/var/www/navluniq"

@@ -8,6 +8,7 @@ use App\Models\Load;
 use App\Models\Offer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class DemoResetCommandTest extends TestCase
@@ -47,6 +48,6 @@ class DemoResetCommandTest extends TestCase
         $this->assertTrue($demo->driverProfile->isKycApproved());
         $this->assertSame('approved', $demo->cargoOwnerProfile->kyc_status);
         $this->assertSame('tir', $demo->driverProfile->activeVehicle->vehicle_type);
-        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('Password123!', $demo->password));
+        $this->assertTrue(Hash::check('Password123!', $demo->password));
     }
 }

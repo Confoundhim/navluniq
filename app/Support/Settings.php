@@ -108,6 +108,14 @@ final class Settings
         'iyzico_secret_key' => '',              // şifreli saklanır
         'iyzico_sandbox' => 1,                  // 1: sandbox-api.iyzipay.com
         'iyzico_marketplace' => 0,              // 1: pazaryeri (alt üye işyeri) ürünü aktif
+
+        // İşletim ve uyarılar (2026-10-05)
+        'mail_verify_tls' => 1,                 // 1: SMTP sertifikası doğrulanır (RuntimeMailConfig); sunucu sertifikası bozuksa geçici 0
+        'alert_telegram_chat_id' => '',         // Bekçi (system:watchdog) uyarılarının gideceği Telegram sohbet kimliği (Osman'ın DM'i); boş: yalnız panel bildirimi
+        'intake_silence_alert_hours' => 3,      // 07:00-23:00 arasında telefondan bu kadar saat hiç istek gelmezse "telefon sessiz" uyarısı
+        'csp_enforce' => 0,                     // 0: içerik güvenliği politikası yalnız rapor eder (Content-Security-Policy-Report-Only); 1: zorunlu
+        'watchdog_last_run' => '',              // Bekçinin son çalışma özeti (JSON: at, alerts, checks); sağlık ekranı okur
+        'watchdog_last_alert' => '',            // Son gönderilen uyarı özeti (JSON: at, keys)
     ];
 
     /** Yalnız değeri gizlenerek günlüğe yazılacak ve veritabanında şifreli tutulacak anahtarlar. */

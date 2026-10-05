@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\Services;
 
-use App\Http\Middleware\FirewallMiddleware;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Services\AiParserService;
@@ -196,18 +195,17 @@ class LoadIntakeTest extends TestCase
         $this->assertSame(1, ScrapedLoad::count());
     }
 
-    public function test_webhook_uses_intake_pipeline(): void
+    /** Aynı ilan başka gruptan gelirse tekrar sayılır (eski Baileys ucu kaldırıldı; hat doğrudan sınanır). */
+    public function test_same_message_from_another_group_is_a_duplicate(): void
     {
-        config()->set('services.scraper.token', 'secret-token');
         $this->activeSource();
+        $intake = app(LoadIntakeService::class);
 
-        $this->withoutMiddleware(FirewallMiddleware::class)
-            ->postJson('/api/v1/webhook/whatsapp-scraper', ['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'w1', 'source_jid' => '1203630000001@g.us'], ['X-Scraper-Token' => 'secret-token'])
-            ->assertStatus(201)->assertJsonPath('status', 'created');
+        $first = $intake->intake(['group_name' => 'Test Grubu', 'raw_message' => self::AD, 'message_id' => 'w1', 'source_jid' => '1203630000001@g.us']);
+        $this->assertSame(['created', 201], [$first['status'], $first['code']]);
 
-        $this->withoutMiddleware(FirewallMiddleware::class)
-            ->postJson('/api/v1/webhook/whatsapp-scraper', ['group_name' => 'Başka Grup', 'raw_message' => self::AD, 'message_id' => 'w2', 'source_jid' => '1203630000002@g.us'], ['X-Scraper-Token' => 'secret-token'])
-            ->assertStatus(200)->assertJsonPath('status', 'duplicate');
+        $second = $intake->intake(['group_name' => 'Başka Grup', 'raw_message' => self::AD, 'message_id' => 'w2', 'source_jid' => '1203630000002@g.us']);
+        $this->assertSame(['duplicate', 200], [$second['status'], $second['code']]);
     }
 
     public function test_multi_ad_message_is_split_into_separate_candidates_by_rules(): void

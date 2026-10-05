@@ -30,9 +30,15 @@ finish() {
         printf '\n\033[1;31m✘ Güncelleme %s. adımda hata verdi (çıkış kodu %s); %s sürümüne geri dönülüyor\033[0m\n' "${STEP:-?}" "$status" "$BEFORE"
         git reset --quiet --hard "$BEFORE" || true
         composer install --no-dev --optimize-autoloader --no-interaction --quiet || true
+        # Derlenmiş ön yüz de önceki sürüme döner (npm build yarım kaldıysa eski sayfa kırık CSS/JS ile açılmaz).
+        if [[ -d public/build.prev ]]; then
+            rm -rf public/build && mv public/build.prev public/build || true
+        fi
         runuser -u www-data -- php artisan optimize:clear --quiet || true
+        runuser -u www-data -- php artisan optimize --quiet || true
         printf '\033[1;31m✘ Site %s sürümüyle yeniden açıldı; günlüğü inceleyip güncellemeyi tekrar başlatın.\033[0m\n' "$BEFORE"
     fi
+    rm -rf public/build.prev
     php artisan up --quiet >/dev/null 2>&1 || true
     rm -f "$0"
 }
@@ -40,7 +46,12 @@ trap finish EXIT
 STEP="bakım modu"
 
 log "Bakım modu"
-php artisan down --retry=15 --quiet || true
+# Bakımı atlama bağlantısı (I21): yönetici bu adresi bir kez açınca çerez alır ve bakım sırasında siteyi görebilir.
+# Ödeme geri çağrıları ve güncelleme durumu bakımdan zaten muaftır (bootstrap/app.php).
+BYPASS_SECRET="$(openssl rand -hex 16 2>/dev/null || head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+APP_URL_ENV="$(sed -nE 's/^APP_URL="?([^"]*)"?$/\1/p' .env | head -n1)"
+php artisan down --retry=15 --secret="$BYPASS_SECRET" --quiet || true
+echo "  Bakım sırasında siteyi görmek için (yalnız yönetici): ${APP_URL_ENV:-https://navluniq.com}/${BYPASS_SECRET}"
 # Takılı kalmış PHP-FPM istekleri açık işlem/tablo kilidi bırakabilir; migrate bu kilidi beklerken
 # "ilerlemiyor" görünür. Bakım modunda FPM yeniden başlatılır, kilitler serbest kalır.
 # Birden fazla PHP sürümü kuruluysa (8.3 + 8.4) yalnız ilki değil, çalışan her php-fpm yeniden başlatılır.
@@ -66,6 +77,9 @@ STEP="bağımlılıklar ve derleme"
 log "Bağımlılıklar ve derleme"
 composer install --no-dev --optimize-autoloader --no-interaction --quiet
 npm ci --silent --no-audit --no-fund
+# Önceki derleme saklanır; derleme ya da sonraki bir adım hata verirse geri alma bunu yerine koyar (bkz. finish).
+rm -rf public/build.prev
+[[ -d public/build ]] && cp -a public/build public/build.prev
 npm run build --silent
 
 STEP="veritabanı"
@@ -82,9 +96,6 @@ if ! timeout 900 php artisan migrate --force --no-interaction; then
     echo "Yarım kalmış tablo hatası ('already exists') alırsanız migration'lar yeniden çalıştırılabilir; güncellemeyi tekrar başlatmanız yeterlidir."
     exit 1
 fi
-# Araç tipi boş kalmış dış kaynak ilanlarını sınıflandırıcıyla doldur (yalnız boş olanlar; tekrar çalıştırmak güvenli).
-php artisan scraped-loads:classify --no-interaction || true
-
 STEP="roller ve izinler"
 log "Roller ve izinler"
 php artisan db:seed --force --no-interaction --class=RolesAndPermissionsSeeder --quiet
@@ -136,19 +147,27 @@ ensure_cron() {  # ensure_cron <kullanıcı> <eşleşme metni> <satır>
 }
 
 log "Zamanlayıcı (her dakika)"
-ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> ${APP_DIR}/storage/logs/schedule.log 2>&1"
 ok "www-data crontab: schedule:run (otomatik onay, ilan açılışı, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
 
-log "Gece yedeği (03:00)"
-ensure_cron root "deploy/backup.sh" "0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
-ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
+# Tek yedek yolu (I5): yedekleri zamanlayıcı alır (system:backup, panelden indirilir); deploy/backup.sh yalnız elle
+# (taşınma öncesi) kullanılır. Eski kurulumlardaki root crontab satırı kaldırılır ki aynı hasta diskte iki ayrı gece yedeği birikmesin.
+if timeout 20 crontab -u root -l 2>/dev/null </dev/null | grep -qF "deploy/backup.sh"; then
+    tmp_cron="$(mktemp /tmp/navluniq-cron.XXXXXX)"
+    timeout 20 crontab -u root -l 2>/dev/null </dev/null | grep -vF "deploy/backup.sh" > "$tmp_cron" || true
+    timeout 20 crontab -u root "$tmp_cron" </dev/null && ok "root crontab: eski deploy/backup.sh satırı kaldırıldı (yedek artık system:backup ile)" || true
+    rm -f "$tmp_cron"
+fi
 
 STEP="izinler ve önbellekler"
 log "İzinler ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private
-chown -R www-data:www-data "$APP_DIR"
+# Kod root'a ait, web kullanıcısı yalnız okur; yazma yalnız storage ve bootstrap/cache'te (bkz. install.sh, I12).
+chown -R root:www-data "$APP_DIR"
+chown -R www-data:www-data storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
-chmod 640 .env
+chown root:www-data .env && chmod 640 .env
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR" || git config --system --add safe.directory "$APP_DIR" || true
 runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
 # Kuyruk işçileri yeni kodu yüklesin (işçi yoksa zararsız; systemd/supervisor işçiyi yeniden açar).
@@ -160,4 +179,22 @@ for PHP_FPM in $(systemctl list-units --type=service --state=running 'php*-fpm*'
 done
 
 STEP="tamamlandı"
+rm -rf public/build.prev
+php artisan up --quiet || true
+ok "Site açıldı"
+
+# Araç tipi boş kalmış dış kaynak ilanlarını doldurma ve son 30 günü yeniden konumlama (tekrar çalıştırmak güvenli)
+# site AÇILDIKTAN SONRA arka planda çalışır: bakım süresini uzatmaz; çıktısı storage/logs/classify.log'a gider.
+# Panel güncellemesi geçici bir systemd servisi içinde koşar ve servis bitince cgroup'taki her süreç öldürülür; bu yüzden
+# sınıflandırma AYRI bir geçici servis olarak başlatılır (systemd-run). systemd yoksa nohup ile arka plana atılır.
+CLASSIFY_CMD="cd '$APP_DIR' && php artisan scraped-loads:classify --no-interaction >> storage/logs/classify.log 2>&1"
+if command -v systemd-run >/dev/null 2>&1 \
+   && systemd-run --quiet --no-block --collect --unit "navluniq-classify-$(date +%s)" -p User=www-data bash -c "$CLASSIFY_CMD" 2>/dev/null; then
+    ok "Sınıflandırma arka planda başladı (systemd, storage/logs/classify.log)"
+elif runuser -u www-data -- bash -c "nohup bash -c \"$CLASSIFY_CMD\" >/dev/null 2>&1 &"; then
+    ok "Sınıflandırma arka planda başladı (storage/logs/classify.log)"
+else
+    echo "  ! Sınıflandırma başlatılamadı; elle: php artisan scraped-loads:classify"
+fi
+
 ok "Güncelleme tamamlandı (${AFTER})"

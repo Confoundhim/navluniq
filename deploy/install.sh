@@ -79,6 +79,36 @@ apt-get install -y -qq nginx redis-server supervisor \
 systemctl enable --now redis-server supervisor >/dev/null 2>&1 || true
 ok "nginx, redis, supervisor ve PHP ${PHP_VERSION} hazır"
 
+# Redis (I6): bellek sınırı yoksa önbellek büyüyüp sunucuyu yavaşlatır; sınır dolunca en az kullanılan anahtar silinir
+# (önbellek semantiği; oturum ve kuyruk veritabanında). Düşerse systemd 3 sn'de yeniden başlatır; bekçi ping ile izler.
+if [[ -f /etc/redis/redis.conf ]]; then
+    REDIS_DROPIN="/etc/redis/navluniq.conf"
+    REDIS_WANT=$'# NavlunIQ (deploy/install.sh tarafından yazılır)\nmaxmemory 256mb\nmaxmemory-policy allkeys-lru\n'
+    REDIS_CHANGED=0
+    if [[ ! -f "$REDIS_DROPIN" ]] || [[ "$(cat "$REDIS_DROPIN")" != "$(printf '%s' "$REDIS_WANT")" ]]; then
+        printf '%s' "$REDIS_WANT" > "$REDIS_DROPIN"
+        chown redis:redis "$REDIS_DROPIN" 2>/dev/null || true
+        REDIS_CHANGED=1
+    fi
+    # include dosyanın SONUNDA olmalı: aynı yönerge son yazılan değeri alır, böylece paket varsayılanını ezer.
+    if ! grep -qxF "include ${REDIS_DROPIN}" /etc/redis/redis.conf; then
+        printf '\ninclude %s\n' "$REDIS_DROPIN" >> /etc/redis/redis.conf
+        REDIS_CHANGED=1
+    fi
+    mkdir -p /etc/systemd/system/redis-server.service.d
+    REDIS_OVERRIDE="/etc/systemd/system/redis-server.service.d/navluniq.conf"
+    REDIS_OVERRIDE_WANT=$'[Service]\nRestart=always\nRestartSec=3\n'
+    if [[ ! -f "$REDIS_OVERRIDE" ]] || [[ "$(cat "$REDIS_OVERRIDE")" != "$(printf '%s' "$REDIS_OVERRIDE_WANT")" ]]; then
+        printf '%s' "$REDIS_OVERRIDE_WANT" > "$REDIS_OVERRIDE"
+        systemctl daemon-reload
+        REDIS_CHANGED=1
+    fi
+    if [[ $REDIS_CHANGED -eq 1 ]]; then
+        systemctl restart redis-server >/dev/null 2>&1 || true
+        ok "Redis: maxmemory 256mb, allkeys-lru, Restart=always"
+    fi
+fi
+
 update-alternatives --set php "/usr/bin/php${PHP_VERSION}" >/dev/null 2>&1 || true
 
 # PHP sınırları: KYC belgeleri 10 MB'a kadar kabul edilir; PHP'nin varsayılan 2 MB
@@ -101,7 +131,12 @@ if [[ -f "$POOL" ]]; then
     RAM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
     MAXC=$(( RAM_MB / 200 )); (( MAXC < 8 )) && MAXC=8; (( MAXC > 30 )) && MAXC=30
     sed -i -E "s/^;?pm.max_children = .*/pm.max_children = ${MAXC}/; s/^;?pm.start_servers = .*/pm.start_servers = 4/; s/^;?pm.min_spare_servers = .*/pm.min_spare_servers = 2/; s/^;?pm.max_spare_servers = .*/pm.max_spare_servers = 6/" "$POOL"
-    ok "PHP-FPM işçi sayısı: ${MAXC} (bellek ${RAM_MB} MB)"
+    # Asılan istek (SMTP cevap vermiyor, dış servis takıldı) işçiyi 120 sn'den fazla tutamaz; her işçi 500 istekte
+    # yenilenir (bellek sızıntısı birikmez) (I10).
+    sed -i -E "s/^;?request_terminate_timeout = .*/request_terminate_timeout = 120/; s/^;?pm.max_requests = .*/pm.max_requests = 500/" "$POOL"
+    grep -qE '^request_terminate_timeout' "$POOL" || echo "request_terminate_timeout = 120" >> "$POOL"
+    grep -qE '^pm.max_requests' "$POOL" || echo "pm.max_requests = 500" >> "$POOL"
+    ok "PHP-FPM işçi sayısı: ${MAXC} (bellek ${RAM_MB} MB), istek sınırı 120 sn, işçi 500 istekte yenilenir"
 fi
 systemctl restart "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
 ok "PHP yükleme sınırı 12 MB"
@@ -171,11 +206,19 @@ set_env() {  # set_env ANAHTAR DEĞER
     fi
 }
 
-SCHEME="http"; [[ $IS_DOMAIN -eq 1 && -n "${LETSENCRYPT_EMAIL:-}" ]] && SCHEME="https"
+# https: sertifika zaten varsa, alınacaksa (LETSENCRYPT_EMAIL) ya da var olan .env zaten https ise. Betik yeniden
+# çalışınca site http'ye düşmez (I7); yalnız IP ile kurulum http kalır.
+SCHEME="http"
+if [[ $IS_DOMAIN -eq 1 ]]; then
+    if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" || -n "${LETSENCRYPT_EMAIL:-}" ]] || grep -qE '^APP_URL="?https://' .env; then
+        SCHEME="https"
+    fi
+fi
 set_env APP_ENV production
 set_env APP_DEBUG false
 set_env APP_URL "${SCHEME}://${DOMAIN}"
-set_env LOG_LEVEL error
+# warning: yavaş istek, e-posta hatası, devre kesici gibi uyarılar günlüğe düşer (error ile hiç yazılmıyordu, I8).
+set_env LOG_LEVEL warning
 set_env LOG_STACK daily          # günlük dosyası her gün döner, 14 gün saklanır (tek dosya sınırsız büyümez)
 set_env LOG_DAILY_DAYS 14
 set_env DB_CONNECTION mysql
@@ -231,13 +274,19 @@ fi
 log "Dosya izinleri ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private storage/app/public
 [[ -L public/storage ]] || php artisan storage:link --quiet
-chown -R www-data:www-data "$APP_DIR"
+# Kod ağacı root'a ait, web kullanıcısı yalnız okur (I12): ele geçirilen bir PHP işçisi kodu ya da .env'i değiştiremez.
+# Yazma yalnız storage ve bootstrap/cache'te (www-data). Grup yazma yetkisi yoktur (755/644).
+chown -R root:www-data "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 755 {} +
 find "$APP_DIR" -type f -exec chmod 644 {} +
+chown -R www-data:www-data storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
 chmod -R o-rwx storage/app          # kimlik belgeleri ve özel dosyalar sunucudaki başka hesaplara kapalı
-chmod 640 .env
+chown root:www-data .env && chmod 640 .env
 chmod +x deploy/*.sh
+# Panel yedeği (BackupService::codeFiles) www-data olarak "git ls-files" çalıştırır; depo root'a ait olduğu için git
+# "dubious ownership" deyip boş liste döner ve yedekte kod eksik kalır. Sistem geneli safe.directory bunu açar.
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR" || git config --system --add safe.directory "$APP_DIR" || true
 runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
 ok "config/route/view önbellekleri oluşturuldu"
@@ -271,7 +320,8 @@ fi
 
 # -----------------------------------------------------------------------------
 log "Zamanlanmış görevler"
-CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+# Çıktı storage/logs/schedule.log'a gider (I9): takılan ya da hata veren görev görünür; dosya haftada bir kırpılır (routes/console.php).
+CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> ${APP_DIR}/storage/logs/schedule.log 2>&1"
 { crontab -u www-data -l 2>/dev/null | grep -vF "schedule:run" || true; echo "$CRON_LINE"; } | crontab -u www-data -
 ok "her dakika schedule:run (www-data)"
 
@@ -281,7 +331,9 @@ if command -v supervisorctl >/dev/null; then
     cat > /etc/supervisor/conf.d/navluniq-worker.conf <<SUPERVISOR
 [program:navluniq-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php ${APP_DIR}/artisan queue:work ${QUEUE_CONN} --sleep=3 --tries=3 --max-time=3600
+; --tries verilmez: her iş kendi \$tries değerini taşır (telefon mesajı 1 deneme); 180 sn retry_after (config/queue.php) ile
+; aynı mesaj ikinci işçiye düşmez.
+command=php ${APP_DIR}/artisan queue:work ${QUEUE_CONN} --sleep=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true

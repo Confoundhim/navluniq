@@ -40,7 +40,9 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // İş zaman aşımı 120 sn (max_execution_time / php sınırı); yeniden deneme süresi bundan uzun olmalı, yoksa
+            // yapay zeka bekleyen aynı mesaj ikinci işçiye de verilir (çift çözüm, çift kayıt). 2026-10-05: 90 → 180.
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 180),
             'after_commit' => false,
         ],
 

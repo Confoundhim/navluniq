@@ -13,10 +13,18 @@ final class RuntimeMailConfig
         try {
             $password = Settings::string('mail_password');
             $host = Settings::string('mail_host');
+            $verifyTls = Settings::bool('mail_verify_tls');
         } catch (\Throwable $e) {
             // Veritabanı hazır değil (ilk kurulum, migrate) — .env ayarları geçerli kalır.
             return;
         }
+
+        // Sertifika doğrulaması panelden kapatılabilir (varsayılan açık; bkz. config/mail.php). Panel SMTP'si girilmemiş
+        // olsa da .env sunucusu için geçerlidir.
+        config([
+            'mail.mailers.smtp.verify_peer' => $verifyTls,
+            'mail.mailers.smtp.verify_peer_name' => $verifyTls,
+        ]);
 
         if ($password === '' || $host === '') {
             return;
