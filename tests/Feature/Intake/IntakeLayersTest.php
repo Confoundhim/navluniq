@@ -3,11 +3,13 @@
 namespace Tests\Feature\Intake;
 
 use App\Models\IntakeEvent;
+use App\Models\IntakeLayerSample;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Models\SenderPickup;
 use App\Models\User;
 use App\Services\AiParserService;
+use App\Services\IntakeLayerReview;
 use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\ScrapedLoadService;
@@ -16,6 +18,7 @@ use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -36,6 +39,8 @@ class IntakeLayersTest extends TestCase
         Settings::set('ai_parse_mode', 'off');
         Settings::set('scraper_auto_approve', '1');
         Settings::set('scraper_auto_approve_require_ai', '0');
+        // Yorum katmanı canlıda gölgeyle başlar; davranış testleri etkin hâlini sınar (gölge ve aşama testleri ayrı).
+        IntakeLayers::setStage('two_line_route', IntakeLayers::STAGE_ACTIVE);
     }
 
     private function source(): Scraper
@@ -48,30 +53,106 @@ class IntakeLayersTest extends TestCase
         return app(LoadIntakeService::class)->intake(['group_name' => 'Deneme Grubu', 'raw_message' => $message, 'message_id' => $id, 'source_jid' => 'notif:deneme-grubu']);
     }
 
-    public function test_every_layer_has_a_default_setting_and_can_be_switched_off(): void
+    public function test_layers_have_stages_managed_by_the_system_not_by_a_switch(): void
     {
-        foreach (array_keys(IntakeLayers::LAYERS) as $layer) {
-            $this->assertArrayHasKey(IntakeLayers::settingKey($layer), Settings::DEFAULTS, $layer);
-            $this->assertTrue(IntakeLayers::enabled($layer), $layer);
+        foreach (IntakeLayers::LAYERS as $layer => $def) {
+            if (($def['lifecycle'] ?? 'permanent') === 'managed') {
+                $this->assertArrayHasKey(IntakeLayers::stageKey($layer), Settings::DEFAULTS, $layer);
+            } else {
+                $this->assertSame(IntakeLayers::STAGE_ACTIVE, IntakeLayers::stage($layer), $layer);
+                $this->assertTrue(IntakeLayers::enabled($layer), $layer);
+            }
         }
-        Settings::set('intake_layer_not_load_pattern', '0');
-        $this->assertFalse(IntakeLayers::enabled('not_load_pattern'));
+        // Yönetilen katmanın varsayılanı: iki satır yorumu gölgede başlar, gönderen hafızası etkin başlar.
+        $this->assertSame(IntakeLayers::STAGE_SHADOW, Settings::DEFAULTS[IntakeLayers::stageKey('two_line_route')]);
+        $this->assertSame(IntakeLayers::STAGE_ACTIVE, Settings::DEFAULTS[IntakeLayers::stageKey('sender_pickup_memory')]);
+        // Kalıcı katmanın aşaması ayarla değişmez.
+        Settings::set(IntakeLayers::stageKey('not_load_pattern'), 'shadow');
+        $this->assertTrue(IntakeLayers::enabled('not_load_pattern'));
         $this->assertSame('no_pickup_filter', IntakeLayers::layerForReason('pickup_missing'));
-        $this->assertNull(IntakeLayers::layerForReason('phone_missing'));
+        // Ayarlar ekranında aç/kapa yok; yalnız açıklama.
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin->fresh());
+        Volt::test('admin.settings-center', ['activeTab' => 'scraper'])->assertSee('elle açılıp kapanmaz')->assertDontSee('layers.two_line_route');
     }
 
-    public function test_switching_off_an_elimination_layer_lets_the_message_through(): void
+    public function test_shadow_two_line_layer_records_a_judged_sample_without_affecting_the_ad(): void
     {
+        IntakeLayers::setStage('two_line_route', IntakeLayers::STAGE_SHADOW);
+        Settings::set('ai_parse_mode', 'always');
+        config()->set('services.ai.active_provider', 'gemini');
+        config()->set('services.ai.gemini_key', 'test-key');
+        config()->set('services.ai.gemini_model', 'gemini-test');
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['content' => ['parts' => [['text' => json_encode([
+            'post_type' => 'load', 'confidence' => 0.9, 'sender_phone' => '5321112233',
+            'pickup' => ['province' => 'İstanbul', 'district' => 'Hadımköy'], 'delivery' => ['province' => 'Ankara', 'district' => null],
+            'goods' => null, 'goods_category' => null, 'vehicle_type' => 'tir', 'vehicle_flexible' => false,
+            'weight_kg' => null, 'price_try' => null, 'urgent' => false, 'pickup_date_text' => null, 'multiple_loads' => false, 'notes' => null,
+        ])]]]]]])]);
         $this->source();
-        $msg = 'Boş araç arıyorum Ankara İzmir tır 0532 111 22 33'; // yük sahibi dili: boş araç ARIYOR → ilan
-        $notLoad = 'Boştayım İstanbul Ankara 0532 111 22 33'; // nakliyeci dili: ilan değil
-        $r = $this->intake($notLoad, 'm1');
-        $this->assertSame(['filtered', 'not_load_pattern'], [$r['status'], $r['reason']]);
-        Settings::set('intake_layer_not_load_pattern', '0');
-        $r = $this->intake($notLoad, 'm2');
-        $this->assertNotSame('not_load_pattern', $r['reason'] ?? null);
-        Settings::set('intake_layer_not_load_pattern', '1');
-        $this->assertSame('created', $this->intake($msg, 'm3')['status']);
+        $r = $this->intake("İSTANBUL HADIMKÖY TENTELİ TIR\nANKARA 2 ARAÇ\n0532 111 22 33", 'm1');
+        // İlan etkilenmez: gönderen hafızası yok → kalkış bekleyen aday (eskisi gibi), iki satır yorumu uygulanmaz
+        $this->assertSame(['created', 'pickup_pending'], [$r['status'], $r['reason'] ?? null]);
+        $this->assertNull(ScrapedLoad::first()->meta('route_inferred'));
+        // Örnek yazıldı ve hakem (yapay zeka) rotayı doğruladı
+        $sample = IntakeLayerSample::query()->where('layer', 'two_line_route')->first();
+        $this->assertNotNull($sample);
+        $this->assertSame(['shadow', 'agree'], [$sample->stage, $sample->verdict]);
+        $this->assertSame('Ankara', $sample->predicted_delivery);
+        $this->assertStringContainsString('İstanbul', (string) $sample->judge_pickup);
+    }
+
+    public function test_review_promotes_a_shadow_layer_on_evidence_and_pauses_an_active_layer_on_bad_outcomes(): void
+    {
+        $review = app(IntakeLayerReview::class);
+        IntakeLayers::setStage('two_line_route', IntakeLayers::STAGE_SHADOW);
+        // 29 uyumlu örnek: henüz yetmez
+        for ($i = 0; $i < 29; $i++) {
+            IntakeLayerSample::create(['layer' => 'two_line_route', 'stage' => 'shadow', 'verdict' => 'agree', 'created_at' => now()->addSecond()]);
+        }
+        $this->assertSame([], $review->run());
+        $this->assertSame(IntakeLayers::STAGE_SHADOW, IntakeLayers::stage('two_line_route'));
+        // 30. örnek + uyum %85 üstü → kendiliğinden etkin; etkinlik günlüğüne yazılır (sistem kullanıcısı yokken de)
+        IntakeLayerSample::create(['layer' => 'two_line_route', 'stage' => 'shadow', 'verdict' => 'agree', 'created_at' => now()->addSecond()]);
+        IntakeLayerSample::create(['layer' => 'two_line_route', 'stage' => 'shadow', 'verdict' => 'unknown', 'created_at' => now()->addSecond()]); // sayılmaz
+        $changes = $review->run();
+        $this->assertCount(1, $changes);
+        $this->assertStringContainsString('etkinleşti', $changes[0]);
+        $this->assertSame(IntakeLayers::STAGE_ACTIVE, IntakeLayers::stage('two_line_route'));
+
+        // Etkin katmanda kötü sonuç: 20 sonucun 7'si yönetici düzeltmesi/reddi (%35 ≥ %30) → duraklatılır (5 dk sonra, zaman ilerletilir)
+        $this->travelTo(now()->addMinutes(5));
+        $src = $this->source();
+        for ($i = 0; $i < 20; $i++) {
+            $bad = $i < 7;
+            ScrapedLoad::create([
+                'scraper_id' => $src->id, 'content_hash' => hash('sha256', 'x'.$i), 'raw_message' => 'İstanbul Ankara 0532 111 22 33',
+                'encrypted_sender_phone' => Crypt::encryptString('5321112233'), 'pickup_location' => 'İstanbul', 'pickup_province_code' => 34,
+                'delivery_location' => 'Ankara', 'delivery_province_code' => 6, 'status' => $bad ? 'rejected' : 'parsed_success', 'visibility' => $bad ? 'private' : 'public',
+                'parsed_by_llm' => 'regex', 'ai_status' => 'skipped', 'duplicate_count' => 1, 'seen_sources' => ['Deneme Grubu'], 'last_seen_at' => now(), 'sighting_count' => 1,
+                'completed_by' => $bad ? null : 'driver', 'retention_expires_at' => now()->addDays(7),
+                'parse_metadata' => ['layer' => 'two_line_route', 'route_inferred' => 'two_line'] + ($bad ? ['reject_reason' => 'wrong_route'] : []),
+            ]);
+        }
+        $m = $review->metrics('two_line_route');
+        $this->assertSame([13, 7], [$m['outcome']['good'], $m['outcome']['bad']]);
+        $changes = $review->run();
+        $this->assertCount(1, $changes);
+        $this->assertStringContainsString('duraklatıldı', $changes[0]);
+        $this->assertSame(IntakeLayers::STAGE_PAUSED, IntakeLayers::stage('two_line_route'));
+        $this->assertTrue(IntakeLayers::isShadow('two_line_route'));
+        // Duraklatılınca eski gölge örnekleri sayılmaz (aşama değişiminden sonrası gerekir): hemen yeniden etkinleşmez
+        $this->assertSame([], $review->run());
+        $this->assertSame(IntakeLayers::STAGE_PAUSED, IntakeLayers::stage('two_line_route'));
+        // Yeterli uyumsuz gölge örneğiyle de etkinleşmez (%63 < %85)
+        IntakeLayers::setStage('two_line_route', IntakeLayers::STAGE_SHADOW);
+        for ($i = 0; $i < 32; $i++) {
+            IntakeLayerSample::create(['layer' => 'two_line_route', 'stage' => 'shadow', 'verdict' => $i < 20 ? 'agree' : 'disagree', 'created_at' => now()->addSecond()]);
+        }
+        $this->assertSame([], $review->run());
+        $this->assertSame(IntakeLayers::STAGE_SHADOW, IntakeLayers::stage('two_line_route'));
     }
 
     public function test_two_place_vehicle_lines_are_read_first_pickup_second_delivery_as_incomplete(): void
@@ -92,15 +173,12 @@ class IntakeLayersTest extends TestCase
         $html = (string) $this->blade('<x-external-load-card :item="$item" />', ['item' => $load]);
         $this->assertStringContainsString('Bilgi eksik', $html);
 
-        // Katman kapalıyken eskisi gibi: fiilsiz iki satır "kalkışsız liste" sayılır (eleme katmanı), yorum yapılmaz
-        Settings::set('intake_layer_two_line_route', '0');
+        // Gölgede / duraklatılmışken eskisi gibi: fiilsiz iki satır "kalkışsız liste" sayılır, yorum uygulanmaz (yalnız örnek yazılır)
+        IntakeLayers::setStage('two_line_route', IntakeLayers::STAGE_PAUSED);
         $segs = LoadIntakeService::splitSegments("İSTANBUL HADIMKÖY TENTELİ TIR\nANKARA 2 ARAÇ\n0532 111 22 33");
         $this->assertArrayNotHasKey('interpreted', $segs[0]);
         $this->assertTrue((bool) ($segs[0]['pickup_missing'] ?? false));
-        // İki eleme/yorum katmanı da kapalıyken genel okumaya düşer (kesin okuma: İstanbul → Ankara)
-        Settings::set('intake_layer_no_pickup_filter', '0');
-        $segs = LoadIntakeService::splitSegments("İSTANBUL HADIMKÖY TENTELİ TIR\nANKARA 2 ARAÇ\n0532 111 22 33");
-        $this->assertArrayNotHasKey('pickup_missing', $segs[0]);
+        $this->assertTrue((bool) ($segs[0]['shadow_two_line'] ?? false));
     }
 
     public function test_ai_confirmation_turns_an_interpreted_route_into_a_full_ad(): void
@@ -243,14 +321,16 @@ class IntakeLayersTest extends TestCase
         $this->assertSame(1, $layers['blocks'] ?? 0);
         $this->assertSame(2, $layers['series'] ?? 0);
 
+        $report = app(IntakeLayerReview::class)->report();
+        $this->assertSame(2, $report['series']['opened_7d']);
+        $this->assertSame('kalıcı', $report['series']['stage_label']);
+        $this->assertSame('etkin', $report['two_line_route']['stage_label']);
+        // Hat karnesi: katman satırları yönetici ekranında
         $this->seed(RolesAndPermissionsSeeder::class);
         $admin = User::factory()->create(['current_role' => 'admin']);
         $admin->syncRoles(['super_admin']);
         $this->actingAs($admin->fresh());
-        Volt::test('admin.settings-center', ['activeTab' => 'scraper'])
-            ->assertSee('Okuma katmanları')->assertSee('İki satırlık ilan yorumu')->assertSee('2 aday')
-            ->set('layers.two_line_route', '0')->call('saveScraper');
-        $this->assertFalse(IntakeLayers::enabled('two_line_route'));
+        Volt::test('admin.scrapers-center')->assertSee('Okuma katmanları (7 gün)')->assertSee('Seri ilan (başlık + boşaltma listesi)');
         $this->assertSame(0, IntakeEvent::query()->where('status', 'failed')->count());
     }
 }

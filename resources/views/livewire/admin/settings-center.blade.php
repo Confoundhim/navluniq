@@ -41,8 +41,6 @@ new class extends Component {
     /** @var array<string, string> */
     public array $limits = [];
 
-    /** Okuma katmanları (IntakeLayers::LAYERS): katman anahtarı → '1'/'0'. */
-    public array $layers = [];
 
     public const SCRAPER_KEYS = [
         'scraper_free_delay_minutes' => 'Premium öncelik süresi (dakika)',
@@ -189,30 +187,6 @@ new class extends Component {
             route('admin.settings'), 'Ayarları gör', 'admin');
     }
 
-    /** Son 7 gün: katman başına açılan aday (parse_metadata.layer) ve elenen mesaj (intake_events.reason) sayısı; metin olarak. */
-    private function layerCounts(): array
-    {
-        $out = [];
-        try {
-            $loads = \App\Models\ScrapedLoad::query()->where('created_at', '>=', now()->subDays(7))->whereNotNull('parse_metadata->layer')
-                ->selectRaw("json_extract(parse_metadata, '$.layer') as layer, count(*) as n")->groupBy('layer')->pluck('n', 'layer');
-            foreach ($loads as $layer => $n) {
-                $out[trim((string) $layer, '"')] = number_format((int) $n, 0, ',', '.').' aday';
-            }
-            $events = \App\Models\IntakeEvent::query()->where('created_at', '>=', now()->subDays(7))->where('status', 'filtered')
-                ->selectRaw('reason, count(*) as n')->groupBy('reason')->pluck('n', 'reason');
-            foreach ($events as $reason => $n) {
-                if (($layer = \App\Support\IntakeLayers::layerForReason((string) $reason)) !== null) {
-                    $out[$layer] = trim(($out[$layer] ?? '').' · '.number_format((int) $n, 0, ',', '.').' elenen', ' ·');
-                }
-            }
-        } catch (\Throwable) {
-            // sayım yalnız bilgi amaçlı; sorgu desteklenmezse (eski MySQL) satır boş kalır
-        }
-
-        return $out;
-    }
-
     private function loadValues(): void
     {
         foreach (array_keys(self::GENERAL_KEYS) as $key) {
@@ -223,9 +197,6 @@ new class extends Component {
         }
         foreach (array_keys(self::SCRAPER_KEYS) as $key) {
             $this->scraper[$key] = in_array($key, self::SCRAPER_TOGGLES, true) ? (Settings::bool($key) ? '1' : '0') : (in_array($key, self::AI_SECRET_KEYS, true) ? '' : (string) Settings::get($key));
-        }
-        foreach (array_keys(\App\Support\IntakeLayers::LAYERS) as $layer) {
-            $this->layers[$layer] = \App\Support\IntakeLayers::enabled($layer) ? '1' : '0';
         }
         foreach (array_keys(\App\Services\AiParserService::PROVIDERS) as $provider) {
             $this->scraper['ai_'.$provider.'_key_set'] = app(\App\Services\AiParserService::class)->apiKey($provider) !== '' ? '1' : '0';
@@ -624,14 +595,6 @@ new class extends Component {
 
         $changed = 0;
         $changedKeys = [];
-        foreach (\App\Support\IntakeLayers::LAYERS as $layer => $def) {
-            $key = \App\Support\IntakeLayers::settingKey($layer);
-            $value = ($this->layers[$layer] ?? '1') === '1' ? '1' : '0';
-            if ($this->persist($key, 'Okuma katmanı: '.$def['label'], $value, Settings::bool($key) ? '1' : '0')) {
-                $changed++;
-                $changedKeys[] = $key;
-            }
-        }
         foreach (self::SCRAPER_KEYS as $key => $label) {
             $value = trim((string) ($this->scraper[$key] ?? ''));
             if (in_array($key, self::AI_SECRET_KEYS, true) && $value === '') {
@@ -696,7 +659,6 @@ new class extends Component {
 
         return [
             'scraperKeys' => self::SCRAPER_KEYS,
-            'layerCounts' => $this->activeTab === 'scraper' ? $this->layerCounts() : [],
             'aiUsage' => \App\Models\AiProviderUsage::query()->whereDate('usage_date', now()->toDateString())->get()
                 ->mapWithKeys(fn ($u) => [$u->provider => ['requests' => $u->request_count, 'failures' => $u->failure_count, 'quota' => $u->quota_exhausted && (! $u->quota_resets_at || $u->quota_resets_at->isFuture()), 'resets' => $u->quota_resets_at ? \App\Support\TimeAgo::label($u->quota_resets_at) : '']])->all(),
             'aiErrors' => app(\App\Services\AiParserService::class)->lastErrors(),
@@ -806,22 +768,7 @@ new class extends Component {
 
     @if($activeTab === 'scraper')
         <form wire:submit="saveScraper" class="apple-glass rounded-3xl p-6 space-y-5 text-xs">
-            <div>
-                <h3 class="section-title">Okuma katmanları</h3>
-                <p class="text-[11px] text-neutral-400 mt-1">Gruptan gelen her mesaj sırayla bu katmanlardan geçer: eleme katmanları ilan olmayanı düşürür, çözüm katmanları ilanları ayırıp rotayı kesin kuralla çözer, yorum katmanları kesin kural bulunamayınca makul bir okuma yapar ("bilgi eksik" rozetiyle). Bir katmanı kapatınca o katman yokmuş gibi davranılır ve mesaj sonraki katmana iner; hiçbir katman silinmez. Her satırın yanında son 7 günde o katmandan geçen aday / elenen mesaj sayısı yazar.</p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                @foreach(\App\Support\IntakeLayers::LAYERS as $layer => $def)
-                    <div class="flex items-start justify-between gap-3 rounded-2xl border border-neutral-200/60 dark:border-neutral-700/40 px-3 py-2.5">
-                        <div class="min-w-0">
-                            <div class="font-semibold text-neutral-800 dark:text-neutral-100">{{ $def['label'] }} <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] {{ $def['kind'] === 'eleme' ? 'bg-red-500/10 text-red-600' : ($def['kind'] === 'yorum' ? 'bg-sky-500/10 text-sky-600' : 'bg-emerald-500/10 text-emerald-600') }}">{{ $def['kind'] }}</span></div>
-                            <div class="text-[11px] text-neutral-400 mt-0.5">{{ $def['desc'] }}</div>
-                            @if(isset($layerCounts[$layer]))<div class="text-[11px] text-neutral-500 mt-0.5">Son 7 gün: {{ $layerCounts[$layer] }}</div>@endif
-                        </div>
-                        <select wire:model="layers.{{ $layer }}" class="{{ $input }} !w-auto shrink-0"><option value="0">Kapalı</option><option value="1">Açık</option></select>
-                    </div>
-                @endforeach
-            </div>
+            <p class="text-[11px] text-neutral-400">Okuma katmanları elle açılıp kapanmaz: yeni katman gölgede izlenir, yapay zeka hakemiyle uyumu yeterliyse kendiliğinden etkinleşir, hata oranı yükselirse kendiliğinden gölgeye döner. Durumu Dış Kaynak İlanları ekranındaki hat karnesinde görürsünüz; her değişim Telegram ve panel bildirimiyle gelir.</p>
             <div>
                 <h3 class="section-title">Otomatik onay</h3>
                 <p class="text-[11px] text-neutral-400 mt-1">Açıkken her dakika çalışan görev, kriterleri sağlayan adayları kendiliğinden yayınlar: kaynak aktif, kalkış ve varış ili çözülmüş, telefon var, (zorunluysa) fiyat/tonaj/araç var ve yapay zeka doğrulaması geçmiş. Kapalıyken adaylar Dış Kaynak İlanları ekranında elle onaylanır; her satır neden kendiliğinden yayınlanmadığını yazar.</p>

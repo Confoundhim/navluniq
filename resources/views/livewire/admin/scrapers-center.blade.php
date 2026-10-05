@@ -749,14 +749,8 @@ new class extends Component {
             ->map(fn ($l) => $l->created_at && $l->published_at ? max(0, (int) round($l->created_at->diffInMinutes($l->published_at, true))) : null)->filter(fn ($m) => $m !== null)->sort()->values();
         $median = $minutes->isEmpty() ? null : (int) $minutes->get(intdiv($minutes->count(), 2));
 
-        // Okuma katmanları: son 7 günde hangi katman kaç aday açtı (parse_metadata.layer); yorumla çözülenlerin şoför/yönetici/yapay zeka doğrulaması
-        $layers = ScrapedLoad::query()->where('created_at', '>=', now()->subDays(7))->whereNotNull('parse_metadata->layer')
-            ->selectRaw("json_extract(parse_metadata, '$.layer') as layer, count(*) as n")->groupBy('layer')->pluck('n', 'layer')
-            ->mapWithKeys(fn ($n, $k) => [trim((string) $k, '"') => (int) $n])->all();
-        $inferred = ScrapedLoad::query()->where('created_at', '>=', now()->subDays(7))->whereNotNull('parse_metadata->route_inferred');
-        $inferredStats = ['toplam' => (clone $inferred)->count(), 'yayında' => (clone $inferred)->where('visibility', 'public')->count(),
-            'doğrulandı' => (clone $inferred)->where(fn ($q) => $q->whereNotNull('parse_metadata->route_confirmed')->orWhereIn('completed_by', ['driver', 'admin'])->orWhereNotNull('parse_metadata->admin_edited'))->count(),
-            'reddedildi' => (clone $inferred)->where('status', 'rejected')->count()];
+        // Okuma katmanları karnesi (IntakeLayerReview): aşama, 7 günlük aday/elenen, gölge uyumu, yayın sonrası sonuçlar
+        $layers = app(\App\Services\IntakeLayerReview::class)->report();
 
         return [
             'pending_by' => ['yapay zeka bekliyor' => $aiPending, 'il/rota çözülemedi' => $unresolved, 'telefon yok' => $noPhone, 'puan / elle kontrol' => max(0, $total - $aiPending - $unresolved - $noPhone)],
@@ -764,7 +758,6 @@ new class extends Component {
             'median_minutes' => $median,
             'providers' => $parser->isConfigured() ? $parser->providerStatus() : [],
             'layers' => $layers,
-            'inferred' => $inferredStats,
         ];
     }
 
@@ -921,16 +914,26 @@ new class extends Component {
             · Sağlayıcı: @foreach($scorecard['providers'] as $provider => $state){{ ! $loop->first ? ', ' : '' }}{{ \App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider }} <span class="font-semibold {{ $state['state'] === 'ok' ? 'text-emerald-600' : 'text-amber-600' }}">{{ match($state['state']) { 'ok' => 'çalışıyor', 'cooldown' => 'bekletiliyor'.($state['until'] ? ' ('.$state['until'].' kadar)' : ''), default => 'kota doldu'.($state['until'] ? ' ('.$state['until'].' sıfırlanır)' : '') } }}</span>@endforeach
         @endif
     </p>
-    {{-- Okuma katmanları (son 7 gün): hangi katman kaç aday açtı; yorumla çözülen rotaların doğrulanma durumu. Aç/kapa: Ayarlar → Dış kaynak. --}}
-    @if(($scorecard['layers'] ?? []) !== [] || ($scorecard['inferred']['toplam'] ?? 0) > 0)
-        <p class="text-[11px] text-neutral-400 -mt-1">
-            Katmanlar (7 gün): @foreach($scorecard['layers'] as $layer => $n){{ ! $loop->first ? ' · ' : '' }}{{ \App\Support\IntakeLayers::LAYERS[$layer]['label'] ?? ($layer === 'blocks' ? 'Genel okuma' : $layer) }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($n, 0, ',', '.') }}</span>@endforeach
-            @if(($scorecard['inferred']['toplam'] ?? 0) > 0)
-                · Yorumla çözülen rota: toplam <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['inferred']['toplam'] }}</span>, yayında {{ $scorecard['inferred']['yayında'] }}, doğrulanan {{ $scorecard['inferred']['doğrulandı'] }}, reddedilen {{ $scorecard['inferred']['reddedildi'] }}
-            @endif
-        </p>
+    {{-- Okuma katmanları karnesi: kalıcı katmanlar sayım, yönetilen katmanlar aşama + gölge uyumu + yayın sonrası sonuç (aşamayı sistem yönetir) --}}
+    @if(($scorecard['layers'] ?? []) !== [])
+        <details class="text-[11px] text-neutral-400 -mt-1">
+            <summary class="cursor-pointer select-none">Okuma katmanları (7 gün): @foreach(array_filter($scorecard['layers'], fn ($m) => $m['managed']) as $key => $m){{ ! $loop->first ? ' · ' : '' }}{{ $m['label'] }} <span class="font-semibold {{ $m['stage'] === 'active' ? 'text-emerald-600' : 'text-amber-600' }}">{{ $m['stage_label'] }}</span>@endforeach</summary>
+            <div class="mt-1 space-y-0.5">
+                @foreach($scorecard['layers'] as $key => $m)
+                    <div>{{ $m['label'] }} <span class="text-neutral-300 dark:text-neutral-600">({{ $m['kind'] }}{{ $m['managed'] ? ' · '.$m['stage_label'] : '' }})</span>:
+                        @if($m['opened_7d'] > 0)<span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($m['opened_7d'], 0, ',', '.') }}</span> aday @endif
+                        @if($m['filtered_7d'] > 0){{ $m['opened_7d'] > 0 ? ' · ' : '' }}<span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($m['filtered_7d'], 0, ',', '.') }}</span> elenen @endif
+                        @if($m['opened_7d'] === 0 && $m['filtered_7d'] === 0)—@endif
+                        @if($m['managed'])
+                            @php $judged = $m['shadow']['agree'] + $m['shadow']['disagree']; @endphp
+                            @if($judged > 0) · gölge: {{ $judged }} örnek, hakemle uyum %{{ (int) round($m['shadow']['agreement'] * 100) }}@endif
+                            @if($m['outcome']['total'] > 0) · sonuç: {{ $m['outcome']['good'] }} doğrulandı / {{ $m['outcome']['bad'] }} düzeltildi-reddedildi @endif
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+        </details>
     @endif
-
     {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
         <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugüne kadar yayınlanan</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_total'], 0, ',', '.') }}</span>@if($lifetime['external_since'])<span class="text-[10px] text-neutral-400 block">{{ $lifetime['external_since'] }}'den beri</span>@endif</div>

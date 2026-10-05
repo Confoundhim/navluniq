@@ -198,6 +198,11 @@ class LoadIntakeService
             $pending = [];
             foreach ($segments as $i => $segment) {
                 if (! empty($segment['pickup_missing'])) {
+                    // Gölgedeki iki satır yorumu: tahmin (ilk yer kalkış, ikinci varış) + yapay zeka hakemi örnek olur; ilan etkilenmez.
+                    if (! empty($segment['shadow_two_line'])) {
+                        $guess = $this->parser->parseCheap($segment['text'], $fallbackPhone);
+                        IntakeLayerReview::recordShadow('two_line_route', $segment['text'], $guess['pickup_location'] ?? null, $guess['delivery_location'] ?? null);
+                    }
                     // Gönderen hafızası: bu numaranın bilinen kalkışı varsa her satır o kalkıştan "bilgi eksik" ilan olur; yoksa aday
                     // kuyrukta "Kalkış öğret" ile bekler (yönetici bir kez öğretir, sonrası kendiliğinden).
                     if (IntakeLayers::enabled('sender_pickup_memory') && ($memory = $this->pickupFromSenderMemory($segment, $ctx)) !== null) {
@@ -746,8 +751,10 @@ class LoadIntakeService
         if (count($destLines) === 2 && IntakeLayers::enabled('two_line_route')) {
             return [['text' => $raw, 'phones' => self::withFallback(AiParserService::phonesIn($raw), $fallbackPhone), 'index' => 0, 'count' => 1, 'interpreted' => 'two_line', 'layer' => 'two_line_route']];
         }
-        if ($destLines !== [] && IntakeLayers::enabled('no_pickup_filter')) {
+        if ($destLines !== []) {
+            // Gölgedeki iki satır yorumu: ne yapacağı örnek tablosuna yazılır (intakeUnlocked), ilan eskisi gibi kalkışsız liste sayılır.
             return [['text' => $raw, 'phones' => self::withFallback(AiParserService::phonesIn($raw), $fallbackPhone), 'index' => 0, 'count' => 1, 'pickup_missing' => true,
+                'shadow_two_line' => count($destLines) === 2 && IntakeLayers::isShadow('two_line_route'),
                 'dest_lines' => array_map(fn ($d) => $d['line'], $destLines), 'notes' => self::notesOutside($prepared, array_map(fn ($d) => $d['line'], $destLines))]];
         }
         $units = [];
