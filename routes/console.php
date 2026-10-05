@@ -5,6 +5,7 @@ use App\Models\ScrapedLoad;
 use App\Services\AccountService;
 use App\Services\DriverLocationService;
 use App\Services\DriverTripService;
+use App\Services\IntakeLayerReview;
 use App\Services\LoadReleaseService;
 use App\Services\LoadService;
 use App\Services\LoadStandardizer;
@@ -204,6 +205,14 @@ Schedule::command('system:backup', ['--type' => 'database', '--keep' => 12])->cr
 // Sorun → Telegram (alert_telegram_chat_id) + yönetici bildirimi; 6 saatte bir tekrar; düzelince "düzeldi". Sağlık ekranı
 // SystemWatchdog::lastStatus() ile son çalışmayı gösterir.
 Schedule::command('system:watchdog')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Okuma katmanlarının aşama yöneticisi (2026-10-05): gölgedeki katman yeterli uyumda kendiliğinden etkinleşir, etkin katman hata oranı
+// yükselince gölgeye döner; her değişim Telegram + yönetici bildirimi. Elle aç/kapa yoktur (IntakeLayers, docs/OKUMA_KATMANLARI.md).
+Artisan::command('intake-layers:review', function (IntakeLayerReview $review) {
+    $changes = $review->run();
+    $this->info($changes === [] ? 'Katman aşamaları değişmedi.' : implode("\n", $changes));
+})->purpose('Okuma katmanlarının aşamalarını (gölge / etkin / duraklatıldı) kanıta göre günceller');
+Schedule::command('intake-layers:review')->hourlyAt(17)->withoutOverlapping(30);
 
 // Para ve sevkiyat (2026-10-05): şoför gelmedi uyarısı, hakediş mutabakatı, açık ödeme emri süresi.
 Artisan::command('loads:no-show', function (LoadService $loads) {

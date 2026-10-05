@@ -273,10 +273,16 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
   (Tamamliyo gömülü sigorta; ortak sözleşmesi Osman'da). (7) Toplayıcı yalnız grupları gezer; ana sayfa akışı eklenmez.
   Testler: `PendingDecisionsTest`, altın sette 6 yeni örnek.
 - **Okuma katmanları (2026-10-05, Osman: "kaç katman varsa aç/kapa ayarı olsun, katmanlar korunarak"; `docs/OKUMA_KATMANLARI.md`):**
-  `App\Support\IntakeLayers::LAYERS` 14 katmanı (eleme / çözüm / yorum) tanımlar; Ayarlar → Dış kaynak → "Okuma katmanları" tek tek
-  aç/kapa (`intake_layer_<anahtar>`, varsayılan açık); kapanan katman yokmuş gibi davranılır, mesaj sonraki katmana iner. Aday
-  `parse_metadata.layer` taşır; hat karnesi ve ayar ekranı 7 günlük sayım gösterir. **Yeni katman = LAYERS satırı + DEFAULTS +
-  `IntakeLayers::enabled()` kapısı + `'layer'` damgası + test.** (3) numaralı karar böyle çözüldü: **iki satırlık ilan yorumu**
+  `App\Support\IntakeLayers::LAYERS` 14 katmanı (eleme / çözüm / yorum) tanımlar; sıra kodda sabit. **Elle aç/kapa yok** (Osman aynı
+  gün vazgeçti: "açıp kapatmak bizim elimizde olmasın, aşama aşama kendini izleyen sistem"): kalıcı katmanlar hep etkin; yönetilen
+  (yorum) katmanların aşaması `shadow → active → paused`'u sistem yönetir (`App\Services\IntakeLayerReview`, saatlik
+  `intake-layers:review`; ayar `intake_layer_stage_<anahtar>`). Gölgede katman çalışır, `intake_layer_samples`'a (`0001_01_54`) tahmin +
+  yapay zeka hakemi kararı yazar, ilanı etkilemez; ≥30 hakemli örnek ve ≥%85 uyumla etkinleşir; etkinken 7 günde ≥20 sonuç ve ≥%30
+  yönetici düzeltme/ret oranıyla duraklatılır (gölgeye döner, yalnız değişimden sonraki örnekler sayılır); her değişim etkinlik
+  günlüğü + Telegram + yönetici bildirimi. Hakem saatte en çok 30 örnek. Hat karnesi "Okuma katmanları (7 gün)" satırı aşama, sayım,
+  gölge uyumu ve sonuç dağılımını gösterir; Ayarlar ekranında yalnız açıklama var. Aday `parse_metadata.layer` taşır. **Yeni katman =
+  LAYERS satırı (lifecycle/judge) + STAGE_DEFAULTS + Settings::DEFAULTS + `enabled()` kapısı + gölgede `recordShadow` + `'layer'` damgası
+  + test.** İki satır yorumu canlıda gölgede başlar; gönderen hafızası etkin başlar (kanıtı geçmiş/yönetici). (3) numaralı karar böyle çözüldü: **iki satırlık ilan yorumu**
   (fiilsiz tam iki "yer + araç" satırı → ilk yer kalkış, ikinci varış; `route_inferred=two_line`; yapay zeka iki ucu da verirse
   `route_confirmed` → normal yayın, yoksa `INFERRED_ROUTE_BLOCKER` ile "bilgi eksik" yayın) ve **gönderen hafızası**
   (`SenderPickupMemory`, tablo `sender_pickups`, `0001_01_53`): 3+ satırlık kalkışsız liste gönderenin bilinen kalkışıyla (yönetici
@@ -405,7 +411,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `loads:no-show` (saatlik), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `intake-layers:review` (saatlik; okuma katmanı aşamaları, bkz. §4), `loads:no-show` (saatlik), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz; ödeme geri çağrıları (`odeme/bildirim/*`) bakımdan muaftır. Her `withoutOverlapping` kilidinin süresi vardır (10/60/180 dk).
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
@@ -450,7 +456,7 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   Test: 710 test, altın set 250/250, pint ve composer audit temiz; npm audit'teki kalan uyarılar yalnız derleme araçlarında.
 - **Osman'ın kararları (2026-10-05, §4'te "Osman'ın 2026-10-05 kararları" ve "Okuma katmanları"):** sabit hat/0850 alınır, komisyoncu
   ilanı "benzer ilan" rozetiyle ayrı yayınlanır, "TORBALI YÜKLER" kalkış, Toplayıcı yalnız gruplar, sigorta API ile otomatik, iki
-  satırlık ilan yorum katmanıyla + gönderen hafızası, her okuma katmanı panelden aç/kapa. **Bekleyen:** (5) depo gizliliği: Osman depoyu gizlemeden **önce** sunucuda `bash deploy/github-erisim.sh`
+  satırlık ilan yorum katmanıyla + gönderen hafızası; katmanlar elle değil aşama yöneticisiyle (gölge → etkin → duraklatma) izlenir. **Bekleyen:** (5) depo gizliliği: Osman depoyu gizlemeden **önce** sunucuda `bash deploy/github-erisim.sh`
   çalıştırıp çıkan satırı GitHub → Settings → Deploy keys'e ekler, `--kontrol` yeşil olunca depoyu gizler; sonra keystore yenilenir
   (telefonlarda uygulama bir kez silinip kurulur); (6) Tamamliyo ortaklık/API erişimi Osman'da.
 - **Bu bulut ortamında PHP 8.3 var, proje 8.4 ister:** `composer install --ignore-platform-req=php` ile kurulur; iki test yalnız bu

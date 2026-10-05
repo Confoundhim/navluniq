@@ -2,9 +2,25 @@
 
 Gruptan gelen her mesaj sırayla "okuma katmanlarından" geçer. Her katman ya mesajı eler, ya ilanlara ayırıp rotayı kesin
 kuralla çözer, ya da kesin kural bulunamayınca makul bir yorum yapar. Katmanlar `App\Support\IntakeLayers::LAYERS` tablosunda
-tanımlıdır; **Ayarlar → Dış kaynak ve Telegram → Okuma katmanları** bölümünden tek tek açılıp kapanır (ayar anahtarı
-`intake_layer_<katman>`, varsayılan açık). Kapanan katman yokmuş gibi davranılır ve mesaj sonraki katmana iner; hiçbir katman
-silinmez, hiçbir katman bir diğerinin kuralını ezmez.
+tanımlıdır; sıra kodda sabittir.
+
+**Katmanlar elle açılıp kapanmaz.** (Osman, 2026-10-05: "açıp kapatmak bizim elimizde olmasın; aşama aşama, kendini izleyen bir
+sistem".) Her katmanın bir aşaması vardır ve aşamayı sistem yönetir (`App\Services\IntakeLayerReview`, saatlik `intake-layers:review`):
+
+| Aşama | Ne demek |
+|---|---|
+| kalıcı | Kanıtlanmış eleme/çözüm katmanları; her zaman etkin, aşaması yok |
+| gölge | Katman çalışır, ne yapacağını `intake_layer_samples` tablosuna yazar ve yapay zeka hakemine sorar; ilanı **etkilemez** |
+| etkin | Katman ilanı etkiler; yayın sonrası sonuçlar (şoför "Aradım", yapay zeka doğrulaması, yönetici düzeltme/ret) izlenir |
+| duraklatıldı | Etkinken hata oranı eşiği aştı; gölgeye döndü. Taze gölge kanıtıyla yeniden etkinleşir |
+
+Eşikler (`IntakeLayerReview`): gölgeden etkine geçiş için en az 30 hakemli örnek ve ≥ %85 uyum; etkinden duraklatmaya geçiş için son
+7 günde en az 20 sonuç ve ≥ %30 düzeltme/ret oranı. Yalnız son aşama değişiminden sonraki örnekler sayılır. Hakem saatte en çok 30
+örnek alır (kota). Her aşama değişimi etkinlik günlüğüne, Telegram'a (`alert_telegram_chat_id`) ve yönetici bildirimine düşer.
+Durum: Dış Kaynak İlanları → hat karnesi → "Okuma katmanları (7 gün)" (aşama, aday/elenen, gölge uyumu, sonuç dağılımı).
+
+Yeni yorum katmanı **her zaman gölgede başlar** (`IntakeLayers::STAGE_DEFAULTS`); sonuçla izlenen (hakemi olmayan) katmanlar etkin
+başlayabilir ama aynı duraklatma kuralına bağlıdır.
 
 ## Sıra ve türler
 
@@ -26,7 +42,7 @@ silinmez, hiçbir katman bir diğerinin kuralını ezmez.
 | 14 | Yapay zeka "ilan değil" | eleme | %80+ güvenle "yük ilanı değil" → elenir, gönderenin kalıbı öğrenilir |
 
 Her açılan aday `parse_metadata.layer` ile hangi katmanın çözdüğünü taşır; canlı akıştaki eleme gerekçesi (`IntakeEvent.reason`)
-katmana eşlenir (`IntakeLayers::layerForReason`). Ayarlar ekranı ve Dış kaynak hat karnesi son 7 günün sayısını gösterir.
+katmana eşlenir (`IntakeLayers::layerForReason`). Dış kaynak hat karnesi son 7 günün sayısını gösterir.
 
 ## Yorum katmanları nasıl yayınlanır
 
@@ -44,13 +60,14 @@ katmana eşlenir (`IntakeLayers::layerForReason`). Ayarlar ekranı ve Dış kayn
 
 - Yorum katmanları yalnız üstteki hiçbir katmanın sahiplenmediği (eskiden çöpe giden) mesajlara bakar; yayınlanan hiçbir ilanı
   değiştiremez.
-- Hat karnesi "Yorumla çözülen rota: toplam / yayında / doğrulanan / reddedilen" satırı: doğrulanma oranı düşerse katman kapatılır.
+- Hat karnesi katman satırları: gölge uyumu ve yayın sonrası sonuç; oran düşerse sistem katmanı kendiliğinden gölgeye alır.
 - Altın set (`resources/data/altin-set.json`) iki yönü de sabitler: iki satırlık ilan çözülür, üç satırlık liste `no_pickup`, fiilli
   ilanlar aynen. Testler: `IntakeLayersTest`, `PendingDecisionsTest`, `LocationAuditTest`.
 
 ## Yeni katman eklerken
 
-1. `IntakeLayers::LAYERS`'a satır (anahtar, tür, etiket, açıklama, gerekçe anahtarları).
-2. `Settings::DEFAULTS`'a `intake_layer_<anahtar> => 1`.
-3. Kodda `IntakeLayers::enabled('<anahtar>')` kapısı; açılan parçaya `'layer' => '<anahtar>'`.
-4. Test + altın set örneği. Panel listesi ve sayımlar kendiliğinden gelir.
+1. `IntakeLayers::LAYERS`'a satır (anahtar, tür, `lifecycle` = managed, `judge` = ai_route | outcome, etiket, açıklama, gerekçeler).
+2. `IntakeLayers::STAGE_DEFAULTS` ve `Settings::DEFAULTS`'a `intake_layer_stage_<anahtar> => 'shadow'`.
+3. Kodda `IntakeLayers::enabled('<anahtar>')` kapısı; gölgede `IntakeLayerReview::recordShadow(...)` ile örnek; açılan parçaya
+   `'layer' => '<anahtar>'`.
+4. Test + altın set örneği. Hat karnesi satırı ve aşama yönetimi kendiliğinden gelir.

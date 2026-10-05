@@ -12,6 +12,7 @@ use App\Services\LoadIntakeService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\TemplateMemory;
+use App\Support\IntakeLayers;
 use App\Support\Lexicon;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
@@ -153,10 +154,10 @@ class LocationAuditTest extends TestCase
         $this->assertSame(5, ScrapedLoad::query()->count());
         $this->assertTrue((bool) ScrapedLoad::query()->latest('id')->first()->meta('needs_pickup'));
         // Gönderen hafızası katmanı kapalıyken eskisi gibi elenir.
-        Settings::set('intake_layer_sender_pickup_memory', '0');
+        IntakeLayers::setStage('sender_pickup_memory', IntakeLayers::STAGE_PAUSED);
         $r = app(LoadIntakeService::class)->intake(['group_name' => 'Grup A', 'raw_message' => "SAMSUN KAPALI TIR\nİZMİR KAPALI TIR\nÇANAKKALE TENTELİ KAMYON\n\n☎️ AD 0538 111 22 34", 'message_id' => 's3', 'source_jid' => 'notif:grup-a']);
         $this->assertSame(['filtered', 'pickup_missing'], [$r['status'], $r['reason']]);
-        Settings::set('intake_layer_sender_pickup_memory', '1');
+        IntakeLayers::setStage('sender_pickup_memory', IntakeLayers::STAGE_ACTIVE);
 
         // Kalkış fiiliyle yazılmış tek satırlık ilan eskisi gibi: "Gebze yükler- Muğla Menteşe" ikinci yer varıştır
         $p = app(AiParserService::class)->parseCheap('Gebze yükler- Muğla Menteşe 0532 111 22 33');

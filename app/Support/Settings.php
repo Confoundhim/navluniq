@@ -43,20 +43,9 @@ final class Settings
         'scraper_queue_max_age_hours' => 48,         // kuyrukta bu kadar saatten uzun bekleyen ve rotası/ili çözülemeyen aday kendiliğinden reddedilir (puan bandı / yapay zeka beklemesi yüzünden bekleyen reddedilmez)
         'scraper_ai_wait_minutes' => 15,             // yapay zeka zorunluyken cevap için en çok bu kadar beklenir
         'scraper_local_enabled' => 1,                // 1: yerel öğrenen sınıflandırıcı (dış servisten bağımsız) devrede
-        // Okuma katmanları (IntakeLayers::LAYERS; panelde tek tek aç/kapa). Yeni katman eklenince buraya da satır gelir.
-        'intake_layer_foreign_script' => 1,
-        'intake_layer_lexicon_not_load' => 1,
-        'intake_layer_not_load_pattern' => 1,
-        'intake_layer_logistics_signal' => 1,
-        'intake_layer_series' => 1,
-        'intake_layer_comma_list' => 1,
-        'intake_layer_round_trip' => 1,
-        'intake_layer_no_pickup_filter' => 1,
-        'intake_layer_two_line_route' => 1,
-        'intake_layer_sender_pickup_memory' => 1,
-        'intake_layer_template_memory' => 1,
-        'intake_layer_rule_strong' => 1,
-        'intake_layer_ai_not_load' => 1,
+        // Okuma katmanı aşamaları (IntakeLayers; sistem yönetir, panelden değiştirilmez): shadow | active | paused
+        'intake_layer_stage_two_line_route' => 'shadow',
+        'intake_layer_stage_sender_pickup_memory' => 'active',
         'scraper_landline_phones' => 1,              // 1: sabit hat (0212…), kurumsal hat (0850/0800) ve 444'lü numarayla verilen ilanlar da alınır; 0: yalnız cep (5xx)
         'scraper_local_min_confidence' => 90,        // dış yapay zeka ulaşılamazsa yerel güven (yüzde) bu değerin üstündeyse otomatik onay
         'ai_local_docs_load' => 0,                   // yerel sınıflandırıcı: öğrenilen ilan örneği sayısı
