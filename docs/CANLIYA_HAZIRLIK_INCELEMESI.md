@@ -247,3 +247,44 @@ bekliyor"); telefonların "son gönderim" saati; ikinci gün iki gece yedeği de
 3. **Para modeli kararı (§2-1) ve P4 defter** — muhasebeciyle birlikte; pazaryeri açılmadan escrow ile yayın yok.
 4. **Yayın haftası:** I1 watchdog + UptimeRobot, I11 CI, K5 "şoför gelmedi", A3 araç anlık görüntüsü, K7 outbid, A5 IBAN, Y6 dört göz, Y7 ban.
 5. **Yayından sonra ilk ay:** C3 yapılandırılmış ilan formu ve yük sahibi doğrulama, belge son kullanma, yönetici araçları, C4 indeks/budama/enum, I5 şifreli yedek + dış kopya, I13 telefon anahtarları, I14 CSP, bildirim kuyruğu.
+
+## 10. Uygulananlar (2026-10-05, PR #123)
+
+Kararlar (§2) ve §9'daki 2. sıra tamamen, 4. sıradan büyük bölüm uygulandı. Toplam 666 test (önceki gün 567), altın set 231/231.
+
+**Para ve sevkiyat (C1):** P1/P10 pazaryeri tek canlı yol (`PaymentReadiness::escrowBlocker`; canlı + pazaryeri kapalı → ödeme kapalı;
+şoför TC/VKN + IBAN kabulde zorunlu, alt üye kabulde kaydedilir, sahte TC yok, PayTR seçimden kalktı); V2 `refund_pending` havuz durumu
+("İade bekleniyor"); K1/M4 yoldaki uyuşmazlıkta "devam / iptal+iade", teslim edildiyse "şoföre öde / iade", yük sahibi uyuşmazlığı geri
+çekebilir; karar 4: yola çıkmadan yük sahibi "İptal et ve iade al", şoför ödeme sonrası "Vazgeç" (tam iade, sayaç), `loads:no-show`
+(saatlik, `no_show_grace_days`); P5 komisyon oranı/tutarı ödeme emrinde dondurulur, teklif penceresinde "size kalan"; P6 tutar
+uyuşmazlığı iade edilir; P3 `payouts:reconcile` (10 dk; hakedişsiz onaylı ilan, takılı "işlemde", artan bekleme ile yeniden aktarım,
+`payouts.load_id` ve `driver_trips.shipment_id` benzersiz); P8/M8/A2 hesap silme (IBAN son 4 hakedişte kalır, iade bekleyen emir
+varken silinmez, teklifler geri çekilir, dış seferler kapanır); P11/P12 abonelik bildirimi/geri alma/ay taşması, `payments:expire-stale`
+(04:50); M2/A19 puan yalnız tamamlanmış ve iadesiz; A1 uyuşmazlıkta POD/konum; A5 IBAN'sız "Yola çıktım" engeli, "Düzeltme bekleyen"
+hakediş + yeniden gönder; P7 IBAN değişikliği şifreli, bildirimli, 24 sa aktarım bekletme, finansta rozet; P9 sözleşme metinleri
+`{{AUTO_APPROVAL_HOURS}}` / `{{OFFER_PAYMENT_HOURS}}` ile ayardan okur, abonelik ve iptal kuralları kararlara göre yazıldı
+(güncellemede `legal:refresh --if-stale` eski metni yeniler).
+
+**Yönetici güvenliği (C2):** Y1 gizli ayar geri alınamaz; Y2 ödeme sekmesi ve gizli alanlar yalnız süper yönetici + şifre onayı +
+bildirim, açık ödeme emri varken sağlayıcı değişmez; Y20 Telegram/telefon anahtarları şifreli; Y5 `manage system` izni (deploy, yedek,
+firewall, çöp, sabit kod), personel oluşturma süper yönetici, ölü izin silindi; Y4 ret gerekçesi (varsayılan öğrenmez); Y17 yönetici
+görünümü işlem yapamaz; Y19 "Geçmişten yeniden öğren" süper yönetici + yazılı onay; Y13 kullanıcı kalıcı silme kalktı; Y7 engelleme
+açık işleri gösterir/kapatır, kullanıcıya bildirir; Y11 yedek kuyrukta; Y15 sağlık ekranı 9 yeni prob + kırmızı/sarı özet + watchdog
+satırı; Y21 ölü sekmeler/ayarlar kaldırıldı (kupon, sayfalar, çoklu dil, bakım notu); Y12 "Duyuru (hizmet bildirimi)" süper yönetici,
+kuyrukta, ticari ileti yalnız rızalılara; Y26 NVİ sorgusu 5/gün; A22 konum ucu adlı sınırlayıcı.
+
+**İşletim (C2):** I4 kuyruk `retry_after` 180; I3 ödeme uçları bakımdan muaf, sınıflandırma güncelleme bitince ayrı serviste, bakım
+geçiş anahtarı günlükte, geri almada eski derleme; I9 zamanlayıcı kilit süreleri; I7/I8/I10/I12/I17 kurulum betiği https koruması,
+`LOG_LEVEL warning`, dosya sahipliği root:www-data, FPM zaman aşımı, SMTP 15 sn + sertifika doğrulama (`mail_verify_tls`), nginx
+sürüm gizleme/gzip/istek sınırı; I5 tek yedek yolu (tam 7 gün + 6 saatte bir veritabanı dökümü), hata bildirimi; I1 `system:watchdog`
+(5 dk; kuyruk/zamanlayıcı/yedek/disk/telefon sessizliği/mail/Redis/TLS) → Telegram (`alert_telegram_chat_id`) + yönetici bildirimi,
+`/up` gerçek sağlık; I14 CSP rapor modu (`csp_enforce` ile zorunlu); I16 özel dosyalar sandbox + PDF indirme; I19 ölü Baileys ucu
+silindi; I6 Redis bellek sınırı + yeniden başlatma; I11 GitHub Actions CI (pint, testler, altın set, bağımlılık denetimi) + Dependabot.
+
+**Pazarlama rızası (karar 5):** kayıtta ayrı onay kutusu, profilde tercih, imzalı tek tıklık çıkış, onayı olmayana ticari ileti yok,
+sözleşmede Madde 7A.
+
+**Bekleyen (Osman):** depo gizliliği → imza anahtarı yenileme (I2); İYS kaydı; iyzico pazaryeri sözleşmesi ve canlı anahtar; sigorta
+aracısı görüşmesi (§2-6); UptimeRobot kaydı; Brevo SMTP. **Bekleyen (kod, yayından sonra):** C3 yapılandırılmış ilan formu ve yük
+sahibi rozeti (karar 3'ün rozet kısmı), belge son kullanma, yönetici araçları (işlem kaydı, kullanıcı detay, destek mesaj dizisi),
+C4 indeks/budama/enum, I13 telefon başına anahtar, bildirim kuyruğu, sigorta entegrasyonu.

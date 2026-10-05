@@ -141,9 +141,11 @@ class SettingsSecurityTest extends TestCase
         PaymentOrder::create(['merchant_oid' => 'T'.uniqid(), 'user_id' => $owner->id, 'purpose' => PaymentService::PURPOSE_ESCROW, 'provider' => 'iyzico', 'amount' => 700, 'currency' => 'TRY', 'status' => 'refunded']);
 
         $c = Volt::test('admin.settings-center')->set('activeTab', 'payment')->assertSee('2 açık navlun ödeme emri');
+        // PayTR seçimden kaldırıldı (pazaryeri tek yol): başka sağlayıcı girişi doğrulamada düşer, ayar değişmez.
         $c->set('paymentForm.payment_provider', 'paytr')->set('currentPassword', 'Sifre12345!')->call('savePayment');
-        $this->assertArrayHasKey('paymentForm.payment_provider', $c->errors()->toArray(), 'sağlayıcı değişimi açık emir varken engellenmeli');
+        $this->assertArrayHasKey('paymentForm.payment_provider', $c->errors()->toArray(), 'seçilemeyen sağlayıcı reddedilmeli');
         $this->assertSame('iyzico', Settings::string('payment_provider'));
+        $this->assertSame(2, Volt::test('admin.settings-center')->instance()::openEscrowOrderCount());
 
         // Sağlayıcı aynı kalırken test modu değişebilir; şifre gerekir ve bildirim düşer.
         // Önceki deneme sağlayıcı kilidinde durduğu için şifre alanı temizlenmemişti; şifresiz deneme için boşaltılır.
@@ -152,10 +154,9 @@ class SettingsSecurityTest extends TestCase
         $this->assertFalse(Settings::bool('iyzico_sandbox'));
         $this->assertSame(1, UserNotification::query()->where('user_id', $admin->id)->where('title', 'Ödeme/gizli ayar değişti')->count());
 
-        // Emirler kapanınca sağlayıcı değişir.
+        // Emirler kapanınca açık emir sayacı sıfırlanır (sağlayıcı kilidi kalkar).
         PaymentOrder::query()->whereIn('status', ['paid', 'pending'])->update(['status' => 'refunded']);
-        Volt::test('admin.settings-center')->set('activeTab', 'payment')->set('paymentForm.payment_provider', 'paytr')->set('currentPassword', 'Sifre12345!')->call('savePayment')->assertHasNoErrors();
-        $this->assertSame('paytr', Settings::string('payment_provider'));
+        $this->assertSame(0, Volt::test('admin.settings-center')->instance()::openEscrowOrderCount());
     }
 
     public function test_review_login_settings_need_manage_system_and_dead_general_keys_are_gone(): void

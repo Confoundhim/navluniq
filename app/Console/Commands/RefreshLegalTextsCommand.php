@@ -46,6 +46,10 @@ class RefreshLegalTextsCommand extends Command
             if (preg_match('/Cevizlidere|6301481858/u', $html)) {
                 return true;
             }
+            // Ödeme/iade süreleri ayardan okunmuyorsa (2026-10-05 yer tutucuları yok) eski metin: yenile.
+            if ($key === 'contract_terms' && (! str_contains($html, '{{AUTO_APPROVAL_HOURS}}') || ! str_contains($html, 'Madde 7A'))) {
+                return true;
+            }
             // Dış kaynak ilanı maddesi eklenmemiş eski metin: yenile.
             if (in_array($key, ['contract_kvkk', 'contract_terms'], true) && (! str_contains($html, 'data-clause="dis-kaynak"') || ! str_contains($html, 'data-clause="bildirim-tercihi"'))) {
                 return true;

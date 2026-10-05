@@ -328,7 +328,7 @@ new class extends Component {
             $this->paymentForm[$key] = trim((string) ($this->paymentForm[$key] ?? ''));
         }
         $this->validate([
-            'paymentForm.payment_provider' => 'required|in:paytr,iyzico',
+            'paymentForm.payment_provider' => 'required|in:iyzico', // PayTR sözleşme yokken seçilemez (sınıf duruyor)
             'paymentForm.iyzico_api_key' => 'nullable|string|max:190',
             'paymentForm.iyzico_secret_key' => 'nullable|string|max:190',
         ]);
@@ -953,7 +953,7 @@ new class extends Component {
                 <p class="text-[11px] text-neutral-400">iyzico anahtarları iyzico üye işyeri panelinde Ayarlar → API anahtarları bölümündedir. Sözleşme öncesi sandbox anahtarlarıyla test modunda deneyin; canlıya geçerken canlı anahtarları girip test modunu kapatın.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label class="form-label">Ödeme kuruluşu</label>
-                        <select wire:model="paymentForm.payment_provider" class="{{ $input }}"><option value="iyzico">iyzico (Ödeme Formu)</option><option value="paytr">PayTR (iFrame, anahtarlar .env)</option></select>
+                        <select wire:model="paymentForm.payment_provider" class="{{ $input }}"><option value="iyzico">iyzico (Pazaryeri / Ödeme Formu)</option></select>
                     </div>
                     <div><label class="form-label">iyzico API anahtarı</label><input type="text" wire:model="paymentForm.iyzico_api_key" class="{{ $input }} font-mono" placeholder="sandbox-… ya da canlı anahtar"></div>
                     <div><label class="form-label">iyzico gizli anahtar {{ ($paymentForm['iyzico_secret_set'] ?? '0') === '1' ? '(kayıtlı; değiştirmek için yazın)' : '' }}</label><input type="password" autocomplete="new-password" wire:model="paymentForm.iyzico_secret_key" class="{{ $input }} font-mono" placeholder="{{ ($paymentForm['iyzico_secret_set'] ?? '0') === '1' ? '••••••••' : 'secret key' }}"></div>
