@@ -15,7 +15,9 @@ return [
     'alpha_num' => ':attribute yalnız harf ve rakam içerebilir.',
     'any_of' => ':attribute geçersiz.',
     'array' => ':attribute bir liste olmalıdır.',
+    'array_keys' => ':attribute yalnız şu anahtarları içerebilir: :values.',
     'ascii' => ':attribute yalnız tek baytlık harf ve simge içerebilir.',
+    'base64' => ':attribute geçerli bir Base64 metni olmalıdır.',
     'before' => ':attribute, :date tarihinden önce olmalıdır.',
     'before_or_equal' => ':attribute, :date tarihinden önce veya aynı gün olmalıdır.',
     'between' => [
