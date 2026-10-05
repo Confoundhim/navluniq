@@ -64,10 +64,13 @@ class BackupTest extends TestCase
             $this->assertSame('completed', $db->status);
             $this->assertStringEndsWith('-db.zip', $db->filename);
 
-            $this->artisan('system:backup', ['--keep' => 2])->assertSuccessful(); // üçüncü yedek alınır, sınır 2 → en eski silinir
-            $this->assertSame(2, Backup::where('status', 'completed')->count());
-            $this->assertFileDoesNotExist($path, 'En eski yedek dosyasıyla birlikte silinir');
-            $this->assertSame(0, $service->prune(2));
+            // Budama tür bazındadır (I5): 6 saatlik veritabanı dökümleri gece tam yedeklerini sıradan düşürmez.
+            $this->artisan('system:backup', ['--keep' => 1])->assertSuccessful(); // ikinci tam yedek alınır, tam sınırı 1 → ilk tam silinir
+            $this->assertSame(2, Backup::where('status', 'completed')->count()); // 1 tam + 1 veritabanı
+            $this->assertSame(1, Backup::where('status', 'completed')->where('backup_type', 'database')->count());
+            $this->assertFileDoesNotExist($path, 'En eski tam yedek dosyasıyla birlikte silinir');
+            $this->assertSame(0, $service->prune(1, 'full'));
+            $this->assertSame(0, $service->prune()); // varsayılan sınırlar (7 / 12) aşılmadı
         } finally {
             @unlink($kyc.'/belge.txt');
             @rmdir($kyc);

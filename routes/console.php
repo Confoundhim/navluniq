@@ -192,3 +192,7 @@ Schedule::call(function (): void {
     $tail = (string) file_get_contents($file, false, null, max(0, filesize($file) - 2 * 1024 * 1024));
     file_put_contents($file, '[kırpıldı '.now()->toDateTimeString()."]\n".$tail);
 })->weeklyOn(1, '04:50')->name('schedule-log-trim');
+
+// Tek yedek yolu (I5): gece 03:30 tam yedek (son 7, yukarıda) + 6 saatte bir yalnız veritabanı dökümü (son 12 = 3 gün),
+// tam yedekten 15 dk sonra ki ikisi çakışmasın. En kötü veri kaybı 24 saatten 6 saate iner. Hata → yöneticilere bildirim.
+Schedule::command('system:backup', ['--type' => 'database', '--keep' => 12])->cron('45 3,9,15,21 * * *')->withoutOverlapping(60);

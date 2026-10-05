@@ -18,11 +18,21 @@ use ZipArchive;
  */
 class BackupService
 {
-    public const DEFAULT_KEEP = 14;
+    /** Tek yedek yolu (I5): her gece tam yedek, son 7 tutulur; 6 saatte bir veritabanı dökümü, son 12 tutulur (3 gün). */
+    public const DEFAULT_KEEP = 7;
+
+    public const DEFAULT_KEEP_DATABASE = 12;
+
+    /** Türüne göre varsayılan saklama sayısı. */
+    public static function defaultKeep(string $type): int
+    {
+        return $type === 'database' ? self::DEFAULT_KEEP_DATABASE : self::DEFAULT_KEEP;
+    }
 
     public static function directory(): string
     {
-        return storage_path('app/backups');
+        // Testler yazılamayan bir dizin vererek hata yolunu sınar; canlıda storage/app/backups.
+        return (string) (config('backup.directory') ?: storage_path('app/backups'));
     }
 
     /** Zip'e giren dizinler: proje köküne göre yol => zip içindeki ad. */
@@ -39,15 +49,19 @@ class BackupService
     public function create(string $type = 'full', ?int $userId = null): Backup
     {
         $dir = self::directory();
-        if (! is_dir($dir) && ! @mkdir($dir, 0750, true) && ! is_dir($dir)) {
-            throw new RuntimeException("Yedek dizini oluşturulamadı: {$dir}");
-        }
         $filename = 'navluniq-'.now()->format('Y-m-d_Hi').($type === 'database' ? '-db' : '').'.zip';
         $path = $dir.'/'.$filename;
         $backup = Backup::create(['filename' => $filename, 'backup_type' => $type, 'storage_disk' => 'local', 'storage_path' => 'backups/'.$filename, 'status' => 'running']);
         $work = $dir.'/.work-'.$backup->id;
 
         try {
+            // Dizin hatası da "başarısız yedek" olarak kaydedilir ve bildirilir (sessizce patlamaz).
+            if (! is_dir($dir) && ! @mkdir($dir, 0750, true) && ! is_dir($dir)) {
+                throw new RuntimeException("Yedek dizini oluşturulamadı: {$dir}");
+            }
+            if (! is_writable($dir)) {
+                throw new RuntimeException("Yedek dizini yazılabilir değil: {$dir}");
+            }
             @mkdir($work, 0750, true);
             $sql = $work.'/database.sql';
             $this->dumpDatabase($sql);
@@ -82,6 +96,7 @@ class BackupService
             @unlink($path);
             $backup->update(['status' => 'failed', 'failure_message' => mb_substr($e->getMessage(), 0, 1000)]);
             Log::error('Yedek alınamadı.', ['error' => $e->getMessage()]);
+            $this->notifyFailure($backup, $e);
         } finally {
             $this->removeDirectory($work);
         }
@@ -89,11 +104,37 @@ class BackupService
         return $backup->fresh();
     }
 
-    /** Sayı sınırını aşan en eski tamamlanmış yedekleri siler; silinen sayısını döndürür. */
-    public function prune(int $keep = self::DEFAULT_KEEP): int
+    /** Başarısız yedek yöneticilere bildirilir (I5: hata sessiz kalmaz; bekçi de son yedeğe bakar). */
+    private function notifyFailure(Backup $backup, Throwable $e): void
     {
+        try {
+            $url = null;
+            try {
+                $url = route('admin.backups');
+            } catch (Throwable) {
+                // rota yoksa bağlantısız bildirim
+            }
+            app(NotificationService::class)->notifyAdmins('manage settings', 'Yedek alınamadı', [
+                ($backup->backup_type === 'database' ? 'Veritabanı yedeği' : 'Tam yedek').' alınamadı: '.mb_substr($e->getMessage(), 0, 300),
+                'Sunucu diskini ve storage/logs/laravel.log dosyasını kontrol edin; yedek olmadan taşınma ve geri yükleme yapılamaz.',
+            ], $url, $url ? 'Yedekleri aç' : null, 'admin');
+        } catch (Throwable $notifyError) {
+            Log::warning('Yedek hatası bildirilemedi.', ['error' => $notifyError->getMessage()]);
+        }
+    }
+
+    /**
+     * Sayı sınırını aşan en eski tamamlanmış yedekleri siler; silinen sayısını döndürür.
+     * Tür verilirse yalnız o türde sayar (6 saatlik veritabanı dökümleri gece tam yedeklerini sıradan düşürmez);
+     * verilmezse her tür kendi varsayılan sınırıyla ayrı ayrı budanır.
+     */
+    public function prune(?int $keep = null, ?string $type = null): int
+    {
+        if ($type === null) {
+            return $this->prune($keep ?? self::DEFAULT_KEEP, 'full') + $this->prune($keep ?? self::DEFAULT_KEEP_DATABASE, 'database');
+        }
         $removed = 0;
-        Backup::query()->where('status', 'completed')->orderByDesc('id')->skip(max(1, $keep))->take(1000)->get()
+        Backup::query()->where('status', 'completed')->where('backup_type', $type)->orderByDesc('id')->skip(max(1, $keep ?? self::defaultKeep($type)))->take(1000)->get()
             ->each(function (Backup $backup) use (&$removed): void {
                 $this->delete($backup);
                 $removed++;

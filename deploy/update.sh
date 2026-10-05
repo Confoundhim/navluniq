@@ -150,9 +150,14 @@ log "Zamanlayıcı (her dakika)"
 ensure_cron www-data "schedule:run" "* * * * * cd ${APP_DIR} && php artisan schedule:run >> ${APP_DIR}/storage/logs/schedule.log 2>&1"
 ok "www-data crontab: schedule:run (otomatik onay, ilan açılışı, Telegram, teklif/abonelik süreleri, e-posta yeniden deneme)"
 
-log "Gece yedeği (03:00)"
-ensure_cron root "deploy/backup.sh" "0 3 * * * bash ${APP_DIR}/deploy/backup.sh >> /var/log/navluniq-backup.log 2>&1"
-ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
+# Tek yedek yolu (I5): yedekleri zamanlayıcı alır (system:backup, panelden indirilir); deploy/backup.sh yalnız elle
+# (taşınma öncesi) kullanılır. Eski kurulumlardaki root crontab satırı kaldırılır ki aynı hasta diskte iki ayrı gece yedeği birikmesin.
+if timeout 20 crontab -u root -l 2>/dev/null </dev/null | grep -qF "deploy/backup.sh"; then
+    tmp_cron="$(mktemp /tmp/navluniq-cron.XXXXXX)"
+    timeout 20 crontab -u root -l 2>/dev/null </dev/null | grep -vF "deploy/backup.sh" > "$tmp_cron" || true
+    timeout 20 crontab -u root "$tmp_cron" </dev/null && ok "root crontab: eski deploy/backup.sh satırı kaldırıldı (yedek artık system:backup ile)" || true
+    rm -f "$tmp_cron"
+fi
 
 STEP="izinler ve önbellekler"
 log "İzinler ve önbellekler"
