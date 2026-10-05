@@ -255,6 +255,23 @@ new class extends Component {
             return '0 başarısız iş';
         });
 
+        $this->checks[] = $this->probe('Uyarı sistemi (watchdog)', function (): array|string {
+            $st = \App\Services\SystemWatchdog::lastStatus();
+            if ($st['last_run'] === null) {
+                return ['warn' => true, 'detail' => 'Henüz çalışmadı (zamanlayıcı 5 dakikada bir çalıştırır). Telegram uyarısı için Ayarlar → alert_telegram_chat_id.'];
+            }
+            $open = array_keys((array) ($st['last_run']['alerts'] ?? []));
+            $line = 'son kontrol '.$st['last_run']['at'].($st['last_alert'] ? ' · son uyarı '.$st['last_alert']['at'] : ' · uyarı gönderilmedi');
+            if ($st['stale']) {
+                throw new RuntimeException('Son kontrol 15 dakikadan eski ('.$st['last_run']['at'].'): zamanlayıcı durmuş olabilir.');
+            }
+            if ($open !== []) {
+                return ['warn' => true, 'detail' => 'Açık uyarı: '.implode(', ', $open).' · '.$line];
+            }
+
+            return $line;
+        });
+
         $this->checks[] = $this->probe('Sabit kodla giriş', function (): string {
             if (! \App\Services\OtpService::reviewLoginActive()) {
                 return 'Kapalı (herkes e-posta koduyla girer)';
