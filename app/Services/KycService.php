@@ -18,6 +18,25 @@ class KycService
 
     public function __construct(private readonly NotificationService $notifications) {}
 
+    /**
+     * T.C. kimlik numarası biçim ve sağlama denetimi (NVİ algoritması: 11 hane, ilk hane 0 değil, 10. ve 11. hane sağlama).
+     * NVİ servisine doğum yılı gerektiği için şoför tarafında yalnız bu yerel denetim yapılır; uydurma numara kabul edilmez.
+     */
+    public static function isValidTcNo(string $tc): bool
+    {
+        if (! preg_match('/^[1-9]\d{10}$/', $tc)) {
+            return false;
+        }
+        $d = array_map('intval', str_split($tc));
+        $odd = $d[0] + $d[2] + $d[4] + $d[6] + $d[8];
+        $even = $d[1] + $d[3] + $d[5] + $d[7];
+        if ((($odd * 7) - $even) % 10 !== $d[9]) {
+            return false;
+        }
+
+        return array_sum(array_slice($d, 0, 10)) % 10 === $d[10];
+    }
+
     /** Kullanıcının rolüne göre yüklenebilir belge türleri. */
     public function allowedTypes(User $user, string $role): array
     {

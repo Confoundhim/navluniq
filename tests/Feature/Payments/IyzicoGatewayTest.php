@@ -57,7 +57,8 @@ class IyzicoGatewayTest extends TestCase
 
     private function assignedLoad(User $ownerUser, User $driverUser): Load
     {
-        $owner = CargoOwnerProfile::create(['user_id' => $ownerUser->id, 'type' => 'individual', 'kyc_status' => 'approved']);
+        // Alıcı kimliği (bireysel: TC) ödeme kuruluşuna gerçek değerle gider; sahte "11111111111" hiç gönderilmez.
+        $owner = CargoOwnerProfile::create(['user_id' => $ownerUser->id, 'type' => 'individual', 'kyc_status' => 'approved', 'tc_no' => '10000000146']);
         $load = app(LoadService::class)->publish($owner, [
             'pickup_location' => 'İstanbul', 'delivery_location' => 'Ankara', 'pickup_date' => now()->addDay(), 'delivery_date' => now()->addDays(2),
             'vehicle_type' => 'tir', 'goods_type' => 'Paletli Yük', 'weight' => 12000, 'price' => 10000,
@@ -116,7 +117,7 @@ class IyzicoGatewayTest extends TestCase
                 && $body['basketId'] === $order->merchant_oid
                 && $body['paidPrice'] === '10000.00'
                 && $body['callbackUrl'] === route('payment.webhook', ['provider' => 'iyzico'])
-                && $body['buyer']['identityNumber'] === '11111111111';
+                && $body['buyer']['identityNumber'] === '10000000146';
         });
 
         // iyzico kullanıcının tarayıcısını callbackUrl'e token ile POST eder → sonuç sayfasına yönlendirme.
@@ -176,13 +177,17 @@ class IyzicoGatewayTest extends TestCase
         $owner = User::factory()->create(['current_role' => 'cargo_owner']);
         $driver = $this->driver();
         BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'x'), 'iban_last4' => '1326', 'account_holder' => $driver->full_name, 'is_default' => true]);
+        $driver->driverProfile->update(['identity_number' => '10000000146']); // alt üye işyeri için TC şart; sahte TC gönderilmez
         $load = $this->assignedLoad($owner, $driver);
+        // Alt üye işyeri kaydı teklif kabulünde yapılır (ödeme ekranında değil)
+        $this->assertSame('SUB-KEY-1', $driver->driverProfile->fresh()->payout_provider_ref);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'submerchant') && $r->data()['identityNumber'] === '10000000146' && $r->data()['subMerchantType'] === 'PERSONAL');
         $payments = app(PaymentService::class);
         $order = $payments->orderFor($load, $owner);
         $this->basketId = $order->merchant_oid;
+        $this->assertSame(['5.000', '500.0000', '9500.0000'], [$order->commission_rate, $order->commission_amount, $order->driver_net_amount], 'komisyon ödeme emrinde dondurulur');
 
         $payments->checkout($order, request());
-        $this->assertSame('SUB-KEY-1', $driver->driverProfile->fresh()->payout_provider_ref);
         Http::assertSent(fn ($r) => str_contains($r->url(), 'initialize') && ($r->data()['basketItems'][0]['subMerchantKey'] ?? null) === 'SUB-KEY-1' && $r->data()['basketItems'][0]['subMerchantPrice'] === '9500.00');
 
         $this->post('/odeme/bildirim/iyzico', ['token' => 'tok-m'])->assertRedirect();

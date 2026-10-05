@@ -76,6 +76,25 @@ class extends Component {
         session()->flash('success_message', 'Yola çıktığınız kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
     }
 
+    /** Ödeme alınmış ama yola çıkılmamış işten vazgeçme (karar 4): ilan havuza döner, navlun yük sahibine iade edilir. */
+    public function withdrawPaid(\App\Services\OfferService $offers): void
+    {
+        $profile = Auth::user()->driverProfile;
+        $shipment = $this->ownedShipment();
+        $offer = $shipment?->accepted_offer_id ? \App\Models\Offer::query()->find($shipment->accepted_offer_id) : null;
+        if (! $profile || ! $offer) {
+            session()->flash('error_message', 'İş bulunamadı.');
+
+            return;
+        }
+        try {
+            $offers->withdrawAccepted($offer, $profile);
+            session()->flash('success_message', 'Vazgeçtiniz; ilan yeniden havuza döndü, navlun yük sahibine iade ediliyor.');
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+        }
+    }
+
     public function markDelivered(ShipmentService $shipments): void
     {
         $this->validate([
@@ -146,6 +165,11 @@ class extends Component {
         $latest = $trail['latest'];
 
         $hasReviewed = $load ? app(ReviewService::class)->hasReviewed($load, $user) : true;
+        $profile = $user->driverProfile;
+        // Komisyon ve şoföre kalan: ödeme emrinde dondurulmuş orandan; emir yoksa güncel ayardan (teklif anında gösterilenle aynı kaynak).
+        $order = $load ? $load->paymentOrders()->where('purpose', \App\Services\PaymentService::PURPOSE_ESCROW)->whereIn('status', ['paid', 'pending', 'created'])->latest('id')->first() : null;
+        $rate = $order?->commission_rate !== null ? (float) $order->commission_rate : ($profile?->commissionRate() ?? 0.0);
+        $net = $order?->driver_net_amount !== null ? (float) $order->driver_net_amount : round((float) ($load?->price ?? 0) * (1 - $rate / 100), 2);
 
         return [
             'load' => $load,
@@ -154,9 +178,14 @@ class extends Component {
             'trailPoints' => $trail['trail'],
             'mapCenter' => $latest ? [(float) $latest->latitude, (float) $latest->longitude] : [39.0, 35.0],
             'mapZoom' => $latest ? 12 : 6,
-            'canReview' => $load && in_array($load->status, [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED], true) && ! $hasReviewed,
+            'canReview' => $load && ReviewService::canReview($load) && ! $hasReviewed,
             'hasReviewed' => $hasReviewed,
             'ownerPhone' => $load && $load->isPaid() ? $load->cargoOwnerProfile?->user?->phone : null,
+            'startBlocker' => $profile ? ShipmentService::startBlocker($profile) : null,
+            'commissionRate' => $rate,
+            'driverNet' => $net,
+            // Uyuşmazlık yolda açıldı, yük henüz teslim edilmedi: şoför kanıt yükleyebilir ve konum paylaşabilir (kanıt hakeme gider).
+            'disputedInTransit' => $shipment && $shipment->status === Shipment::STATUS_DISPUTED && $shipment->delivered_at === null,
         ];
     }
 }; ?>
@@ -233,16 +262,31 @@ class extends Component {
                         @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
                             @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
                                 <p class="text-xs text-neutral-700 dark:text-neutral-300">Yük sahibi navlun ödemesini yaptı. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
-                                <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="btn-primary w-full sm:w-auto py-2 text-xs" wire:loading.attr="disabled">
-                                    Yükü aldım, yola çıktım
-                                </button>
+                                @if($startBlocker)
+                                    <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
+                                        {{ $startBlocker }}
+                                        <a href="{{ route('driver.wallet.index') }}" wire:navigate class="font-bold underline">IBAN ekle</a>
+                                    </div>
+                                @else
+                                    <button type="button" wire:click="startTransit" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="btn-primary w-full sm:w-auto py-2 text-xs" wire:loading.attr="disabled">
+                                        Yükü aldım, yola çıktım
+                                    </button>
+                                @endif
+                                <button type="button" wire:click="withdrawPaid" wire:confirm="Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?" class="load-card-action-ghost text-neutral-500 text-xs" wire:loading.attr="disabled">Bu işten vazgeç</button>
                             @else
                                 <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
                                     Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme yapıldığında bu sayfada yola çıkma düğmesi görünecektir.
                                 </div>
                             @endif
-                        @elseif($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT)
-                            <p class="text-xs text-neutral-700 dark:text-neutral-300">Yola çıkış: {{ $shipment->in_transit_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}. Teslimatı tamamladığınızda imzalı irsaliye veya teslimat fotoğrafını yükleyin.</p>
+                        @elseif($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT || $disputedInTransit)
+                            @if($disputedInTransit)
+                                <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">
+                                    Uyuşmazlık açık; kanıt hakeme gider. Yük sahibi yoldayken uyuşmazlık bildirdi. Teslimatı tamamladıysanız kanıtı yine yükleyin ve konum paylaşımını açık tutun; savunmanızı
+                                    <a href="{{ route('driver.disputes.index') }}" wire:navigate class="font-bold underline">Uyuşmazlıklar</a> sayfasından iletin.
+                                </div>
+                            @else
+                                <p class="text-xs text-neutral-700 dark:text-neutral-300">Yola çıkış: {{ $shipment->in_transit_at?->format('d.m.Y H:i') ?? 'Kayıt yok' }}. Teslimatı tamamladığınızda imzalı irsaliye veya teslimat fotoğrafını yükleyin.</p>
+                            @endif
                             <form wire:submit.prevent="markDelivered" class="space-y-3 text-xs border-t border-neutral-200 dark:border-neutral-800 pt-4">
                                 <div>
                                     <label class="form-label">Teslimat kanıtı (JPG, PNG, PDF; en fazla 10 MB)</label>
@@ -294,7 +338,7 @@ class extends Component {
                         @endif
                     </div>
 
-                    @if($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT)
+                    @if($shipment->status === \App\Models\Shipment::STATUS_IN_TRANSIT || $disputedInTransit)
                         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden" wire:ignore
                             x-data="{
                                 shipmentId: {{ (int) $shipment->id }},
@@ -456,13 +500,17 @@ class extends Component {
                             @case(\App\Models\Load::ESCROW_REFUNDED)
                                 Navlun bedeli yük sahibine iade edildi.
                                 @break
+                            @case(\App\Models\Load::ESCROW_REFUND_PENDING)
+                                Navlun bedelinin yük sahibine iadesi bekleniyor; bu iş için hakediş oluşmaz.
+                                @break
                             @default
                                 Ödeme durumu güncellenmedi.
                         @endswitch
                     </p>
-                    @if($load->isPaid() && $load->driverProfile)
-                        <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400">
-                            Komisyon oranınız: %{{ number_format($load->driverProfile->commissionRate(), 1, ',', '.') }}
+                    @if($load->driverProfile && ! $load->isClosedWithRefund())
+                        <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 space-y-0.5">
+                            <div>Komisyon oranınız: %{{ number_format($commissionRate, 1, ',', '.') }}</div>
+                            <div>Size kalan: <span class="text-neutral-900 dark:text-white font-bold tabular-nums">{{ number_format($driverNet, 2, ',', '.') }} ₺</span></div>
                         </div>
                     @endif
                 </div>

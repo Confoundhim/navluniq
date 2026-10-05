@@ -37,6 +37,10 @@ class ShipmentService
             if ($load->escrow_status !== Load::ESCROW_PAID) {
                 throw new RuntimeException('Yük sahibi navlun ödemesini yapmadan yola çıkamazsınız.');
             }
+            // Hakediş kayıtlı IBAN'a yapılır; IBAN'sız yola çıkan şoförün parası teslimattan sonra askıda kalırdı.
+            if (! $driver->user?->defaultBankAccount()->exists()) {
+                throw new RuntimeException('Yola çıkmadan önce Ödemelerim sayfasından IBAN ekleyin; navlun ödemeniz bu hesaba yapılır.');
+            }
 
             $locked->update([
                 'status' => Shipment::STATUS_IN_TRANSIT,
@@ -115,6 +119,14 @@ class ShipmentService
         }
 
         return $evidence;
+    }
+
+    /** Şoförün "Yola çıktım" diyebilmesi için eksik: null ise hazır (ekran uyarısı için). */
+    public static function startBlocker(DriverProfile $driver): ?string
+    {
+        return $driver->user?->defaultBankAccount()->exists()
+            ? null
+            : 'Kayıtlı IBAN\'ınız yok. "Yola çıktım" demeden önce Ödemelerim sayfasından IBAN ekleyin; navlun ödemeniz bu hesaba yapılır.';
     }
 
     /** Yük sahibi teslimatı onaylar; şoför hakedişi ödeme sırasına alınır. */

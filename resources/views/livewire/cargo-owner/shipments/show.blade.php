@@ -3,7 +3,9 @@
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Shipment;
+use App\Services\DisputeService;
 use App\Services\DriverLocationService;
+use App\Services\LoadService;
 use App\Services\ReviewService;
 use App\Services\ShipmentService;
 use App\Support\Phone;
@@ -23,6 +25,8 @@ class extends Component {
     public int $rating = 5;
 
     public string $review_comment = '';
+
+    public string $cancel_reason = '';
 
     public function mount(int $loadId): void
     {
@@ -62,6 +66,48 @@ class extends Component {
         }
 
         session()->flash('success_message', 'Teslimat onaylandı. Şoförün navlun ödemesi tamamlanma sırasına alındı.');
+    }
+
+    /** Yola çıkılmadan iptal (karar 4): navlun tam iade, şoförün işi kapanır. */
+    public function cancelPaid(LoadService $loads): void
+    {
+        $load = $this->ownerLoad();
+        if (! $load) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı.');
+
+            return;
+        }
+        try {
+            $refunded = $loads->cancelByOwnerPaid($load, Auth::user()->cargoOwnerProfile, trim($this->cancel_reason) ?: null);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+        $this->cancel_reason = '';
+        session()->flash('success_message', $refunded
+            ? 'Sevkiyat iptal edildi; navlun bedeli kartınıza iade edildi (bankanıza göre 1-10 iş günü).'
+            : 'Sevkiyat iptal edildi; navlun bedelinin iadesi finans ekibi tarafından tamamlanacak, sonuç size bildirilecek.');
+    }
+
+    /** Açık uyuşmazlığı geri çek: sevkiyat önceki durumuna döner. */
+    public function withdrawDispute(DisputeService $disputes): void
+    {
+        $load = $this->ownerLoad();
+        $dispute = $load?->openDispute();
+        if (! $dispute) {
+            session()->flash('error_message', 'Açık uyuşmazlık bulunamadı.');
+
+            return;
+        }
+        try {
+            $disputes->withdraw($dispute, Auth::user());
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+        session()->flash('success_message', 'Uyuşmazlık geri çekildi; sevkiyat önceki durumuna döndü.');
     }
 
     public function submitReview(ReviewService $reviews): void
@@ -184,7 +230,8 @@ class extends Component {
         @php
             $canApprove = $shipment && $shipment->status === 'delivered' && $load->status === 'delivered' && ! $openDispute;
             $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && $load->escrow_status === 'paid_in_escrow' && ! $openDispute;
-            $canReview = in_array($load->status, ['delivered', 'completed'], true) && ! $hasReviewed && $driverUser;
+            $canReview = \App\Services\ReviewService::canReview($load) && ! $hasReviewed && $driverUser;
+            $canCancelPaid = $load->canBeCancelledBeforeTransit();
             $isLive = $shipment && $shipment->status === 'in_transit';
             $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered'], true) && $latest;
         @endphp
@@ -202,7 +249,29 @@ class extends Component {
         @if($openDispute)
             <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Navlun ödemesi karar verilene kadar askıda.</span>
-                <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
+                    <button type="button" wire:click="withdrawDispute" wire:confirm="Uyuşmazlık geri çekilecek; sevkiyat önceki durumuna döner ve navlun ödemesi teslimat onayıyla şoföre gider. Devam edilsin mi?" wire:loading.attr="disabled" class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold">Uyuşmazlığı geri çek</button>
+                </div>
+            </div>
+        @endif
+
+        @if($canCancelPaid)
+            <div class="p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3 text-xs">
+                <div>
+                    <span class="font-bold text-neutral-900 dark:text-white block mb-0.5">Yükleme bekleniyor</span>
+                    <span class="text-neutral-600 dark:text-neutral-400">Şoför yükü alıp yola çıkmadan sevkiyatı iptal edebilirsiniz; navlun bedelinin tamamı kartınıza iade edilir. Yola çıkıldıktan sonra yalnız uyuşmazlık açılabilir.</span>
+                </div>
+                @if($load->no_show_notified_at)
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Yükleme tarihi geçti, şoför hâlâ yola çıkmadı. Şoförle görüşün; gelmeyecekse iptal edip iade alabilirsiniz.</div>
+                @endif
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" wire:model="cancel_reason" maxlength="300" placeholder="İptal nedeni (isteğe bağlı, şoföre iletilir)" class="form-input flex-1">
+                    <button type="button" wire:click="cancelPaid" wire:confirm="Sevkiyat iptal edilecek, şoförün işi kapanacak ve navlun bedelinin tamamı iade edilecek. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">
+                        <span wire:loading.remove wire:target="cancelPaid">İptal et ve iade al</span>
+                        <span wire:loading wire:target="cancelPaid">İptal ediliyor...</span>
+                    </button>
+                </div>
             </div>
         @endif
 
@@ -433,6 +502,8 @@ class extends Component {
                             Uyuşmazlık karara bağlanana kadar ödeme askıda.
                         @elseif(in_array($load->escrow_status, ['release_approved', 'released_to_driver'], true))
                             Navlun ödemesi şoföre tamamlanıyor ya da tamamlandı.
+                        @elseif($load->escrow_status === 'refund_pending')
+                            İade kararı verildi; finans ekibi iadeyi tamamlayınca kartınıza yansır ve size bildirilir.
                         @else
                             İade süreci tamamlandı.
                         @endif

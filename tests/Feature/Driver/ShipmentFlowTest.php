@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Driver;
 
+use App\Models\BankAccount;
 use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
@@ -13,6 +14,7 @@ use App\Services\OfferService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -42,6 +44,8 @@ class ShipmentFlowTest extends TestCase
         $this->driver = User::factory()->driver()->create();
         $this->driver->syncRoles(['driver']);
         $profile = DriverProfile::create(['user_id' => $this->driver->id, 'kyc_status' => 'approved']);
+        // "Yola çıktım" için kayıtlı IBAN şart (A5); uydurma ama sağlaması doğru IBAN.
+        BankAccount::create(['user_id' => $this->driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'TR330006100519786457841326'), 'iban_last4' => '1326', 'account_holder' => 'Test Şoför', 'is_default' => true]);
         DriverVehicle::create([
             'driver_profile_id' => $profile->id,
             'plate' => '34ABC123',

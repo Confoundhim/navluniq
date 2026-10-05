@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Mail\SystemNoticeMail;
+use App\Models\DriverTrip;
 use App\Models\KycDocument;
 use App\Models\Load;
+use App\Models\Offer;
+use App\Models\PaymentOrder;
 use App\Models\Payout;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +30,8 @@ class AccountService
         $driverOpen = $user->driverProfile
             ? Load::query()->where('driver_profile_id', $user->driverProfile->id)->whereIn('status', $openStatuses)->exists()
             : false;
-        $pendingPayout = Payout::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'processing'])->exists();
+        $pendingPayout = Payout::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'processing', 'failed'])->exists();
+        $openOrder = PaymentOrder::query()->where('user_id', $user->id)->whereIn('status', ['pending', 'refund_pending'])->exists();
 
         if ($ownerOpen || $driverOpen) {
             throw new RuntimeException('Devam eden ilan veya sevkiyatınız varken hesabınızı kapatamazsınız. Önce bunları tamamlayın ya da iptal edin.');
@@ -35,14 +39,27 @@ class AccountService
         if ($pendingPayout) {
             throw new RuntimeException('Tamamlanmamış bir navlun ödemeniz varken hesabınız kapatılamaz. Ödeme tamamlandıktan sonra tekrar deneyin.');
         }
+        if ($openOrder) {
+            throw new RuntimeException('Sonuçlanmamış bir ödeme ya da bekleyen iadeniz varken hesabınız kapatılamaz. İşlem tamamlanınca tekrar deneyin.');
+        }
 
         $farewellEmail = $user->canReceiveMail() ? $user->email : null;
         $farewellName = $user->first_name;
+        $notifications = app(NotificationService::class);
+        $withdrawnOffers = collect();
 
-        DB::transaction(function () use ($user, $reason): void {
+        DB::transaction(function () use ($user, $reason, &$withdrawnOffers): void {
             $user->consents()->whereNull('revoked_at')->update(['revoked_at' => now()]);
             // Kişisel veri taşıyan yan kayıtlar kalıcı silinir / anonimleştirilir (KVKK: unutulma hakkı).
             // Fatura, ödeme ve ilan geçmişi yasal saklama süresi gereği kalır; kullanıcı satırı anonim olduğu için kişiye bağlanamaz.
+            // Ödenmiş hakedişlerde IBAN son 4 hane ve hesap sahibi hakedişe kopyalanır (muhasebe izi), banka hesabı bağı çözülür.
+            foreach ($user->bankAccounts()->withTrashed()->get() as $account) {
+                Payout::query()->where('bank_account_id', $account->id)->update([
+                    'iban' => '****'.$account->iban_last4,
+                    'bank_name' => mb_substr((string) $account->account_holder, 0, 190),
+                    'bank_account_id' => null,
+                ]);
+            }
             $user->bankAccounts()->withTrashed()->forceDelete();
             $user->savedAddresses()->withTrashed()->forceDelete();
             $user->supportTickets()->update(['name' => 'Silinmiş Kullanıcı', 'email' => null, 'phone' => null]);
@@ -65,7 +82,12 @@ class AccountService
                         }
                     }
                 }
-                $driver->forceFill(array_fill_keys(['avatar_path', 'driver_license_path', 'src_document_path', 'psychotechnic_path', 'k_document_path', 'liability_insurance_path', 'selfie_with_id_path', 'ocr_data', 'preferences'], null))->save();
+                $driver->forceFill(array_fill_keys(['avatar_path', 'driver_license_path', 'src_document_path', 'psychotechnic_path', 'k_document_path', 'liability_insurance_path', 'selfie_with_id_path', 'ocr_data', 'preferences', 'identity_number', 'tax_number', 'payout_provider_ref'], null)
+                    + ['kyc_status' => 'unsubmitted', 'kyc_verified_at' => null, 'premium_until' => now()])->save();
+                // Bekleyen teklifler geri çekilir (yük sahipleri haberdar edilir), gruptan alınan açık işler kapanır.
+                $withdrawnOffers = Offer::query()->with('cargoLoad.cargoOwnerProfile.user')->where('driver_profile_id', $driver->id)->where('status', 'pending')->get();
+                Offer::query()->whereIn('id', $withdrawnOffers->pluck('id'))->update(['status' => 'withdrawn', 'responded_at' => now()]);
+                DriverTrip::query()->where('driver_profile_id', $driver->id)->open()->update(['status' => DriverTrip::STATUS_CLOSED, 'closed_at' => now()]);
                 $driver->locations()->delete();
                 $driver->vehicles()->withTrashed()->get()->each(function ($vehicle): void {
                     foreach (['ruhsat_path', 'vehicle_photo_path'] as $col) {
@@ -99,6 +121,15 @@ class AccountService
 
             $user->delete();
         });
+
+        foreach ($withdrawnOffers as $offer) {
+            $load = $offer->cargoLoad;
+            if ($load && ($ownerUser = $load->cargoOwnerProfile?->user)) {
+                $notifications->notify($ownerUser, 'Bir teklif geri çekildi',
+                    ["{$load->pickup_location} → {$load->delivery_location} ilanınıza verilen ".number_format((float) $offer->amount, 2, ',', '.').' ₺ tutarındaki teklif, şoförün hesabı kapatıldığı için geri çekildi.'],
+                    route('cargo-owner.loads.offers', $load->id), 'Teklifleri incele', 'offer', sendMail: false);
+            }
+        }
 
         if ($farewellEmail) {
             try {

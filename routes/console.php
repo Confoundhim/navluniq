@@ -10,6 +10,8 @@ use App\Services\LoadService;
 use App\Services\LoadStandardizer;
 use App\Services\LocalClassifier;
 use App\Services\OfferService;
+use App\Services\PaymentService;
+use App\Services\PayoutService;
 use App\Services\RuleFeedbackService;
 use App\Services\ScrapedLoadService;
 use App\Services\ShipmentService;
@@ -201,3 +203,21 @@ Schedule::command('system:backup', ['--type' => 'database', '--keep' => 12])->cr
 // Sorun → Telegram (alert_telegram_chat_id) + yönetici bildirimi; 6 saatte bir tekrar; düzelince "düzeldi". Sağlık ekranı
 // SystemWatchdog::lastStatus() ile son çalışmayı gösterir.
 Schedule::command('system:watchdog')->everyFiveMinutes()->withoutOverlapping(10);
+
+// Para ve sevkiyat (2026-10-05): şoför gelmedi uyarısı, hakediş mutabakatı, açık ödeme emri süresi.
+Artisan::command('loads:no-show', function (LoadService $loads) {
+    $this->info('"Şoför gelmedi" uyarısı gönderilen ilan: '.$loads->notifyNoShows());
+})->purpose('Ödenmiş, yükleme tarihi geçmiş ve yola çıkılmamış ilanlarda yük sahibi, şoför ve operasyonu bir kez uyarır');
+
+Artisan::command('payouts:reconcile', function (PayoutService $payouts) {
+    $r = $payouts->reconcile();
+    $this->info("Hakediş mutabakatı: açılan {$r['created']} · işlemde takılıp bekleyene dönen {$r['reset']} · yeniden aktarılan {$r['retried']}");
+})->purpose('Hakedişsiz onaylı ilanları, işlemde takılan ve bekleyen hakedişleri toparlar; pazaryeri aktarımını artan beklemeyle yeniden dener');
+
+Artisan::command('payments:expire-stale', function (PaymentService $payments) {
+    $this->info('Süresi dolan açık ödeme emri: '.$payments->expireStale());
+})->purpose('Ayarlı saatten (payment_order_stale_hours) eski açık ödeme emirlerini kapatır; geç gelen ödeme iade edilir');
+
+Schedule::command('loads:no-show')->hourly()->withoutOverlapping(10);
+Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(10);
+Schedule::command('payments:expire-stale')->dailyAt('04:50');

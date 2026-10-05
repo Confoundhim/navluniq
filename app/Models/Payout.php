@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Payout extends Model
@@ -41,9 +42,14 @@ class Payout extends Model
         'pending' => 'Ödeme sırasında',
         'processing' => 'Banka transferi yapılıyor',
         'paid' => 'Ödendi',
-        'failed' => 'Başarısız',
+        'failed' => 'Düzeltme bekleyen',
         'cancelled' => 'İptal edildi',
     ];
+
+    public function attempts(): HasMany
+    {
+        return $this->hasMany(PayoutAttempt::class);
+    }
 
     public function bankAccount(): BelongsTo
     {

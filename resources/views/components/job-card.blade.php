@@ -32,12 +32,12 @@
                 <button type="button" wire:click="setStatus({{ $trip->id }}, 'on_the_way')" wire:confirm="Yükü teslim aldığınızı ve yola çıktığınızı onaylıyor musunuz?" class="load-card-action">Yola çıktım</button>
             @endif
             @if($trip->isSystem())
-                @if($trip->isOpen() && $key === 'on_the_way')
+                @if($trip->isOpen() && ($key === 'on_the_way' || ($key === 'disputed' && $trip->shipment && $trip->shipment->delivered_at === null)))
                     <a href="{{ route('driver.jobs.show', $trip->load_id) }}#teslimat" wire:navigate class="load-card-action">Teslim ettim</a>
                 @endif
                 <a href="{{ route('driver.jobs.show', $trip->load_id) }}" wire:navigate class="load-card-action-ghost">{{ $trip->isOpen() ? 'Ayrıntı ve teslimat' : 'Ayrıntı' }}</a>
-                @if($trip->isOpen() && $load && $load->status === \App\Models\Load::STATUS_ASSIGNED && ! $load->isPaid())
-                    <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
+                @if($trip->isOpen() && $load && $load->status === \App\Models\Load::STATUS_ASSIGNED && in_array($load->escrow_status, [\App\Models\Load::ESCROW_PENDING, \App\Models\Load::ESCROW_PAID], true))
+                    <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="{{ $load->isPaid() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : 'Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?' }}" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
                 @endif
             @else
                 @if(in_array($trip->status, ['planned', 'on_the_way'], true))<button type="button" wire:click="setStatus({{ $trip->id }}, 'delivered')" class="load-card-action-ghost">Teslim ettim</button>@endif

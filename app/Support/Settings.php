@@ -109,6 +109,13 @@ final class Settings
         'iyzico_sandbox' => 1,                  // 1: sandbox-api.iyzipay.com
         'iyzico_marketplace' => 0,              // 1: pazaryeri (alt üye işyeri) ürünü aktif
 
+        // Para ve sevkiyat (2026-10-05)
+        'no_show_grace_days' => 1,              // Ödenmiş ilanda yükleme tarihi bu kadar gün geçip yola çıkılmadıysa "şoför gelmedi" uyarısı (bir kez)
+        'payout_processing_stale_minutes' => 15, // "işlemde" takılı hakediş bu kadar dakika sonra "bekliyor"a döner ve finans uyarılır
+        'payout_retry_max_attempts' => 6,       // Ödeme kuruluşu aktarımı en çok bu kadar kez denenir (artan bekleme: 10, 20, 40 dk…)
+        'payment_order_stale_hours' => 24,      // Açık (created/pending) ödeme emri bu kadar saat sonra "süresi doldu" olur
+        'bank_change_hold_hours' => 24,         // IBAN değişikliğinden sonra otomatik hakediş aktarımı bu kadar saat bekler (dolandırıcılık freni)
+
         // İşletim ve uyarılar (2026-10-05)
         'mail_verify_tls' => 1,                 // 1: SMTP sertifikası doğrulanır (RuntimeMailConfig); sunucu sertifikası bozuksa geçici 0
         'alert_telegram_chat_id' => '',         // Bekçi (system:watchdog) uyarılarının gideceği Telegram sohbet kimliği (Osman'ın DM'i); boş: yalnız panel bildirimi

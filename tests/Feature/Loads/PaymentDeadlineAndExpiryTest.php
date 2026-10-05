@@ -109,13 +109,21 @@ class PaymentDeadlineAndExpiryTest extends TestCase
         $this->assertSame([Load::STATUS_ACTIVE, 'withdrawn', DriverTrip::STATUS_CLOSED], [$load->fresh()->status, $offer->fresh()->status, $trip->fresh()->status]);
         $this->assertContains('Şoför ataması kaldırıldı, ilanınız yeniden havuzda', $this->titles($owner));
 
-        // Ödeme yapılmışsa vazgeçilemez
+        // Ödeme yapılmışsa da yola çıkılmadan vazgeçilebilir (karar 4): ilan havuza döner, vazgeçme şoförün sicilinde sayılır,
+        // navlun iadesi ödeme emrinde izlenir (ayrıntı: CancelRefundPolicyTest). Yola çıkılmışsa vazgeçilemez.
         $paid = $this->publish($owner);
         $offer2 = app(OfferService::class)->submit($driver->driverProfile, $paid, 10000);
         app(OfferService::class)->accept($paid, $offer2, $owner->id);
         $paid->update(['escrow_status' => Load::ESCROW_PAID]);
-        $this->expectException(RuntimeException::class);
         app(OfferService::class)->withdrawAccepted($offer2->fresh(), $driver->driverProfile);
+        $this->assertSame([Load::STATUS_ACTIVE, Load::ESCROW_PENDING, 'withdrawn', 1], [$paid->fresh()->status, $paid->fresh()->escrow_status, $offer2->fresh()->status, $driver->driverProfile->fresh()->withdrawals_after_payment]);
+
+        $moving = $this->publish($owner);
+        $offer3 = app(OfferService::class)->submit($driver->driverProfile, $moving, 10000);
+        app(OfferService::class)->accept($moving, $offer3, $owner->id);
+        $moving->update(['escrow_status' => Load::ESCROW_PAID, 'status' => Load::STATUS_ON_THE_WAY]);
+        $this->expectException(RuntimeException::class);
+        app(OfferService::class)->withdrawAccepted($offer3->fresh(), $driver->driverProfile);
     }
 
     public function test_loads_with_past_pickup_dates_expire_and_are_hidden_from_the_pool(): void

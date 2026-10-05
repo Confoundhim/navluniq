@@ -10,6 +10,7 @@ use App\Models\SubscriptionCycle;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Support\Settings;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -76,17 +77,34 @@ class SubscriptionService
         return $subscription;
     }
 
-    /** Premium'u hemen bitirir (hediye ya da test süresi geri alınır). */
-    public function revokePremium(User $user, ?User $admin = null): void
+    /**
+     * Premium'u geri alır. Varsayılan: yalnız hediye/test süresi (premium_gift) iptal edilir; ücretli dönem varsa premium o dönemin
+     * sonuna kadar sürer (abonelik iadesiz, dönem sonuna kadar kullanılır). $includePaid=true yalnız açıkça istenirse ücretli
+     * aboneliği de bitirir.
+     */
+    public function revokePremium(User $user, ?User $admin = null, bool $includePaid = false): void
     {
         $profile = $user->driverProfile;
         if (! $profile || ! $profile->premium_until || $profile->premium_until->isPast()) {
             return;
         }
-        $profile->update(['premium_until' => now()]);
-        Subscription::query()->where('user_id', $user->id)->where('status', 'active')->update(['status' => 'cancelled', 'cancelled_at' => now(), 'ended_at' => now()]);
-        ActivityLog::record('subscription.revoked', "Premium kaldırıldı → kullanıcı #{$user->id}", $admin?->id);
-        $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi', ['Premium üyeliğiniz yönetici tarafından sonlandırıldı; hesabınız standart üyeliğe döndü.'], route('driver.premium.index'), 'Premium sayfam', 'subscription', sendMail: false);
+        $query = Subscription::query()->where('user_id', $user->id)->where('status', 'active');
+        if (! $includePaid) {
+            $query->where('plan_code', self::PLAN_PREMIUM_GIFT);
+        }
+        $query->update(['status' => 'cancelled', 'cancelled_at' => now(), 'ended_at' => now()]);
+
+        // Kalan aktif (ücretli) dönemin sonu yeni premium bitişidir; yoksa hemen biter.
+        $remaining = Subscription::query()->where('user_id', $user->id)->where('status', 'active')
+            ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '>', now())->max('current_period_ends_at');
+        $profile->update(['premium_until' => $remaining ? Carbon::parse($remaining) : now()]);
+
+        ActivityLog::record('subscription.revoked', 'Premium '.($includePaid ? 'tamamen' : 'hediye süresi').' kaldırıldı → kullanıcı #'.$user->id, $admin?->id);
+        if ($remaining) {
+            $this->notifications->notify($user, 'Hediye premium süreniz kaldırıldı', ['Yönetici tarafından tanımlanan hediye süresi kaldırıldı; ücretli premium döneminiz '.$profile->fresh()->premium_until->format('d.m.Y H:i').' tarihine kadar sürer.'], route('driver.premium.index'), 'Premium sayfam', 'subscription', sendMail: false);
+        } else {
+            $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi', ['Premium üyeliğiniz yönetici tarafından sonlandırıldı; hesabınız standart üyeliğe döndü.'], route('driver.premium.index'), 'Premium sayfam', 'subscription', sendMail: false);
+        }
     }
 
     /** Şoför için premium ödeme emri; ödeme ekranı PaymentService::checkout ile açılır. */
@@ -127,7 +145,7 @@ class SubscriptionService
         $subscription = DB::transaction(function () use ($order, $user, $profile): Subscription {
             // Mevcut süre bitmediyse üzerine eklenir; bittiyse bugünden başlar.
             $start = $profile->premium_until && $profile->premium_until->isFuture() ? $profile->premium_until->copy() : now();
-            $end = $start->copy()->addMonth();
+            $end = $start->copy()->addMonthNoOverflow(); // 31 Ocak + 1 ay = 28/29 Şubat (3 Mart'a taşmaz)
 
             $subscription = Subscription::query()->where('user_id', $user->id)->where('plan_code', self::PLAN_PREMIUM_MONTHLY)->latest('id')->first()
                 ?? Subscription::create([
@@ -202,10 +220,13 @@ class SubscriptionService
         return $subscription;
     }
 
-    /** Süresi dolan abonelikleri kapatır (zamanlanmış görev). premium_until zaten geçmişte olduğu için erişim kendiliğinden düşer. */
+    /**
+     * Süresi dolan abonelikleri kapatır (zamanlanmış görev). premium_until zaten geçmişte olduğu için erişim kendiliğinden düşer.
+     * Hediye satırı bitti ama ücretli dönem sürüyorsa (premium_until ileride) "sona erdi" bildirimi gönderilmez.
+     */
     public function expireDue(): int
     {
-        $due = Subscription::query()->with('user')->where('status', 'active')
+        $due = Subscription::query()->with('user.driverProfile')->where('status', 'active')
             ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '<', now())->get();
         if ($due->isEmpty()) {
             return 0;
@@ -214,11 +235,13 @@ class SubscriptionService
         $count = Subscription::query()->whereIn('id', $due->pluck('id'))->update(['status' => 'expired', 'ended_at' => now()]);
 
         foreach ($due as $subscription) {
-            if ($user = $subscription->user) {
-                $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi',
-                    ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.', 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
-                    route('driver.premium.index'), 'Premium\'u yeniden başlat', 'subscription');
+            $user = $subscription->user;
+            if (! $user || $user->driverProfile?->isPremium()) {
+                continue; // başka bir dönem hâlâ sürüyor: premium bitmedi
             }
+            $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi',
+                ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.', 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
+                route('driver.premium.index'), 'Premium\'u yeniden başlat', 'subscription');
         }
 
         return $count;

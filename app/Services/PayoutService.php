@@ -6,7 +6,9 @@ use App\Models\ActivityLog;
 use App\Models\DriverProfile;
 use App\Models\Invoice;
 use App\Models\Load;
+use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\PayoutAttempt;
 use App\Models\User;
 use App\Payments\GatewayManager;
 use App\Support\Settings;
@@ -14,6 +16,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
+/**
+ * Hakediş (şoför ödemesi). Tek canlı yol pazaryeri: ödeme kuruluşu şoför payını alt üye işyerine aktarır (releaseViaGateway).
+ * Elle banka transferi (markPaid) yalnız aktarım başarısız kalırsa kullanılan yedek yoldur.
+ */
 class PayoutService
 {
     public function __construct(
@@ -22,7 +28,7 @@ class PayoutService
         private readonly GatewayManager $gateways,
     ) {}
 
-    /** Onaylanmış teslimat için hakediş kaydı (ilan başına tek). */
+    /** Onaylanmış teslimat için hakediş kaydı (ilan başına tek; payouts.load_id benzersiz). */
     public function createForLoad(Load $load): Payout
     {
         $driver = $load->driverProfile;
@@ -38,10 +44,16 @@ class PayoutService
             throw new RuntimeException('Hakediş yalnız ödemesi alınmış ve serbest bırakılması onaylanmış sevkiyat için açılabilir.');
         }
 
+        // Komisyon, ödeme emrinde dondurulmuş orandan okunur: ayar sonradan değişse de şoföre teklif anında gösterilen rakam ödenir.
+        $order = PaymentOrder::query()->where('load_id', $load->id)->where('purpose', PaymentService::PURPOSE_ESCROW)->where('status', 'paid')->latest('id')->first();
         $total = round((float) $load->price, 2);
-        $rate = $driver->commissionRate();
-        $commission = round($total * $rate / 100, 2);
-        $net = round($total - $commission, 2);
+        if ($order && $order->commission_amount !== null && $order->driver_net_amount !== null) {
+            $commission = round((float) $order->commission_amount, 2);
+            $net = round((float) $order->driver_net_amount, 2);
+        } else {
+            $commission = round($total * $driver->commissionRate() / 100, 2);
+            $net = round($total - $commission, 2);
+        }
         $bankAccount = $driver->user?->defaultBankAccount;
 
         $payout = Payout::create([
@@ -88,12 +100,8 @@ class PayoutService
     }
 
     /**
-     * Etkin ödeme kuruluşu alt üye işyeri aktarımını destekliyorsa ve şoför kayıtlıysa hakedişi aktarır.
-     * Başarılıysa payout otomatik "paid" olur; aksi halde manuel süreçte kalır.
-     */
-    /**
-     * Pazaryeri modelinde şoförü ödeme kuruluşuna alt üye işyeri olarak kaydeder (bir kez).
-     * Kayıtlı IBAN yoksa ya da kuruluş reddederse false döner; hakediş manuel sürece düşer.
+     * Pazaryeri modelinde şoförü ödeme kuruluşuna alt üye işyeri olarak kaydeder (bir kez). Kayıt için kimlik (bireyselde TC,
+     * şirkette VKN) ve varsayılan IBAN gerekir; eksikse ya da kuruluş reddederse false döner. Sahte kimlik hiç gönderilmez.
      */
     public function ensureSubMerchant(DriverProfile $driver): bool
     {
@@ -107,19 +115,23 @@ class PayoutService
 
         $user = $driver->user;
         $account = $user?->defaultBankAccount;
-        if (! $user || ! $account) {
+        if (! $user || ! $account || ! $driver->hasPayoutIdentity()) {
             return false;
         }
 
         try {
             $ref = $gateway->registerSubMerchant([
-                'external_id' => 'DRV-'.$driver->id,
+                // IBAN değişince yeni hesapla yeniden kaydedilir; kuruluşta dış kimlik benzersiz olduğundan hesap kimliği eklenir.
+                'external_id' => 'DRV-'.$driver->id.'-'.$account->id,
                 'name' => $user->first_name,
                 'surname' => $user->last_name,
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'iban' => app(BankAccountService::class)->decrypt($account),
-                'identity' => '',
+                'legal_type' => $driver->legal_type ?: DriverProfile::LEGAL_INDIVIDUAL,
+                'identity' => (string) ($driver->identity_number ?? ''),
+                'tax_no' => (string) ($driver->tax_number ?? ''),
+                'company_title' => $driver->legal_type === DriverProfile::LEGAL_COMPANY ? $account->account_holder : '',
                 'address' => 'Türkiye',
             ]);
         } catch (\Throwable $e) {
@@ -138,7 +150,32 @@ class PayoutService
         return true;
     }
 
-    public function releaseViaGateway(Payout $payout): bool
+    /** Şoförün teklif kabulü / ödeme için eksiği: null ise hazır, değilse kullanıcıya gösterilecek gerekçe. */
+    public function payoutReadinessBlocker(DriverProfile $driver): ?string
+    {
+        if (! $this->gateways->active()->supportsSubMerchants()) {
+            return null;
+        }
+        $hasIban = $driver->user?->defaultBankAccount()->exists() ?? false;
+        if (! $hasIban && ! $driver->hasPayoutIdentity()) {
+            return 'Şoförün ödeme bilgileri eksik: Ödemelerim sayfasından IBAN ve kimlik (T.C. / vergi) numarası girilmeden teklif kabul edilemez.';
+        }
+        if (! $hasIban) {
+            return 'Şoförün kayıtlı IBAN\'ı yok: Ödemelerim sayfasından IBAN girilmeden teklif kabul edilemez.';
+        }
+        if (! $driver->hasPayoutIdentity()) {
+            return 'Şoförün kimlik (T.C. / vergi) numarası kayıtlı değil: Ödemelerim sayfasından girilmeden teklif kabul edilemez.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Etkin ödeme kuruluşu alt üye işyeri aktarımını destekliyorsa ve şoför kayıtlıysa hakedişi aktarır; her deneme
+     * payout_attempts'e yazılır. Başarılıysa payout "paid" olur; aksi halde "pending" kalır ve payouts:reconcile artan beklemeyle
+     * yeniden dener. IBAN yeni değişmişse (ayar: bank_change_hold_hours) aktarım bekletilir.
+     */
+    public function releaseViaGateway(Payout $payout, bool $force = false): bool
     {
         $gateway = $this->gateways->active();
         $driver = $payout->user?->driverProfile;
@@ -152,15 +189,34 @@ class PayoutService
         if (! in_array($payout->status, ['pending', 'failed'], true)) {
             return false;
         }
+        $hold = max(0, Settings::int('bank_change_hold_hours'));
+        if (! $force && $hold > 0 && $driver->bank_account_changed_at && $driver->bank_account_changed_at->gt(now()->subHours($hold))) {
+            $payout->update(['failure_reason' => 'IBAN yeni değişti; otomatik aktarım '.$driver->bank_account_changed_at->copy()->addHours($hold)->format('d.m.Y H:i').' sonrasına bekletildi.']);
 
+            return false;
+        }
+
+        $attemptNo = (int) $payout->attempts()->max('attempt_no') + 1;
         $payout->update(['status' => 'processing', 'channel' => 'gateway']);
         $result = $gateway->transferToSubMerchant($payout, (string) $driver->payout_provider_ref);
+        PayoutAttempt::create([
+            'payout_id' => $payout->id,
+            'provider' => $gateway->id(),
+            'provider_reference' => $result->reference,
+            'status' => $result->succeeded ? 'success' : 'failed',
+            'attempt_no' => $attemptNo,
+            'failure_message' => $result->succeeded ? null : mb_substr((string) $result->failureMessage, 0, 500),
+            'attempted_at' => now(),
+        ]);
         if (! $result->succeeded) {
             $payout->update(['status' => 'pending', 'failure_reason' => mb_substr((string) $result->failureMessage, 0, 500)]);
-            Log::warning('Ödeme kuruluşu aktarımı başarısız; manuel sürece düştü.', ['payout' => $payout->id, 'error' => $result->failureMessage]);
-            $this->notifications->notifyAdmins('manage payouts', 'Hakediş aktarımı başarısız',
-                ["Hakediş #{$payout->id} ödeme kuruluşu üzerinden aktarılamadı: ".($result->failureMessage ?: 'sebep belirtilmedi'), 'Kayıt manuel sürece düştü; Finans ekranından banka transferiyle tamamlayın.'],
-                route('admin.finance'), 'Finans ekranı', 'admin');
+            Log::warning('Ödeme kuruluşu aktarımı başarısız; yeniden denenecek.', ['payout' => $payout->id, 'attempt' => $attemptNo, 'error' => $result->failureMessage]);
+            if ($attemptNo === 1 || $attemptNo >= max(1, Settings::int('payout_retry_max_attempts'))) {
+                $this->notifications->notifyAdmins('manage payouts', 'Hakediş aktarımı başarısız',
+                    ["Hakediş #{$payout->id} ödeme kuruluşu üzerinden aktarılamadı ({$attemptNo}. deneme): ".($result->failureMessage ?: 'sebep belirtilmedi'),
+                        $attemptNo >= max(1, Settings::int('payout_retry_max_attempts')) ? 'Deneme sınırı doldu; Finans ekranından banka transferiyle tamamlayın.' : 'Sistem artan aralıklarla yeniden deneyecek; sürerse Finans ekranından banka transferiyle tamamlayın.'],
+                    route('admin.finance'), 'Finans ekranı', 'admin');
+            }
 
             return false;
         }
@@ -170,7 +226,59 @@ class PayoutService
         return true;
     }
 
-    /** Finans ekibi banka transferini tamamladığında çağrılır. */
+    /**
+     * Zamanlanmış mutabakat (10 dk): hakedişsiz onaylı ilanlar, 15 dk'dan uzun "işlemde" kalan satırlar ve bekleyen pazaryeri
+     * aktarımları (artan beklemeyle yeniden deneme).
+     *
+     * @return array{created:int, reset:int, retried:int}
+     */
+    public function reconcile(): array
+    {
+        $created = 0;
+        Load::query()->with('driverProfile.user')->where('escrow_status', Load::ESCROW_RELEASE_APPROVED)
+            ->whereDoesntHave('payout')->orderBy('id')->limit(100)->get()
+            ->each(function (Load $load) use (&$created): void {
+                try {
+                    $this->createForLoad($load);
+                    $created++;
+                } catch (\Throwable $e) {
+                    Log::warning('Mutabakat: hakediş açılamadı.', ['load' => $load->id, 'error' => $e->getMessage()]);
+                }
+            });
+
+        $staleMinutes = max(1, Settings::int('payout_processing_stale_minutes'));
+        $stale = Payout::query()->where('status', 'processing')->where('updated_at', '<', now()->subMinutes($staleMinutes))->get();
+        foreach ($stale as $payout) {
+            $payout->update(['status' => 'pending', 'failure_reason' => 'Aktarım '.$staleMinutes.' dakikadan uzun "işlemde" kaldı; sonuç alınamadı.']);
+            $this->notifications->notifyAdmins('manage payouts', 'Hakediş aktarımı takıldı',
+                ["Hakediş #{$payout->id} ".$staleMinutes.' dakikadan uzun süre "işlemde" kaldı; "bekliyor" durumuna alındı. Ödeme kuruluşu panelinde aktarımın gerçekleşip gerçekleşmediğini kontrol edin; gerçekleştiyse Finans ekranından referansla "Ödendi" deyin.'],
+                route('admin.finance'), 'Finans ekranı', 'admin');
+        }
+
+        $retried = 0;
+        $maxAttempts = max(1, Settings::int('payout_retry_max_attempts'));
+        if ($this->gateways->active()->supportsSubMerchants()) {
+            Payout::query()->with(['user.driverProfile', 'attempts'])->where('status', 'pending')->orderBy('id')->limit(100)->get()
+                ->each(function (Payout $payout) use (&$retried, $maxAttempts): void {
+                    $attempts = $payout->attempts->count();
+                    if ($attempts >= $maxAttempts) {
+                        return;
+                    }
+                    // Artan bekleme: 10, 20, 40, 80… dakika (ilk deneme hemen).
+                    $last = $payout->attempts->max('attempted_at');
+                    if ($attempts > 0 && $last && $last->gt(now()->subMinutes(10 * (2 ** ($attempts - 1))))) {
+                        return;
+                    }
+                    if ($this->releaseViaGateway($payout)) {
+                        $retried++;
+                    }
+                });
+        }
+
+        return ['created' => $created, 'reset' => $stale->count(), 'retried' => $retried];
+    }
+
+    /** Finans ekibi banka transferini tamamladığında çağrılır (yalnız aktarım başarısız kaldıysa kullanılan yedek yol). */
     public function markPaid(Payout $payout, User $admin, string $reference): void
     {
         $this->settle($payout, 'manual', $reference, $admin);
@@ -230,12 +338,36 @@ class PayoutService
 
         if ($driverUser = $payout->user) {
             $this->notifications->notify($driverUser, 'Ödemeniz yapılamadı',
-                ['Ödemeniz banka tarafından tamamlanamadı: '.mb_substr(trim($reason), 0, 200), 'Lütfen Ödemelerim sayfasından IBAN ve hesap sahibi bilgilerinizi kontrol edin; finans ekibimiz düzeltme sonrası ödemeyi yeniden gönderecek.'],
+                ['Ödemeniz banka tarafından tamamlanamadı: '.mb_substr(trim($reason), 0, 200), 'Lütfen Ödemelerim sayfasından IBAN ve hesap sahibi bilgilerinizi düzeltin, sonra "IBAN\'ı güncelledim, yeniden gönder" deyin.'],
                 route('driver.wallet.index'), 'IBAN bilgilerimi kontrol et', 'payout');
         }
     }
 
-    /** Şoför ödemeleri özeti: bekleyen ve ödenmiş tutarlar. */
+    /**
+     * Şoför IBAN'ını düzeltti ve "yeniden gönder" dedi: başarısız hakediş yeniden sıraya girer (pending), yeni varsayılan hesap
+     * bağlanır, finans ekibi haberdar edilir; pazaryeri açıksa aktarım hemen denenir.
+     */
+    public function retryAfterFix(Payout $payout, User $driverUser): void
+    {
+        if ($payout->user_id !== $driverUser->id) {
+            throw new RuntimeException('Bu ödeme kaydı size ait değil.');
+        }
+        if ($payout->status !== 'failed') {
+            throw new RuntimeException('Yalnız düzeltme bekleyen ödemeler yeniden gönderilir.');
+        }
+        $account = $driverUser->defaultBankAccount;
+        if (! $account) {
+            throw new RuntimeException('Önce kayıtlı bir IBAN ekleyin.');
+        }
+        $payout->update(['status' => 'pending', 'bank_account_id' => $account->id, 'failure_reason' => null]);
+        ActivityLog::record('payout.retry_requested', "Hakediş #{$payout->id}: şoför IBAN'ı güncelledi, yeniden gönderim istedi", $driverUser->id, $payout);
+        $this->notifications->notifyAdmins('manage payouts', 'Hakediş yeniden gönderim bekliyor',
+            ["Hakediş #{$payout->id} için şoför IBAN bilgisini güncelledi (…{$account->iban_last4}). Kayıt yeniden \"bekliyor\" durumuna alındı."],
+            route('admin.finance'), 'Finans ekranı', 'admin');
+        $this->releaseViaGateway($payout->fresh());
+    }
+
+    /** Şoför ödemeleri özeti: bekleyen, ödenmiş ve düzeltme bekleyen tutarlar. */
     public function walletSummary(User $driverUser): array
     {
         $base = Payout::query()->where('user_id', $driverUser->id);
@@ -243,6 +375,7 @@ class PayoutService
         return [
             'pending' => (float) (clone $base)->whereIn('status', ['pending', 'processing'])->sum('net_amount'),
             'paid' => (float) (clone $base)->where('status', 'paid')->sum('net_amount'),
+            'failed' => (float) (clone $base)->where('status', 'failed')->sum('net_amount'),
             'commission' => (float) (clone $base)->whereIn('status', ['pending', 'processing', 'paid'])->sum('commission_amount'),
             'in_escrow' => (float) Load::query()->where('driver_profile_id', $driverUser->driverProfile?->id ?? 0)
                 ->whereIn('escrow_status', [Load::ESCROW_PAID, Load::ESCROW_ON_HOLD])->sum('price'),

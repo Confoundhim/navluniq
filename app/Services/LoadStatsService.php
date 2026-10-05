@@ -55,7 +55,7 @@ class LoadStatsService
             'external_since' => $first ? Carbon::parse($first)->format('d.m.Y') : null,
             'system_total' => Load::query()->count(),
             'system_open' => Load::query()->whereIn('status', [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY])->count(),
-            'completed' => Load::query()->whereIn('status', [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED])->where('escrow_status', '!=', Load::ESCROW_REFUNDED)->count(), // iade ile kapanan teslimat sayılmaz
+            'completed' => Load::query()->whereIn('status', [Load::STATUS_DELIVERED, Load::STATUS_COMPLETED])->whereNotIn('escrow_status', [Load::ESCROW_REFUNDED, Load::ESCROW_REFUND_PENDING])->count(), // iade ile (ya da iadesi beklenerek) kapanan teslimat sayılmaz
             'top_provinces' => $top,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Services;
 
+use App\Models\BankAccount;
 use App\Models\CargoOwnerProfile;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
@@ -20,6 +21,7 @@ use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -54,6 +56,13 @@ class MarketplaceFlowTest extends TestCase
         $this->driverUser = User::factory()->driver()->create();
         $this->driver = DriverProfile::create(['user_id' => $this->driverUser->id, 'kyc_status' => 'approved']);
         DriverVehicle::create(['driver_profile_id' => $this->driver->id, 'plate' => '34ABC123', 'brand' => 'Ford', 'model' => 'Cargo', 'vehicle_type' => 'tir', 'is_active' => true]);
+        // "Yola çıktım" için kayıtlı IBAN şart (A5)
+        $iban = 'TR330006100519786457841326';
+        BankAccount::create(['user_id' => $this->driverUser->id, 'encrypted_iban' => Crypt::encryptString($iban), 'iban_hash' => hash('sha256', $iban), 'iban_last4' => '1326', 'account_holder' => 'Test Şoför', 'is_default' => true]);
+        // Ödeme emri açılabilmesi için yapılandırılmış (test kipinde) bir geçit gerekir; PayTR seçimden kalktı, iyzico sandbox anahtarı yeter.
+        Settings::set('iyzico_api_key', 'sandbox-api-key');
+        Settings::set('iyzico_secret_key', 'sandbox-secret');
+        Settings::set('iyzico_sandbox', '1');
     }
 
     private function publishLoad(): Load
@@ -214,6 +223,14 @@ class MarketplaceFlowTest extends TestCase
         }
 
         app(DisputeService::class)->defend($dispute, $this->driver, 'Yük teslim anında sağlamdı, tutanak imzalandı.');
+        // Yük kamyondayken "şoföre öde" verilemez (K1); şoför kanıt yükleyip teslim edince karar verilebilir.
+        try {
+            app(DisputeService::class)->resolve($dispute->fresh(), $admin, 'driver_paid', 'Teslim tutanağı geçerli.');
+            $this->fail('Teslim edilmemiş sevkiyatta şoföre ödeme kararı verilmemeliydi');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('henüz teslim edilmedi', $e->getMessage());
+        }
+        app(ShipmentService::class)->markDelivered($shipment->fresh(), $this->driver, UploadedFile::fake()->image('pod.jpg'), 'Teslim');
         app(DisputeService::class)->resolve($dispute->fresh(), $admin, 'driver_paid', 'Teslim tutanağı geçerli.');
 
         $this->assertSame('resolved_driver_paid', $dispute->fresh()->status);

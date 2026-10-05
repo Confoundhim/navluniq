@@ -22,9 +22,15 @@ class GatewayManager
         'iyzico' => IyzicoGateway::class,
     ];
 
-    public const LABELS = ['paytr' => 'PayTR', 'iyzico' => 'iyzico'];
+    /**
+     * Panelden seçilebilen sağlayıcılar. PayTR adaptörü kodda duruyor (eski bildirim adresleri ve kayıtlı siparişler için) ama
+     * sözleşme olmadığı ve pazaryeri (alt üye işyeri) desteği bulunmadığı için seçimden kaldırıldı (Osman'ın kararı, 2026-10-05).
+     */
+    public const SELECTABLE = ['iyzico'];
 
-    /** Seçili sağlayıcı kimliği: panel ayarı → .env → paytr. */
+    public const LABELS = ['iyzico' => 'iyzico'];
+
+    /** Seçili sağlayıcı kimliği: panel ayarı → .env → iyzico. Seçilemez bir sağlayıcı yazılıysa iyzico'ya düşer. */
     public static function selectedId(): string
     {
         try {
@@ -32,8 +38,15 @@ class GatewayManager
         } catch (\Throwable) {
             $panel = '';
         }
+        $id = $panel !== '' ? $panel : (string) config('services.payment.provider', 'iyzico');
 
-        return $panel !== '' ? $panel : (string) config('services.payment.provider', 'iyzico');
+        // Testler sahte bir geçidi swap() ile takar; kayıtlı olmayan kimlikler (fake) olduğu gibi döner, PayTR gibi
+        // kayıtlı ama seçilemez olanlar iyzico'ya çevrilir.
+        if (array_key_exists($id, self::REGISTRY) && ! in_array($id, self::SELECTABLE, true)) {
+            return 'iyzico';
+        }
+
+        return $id;
     }
 
     /** @var array<string, PaymentGateway> */
