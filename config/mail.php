@@ -29,9 +29,12 @@ return [
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN'),
 
-            // Modern Laravel (Symfony Mailer) Sertifika Uyuşmazlığı Kesin Çözümü (Düz Anahtarlar)
-            'verify_peer' => false,
-            'verify_peer_name' => false,
+            // SMTP cevap vermiyorsa istek 15 sn'de düşer; yoksa asılan bağlantı PHP-FPM işçisini tutar (I10).
+            'timeout' => 15,
+            // Sertifika doğrulaması açık; sunucunun sertifikası bozuksa panel ayarı "mail_verify_tls" ile (RuntimeMailConfig)
+            // geçici olarak kapatılabilir. .env ile değil, panelden yönetilir.
+            'verify_peer' => true,
+            'verify_peer_name' => true,
         ],
 
         'ses' => [

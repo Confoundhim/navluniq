@@ -157,9 +157,12 @@ ok "root crontab: her gece 03:00 tam yedek (/var/backups/navluniq)"
 STEP="izinler ve önbellekler"
 log "İzinler ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private
-chown -R www-data:www-data "$APP_DIR"
+# Kod root'a ait, web kullanıcısı yalnız okur; yazma yalnız storage ve bootstrap/cache'te (bkz. install.sh, I12).
+chown -R root:www-data "$APP_DIR"
+chown -R www-data:www-data storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
-chmod 640 .env
+chown root:www-data .env && chmod 640 .env
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR" || git config --system --add safe.directory "$APP_DIR" || true
 runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
 # Kuyruk işçileri yeni kodu yüklesin (işçi yoksa zararsız; systemd/supervisor işçiyi yeniden açar).

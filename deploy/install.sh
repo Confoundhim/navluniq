@@ -101,7 +101,12 @@ if [[ -f "$POOL" ]]; then
     RAM_MB="$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)"
     MAXC=$(( RAM_MB / 200 )); (( MAXC < 8 )) && MAXC=8; (( MAXC > 30 )) && MAXC=30
     sed -i -E "s/^;?pm.max_children = .*/pm.max_children = ${MAXC}/; s/^;?pm.start_servers = .*/pm.start_servers = 4/; s/^;?pm.min_spare_servers = .*/pm.min_spare_servers = 2/; s/^;?pm.max_spare_servers = .*/pm.max_spare_servers = 6/" "$POOL"
-    ok "PHP-FPM işçi sayısı: ${MAXC} (bellek ${RAM_MB} MB)"
+    # Asılan istek (SMTP cevap vermiyor, dış servis takıldı) işçiyi 120 sn'den fazla tutamaz; her işçi 500 istekte
+    # yenilenir (bellek sızıntısı birikmez) (I10).
+    sed -i -E "s/^;?request_terminate_timeout = .*/request_terminate_timeout = 120/; s/^;?pm.max_requests = .*/pm.max_requests = 500/" "$POOL"
+    grep -qE '^request_terminate_timeout' "$POOL" || echo "request_terminate_timeout = 120" >> "$POOL"
+    grep -qE '^pm.max_requests' "$POOL" || echo "pm.max_requests = 500" >> "$POOL"
+    ok "PHP-FPM işçi sayısı: ${MAXC} (bellek ${RAM_MB} MB), istek sınırı 120 sn, işçi 500 istekte yenilenir"
 fi
 systemctl restart "php${PHP_VERSION}-fpm" >/dev/null 2>&1 || true
 ok "PHP yükleme sınırı 12 MB"
@@ -171,11 +176,19 @@ set_env() {  # set_env ANAHTAR DEĞER
     fi
 }
 
-SCHEME="http"; [[ $IS_DOMAIN -eq 1 && -n "${LETSENCRYPT_EMAIL:-}" ]] && SCHEME="https"
+# https: sertifika zaten varsa, alınacaksa (LETSENCRYPT_EMAIL) ya da var olan .env zaten https ise. Betik yeniden
+# çalışınca site http'ye düşmez (I7); yalnız IP ile kurulum http kalır.
+SCHEME="http"
+if [[ $IS_DOMAIN -eq 1 ]]; then
+    if [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" || -n "${LETSENCRYPT_EMAIL:-}" ]] || grep -qE '^APP_URL="?https://' .env; then
+        SCHEME="https"
+    fi
+fi
 set_env APP_ENV production
 set_env APP_DEBUG false
 set_env APP_URL "${SCHEME}://${DOMAIN}"
-set_env LOG_LEVEL error
+# warning: yavaş istek, e-posta hatası, devre kesici gibi uyarılar günlüğe düşer (error ile hiç yazılmıyordu, I8).
+set_env LOG_LEVEL warning
 set_env LOG_STACK daily          # günlük dosyası her gün döner, 14 gün saklanır (tek dosya sınırsız büyümez)
 set_env LOG_DAILY_DAYS 14
 set_env DB_CONNECTION mysql
@@ -231,13 +244,19 @@ fi
 log "Dosya izinleri ve önbellekler"
 mkdir -p storage/app/kyc storage/app/private storage/app/public
 [[ -L public/storage ]] || php artisan storage:link --quiet
-chown -R www-data:www-data "$APP_DIR"
+# Kod ağacı root'a ait, web kullanıcısı yalnız okur (I12): ele geçirilen bir PHP işçisi kodu ya da .env'i değiştiremez.
+# Yazma yalnız storage ve bootstrap/cache'te (www-data). Grup yazma yetkisi yoktur (755/644).
+chown -R root:www-data "$APP_DIR"
 find "$APP_DIR" -type d -exec chmod 755 {} +
 find "$APP_DIR" -type f -exec chmod 644 {} +
+chown -R www-data:www-data storage bootstrap/cache
 chmod -R ug+rwx storage bootstrap/cache
 chmod -R o-rwx storage/app          # kimlik belgeleri ve özel dosyalar sunucudaki başka hesaplara kapalı
-chmod 640 .env
+chown root:www-data .env && chmod 640 .env
 chmod +x deploy/*.sh
+# Panel yedeği (BackupService::codeFiles) www-data olarak "git ls-files" çalıştırır; depo root'a ait olduğu için git
+# "dubious ownership" deyip boş liste döner ve yedekte kod eksik kalır. Sistem geneli safe.directory bunu açar.
+git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR" || git config --system --add safe.directory "$APP_DIR" || true
 runuser -u www-data -- php artisan optimize:clear --quiet
 runuser -u www-data -- php artisan optimize --quiet
 ok "config/route/view önbellekleri oluşturuldu"
