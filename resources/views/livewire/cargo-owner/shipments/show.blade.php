@@ -152,7 +152,10 @@ class extends Component {
 
         $trail = $locations->trailFor($shipment);
         if ($trail['latest']) {
-            $this->dispatch('trail-updated', trail: $trail['trail'], latest: $trail['latest']->lat_lng, recordedAt: $trail['latest']->recorded_at?->format('d.m.Y H:i'));
+            $this->dispatch('trail-updated', trail: $trail['trail'], latest: $trail['latest']->lat_lng,
+                recordedAt: $trail['latest']->recorded_at?->format('d.m.Y H:i'), recordedTs: $trail['latest']->recorded_at?->getTimestamp(),
+                stale: $trail['latest']->recorded_at?->lt(now()->subMinutes(15)) ?? true,
+                remainingKm: DriverLocationService::remainingKm($trail['latest'], $load->delivery_lat !== null ? (float) $load->delivery_lat : null, $load->delivery_lng !== null ? (float) $load->delivery_lng : null));
         }
     }
 
@@ -171,11 +174,16 @@ class extends Component {
             ['label' => 'İlan yayınlandı', 'at' => $load->published_at ?? $load->created_at],
             ['label' => 'Şoför atandı', 'at' => $shipment?->created_at],
             ['label' => 'Ödeme havuza alındı', 'at' => $load->isPaid() ? ($load->paymentOrders()->where('status', 'paid')->latest('paid_at')->value('paid_at')) : null, 'done' => $load->isPaid()],
-            ['label' => 'Yük teslim alındı', 'at' => $shipment?->pickup_confirmed_at],
-            ['label' => 'Yola çıkıldı', 'at' => $shipment?->in_transit_at],
+            ['label' => 'Yük alındı, yola çıkıldı', 'at' => $shipment?->in_transit_at ?? $shipment?->pickup_confirmed_at],
             ['label' => 'Teslim edildi', 'at' => $shipment?->delivered_at],
             ['label' => 'Teslimat onaylandı', 'at' => $shipment?->owner_approved_at],
         ] : [];
+
+        // Tahmini varış: kabul edilen teklifteki gün sayısı + yola çıkış; yalnız yoldayken anlamlı.
+        $estimatedDays = $shipment?->acceptedOffer?->estimated_days;
+        $eta = ($shipment?->in_transit_at && $estimatedDays && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DISPUTED], true) && $shipment->delivered_at === null)
+            ? $shipment->in_transit_at->copy()->addDays((int) $estimatedDays) : null;
+        $latestAt = $trail['latest']?->recorded_at;
 
         return [
             'load' => $load,
@@ -185,6 +193,11 @@ class extends Component {
             'openDispute' => $load?->openDispute(),
             'trail' => $trail['trail'],
             'latest' => $trail['latest'],
+            'latestStale' => $latestAt ? $latestAt->lt(now()->subMinutes(15)) : false,
+            'remainingKm' => DriverLocationService::remainingKm($trail['latest'], $load?->delivery_lat !== null ? (float) $load->delivery_lat : null, $load?->delivery_lng !== null ? (float) $load->delivery_lng : null),
+            'routePoints' => ['pickup' => ($load?->pickup_lat !== null && $load?->pickup_lng !== null) ? [(float) $load->pickup_lat, (float) $load->pickup_lng] : null,
+                'delivery' => ($load?->delivery_lat !== null && $load?->delivery_lng !== null) ? [(float) $load->delivery_lat, (float) $load->delivery_lng] : null],
+            'eta' => $eta,
             'timeline' => $timeline,
             'hasReviewed' => $load ? app(ReviewService::class)->hasReviewed($load, $user) : false,
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
@@ -280,13 +293,19 @@ class extends Component {
             <div class="lg:col-span-2 space-y-6">
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.15s="refreshTrail" @endif>
-                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                         x-data="{ stale: @js($latestStale), km: @js($remainingKm) }" x-on:trail-updated.window="stale = !!$event.detail.stale; km = $event.detail.remainingKm ?? km; if ($refs.ago && $event.detail.recordedTs) { $refs.ago.dataset.ago = $event.detail.recordedTs; $refs.ago.title = $event.detail.recordedAt; }">
                         <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full {{ $isLive && $latest ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600' }}"></span>
+                            <span class="w-2.5 h-2.5 rounded-full" :class="{{ $isLive && $latest ? 'true' : 'false' }} && !stale ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-400 dark:bg-neutral-600'"></span>
                             <span class="font-bold text-neutral-900 dark:text-white">Canlı konum</span>
+                            @if($eta)<span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Tahmini varış {{ $eta->format('d.m') }}</span>@endif
                         </div>
                         @if($latest)
-                            <span class="text-neutral-500 dark:text-neutral-400" x-data="{ at: @js($latest->recorded_at?->format('d.m.Y H:i')) }" x-on:trail-updated.window="at = $event.detail.recordedAt || at">Son konum: <span class="text-neutral-800 dark:text-neutral-200" x-text="at"></span></span>
+                            <span class="text-neutral-500 dark:text-neutral-400">
+                                Son konum: <x-time-ago :at="$latest->recorded_at" x-ref="ago" class="text-neutral-800 dark:text-neutral-200" />
+                                <template x-if="km !== null"><span> · varışa ≈ <span class="text-neutral-800 dark:text-neutral-200 tabular-nums" x-text="Math.round(km).toLocaleString('tr-TR')"></span> km</span></template>
+                                <template x-if="stale && {{ $isLive ? 'true' : 'false' }}"><span class="block text-amber-600 dark:text-amber-400">Konum bir süredir gelmiyor; şoförün telefonu kapalı ya da uygulama arka planda olabilir.</span></template>
+                            </span>
                         @endif
                     </div>
 
@@ -299,11 +318,16 @@ class extends Component {
                                     if (!el || el._leaflet_id) return;
                                     const trail = @js($trail);
                                     const latest = @js($latest->lat_lng);
+                                    const route = @js($routePoints);
                                     const map = L.map(el, { zoomControl: true }).setView(latest, 11);
                                     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+                                    const bounds = [];
+                                    if (route.pickup) { L.circleMarker(route.pickup, { radius: 6, color: '#ffffff', weight: 2, fillColor: '#737373', fillOpacity: 1 }).bindTooltip('Yükleme').addTo(map); bounds.push(route.pickup); }
+                                    if (route.delivery) { L.circleMarker(route.delivery, { radius: 7, color: '#ffffff', weight: 2, fillColor: '#10b981', fillOpacity: 1 }).bindTooltip('Teslimat').addTo(map); bounds.push(route.delivery); }
                                     el._ntLine = L.polyline(trail, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
                                     el._ntMarker = L.circleMarker(latest, { radius: 9, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(map);
-                                    if (trail.length > 1) { map.fitBounds(el._ntLine.getBounds(), { padding: [30, 30] }); }
+                                    trail.forEach((pt) => bounds.push(pt));
+                                    if (bounds.length > 1) { map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30] }); }
                                     el._ntMap = map;
                                 },
                                 update(detail) {

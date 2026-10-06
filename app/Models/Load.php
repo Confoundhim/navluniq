@@ -113,6 +113,7 @@ class Load extends Model
         'payment_due_at',
         'payment_reminded_at',
         'no_show_notified_at',
+        'transit_overdue_notified_at',
     ];
 
     protected $casts = [
@@ -126,6 +127,7 @@ class Load extends Model
         'payment_due_at' => 'datetime',
         'payment_reminded_at' => 'datetime',
         'no_show_notified_at' => 'datetime',
+        'transit_overdue_notified_at' => 'datetime',
         'price' => 'decimal:2',
         'body_types' => 'array',
         'delivery_stops' => 'array',

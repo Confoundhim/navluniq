@@ -411,7 +411,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `intake-layers:review` (saatlik; okuma katmanı aşamaları, bkz. §4), `loads:no-show` (saatlik), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `intake-layers:review` (saatlik; okuma katmanı aşamaları, bkz. §4), `loads:no-show` (saatlik), `loads:transit-overdue` (saatlik; yolda takılan sevkiyat uyarısı), `shipments:remind-approval` (saatlik; otomatik onaya 24 sa kala hatırlatma), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz; ödeme geri çağrıları (`odeme/bildirim/*`) bakımdan muaftır. Her `withoutOverlapping` kilidinin süresi vardır (10/60/180 dk).
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
@@ -518,6 +518,16 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   "tercih ettiğim rotalar" alanı kaldırıldı; kurumsal yük sahibi profilden unvan/VKN/vergi dairesi günceller (`updateCompany`, değişince
   `gib_verified` sıfırlanır); bireysel yük sahibine belge kartı yok (`KycService::allowedTypes` boş); NVİ servis hatası deneme hakkı yakmaz.
   Test: `ProcessAuditFixesTest`.
+- **Canlı takip paketi (2026-10-06, Paket 2; yalnız sistem ilanında):** "Yola çıktım" (ayrıntı sayfası ya da İşlerim kartı →
+  `?konum=1` yönlendirmesi) konum paylaşımını kendiliğinden başlatır (`autoStartLocation`), tercih `localStorage nt-share-{shipment}`
+  ile sayfaya dönüşte sürer, `navigator.wakeLock` ekranı açık tutar, `visibilitychange`'de izleme tazelenir, `livewire:navigating`'de
+  durur (tercih silinmez). İz `DriverLocationService::trailFor` seyreltilmiş tam iz (`TRAIL_MAX_POINTS` 300, ilk/son nokta korunur);
+  `remainingKm` (haversine × 1,25). Yük sahibi sayfası: `<x-time-ago>` ile tazelik (15 dk'dan eskiyse gri nokta + uyarı; `trail-updated`
+  olayı `recordedTs/stale/remainingKm` taşır), yükleme/teslim işaretçileri, "Tahmini varış" (`acceptedOffer.estimated_days` +
+  `in_transit_at`), zaman çizelgesinde tek "Yük alındı, yola çıkıldı" adımı; iade ile kapanan sevkiyat "Sevkiyatlarım"da. Bekçiler:
+  `loads:transit-overdue` (saatlik; teslim/yükleme tarihi `transit_overdue_grace_days` geçmiş yoldaki ilan → şoför, yük sahibi, operasyon
+  bir kez, `loads.transit_overdue_notified_at`), `shipments:remind-approval` (saatlik; otomatik onaya 24 saat kala yük sahibine bir kez,
+  `shipments.approval_reminded_at`; uyuşmazlıkta yok). Migration `0001_01_57`. Test `LiveTrackingTest`.
 - **Ekran görüntüsü, Playwright olmadan (2026-10-05):** `npm i playwright` izin denetimine takılıyor; doğrudan Chromium çalışıyor:
   `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --screenshot=cikti.png
   --window-size=1280,980 --virtual-time-budget=8000 --run-all-compositor-stages-before-draw URL`. Headless pencere 500 px'in altına

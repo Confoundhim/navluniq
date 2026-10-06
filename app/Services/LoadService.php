@@ -245,6 +245,46 @@ class LoadService
      * "Şoför gelmedi" (zamanlanmış görev): ödenmiş, yola çıkılmamış ilanda yükleme tarihi ayarlı gün kadar geçmişse yük sahibine
      * (iptal + iade düğmesiyle), şoföre ve operasyon ekibine bir kez haber verilir. Karar yük sahibinde ya da yöneticide kalır.
      */
+    /**
+     * Yolda takılan sevkiyat (2026-10-06): teslim (yoksa yükleme) tarihi + bekleme süresi geçmiş, hâlâ "teslim ettim" denmemiş
+     * ilanlarda şoföre kanıt yüklemesi, yük sahibine durumu ve uyuşmazlık yolunu, operasyona uyarıyı bir kez bildirir.
+     */
+    public function notifyOverdueTransit(): int
+    {
+        $grace = max(0, Settings::int('transit_overdue_grace_days'));
+        $count = 0;
+        $notifications = app(NotificationService::class);
+        Load::query()->with(['cargoOwnerProfile.user', 'driverProfile.user'])
+            ->where('status', Load::STATUS_ON_THE_WAY)
+            ->whereNull('transit_overdue_notified_at')
+            ->where(fn ($q) => $q->where('delivery_date', '<', today()->subDays($grace))
+                ->orWhere(fn ($w) => $w->whereNull('delivery_date')->where('pickup_date', '<', today()->subDays($grace + 2))))
+            ->orderBy('id')->limit(100)->get()
+            ->each(function (Load $load) use (&$count, $notifications): void {
+                $load->forceFill(['transit_overdue_notified_at' => now()])->save();
+                $count++;
+                $route = "{$load->pickup_location} → {$load->delivery_location}";
+                $due = $load->delivery_date?->format('d.m.Y') ?? $load->pickup_date?->format('d.m.Y');
+                if ($driver = $load->driverProfile?->user) {
+                    $notifications->notify($driver, 'Teslimat bildirimi bekleniyor',
+                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin; navlun ödemeniz yük sahibinin onayıyla başlar.",
+                            'Yolda bir sorun varsa yük sahibiyle görüşün; gecikme uzarsa yük sahibi uyuşmazlık açabilir.'],
+                        route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
+                }
+                if ($owner = $load->cargoOwnerProfile?->user) {
+                    $notifications->notify($owner, 'Sevkiyat teslim tarihini geçti',
+                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi. Navlun bedeliniz ödeme kuruluşunda bekliyor.",
+                            'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
+                        route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
+                }
+                $notifications->notifyAdmins('manage operations', 'Yolda takılan sevkiyat',
+                    ["İlan #{$load->id} ({$route}): teslim tarihi {$due} geçti, teslimat bildirilmedi. İki taraf bilgilendirildi."],
+                    route('admin.operations'), 'Operasyon ekranı', 'admin');
+            });
+
+        return $count;
+    }
+
     public function notifyNoShows(): int
     {
         $grace = max(0, Settings::int('no_show_grace_days'));

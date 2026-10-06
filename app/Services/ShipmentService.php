@@ -176,6 +176,34 @@ class ShipmentService
     }
 
     /** Onay süresi dolan teslimatları otomatik onaylar (zamanlanmış görev). */
+    /**
+     * Otomatik onaydan 24 saat önce yük sahibine tek hatırlatma (2026-10-06): "onaylamazsanız sevkiyat kendiliğinden onaylanır".
+     * Uyuşmazlık açıkken hatırlatma gönderilmez.
+     */
+    public function remindPendingApprovals(int $hoursBefore = 24): int
+    {
+        $count = 0;
+        Shipment::query()->where('status', Shipment::STATUS_DELIVERED)
+            ->whereNull('approval_reminded_at')
+            ->whereNotNull('auto_approval_due_at')->where('auto_approval_due_at', '<=', now()->addHours($hoursBefore))
+            ->with('cargoLoad.cargoOwnerProfile.user')->orderBy('id')->limit(200)->get()
+            ->each(function (Shipment $shipment) use (&$count): void {
+                $load = $shipment->cargoLoad;
+                $shipment->forceFill(['approval_reminded_at' => now()])->save();
+                if (! $load || $load->status !== Load::STATUS_DELIVERED || ! ($owner = $load->cargoOwnerProfile?->user)) {
+                    return;
+                }
+                $count++;
+                $due = $shipment->auto_approval_due_at;
+                $this->notifications->notify($owner, 'Teslimatı onaylamanız bekleniyor',
+                    ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için şoför teslimat kanıtını yükledi. {$due->format('d.m.Y H:i')} tarihine kadar onaylamaz ya da sorun bildirmezseniz teslimat kendiliğinden onaylanır ve navlun şoföre aktarılır.",
+                        'Yükte sorun varsa aynı sayfadan uyuşmazlık açın; onay ve ödeme o zaman durur.'],
+                    route('cargo-owner.shipments.show', $load->id), 'Teslimatı onayla', 'shipment');
+            });
+
+        return $count;
+    }
+
     public function autoApproveDue(): int
     {
         $count = 0;

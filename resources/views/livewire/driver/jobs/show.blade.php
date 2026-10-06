@@ -26,6 +26,9 @@ class extends Component {
 
     public string $pod_note = '';
 
+    /** "Yola çıktım" sonrası (bu sayfada ya da İşlerim'den ?konum=1 ile gelince) konum paylaşımı kendiliğinden başlar. */
+    public bool $autoStartLocation = false;
+
     public int $rating = 5;
 
     public string $review_comment = '';
@@ -38,6 +41,7 @@ class extends Component {
             session()->flash('error_message', 'İş bulunamadı veya size ait değil.');
             $this->redirect(route('driver.jobs.index'), navigate: true);
         }
+        $this->autoStartLocation = request()->boolean('konum');
     }
 
     private function ownedLoadQuery()
@@ -76,7 +80,8 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Yola çıktığınız kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
+        $this->autoStartLocation = true;
+        session()->flash('success_message', 'Yola çıktığınız kaydedildi; konum paylaşımı başlatılıyor, yük sahibi sizi haritada görebilir.');
     }
 
     /** Ödeme alınmış ama yola çıkılmamış işten vazgeçme (karar 4): ilan havuza döner, navlun yük sahibine iade edilir. */
@@ -357,11 +362,32 @@ class extends Component {
                                 lastSentAt: 0,
                                 lastSentLabel: null,
                                 error: null,
+                                autoStart: @js((bool) $autoStartLocation),
+                                wakeLock: null,
                                 init() {
                                     this.$nextTick(() => this.initMap());
-                                    window.addEventListener('livewire:navigating', () => this.stop(), { once: true });
+                                    window.addEventListener('livewire:navigating', () => this.stop(false), { once: true });
+                                    // Sekme arka plandan dönünce konum izlemeyi ve ekran kilidini tazele (telefon kilidi / navigasyon uygulaması).
+                                    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && this.enabled) { this.resume(); } });
+                                    let remembered = false;
+                                    try { remembered = localStorage.getItem('nt-share-' + this.shipmentId) === '1'; } catch (e) {}
+                                    if (this.autoStart || remembered) { this.$nextTick(() => this.start()); }
                                 },
-                                destroy() { this.stop(); },
+                                destroy() { this.stop(false); },
+                                remember(on) { try { on ? localStorage.setItem('nt-share-' + this.shipmentId, '1') : localStorage.removeItem('nt-share-' + this.shipmentId); } catch (e) {} },
+                                async keepAwake() {
+                                    if (!('wakeLock' in navigator)) return;
+                                    try { this.wakeLock = await navigator.wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } catch (e) { this.wakeLock = null; }
+                                },
+                                resume() {
+                                    if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
+                                    this.watchId = navigator.geolocation.watchPosition((p) => this.onPosition(p), (err) => this.onError(err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+                                    this.keepAwake();
+                                },
+                                onError(err) {
+                                    if (err.code === 1) { this.stop(); this.error = 'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açıp paylaşımı yeniden başlatın.'; return; }
+                                    this.error = 'Konum alınamadı: ' + err.message;
+                                },
                                 csrf() { const m = document.querySelector('meta[name=csrf-token]'); return m ? m.content : ''; },
                                 initMap() {
                                     if (typeof L === 'undefined' || this.map) return;
@@ -388,21 +414,18 @@ class extends Component {
                                 toggle() { this.enabled ? this.stop() : this.start(); },
                                 start() {
                                     if (!('geolocation' in navigator)) { this.error = 'Tarayıcınız konum paylaşımını desteklemiyor.'; return; }
+                                    if (this.enabled) return;
                                     this.error = null;
                                     this.enabled = true;
-                                    this.watchId = navigator.geolocation.watchPosition(
-                                        (position) => this.onPosition(position),
-                                        (err) => {
-                                            if (err.code === 1) { this.stop(); this.error = 'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açıp paylaşımı yeniden başlatın.'; return; }
-                                            this.error = 'Konum alınamadı: ' + err.message;
-                                        },
-                                        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
-                                    );
+                                    this.remember(true);
+                                    this.resume();
                                 },
-                                stop() {
+                                stop(forget = true) {
                                     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
                                     this.watchId = null;
                                     this.enabled = false;
+                                    if (this.wakeLock) { try { this.wakeLock.release(); } catch (e) {} this.wakeLock = null; }
+                                    if (forget) this.remember(false);
                                 },
                                 onPosition(position) {
                                     const now = Date.now();
@@ -436,6 +459,7 @@ class extends Component {
                                         <template x-if="!lastSentLabel"><span> · Bu oturumda henüz konum gönderilmedi</span></template>
                                     </div>
                                     <div class="text-rose-600 dark:text-rose-400" x-show="error" x-text="error" x-cloak></div>
+                                    <div class="text-neutral-500 dark:text-neutral-400" x-show="enabled && !('wakeLock' in navigator)" x-cloak>Bu tarayıcı ekranı açık tutamıyor; telefon kilitlenince paylaşım durabilir, sayfaya dönünce kendiliğinden sürer.</div>
                                 </div>
                                 <button type="button" @click="toggle()" class="shrink-0 px-4 py-2 rounded-xl font-bold border transition-colors" :class="enabled ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-brand-500 border-brand-500 text-white hover:bg-brand-600'">
                                     <span x-text="enabled ? 'Paylaşımı durdur' : 'Paylaşımı başlat'"></span>
