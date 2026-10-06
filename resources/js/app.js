@@ -37,6 +37,26 @@ function applyTextSize(size) {
 }
 
 document.addEventListener('alpine:init', () => {
+    // İlan kartı "Paylaş": telefonun paylaşım menüsü (navigator.share); yoksa metin + bağlantı panoya kopyalanır ve
+    // düğme kısa süre "Kopyalandı" der. Metin sunucuda hazırlanır (data-share-text / data-share-url): dış kaynak ilanında
+    // numara ve ilan sahibi bilgisi hiç gönderilmez.
+    Alpine.data('shareLoad', () => ({
+        copied: false,
+        async share() {
+            const text = this.$el.dataset.shareText || '';
+            const url = this.$el.dataset.shareUrl || '';
+            if (navigator.share) {
+                try { await navigator.share({ title: 'NavlunIQ', text, url }); } catch (e) { /* kullanıcı vazgeçti */ }
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text + (url ? '\n' + url : ''));
+                this.copied = true;
+                setTimeout(() => { this.copied = false; }, 1800);
+            } catch (e) { /* pano kapalı */ }
+        },
+    }));
+
     // Canlı sayaç: sunucu data-value'yu güncelleyince (wire:poll) eski değerden yeniye akarak sayar ve kısa bir
     // vurgu yapar. İlk çizimde sunucunun yazdığı sayı olduğu gibi kalır; sayaç hiç geri saymaz.
     Alpine.data('countUp', () => ({

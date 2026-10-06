@@ -19,6 +19,7 @@ class LoadReleaseService
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly TelegramPublisher $telegram,
+        private readonly LoadFilterService $filters,
     ) {}
 
     /** Ücretsiz üyelere açılma gecikmesi (dakika); dış kaynak ilanlarla aynı ayar. */
@@ -63,11 +64,15 @@ class LoadReleaseService
         $this->postToTelegram($load);
     }
 
-    /** Aracı bu yükü taşıyabilen, belgesi onaylı şoförlere uygulama içi bildirim. */
+    /**
+     * Aracı bu yükü taşıyabilen, belgesi onaylı şoförlere uygulama içi bildirim. Şoförün **varsayılan** kayıtlı filtresi
+     * varsa (il/ilçe, kasa, tonaj, fiyat) ilan ona da uymalı: Ankara çıkışlı filtre kaydeden şoföre İzmir ilanı bildirilmez.
+     * Ön ayarı olmayan şoför yalnız araç uyumuyla haber alır (eski davranış).
+     */
     private function notifyDrivers(Load $load, bool $premium): int
     {
         $sent = 0;
-        DriverProfile::query()->with(['user', 'vehicles' => fn ($q) => $q->where('is_active', true)])
+        DriverProfile::query()->with(['user', 'vehicles' => fn ($q) => $q->where('is_active', true), 'filterPresets' => fn ($q) => $q->where('is_default', true)])
             ->where('kyc_status', 'approved')
             ->where('is_staff_view', false)
             ->when($premium, fn ($q) => $q->where('premium_until', '>', now()))
@@ -75,7 +80,7 @@ class LoadReleaseService
             ->where('user_id', '!=', $load->cargoOwnerProfile?->user_id ?? 0)
             ->orderBy('id')->chunk(200, function ($profiles) use ($load, $premium, &$sent): void {
                 foreach ($profiles as $profile) {
-                    if (! $profile->user || ! $this->vehicleFits($profile, $load)) {
+                    if (! $profile->user || ! $this->vehicleFits($profile, $load) || ! $this->presetMatches($profile, $load)) {
                         continue;
                     }
                     // E-posta yalnız premium şoföre ve tercihinde açıksa (Profil → Bildirim tercihleri / Premium sayfası).
@@ -102,6 +107,17 @@ class LoadReleaseService
     public static function wantsLoadMail(DriverProfile $profile): bool
     {
         return (bool) (($profile->preferences ?? [])['notify_new_loads'] ?? true);
+    }
+
+    /** Varsayılan kayıtlı filtre varsa ilan ona uyar mı (liste ile aynı süzgeç); ön ayar yoksa her zaman uyar. */
+    private function presetMatches(DriverProfile $profile, Load $load): bool
+    {
+        $preset = $profile->filterPresets->first(fn ($p) => (bool) $p->is_default);
+        if (! $preset) {
+            return true;
+        }
+
+        return $this->filters->loadMatches($load, (array) $preset->filters, $profile);
     }
 
     private function vehicleFits(DriverProfile $profile, Load $load): bool

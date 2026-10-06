@@ -104,14 +104,14 @@ class extends Component {
             <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Başlangıç</span><span class="text-neutral-900 dark:text-white">{{ $premiumUntil && $premiumUntil->isFuture() ? 'Mevcut sürenin bitiminde ('.$premiumUntil->format('d.m.Y').')' : 'Ödeme onaylandığında' }}</span></div>
             <div class="flex items-center justify-between py-3"><span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam (KDV %{{ number_format($vatRate, 0) }} dahil)</span><span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($price, 2, ',', '.') }} ₺</span></div>
         </div>
-        <p class="text-[11px] text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde iade yapılmaz. Ödeme için <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesini</a> kabul etmiş sayılırsınız.</p>
+        <p class="text-2xs text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde iade yapılmaz. Ödeme için <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesini</a> kabul etmiş sayılırsınız.</p>
     </div>
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
         <div class="flex items-center gap-3">
             <img src="/images/payment/iyzico-ile-ode.svg" alt="iyzico ile Öde" class="h-7 w-auto dark:hidden">
             <img src="/images/payment/iyzico-ile-ode-white.svg" alt="iyzico ile Öde" class="h-7 w-auto hidden dark:block">
-            <span class="text-[11px] text-neutral-500 dark:text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme lisanslı ödeme kuruluşu iyzico'nun güvenli sayfasında 3D Secure ile alınır.</span>
+            <span class="text-2xs text-neutral-500 dark:text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme lisanslı ödeme kuruluşu iyzico'nun güvenli sayfasında 3D Secure ile alınır.</span>
         </div>
         <img src="/images/payment/iyzico-band-colored.svg" alt="Mastercard, Visa, American Express, Troy" class="h-6 w-auto shrink-0 dark:hidden">
         <img src="/images/payment/iyzico-band-white.svg" alt="Mastercard, Visa, American Express, Troy" class="h-6 w-auto shrink-0 hidden dark:block">
@@ -135,7 +135,7 @@ class extends Component {
                 <iframe src="{{ $checkoutUrl }}" id="checkout-frame" frameborder="0" scrolling="no" style="width:100%;min-height:520px"></iframe>
             </div>
         </div>
-        <div wire:poll.5s="checkStatus" class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
+        <div wire:poll.5s="checkStatus" class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-2xs text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
             <span>Ödeme durumu izleniyor. Ödeme tamamlandığında sonuç sayfasına yönlendirileceksiniz.</span>
         </div>

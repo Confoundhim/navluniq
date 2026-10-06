@@ -214,7 +214,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .page-title { @apply text-xl font-bold tracking-tight text-neutral-900 dark:text-white; }
     .page-subtitle { @apply mt-1 text-sm text-neutral-500 dark:text-neutral-400; }
     .section-title { @apply text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400; }
-    .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold; }
+    .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-2xs font-semibold; }
     .nav-item { @apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-600 dark:text-neutral-400 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800/60 hover:text-neutral-900 dark:hover:text-white; }
     .nav-item-active { @apply bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold hover:bg-brand-500/10 hover:text-brand-600 dark:hover:text-brand-400; }
     .tab-pill { @apply rounded-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 py-2 text-xs font-semibold text-neutral-600 dark:text-neutral-300 transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-800; }
@@ -228,12 +228,14 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .load-card-title { @apply text-sm font-bold leading-6 text-neutral-900 dark:text-white break-words; }
     .load-card-line { @apply leading-5 text-neutral-500 dark:text-neutral-400 break-words sm:truncate; }
     .load-card-badges { @apply flex flex-wrap items-center gap-1.5 pt-0.5 min-h-[1.75rem]; }
-    .load-card-side { @apply flex items-center justify-between gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-3 sm:flex-col sm:items-end sm:justify-start sm:border-t-0 sm:pt-0 sm:min-h-[4.5rem]; }
+    .load-card-side { @apply flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 dark:border-neutral-800 pt-3 sm:flex-col sm:items-end sm:justify-start sm:border-t-0 sm:pt-0 sm:min-h-[4.5rem]; }
+    /* Eylem satırı (yıldız, Paylaş, Teklif ver) bütün kalır: sığmazsa fiyatın altına sağa yaslı iner, düğme düğme kırılmaz */
+    .load-card-actions { @apply ml-auto flex shrink-0 items-center gap-1.5; }
     .load-card-price { @apply text-base font-black leading-6 tabular-nums text-neutral-900 dark:text-white whitespace-nowrap; }
     .load-card-price-muted { @apply text-xs font-semibold leading-6 text-neutral-400 whitespace-nowrap; }
     /* Aktif sefer kartı: turuncu çerçeve ve hafif turuncu zemin, bir bakışta ayrılır */
     .trip-card { @apply rounded-xl border-2 border-brand-500/70 bg-brand-500/5 dark:bg-brand-500/10 p-4 space-y-2 text-xs; }
-    .trip-status { @apply inline-flex items-center gap-1.5 self-start rounded-full border px-2.5 py-1 text-[11px] font-bold; }
+    .trip-status { @apply inline-flex items-center gap-1.5 self-start rounded-full border px-2.5 py-1 text-2xs font-bold; }
     .trip-status-planned { @apply border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300; }
     .trip-status-on_the_way { @apply border-sky-500/40 bg-sky-500/15 text-sky-700 dark:text-sky-300; }
     .trip-status-delivered { @apply border-emerald-500/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300; }
@@ -244,7 +246,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .job-card-open { @apply border-2 border-brand-500/70 bg-brand-500/5 dark:bg-brand-500/10; }
     /* Dönüş radarına giren ilan: yeşil ton ve sol şerit */
     .load-card-return { @apply border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/30 border-l-4 border-l-emerald-500 hover:border-emerald-500; }
-    .badge-return { @apply inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white; }
+    .badge-return { @apply inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-3xs font-bold text-white; }
     .load-card-star { @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-400 transition-colors hover:border-amber-400 hover:text-amber-500; }
     .load-card-star-on { @apply border-amber-400 bg-amber-500/10 text-amber-500; }
     .load-card-action-ghost { @apply inline-flex h-9 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 font-bold text-neutral-700 dark:text-neutral-200 transition-colors hover:border-brand-500 hover:text-brand-500 whitespace-nowrap; }
@@ -254,7 +256,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     .load-card-side:has(.load-card-phones) { @apply flex-col items-stretch gap-2 sm:items-end; }
     .load-card-phones { @apply flex w-full flex-col gap-1.5 sm:w-auto sm:items-end; }
     .load-card-phone { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 sm:border-0 sm:bg-transparent dark:sm:bg-transparent sm:px-0 sm:py-0; }
-    .load-card-wa { @apply inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 whitespace-nowrap; }
+    .load-card-wa { @apply inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-2xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 whitespace-nowrap; }
 }
 
 /* =========================================================

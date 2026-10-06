@@ -76,7 +76,7 @@ class extends Component {
                     </div>
                     <div class="text-right">
                         <div class="text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($monthlyPrice, 2, ',', '.') }} ₺</div>
-                        <div class="text-[11px] text-neutral-500">aylık</div>
+                        <div class="text-2xs text-neutral-500">aylık</div>
                     </div>
                 </div>
 
@@ -91,7 +91,7 @@ class extends Component {
                 @else
                     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
                         <a href="{{ route('driver.premium.checkout') }}" wire:navigate class="btn-primary text-sm px-6 py-3 text-center">{{ $isPremium ? '1 ay daha uzat' : 'Premium\'u başlat' }} · {{ number_format($monthlyPrice, 2, ',', '.') }} ₺</a>
-                        <span class="text-[11px] text-neutral-500">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez.</span>
+                        <span class="text-2xs text-neutral-500">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez.</span>
                     </div>
                 @endif
             </div>
@@ -106,7 +106,7 @@ class extends Component {
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Anında bildirim</div>
                         <div class="text-neutral-500 dark:text-neutral-400">Aracınıza uygun yeni ilan yayınlandığı anda uygulama içi bildirim ve e-posta alırsınız; ilk teklifi siz verirsiniz.</div>
-                        <button type="button" wire:click="toggleLoadMail" class="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold {{ $loadMail ? 'text-emerald-600' : 'text-neutral-500' }} hover:underline">
+                        <button type="button" wire:click="toggleLoadMail" class="mt-1 inline-flex items-center gap-1.5 text-2xs font-bold {{ $loadMail ? 'text-emerald-600' : 'text-neutral-500' }} hover:underline">
                             <span class="w-2 h-2 rounded-full {{ $loadMail ? 'bg-emerald-500' : 'bg-neutral-400' }}"></span>{{ $loadMail ? 'E-posta: açık · kapat' : 'E-posta: kapalı · aç' }}
                         </button>
                     </div>
@@ -115,7 +115,7 @@ class extends Component {
                         <div class="text-neutral-500 dark:text-neutral-400">Numaralar yalnız o ilan için ilan sahibiyle görüşmeniz içindir; üçüncü kişilerle paylaşılamaz (Kullanıcı Sözleşmesi md. 3.4). İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
                     </div>
                 </div>
-                <p class="text-[11px] text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
+                <p class="text-2xs text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
             </div>
         </div>
 
@@ -126,7 +126,7 @@ class extends Component {
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                             <div class="text-neutral-900 dark:text-white font-semibold">{{ $invoice->invoice_no ?: 'Numara bekleniyor' }}</div>
-                            <div class="text-[11px] text-neutral-500">{{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>
+                            <div class="text-2xs text-neutral-500">{{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>
                         </div>
                         <div class="tabular-nums text-neutral-700 dark:text-neutral-300">{{ number_format((float) ($invoice->total_amount ?? 0), 2, ',', '.') }} ₺ · {{ $invoice->status }}</div>
                     </div>

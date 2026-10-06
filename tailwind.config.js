@@ -42,6 +42,12 @@ export default {
                     950: '#0a0a0c',
                 },
             },
+            // Rozet ve küçük etiket boyutları rem ile: "Büyük yazı" kipi (html.text-large) kökü büyütünce bunlar da büyür
+            // (px'li text-[11px] / text-[10px] büyümüyordu).
+            fontSize: {
+                '2xs': ['0.6875rem', '1rem'],
+                '3xs': ['0.625rem', '0.875rem'],
+            },
             fontFamily: {
                 sans: [
                     'Inter Variable',

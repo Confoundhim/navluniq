@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use App\Models\Concerns\HasRouteDistance;
 use App\Support\BodyTypes;
+use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -68,7 +70,7 @@ class Load extends Model
         'İnşaat / Yapı Malzemesi', 'Makine & Ağır Sanayi', 'Tehlikeli Madde (ADR)', 'Diğer / Özel',
     ];
 
-    use HasFactory, HasPublicId, SoftDeletes;
+    use HasFactory, HasPublicId, HasRouteDistance, SoftDeletes;
 
     protected $fillable = [
         'cargo_owner_profile_id',
@@ -142,6 +144,61 @@ class Load extends Model
     public function loadKindLabel(): ?string
     {
         return BodyTypes::LOAD_KINDS[$this->load_kind ?? ''] ?? null;
+    }
+
+    /** "24 ton" / "800 kg" / null (dış kaynak kartıyla aynı biçim). */
+    public function weightLabel(): ?string
+    {
+        $kg = (int) $this->weight;
+        if ($kg <= 0) {
+            return null;
+        }
+        if ($kg >= 1000) {
+            $t = $kg / 1000;
+
+            return (fmod($t, 1.0) === 0.0 ? number_format($t, 0, ',', '.') : number_format($t, 1, ',', '.')).' ton';
+        }
+
+        return number_format($kg, 0, ',', '.').' kg';
+    }
+
+    /** "45.000 ₺" / "45.000,50 ₺"; fiyat yoksa null. */
+    public function priceLabel(): ?string
+    {
+        if ($this->price === null || (float) $this->price <= 0) {
+            return null;
+        }
+        $v = (float) $this->price;
+
+        return number_format($v, fmod($v, 1.0) === 0.0 ? 0 : 2, ',', '.').' ₺';
+    }
+
+    /** Kart satırı: "TIR · Tenteli · Komple yük". */
+    public function vehicleSummary(): string
+    {
+        return implode(' · ', array_filter([VehicleTypes::label($this->vehicle_type) ?: 'Araç belirtilmemiş', $this->bodyLabel(), $this->loadKindLabel()]));
+    }
+
+    /**
+     * "Paylaş" metni: rota, araç, yük, fiyat ve ilan bağlantısı. Yük sahibinin adı ya da iletişim bilgisi paylaşılmaz
+     * (Kullanıcı Sözleşmesi md. 3.4); ilana ulaşan şoför bilgileri kendi hesabıyla görür.
+     */
+    public function shareText(): string
+    {
+        $lines = array_filter([
+            'NavlunIQ ilanı: '.($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş'),
+            implode(' · ', array_filter([$this->goods_type, $this->vehicleSummary(), $this->weightLabel()])),
+            $this->priceLabel() ? 'Navlun: '.$this->priceLabel() : null,
+            $this->pickup_date ? 'Yükleme: '.$this->pickup_date->format('d.m.Y H:i') : null,
+        ]);
+
+        return implode("\n", $lines);
+    }
+
+    /** Paylaşılan bağlantı: ilan havuzunda bu ilanla açılır. */
+    public function shareUrl(): string
+    {
+        return route('driver.loads.index', ['ilan' => $this->id]);
     }
 
     /** Ücretsiz (premium olmayan) şoförlere açıldı mı? Süre tanımsızsa her zaman açık. */
