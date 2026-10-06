@@ -1,12 +1,13 @@
 {{-- Dış kaynak ilan kartı: her ekranda aynı yapı (yıldız, "Bu işi aldım", numara, WhatsApp). Kullanan Livewire bileşeni
      HandlesExternalLoadActions trait'ini kullanmalıdır (toggleSave / openTake). --}}
 @props(['item', 'saved' => false, 'taken' => false, 'variant' => null])
-@php $plainPhone = $item->plainPhone(); $extraPhones = $item->extraPhones(); $isSaved = (bool) $saved; $isTaken = (bool) $taken; @endphp
-<div {{ $attributes->merge(['class' => 'load-card'.($variant === 'return' ? ' load-card-return' : '')]) }}>
+@php $plainPhone = $item->plainPhone(); $extraPhones = $item->extraPhones(); $isSaved = (bool) $saved; $isTaken = (bool) $taken; $similar = $item->hasSimilar() ? $item->similarLoads() : collect(); $distance = $item->distanceLabel(); @endphp
+<div {{ $attributes->merge(['class' => 'load-card'.($variant === 'return' ? ' load-card-return' : '')]) }} x-data="{ similarOpen: false }">
     <div class="load-card-main">
         <div class="load-card-title">{{ $item->pickup_location ?: 'Belirtilmemiş' }} <span class="text-amber-600 dark:text-amber-400">&rarr;</span> {{ $item->delivery_location ?: 'Belirtilmemiş' }}</div>
         <div class="load-card-line">{{ $item->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ $item->vehicleSummary() }}@if($item->weightLabel()) · {{ $item->weightLabel() }}@endif</div>
         <div class="load-card-line">Yükleme: {{ $item->meta('pickup_note') ?: 'Belirtilmemiş' }} · @if((int) ($item->sighting_count ?? 1) > 1)yeniden paylaşıldı @endif<x-time-ago :at="$item->last_seen_at ?? $item->created_at" /></div>
+        @if($distance)<div class="load-card-line tabular-nums" title="Kara yolu tahmini ve kilometre başına navlun">{{ $distance }}</div>@endif
         <div class="load-card-badges">
             @if($variant === 'return')<span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span>@endif
             <span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400">Gruptan derlendi</span>
@@ -14,11 +15,30 @@
             @if($item->isUrgent())<span class="badge bg-red-500 text-white">ACİL</span>@endif
             @if(($series = $item->meta('series')) && (int) ($series['count'] ?? 0) > 1)<span class="badge bg-sky-500/10 text-sky-700 dark:text-sky-300" title="Aynı kalkıştan {{ $series['count'] }} ayrı boşaltma noktası; her nokta ayrı araç">Seri ilan · {{ $series['count'] }} nokta</span>@endif
             @foreach($item->traitLabels() as $trait)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trait }}</span>@endforeach
-            @if($item->hasSimilar())<span class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300" title="Aynı yük başka bir numarayla da paylaşılmış; komisyoncu olabilir">Benzer ilan · farklı numara</span>@endif
+            @if($similar->isNotEmpty())<button type="button" @click="similarOpen = !similarOpen" :aria-expanded="similarOpen" class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white" title="Aynı yük başka bir numarayla da paylaşılmış; komisyoncu olabilir">Benzer ilan · farklı numara <span class="ml-1 text-neutral-400" x-text="similarOpen ? '▴' : '▾'">▾</span></button>@elseif($item->hasSimilar())<span class="badge bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300" title="Aynı yük başka bir numarayla da paylaşılmış; komisyoncu olabilir">Benzer ilan · farklı numara</span>@endif
         </div>
+        @if($similar->isNotEmpty())
+            {{-- Rozete dokununca aynı kartın altında açılır: aynı yükün diğer numaraları ve fiyatları yan yana --}}
+            <div x-show="similarOpen" x-collapse x-cloak class="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 divide-y divide-neutral-200 dark:divide-neutral-800">
+                <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-2xs text-neutral-500">
+                    <span>Bu ilanın fiyatı</span>
+                    <span class="font-bold tabular-nums text-neutral-900 dark:text-white">{{ $item->priceLabel() ?: 'Fiyat yok' }}</span>
+                </div>
+                @foreach($similar as $sim)
+                    @php $simPhone = $sim->plainPhone(); @endphp
+                    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-2xs" wire:key="sim-{{ $item->id }}-{{ $sim->id }}">
+                        <div class="min-w-0">
+                            <div class="text-neutral-700 dark:text-neutral-200 break-words">{{ $sim->routeLabel() }} · {{ $sim->vehicleSummary() }}@if($sim->weightLabel()) · {{ $sim->weightLabel() }}@endif</div>
+                            @if($simPhone)<a href="{{ \App\Support\Phone::telHref($simPhone) }}" class="text-brand-500 font-bold hover:underline tabular-nums whitespace-nowrap">{{ \App\Support\Phone::format($simPhone) }}</a>@if(($simKind = \App\Support\Phone::kindLabel($simPhone)) !== null) <span class="text-neutral-400">{{ $simKind }}</span>@endif@else<span class="text-neutral-400">Numara yok</span>@endif
+                        </div>
+                        <span class="font-bold tabular-nums text-neutral-900 dark:text-white whitespace-nowrap">{{ $sim->priceLabel() ?: 'Fiyat yok' }}</span>
+                    </div>
+                @endforeach
+            </div>
+        @endif
         @if($item->is_incomplete)
             {{-- Aradı, öğrendi: tek seçimle ilan tamamlanır; pencere yok, kaydet düğmesi yok --}}
-            <label class="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+            <label class="flex flex-wrap items-center gap-2 pt-1 text-2xs text-neutral-600 dark:text-neutral-300">
                 <span class="font-semibold">Aradım, araç:</span>
                 <select wire:change="completeExternal({{ $item->id }}, $event.target.value)" class="form-input !w-auto !py-1.5 !text-xs">
                     <option value="">Seçin</option>
@@ -34,10 +54,12 @@
         @else
             <div class="load-card-price-muted">Fiyat belirtilmemiş</div>
         @endif
-                <div class="flex items-center gap-1.5">
+        <div class="load-card-actions">
             <button type="button" wire:click="toggleSave('external', {{ $item->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-pressed="{{ $isSaved ? 'true' : 'false' }}">
                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg>
             </button>
+            {{-- Paylaş: yalnız rota, araç, yük ve fiyat; ilan sahibinin numarası ve adı hiç gönderilmez (Kullanıcı Sözleşmesi md. 3.4) --}}
+            <button type="button" x-data="shareLoad" @click="share()" data-share-text="{{ $item->shareText() }}" data-share-url="{{ $item->shareUrl() }}" class="load-card-action-ghost" :class="copied ? 'text-emerald-700 dark:text-emerald-400 border-emerald-500/40' : ''" aria-label="İlanı paylaş"><span x-text="copied ? 'Kopyalandı' : 'Paylaş'">Paylaş</span></button>
             @if($isTaken)
                 <a href="{{ route('driver.jobs.index') }}" wire:navigate class="load-card-action-ghost text-emerald-700 dark:text-emerald-400 border-emerald-500/40" title="Bu ilan için açık işiniz var">✓ İşlerimde</a>
             @else
@@ -49,9 +71,9 @@
             <div class="load-card-phones" x-data="{ open: false }">
                 <div class="load-card-phone">
                     <a href="{{ \App\Support\Phone::telHref($allPhones[0]) }}" class="text-brand-500 font-bold hover:underline tabular-nums whitespace-nowrap">{{ \App\Support\Phone::format($allPhones[0]) }}</a>
-                    @if(($kind = \App\Support\Phone::kindLabel($allPhones[0])) !== null)<span class="text-[10px] text-neutral-400 whitespace-nowrap">{{ $kind }}</span>@endif
+                    @if(($kind = \App\Support\Phone::kindLabel($allPhones[0])) !== null)<span class="text-3xs text-neutral-400 whitespace-nowrap">{{ $kind }}</span>@endif
                     @if(count($allPhones) > 1)
-                        <button type="button" @click="open = true" class="load-card-wa" title="Bu ilanın tüm numaraları">{!! $waIcon !!}WhatsApp <span class="ml-0.5 inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-emerald-600 text-white text-[10px]">+{{ count($allPhones) - 1 }}</span></button>
+                        <button type="button" @click="open = true" class="load-card-wa" title="Bu ilanın tüm numaraları">{!! $waIcon !!}WhatsApp <span class="ml-0.5 inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-emerald-600 text-white text-3xs">+{{ count($allPhones) - 1 }}</span></button>
                     @elseif(\App\Support\Phone::supportsWhatsapp($allPhones[0]))
                         <a href="{{ $item->whatsappUrl($allPhones[0], auth()->user()) }}" target="_blank" rel="noopener" class="load-card-wa" title="Hazır mesajla WhatsApp sohbeti açar">{!! $waIcon !!}WhatsApp</a>
                     @endif
@@ -74,12 +96,12 @@
                                     @foreach($allPhones as $i => $phone)
                                         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 px-3 py-2.5">
                                             <div class="min-w-0">
-                                                <div class="text-[10px] uppercase tracking-wider text-neutral-400">{{ $i === 0 ? 'Ana numara' : ($i + 1).'. numara' }}</div>
+                                                <div class="text-3xs uppercase tracking-wider text-neutral-400">{{ $i === 0 ? 'Ana numara' : ($i + 1).'. numara' }}</div>
                                                 <a href="{{ \App\Support\Phone::telHref($phone) }}" class="block text-sm font-bold text-neutral-900 dark:text-white tabular-nums whitespace-nowrap hover:underline">{{ \App\Support\Phone::format($phone) }}</a>
-                                                @if(($kind = \App\Support\Phone::kindLabel($phone)) !== null)<div class="text-[10px] text-neutral-400">{{ $kind }}</div>@endif
+                                                @if(($kind = \App\Support\Phone::kindLabel($phone)) !== null)<div class="text-3xs text-neutral-400">{{ $kind }}</div>@endif
                                             </div>
                                             <div class="flex items-center gap-1.5 shrink-0 ml-auto">
-                                                <a href="{{ \App\Support\Phone::telHref($phone) }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-500/10 px-2.5 py-1.5 text-[11px] font-bold text-brand-600 dark:text-brand-400 hover:bg-brand-500/20">
+                                                <a href="{{ \App\Support\Phone::telHref($phone) }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-500/10 px-2.5 py-1.5 text-2xs font-bold text-brand-600 dark:text-brand-400 hover:bg-brand-500/20">
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.3a1 1 0 01.95.68l1.5 4.5a1 1 0 01-.5 1.2l-2.26 1.13a11 11 0 005.52 5.52l1.13-2.26a1 1 0 011.2-.5l4.5 1.5a1 1 0 01.68.95V19a2 2 0 01-2 2h-1C9.7 21 3 14.3 3 6V5z"/></svg>Ara
                                                 </a>
                                                 @if(\App\Support\Phone::supportsWhatsapp($phone))<a href="{{ $item->whatsappUrl($phone, auth()->user()) }}" target="_blank" rel="noopener" class="load-card-wa">{!! $waIcon !!}WhatsApp</a>@endif

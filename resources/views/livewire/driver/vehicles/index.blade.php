@@ -250,9 +250,9 @@ class extends Component {
                 <div class="flex items-center justify-between gap-2">
                     <div class="text-base font-black text-neutral-900 dark:text-white font-mono">{{ $vehicle->plate }}</div>
                     @if($vehicle->is_active)
-                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">Aktif</span>
+                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-2xs">Aktif</span>
                     @else
-                        <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-bold text-[11px]">Pasif</span>
+                        <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 font-bold text-2xs">Pasif</span>
                     @endif
                 </div>
                 <div class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
@@ -261,10 +261,10 @@ class extends Component {
                     @if($vehicle->body_type || $vehicle->trailer_length || $vehicle->has_lift)
                         <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null, $vehicle->has_lift ? 'Liftli' : null])) }}</span>
                     @else
-                        <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="text-[11px] text-amber-600 hover:underline">Kasa tipini ekleyin</button>
+                        <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="text-2xs text-amber-600 hover:underline">Kasa tipini ekleyin</button>
                     @endif
                 </div>
-                <div class="text-[11px] {{ $vehicle->ruhsat_path ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500' }}">
+                <div class="text-2xs {{ $vehicle->ruhsat_path ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-500' }}">
                     {{ $vehicle->ruhsat_path ? 'Ruhsat yüklendi' : 'Ruhsat yüklenmedi' }}
                 </div>
                 <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row gap-2">
@@ -302,7 +302,7 @@ class extends Component {
                         <option value="">Belirtilmedi (her kasa)</option>
                         @foreach($bodyOptions as $bk)<option value="{{ $bk }}">{{ \App\Support\BodyTypes::label($bk) }}</option>@endforeach
                     </select>
-                    <p class="text-[11px] text-neutral-500 mt-1">İlan havuzunda "Aracıma uygun" seçimi kasanıza göre süzülür: damperli araç tenteli yükü görmez.</p>
+                    <p class="text-2xs text-neutral-500 mt-1">İlan havuzunda "Aracıma uygun" seçimi kasanıza göre süzülür: damperli araç tenteli yükü görmez.</p>
                     @error('body_type') <span class="form-error">{{ $message }}</span> @enderror
                 </div>
                 @if($isTir)
@@ -323,7 +323,7 @@ class extends Component {
                             <option value="1">Var (liftli)</option>
                             <option value="0">Yok</option>
                         </select>
-                        <p class="text-[11px] text-neutral-500 mt-1">Lift isteyen ilanlar "Yok" diyen araca gösterilmez.</p>
+                        <p class="text-2xs text-neutral-500 mt-1">Lift isteyen ilanlar "Yok" diyen araca gösterilmez.</p>
                         @error('has_lift') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 @endif
@@ -332,7 +332,7 @@ class extends Component {
                     <label class="form-label">Ruhsat (JPG, PNG, PDF; en fazla 10 MB, isteğe bağlı)</label>
                     <input type="file" wire:model="ruhsat" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
                     @error('ruhsat') <span class="form-error">{{ $message }}</span> @enderror
-                    <div wire:loading wire:target="ruhsat" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                    <div wire:loading wire:target="ruhsat" class="text-2xs text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
 
                 <div class="flex gap-3 pt-2">

@@ -163,7 +163,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($wallet['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-2 text-[11px] text-neutral-500">Yük sahibinin ödediği, onayla tamamlanacak navlun bedeli</div>
+            <div class="mt-2 text-2xs text-neutral-500">Yük sahibinin ödediği, onayla tamamlanacak navlun bedeli</div>
         </div>
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçecek ödeme</div>
@@ -173,7 +173,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Hesabınıza geçen toplam ödeme</div>
             <div class="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{{ number_format((float) ($wallet['paid'] ?? 0), 2, ',', '.') }} ₺</div>
-            <div class="mt-2 text-[11px] text-neutral-500">Kesilen komisyon: {{ number_format((float) ($wallet['commission'] ?? 0), 2, ',', '.') }} ₺</div>
+            <div class="mt-2 text-2xs text-neutral-500">Kesilen komisyon: {{ number_format((float) ($wallet['commission'] ?? 0), 2, ',', '.') }} ₺</div>
         </div>
     </div>
 
@@ -186,7 +186,7 @@ class extends Component {
                     <a href="{{ route('driver.jobs.index') }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline">İşlerim</a>
                 </div>
                 @forelse($openJobs as $trip)
-                    <x-job-card :trip="$trip" :expanded="$expandedJob === $trip->id" :return-loads="$expandedJob === $trip->id ? $returnLoads : null" :saved-external-ids="$savedExternalIds" :taken-external-ids="$takenExternalIds" :is-premium="$isPremium" wire:key="job-{{ $trip->id }}" />
+                    <x-job-card :trip="$trip" :expanded="$expandedJob === $trip->id" :return-loads="$expandedJob === $trip->id ? $returnLoads : null" :saved-system-ids="$savedSystemIds" :saved-external-ids="$savedExternalIds" :taken-external-ids="$takenExternalIds" :is-premium="$isPremium" wire:key="job-{{ $trip->id }}" />
                 @empty
                     <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">
                         Şu anda açık işiniz yok. İlan havuzundan teklif verin ya da gruptan derlenen bir ilanda "Bu işi aldım" deyin.
@@ -198,7 +198,7 @@ class extends Component {
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div class="min-w-0">
                         <h3 class="section-title">Size uygun ilanlar</h3>
-                        <p class="text-[11px] text-neutral-500 mt-1">
+                        <p class="text-2xs text-neutral-500 mt-1">
                             @if($matchSummary !== [])
                                 {{ implode(' · ', $matchSummary) }}
                                 @if($matchPreset) · filtre: {{ $matchPreset->name }}@endif
@@ -208,7 +208,7 @@ class extends Component {
                             @endif
                         </p>
                         @if($vehicle && ! $vehicle->body_type)
-                            <p class="text-[11px] text-amber-600 mt-1">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="underline">Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
+                            <p class="text-2xs text-amber-600 mt-1">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" wire:navigate class="underline">Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
                         @endif
                     </div>
                     <a href="{{ route('driver.loads.index') }}" wire:navigate class="text-xs text-brand-400 font-bold hover:underline shrink-0">Tümünü gör</a>
@@ -217,23 +217,7 @@ class extends Component {
                 @forelse($matchedLoads as $row)
                     @php $load = $row['load']; @endphp
                     @if($row['kind'] === 'system')
-                        @php $kg = (int) ($load->weight ?? 0); $lp = (float) ($load->price ?? 0); @endphp
-                        <div class="load-card">
-                            <div class="load-card-main">
-                                <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif</div>
-                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · {{ $load->cargoOwnerProfile?->publicName() ?: 'Yük sahibi belirtilmemiş' }}@if($load->cargoOwnerProfile?->isVerified()) <span class="text-emerald-600 dark:text-emerald-400 font-semibold" title="Doğrulanmış yük sahibi">✓</span>@endif</div>
-                                <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
-                            </div>
-                            <div class="load-card-side sm:min-h-0">
-                                <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
-                                <div class="flex items-center gap-1.5">
-                                    @php $isSaved = in_array($load->id, $savedSystemIds, true); @endphp
-                                    <button type="button" wire:click="toggleSave('system', {{ $load->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg></button>
-                                    <a href="{{ route('driver.loads.index', ['ilan' => $load->id]) }}" wire:navigate class="load-card-action">Teklif ver</a>
-                                </div>
-                            </div>
-                        </div>
+                        <x-system-load-card :load="$load" :saved="in_array($load->id, $savedSystemIds, true)" offer="link" wire:key="m-s-{{ $load->id }}" />
                     @else
                         <x-external-load-card :item="$load" :saved="in_array($load->id, $savedExternalIds, true)" :taken="in_array($load->id, $takenExternalIds, true)" wire:key="m-e-{{ $load->id }}" />
                     @endif
@@ -250,7 +234,7 @@ class extends Component {
                 <h3 class="section-title">Belge durumu</h3>
                 <div class="flex items-center justify-between">
                     <span class="text-neutral-500 dark:text-neutral-400">KYC</span>
-                    <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                    <span class="px-2.5 py-1 rounded-full text-2xs font-bold border
                         {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
                         {{ ['approved' => 'Doğrulandı', 'pending' => 'İnceleniyor', 'rejected' => 'Reddedildi', 'unsubmitted' => 'Belge bekleniyor'][$kycStatus] ?? $kycStatus }}
                     </span>

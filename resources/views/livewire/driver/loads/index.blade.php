@@ -341,6 +341,13 @@ class extends Component {
 
     public bool $offerModalOpen = false;
 
+    /** Teklif mesajı için hazır kısa cümleler (çip; dokununca mesaja eklenir). */
+    public const OFFER_PHRASES = [
+        'Yükleme günü sabah araçla hazırım.',
+        'Fiyata yakıt ve otoyol dahildir.',
+        'Teslimatta fotoğraf ve irsaliye paylaşırım.',
+    ];
+
     #[Locked]
     public ?int $selectedLoadId = null;
 
@@ -527,6 +534,13 @@ class extends Component {
             'minPrice' => Settings::float('min_load_price'),
             'commissionRate' => $profile?->commissionRate() ?? Settings::float('commission_standard_driver'),
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
+            // Teklif penceresi: şoförün son 3 teklifi (tutar, gün, mesaj) tek dokunuşla doldurulur; pencere kapalıyken sorgu yok.
+            'recentOffers' => $this->offerModalOpen && $this->selectedLoadId
+                ? Offer::query()->where('driver_profile_id', $profileId)->latest('id')->take(3)->get()
+                    ->map(fn (Offer $o) => ['amount' => number_format((float) $o->amount, 2, '.', ''), 'label' => number_format((float) $o->amount, 0, ',', '.').' ₺', 'days' => (string) max(1, (int) $o->estimated_days), 'message' => (string) ($o->message ?? ''), 'date' => $o->created_at?->format('d.m.Y') ?? ''])
+                    ->values()->all()
+                : [],
+            'offerPhrases' => self::OFFER_PHRASES,
             'loads' => null,
             'offers' => null,
             'savedSystemIds' => $saved->pluck('load_id')->filter()->map(fn ($v) => (int) $v)->all(),
@@ -627,7 +641,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-4 text-xs">
             {{-- Kalıcı filtre profilleri --}}
             <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mr-1">Filtre</span>
+                <span class="text-2xs font-bold uppercase tracking-wider text-neutral-400 mr-1">Filtre</span>
                 <button type="button" wire:click="applyPreset(null)" class="tab-pill {{ $presetId === null ? 'tab-pill-active' : '' }}">Serbest</button>
                 @foreach($presets as $preset)
                     <button type="button" wire:click="applyPreset({{ $preset->id }})" class="tab-pill {{ $presetId === $preset->id ? 'tab-pill-active' : '' }}" title="{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}">
@@ -653,12 +667,12 @@ class extends Component {
                         {{-- Seçim kutusu: seçilenler kutunun içinde etiket olarak görünür; boşsa "Her yer" --}}
                         <button type="button" @click="open = !open" class="form-input min-h-[42px] flex flex-wrap items-center gap-1.5 text-left cursor-pointer" :aria-expanded="open" aria-label="{{ $sideLabel }} yeri seç">
                             @forelse($selCodes as $code)
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold {{ $side === 'pickup' ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }}">
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-2xs font-semibold {{ $side === 'pickup' ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }}">
                                     {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }}@if(($selDistricts[$code] ?? []) !== []) <span class="font-normal opacity-80">({{ count($selDistricts[$code]) }} ilçe)</span>@endif
                                     <span role="button" wire:click.stop="removeProvince('{{ $side }}', {{ $code }})" class="ml-0.5 hover:text-rose-500" aria-label="Kaldır">×</span>
                                 </span>
                             @empty
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Her yer</span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-2xs font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-500">Her yer</span>
                             @endforelse
                             <svg class="w-4 h-4 ml-auto text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
                         </button>
@@ -671,7 +685,7 @@ class extends Component {
                             <div class="max-h-56 overflow-y-auto flex flex-wrap gap-1.5 pr-1">
                                 @foreach($provinces as $province)
                                     <button type="button" wire:click="toggleProvince('{{ $side }}', {{ $province['code'] }})" x-show="!q || {{ json_encode(\App\Support\TurkishText::lower($province['name'])) }}.includes(q.toLocaleLowerCase('tr'))"
-                                        class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors {{ in_array((int) $province['code'], $selCodes, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $province['name'] }}</button>
+                                        class="px-2.5 py-1 rounded-lg border text-2xs font-semibold transition-colors {{ in_array((int) $province['code'], $selCodes, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $province['name'] }}</button>
                                 @endforeach
                             </div>
                         {{-- Seçili illerin ilçeleri (aynı panelde): etiket olarak, birden çok seçilir; hiçbiri seçili değilse ilin tamamı --}}
@@ -680,13 +694,13 @@ class extends Component {
                                 @if($districtNames !== [])
                                     @php $boxOpen = $picked !== [] || in_array($side.':'.$code, $openDistricts, true); @endphp
                                     <div class="pt-2 border-t border-neutral-100 dark:border-neutral-800" wire:key="districts-{{ $side }}-{{ $code }}">
-                                        <button type="button" wire:click="toggleDistrictBox('{{ $side }}', {{ $code }})" class="cursor-pointer text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1 text-left" aria-expanded="{{ $boxOpen ? 'true' : 'false' }}">
+                                        <button type="button" wire:click="toggleDistrictBox('{{ $side }}', {{ $code }})" class="cursor-pointer text-2xs font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1 text-left" aria-expanded="{{ $boxOpen ? 'true' : 'false' }}">
                                             <svg class="w-3 h-3 transition-transform {{ $boxOpen ? 'rotate-90' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                                             {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }} ilçeleri{{ $picked !== [] ? ': '.implode(', ', $picked) : ' (tümü)' }}
                                         </button>
                                         <div class="mt-1.5 flex flex-wrap gap-1.5 {{ $boxOpen ? '' : 'hidden' }}">
                                             @foreach($districtNames as $dn)
-                                                <button type="button" wire:click="toggleDistrict('{{ $side }}', {{ $code }}, @js($dn))" class="px-2 py-0.5 rounded-lg border text-[11px] transition-colors {{ in_array($dn, $picked, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $dn }}</button>
+                                                <button type="button" wire:click="toggleDistrict('{{ $side }}', {{ $code }}, @js($dn))" class="px-2 py-0.5 rounded-lg border text-2xs transition-colors {{ in_array($dn, $picked, true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 font-semibold' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $dn }}</button>
                                             @endforeach
                                         </div>
                                     </div>
@@ -739,7 +753,7 @@ class extends Component {
                         @if($normalizedFilters['vehicle_mode'] === 'custom')
                             <div class="flex flex-wrap gap-2 pt-1">
                                 @foreach(\App\Support\VehicleTypes::FORM_ORDER as $type)
-                                    <button type="button" wire:click="toggleVehicleType('{{ $type }}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-colors {{ in_array($type, $normalizedFilters['vehicle_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">
+                                    <button type="button" wire:click="toggleVehicleType('{{ $type }}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-2xs font-semibold transition-colors {{ in_array($type, $normalizedFilters['vehicle_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($type) !!}</svg>{{ \App\Support\VehicleTypes::label($type) }}
                                     </button>
                                 @endforeach
@@ -751,11 +765,11 @@ class extends Component {
                         <label class="form-label">Kasa tipi <span class="text-neutral-400 font-normal">(kasa belirtmeyen ilanlar her zaman görünür)</span></label>
                         <div class="flex flex-wrap gap-2">
                             @foreach(\App\Support\BodyTypes::TYPES as $bk => $bmeta)
-                                <button type="button" wire:click="toggleBodyType('{{ $bk }}')" class="inline-flex items-center px-3 py-1.5 rounded-xl border text-[11px] font-semibold transition-colors {{ in_array($bk, $normalizedFilters['body_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $bmeta['label'] }}</button>
+                                <button type="button" wire:click="toggleBodyType('{{ $bk }}')" class="inline-flex items-center px-3 py-1.5 rounded-xl border text-2xs font-semibold transition-colors {{ in_array($bk, $normalizedFilters['body_types'], true) ? 'border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-brand-500/50' }}">{{ $bmeta['label'] }}</button>
                             @endforeach
                         </div>
                         @if($normalizedFilters['vehicle_mode'] === 'mine' && $myVehicleType && ! $myVehicleBody)
-                            <p class="text-[11px] text-amber-600">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" class="underline" wire:navigate>Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
+                            <p class="text-2xs text-amber-600">Aracınızın kasa tipi kayıtlı değil; <a href="{{ route('driver.vehicles.index') }}" class="underline" wire:navigate>Araçlarım</a> sayfasından ekleyin, ilanlar kasanıza göre süzülsün.</p>
                         @endif
                     </div>
 
@@ -807,7 +821,7 @@ class extends Component {
                                     <option value="">İl merkezi seç…</option>
                                     @foreach($provinces as $province)<option value="{{ $province['code'] }}">{{ $province['name'] }}</option>@endforeach
                                 </select>
-                                <label class="inline-flex items-center gap-2 text-[11px] text-neutral-500"><input type="checkbox" wire:model.live="filters.only_priced" class="accent-brand-500 w-4 h-4"> Yalnız fiyatlı ilanlar</label>
+                                <label class="inline-flex items-center gap-2 text-2xs text-neutral-500"><input type="checkbox" wire:model.live="filters.only_priced" class="accent-brand-500 w-4 h-4"> Yalnız fiyatlı ilanlar</label>
                             </div>
                             <span class="form-help">Merkez olarak konumunuzu ("Yakınımdaki ilanlar") ya da bir il merkezini kullanın.</span>
                         </div>
@@ -818,13 +832,13 @@ class extends Component {
                         @if($presetId)
                             <button type="button" wire:click="deletePreset" wire:confirm="Bu kalıcı filtre silinecek. Devam edilsin mi?" class="btn-danger py-2 text-xs">Sil</button>
                         @endif
-                        <span class="text-[11px] text-neutral-400 ml-auto">Kaydedilen filtreler telefonda ve bilgisayarda aynı çalışır; varsayılan filtre havuz her açılışta uygulanır.</span>
+                        <span class="text-2xs text-neutral-400 ml-auto">Kaydedilen filtreler telefonda ve bilgisayarda aynı çalışır; varsayılan filtre havuz her açılışta uygulanır.</span>
                     </div>
                 </div>
             @endif
 
             @if($filterChips !== [])
-                <div class="flex flex-wrap gap-1.5 text-[11px] text-neutral-500">
+                <div class="flex flex-wrap gap-1.5 text-2xs text-neutral-500">
                     @foreach($filterChips as $chip)<span class="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800">{{ $chip }}</span>@endforeach
                 </div>
             @endif
@@ -840,7 +854,7 @@ class extends Component {
                         <input type="text" wire:model="presetName" placeholder="Örn. Ankara çıkışlı tır yükleri" class="form-input" autofocus>
                         @error('presetName') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
-                    <div class="flex flex-wrap gap-1.5 text-[11px] text-neutral-500">
+                    <div class="flex flex-wrap gap-1.5 text-2xs text-neutral-500">
                         @foreach($filterChips as $chip)<span class="px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800">{{ $chip }}</span>@endforeach
                     </div>
                     <label class="inline-flex items-center gap-2"><input type="checkbox" wire:model="presetDefault" class="accent-brand-500 w-4 h-4"> Varsayılan filtrem olsun (havuz her açılışta bununla gelsin)</label>
@@ -856,36 +870,14 @@ class extends Component {
     @if($kycApproved && $tab === 'pool')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             @if(! $isPremium)
-                <div class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                <div class="text-2xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                     Yeni ilanlar önce premium üyelere açılır; {{ $freeDelay }} dakika sonra burada görünür.
                     <a href="{{ route('driver.premium.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Premium ile anında görün</a>
                 </div>
             @endif
             <div class="space-y-3 scroll-mt-24" id="ilan-listesi">
                 @forelse($loads as $load)
-                    @php $kg = (int) ($load->weight ?? 0); $vol = (int) ($load->volume ?? 0); $lp = (float) ($load->price ?? 0); @endphp
-                    <div class="load-card">
-                        <div class="load-card-main">
-                            <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                            <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ \App\Support\VehicleTypes::label($load->vehicle_type) }}@if($load->bodyLabel()) · {{ $load->bodyLabel() }}@endif@if($load->loadKindLabel()) · {{ $load->loadKindLabel() }}@endif@if($kg > 0) · {{ $kg >= 1000 ? rtrim(rtrim(number_format($kg / 1000, 1, ',', '.'), '0'), ',').' ton' : number_format($kg, 0, ',', '.').' kg' }}@endif@if($vol > 0) · {{ number_format($vol, 0, ',', '.') }} m³@endif</div>
-                            <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y H:i') ?? 'Belirtilmemiş' }}@if($load->delivery_date) · Teslim: {{ $load->delivery_date->format('d.m.Y H:i') }}@endif · {{ $load->cargoOwnerProfile?->publicName() ?: 'Yük sahibi belirtilmemiş' }}</div>
-                            <div class="load-card-badges">
-                                <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>
-                                @if($load->cargoOwnerProfile?->isVerified())<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" title="{{ $load->cargoOwnerProfile->type === 'corporate' ? 'Şirket bilgileri teyit edildi' : 'Kimliği NVİ ile doğrulandı' }}">✓ Doğrulanmış yük sahibi</span>@endif
-                                @if($load->isEarlyAccess())<span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-400" title="Herkese {{ $load->available_to_free_at->format('H:i') }}'de açılır">⭐ Erken erişim</span>@endif
-                            </div>
-                        </div>
-                        <div class="load-card-side">
-                            <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
-                            <div class="flex items-center gap-1.5">
-                                @php $isSaved = in_array($load->id, $savedSystemIds, true); @endphp
-                                <button type="button" wire:click="toggleSave('system', {{ $load->id }})" class="load-card-star {{ $isSaved ? 'load-card-star-on' : '' }}" title="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-label="{{ $isSaved ? 'Kaydedilenlerden çıkar' : 'Kaydet' }}" aria-pressed="{{ $isSaved ? 'true' : 'false' }}">
-                                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="{{ $isSaved ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg>
-                                </button>
-                                <button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>
-                            </div>
-                        </div>
-                    </div>
+                    <x-system-load-card :load="$load" :saved="in_array($load->id, $savedSystemIds, true)" offer="modal" wire:key="pool-{{ $load->id }}" />
                 @empty
                     <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Filtrelerinize uyan açık ilan bulunmuyor.</div>
                 @endforelse
@@ -925,7 +917,7 @@ class extends Component {
                         </div>
                     </div>
                     <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-neutral-200 dark:border-neutral-800 pt-3 sm:pt-0">
-                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                        <span class="px-2.5 py-1 rounded-full text-2xs font-bold border
                             {{ $offer->status === 'accepted' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($offer->status === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300') }}">
                             {{ \App\Models\Offer::STATUS_LABELS[$offer->status] ?? $offer->status }}
                         </span>
@@ -948,26 +940,11 @@ class extends Component {
 
     @if($kycApproved && $tab === 'saved')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-            <div class="text-[11px] text-neutral-500 leading-relaxed">Yıldızladığınız ilanlar burada durur. Kaldırmak için yıldıza yeniden basın. İlan yayından kalkınca listeden düşer.</div>
+            <div class="text-2xs text-neutral-500 leading-relaxed">Yıldızladığınız ilanlar burada durur. Kaldırmak için yıldıza yeniden basın. İlan yayından kalkınca listeden düşer.</div>
             <div class="space-y-3">
                 @forelse($savedItems as $saved)
                     @if($saved->kind() === 'system')
-                        @php $load = $saved->cargoLoad; $lp = (float) ($load->price ?? 0); $stillOpen = $load->status === \App\Models\Load::STATUS_ACTIVE; @endphp
-                        <div class="load-card" wire:key="saved-s-{{ $load->id }}">
-                            <div class="load-card-main">
-                                <div class="load-card-title">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
-                                <div class="load-card-line">{{ $load->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])) }}</div>
-                                <div class="load-card-line">Yükleme: {{ $load->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }} · Kaydedildi: <x-time-ago :at="$saved->created_at" /></div>
-                                <div class="load-card-badges"><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Sistem ilanı</span>@if(! $stillOpen)<span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500">{{ $load->statusLabel() }}</span>@endif</div>
-                            </div>
-                            <div class="load-card-side">
-                                <div class="load-card-price">{{ number_format($lp, fmod($lp, 1.0) === 0.0 ? 0 : 2, ',', '.') }} ₺</div>
-                                <div class="flex items-center gap-1.5">
-                                    <button type="button" wire:click="toggleSave('system', {{ $load->id }})" class="load-card-star load-card-star-on" title="Kaydedilenlerden çıkar" aria-label="Kaydedilenlerden çıkar"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11.05 3.7c.3-.92 1.6-.92 1.9 0l1.52 4.67a1 1 0 00.95.69h4.92c.97 0 1.37 1.24.59 1.81l-3.98 2.89a1 1 0 00-.36 1.12l1.52 4.67c.3.92-.76 1.69-1.54 1.12l-3.98-2.89a1 1 0 00-1.18 0l-3.98 2.89c-.78.57-1.84-.2-1.54-1.12l1.52-4.67a1 1 0 00-.36-1.12L3.07 10.87c-.78-.57-.38-1.81.59-1.81h4.92a1 1 0 00.95-.69l1.52-4.67z"/></svg></button>
-                                    @if($stillOpen)<button type="button" wire:click="openOffer({{ $load->id }})" class="load-card-action">Teklif ver</button>@endif
-                                </div>
-                            </div>
-                        </div>
+                        <x-system-load-card :load="$saved->cargoLoad" :saved="true" offer="modal" wire:key="saved-s-{{ $saved->cargoLoad->id }}">Kaydedildi: <x-time-ago :at="$saved->created_at" /></x-system-load-card>
                     @else
                         <x-external-load-card :item="$saved->scrapedLoad" :saved="true" :taken="in_array($saved->scrapedLoad->id, $takenExternalIds, true)" wire:key="saved-e-{{ $saved->scrapedLoad->id }}" />
                     @endif
@@ -994,7 +971,7 @@ class extends Component {
     @if($kycApproved && $tab === 'external' && $isPremium)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="text-xs space-y-3">
-                <div class="text-[11px] text-neutral-500 leading-relaxed">
+                <div class="text-2xs text-neutral-500 leading-relaxed">
                     Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
                 </div>
                 <div class="flex flex-wrap gap-2">
@@ -1002,7 +979,7 @@ class extends Component {
                     <button type="button" wire:click="setIncomplete(true)" class="tab-pill {{ $incomplete ? 'tab-pill-active' : '' }}">Eksik bilgili ilanlar <span class="opacity-70">{{ number_format($incompleteCount, 0, ',', '.') }}</span></button>
                 </div>
                 @if($incomplete)
-                    <div class="text-[11px] text-neutral-500 leading-relaxed">Aracı, kasası ya da yükü belirsiz ilanlar; kalkış, varış ve telefon bellidir. Arayıp öğrendiğiniz araç tipini karta girerseniz ilan tamamlanır ve herkese normal listede görünür.</div>
+                    <div class="text-2xs text-neutral-500 leading-relaxed">Aracı, kasası ya da yükü belirsiz ilanlar; kalkış, varış ve telefon bellidir. Arayıp öğrendiğiniz araç tipini karta girerseniz ilan tamamlanır ve herkese normal listede görünür.</div>
                 @endif
             </div>
 
@@ -1023,31 +1000,59 @@ class extends Component {
     @if($offerModalOpen && $selectedLoad)
         <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
             <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeOffer"></div>
-            <form wire:submit.prevent="submitOffer" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs">
+            {{-- Son teklifler ve hazır cümleler Alpine ile doldurulur; sunucuya yalnız "Teklifi gönder" gider. --}}
+            <form wire:submit.prevent="submitOffer" class="relative z-10 w-full max-w-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-2xl space-y-4 text-left text-xs"
+                x-data="{
+                    amount: $wire.entangle('amount'), days: $wire.entangle('estimated_days'), message: $wire.entangle('message'),
+                    rate: {{ (float) $commissionRate }}, recent: @js($recentOffers), phrases: @js($offerPhrases),
+                    net() { const a = parseFloat(String(this.amount || '').replace(',', '.')); return isNaN(a) || a <= 0 ? null : (a * (1 - this.rate / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+                    fill(o) { this.amount = o.amount; this.days = o.days; this.message = o.message; },
+                    addPhrase(t) { const m = String(this.message || '').trim(); this.message = m === '' ? t : (m.includes(t) ? m : m + ' ' + t); },
+                }">
                 <div class="border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <h3 class="text-base font-bold text-neutral-900 dark:text-white">Teklif ver</h3>
-                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $selectedLoad->pickup_location }} &rarr; {{ $selectedLoad->delivery_location }} · İlan fiyatı {{ number_format((float) ($selectedLoad->price ?? 0), 2, ',', '.') }} ₺</p>
+                    <p class="text-neutral-500 dark:text-neutral-400 mt-0.5">{{ $selectedLoad->pickup_location }} &rarr; {{ $selectedLoad->delivery_location }} · İlan fiyatı {{ number_format((float) ($selectedLoad->price ?? 0), 2, ',', '.') }} ₺@if($selectedLoad->distanceLabel()) · {{ $selectedLoad->distanceLabel() }}@endif</p>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" x-data="{ amount: $wire.entangle('amount'), rate: {{ (float) $commissionRate }}, net() { const a = parseFloat(String(this.amount || '').replace(',', '.')); return isNaN(a) || a <= 0 ? null : (a * (1 - this.rate / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } }">
+                @if($recentOffers !== [])
+                    <div class="space-y-1.5">
+                        <div class="text-2xs font-semibold text-neutral-500">Son tekliflerin</div>
+                        <div class="flex flex-wrap gap-1.5">
+                            <template x-for="(o, i) in recent" :key="i">
+                                <button type="button" @click="fill(o)" class="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-2.5 py-1.5 text-2xs text-neutral-700 dark:text-neutral-200 hover:border-brand-500 hover:text-brand-500">
+                                    <span class="font-bold tabular-nums" x-text="o.label"></span>
+                                    <span class="text-neutral-500" x-text="o.days + ' gün'"></span>
+                                    <span class="text-neutral-400 truncate max-w-[9rem]" x-show="o.message" x-text="o.message"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                @endif
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <label class="form-label">Teklif tutarı (₺)</label>
-                        <input type="number" step="0.01" min="{{ $minPrice }}" wire:model="amount" class="form-input tabular-nums">
+                        <input type="number" step="0.01" min="{{ $minPrice }}" x-model="amount" class="form-input tabular-nums">
                         @error('amount') <span class="form-error">{{ $message }}</span> @enderror
-                        <span class="text-[11px] text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
-                        <span class="text-[11px] mt-1 block" data-commission-rate="{{ $commissionRate }}">Size kalan: <span class="font-bold text-neutral-900 dark:text-white tabular-nums" x-text="net() ? net() + ' ₺' : '—'">—</span> <span class="text-neutral-500">(%{{ number_format($commissionRate, 1, ',', '.') }} hizmet bedeli düşülür)</span></span>
+                        <span class="text-2xs text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
+                        <span class="text-2xs mt-1 block" data-commission-rate="{{ $commissionRate }}">Size kalan: <span class="font-bold text-neutral-900 dark:text-white tabular-nums" x-text="net() ? net() + ' ₺' : '—'">—</span> <span class="text-neutral-500">(%{{ number_format($commissionRate, 1, ',', '.') }} hizmet bedeli düşülür)</span></span>
                     </div>
                     <div>
                         <label class="form-label">Tahmini süre (gün)</label>
-                        <input type="number" min="1" max="30" wire:model="estimated_days" class="form-input tabular-nums">
+                        <input type="number" min="1" max="30" x-model="days" class="form-input tabular-nums">
                         @error('estimated_days') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                 </div>
 
                 <div>
                     <label class="form-label">Mesaj (isteğe bağlı)</label>
-                    <textarea wire:model="message" rows="3" maxlength="1000" class="form-input"></textarea>
+                    <textarea x-model="message" rows="3" maxlength="1000" class="form-input"></textarea>
                     @error('message') <span class="form-error">{{ $message }}</span> @enderror
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        <template x-for="p in phrases" :key="p">
+                            <button type="button" @click="addPhrase(p)" class="rounded-full border border-neutral-200 dark:border-neutral-700 px-2.5 py-1 text-2xs text-neutral-600 dark:text-neutral-300 hover:border-brand-500 hover:text-brand-500" x-text="p"></button>
+                        </template>
+                    </div>
                 </div>
 
                 @if(! $kycApproved)

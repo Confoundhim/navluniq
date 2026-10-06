@@ -1,7 +1,7 @@
 {{-- İş kartı: NavlunIQ ilanından (kabul edilen teklif) ya da gruptan ("Bu işi aldım") alınan iş. İşlerim ve Genel bakış
      aynı kartı kullanır; eylemler HandlesJobActions trait'i ile çalışır. Açık iş turuncu çerçevelidir.
      returnLoads: ['system' => Collection<Load>, 'external' => Collection<ScrapedLoad>] ya da null. --}}
-@props(['trip', 'expanded' => false, 'returnLoads' => null, 'savedExternalIds' => [], 'takenExternalIds' => [], 'isPremium' => false])
+@props(['trip', 'expanded' => false, 'returnLoads' => null, 'savedSystemIds' => [], 'savedExternalIds' => [], 'takenExternalIds' => [], 'isPremium' => false])
 @php
     $load = $trip->isSystem() ? $trip->cargoLoad : null;
     $goods = $trip->scrapedLoad?->goods_type ?: $load?->goods_type;
@@ -59,18 +59,7 @@
         @if($expanded && $returnLoads !== null)
             <div class="space-y-2">
                 @foreach($returnLoads['system'] as $rl)
-                    @php $lp = (float) ($rl->price ?? 0); @endphp
-                    <div class="load-card load-card-return" wire:key="rl-s-{{ $trip->id }}-{{ $rl->id }}">
-                        <div class="load-card-main">
-                            <div class="load-card-title">{{ $rl->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $rl->delivery_location }}</div>
-                            <div class="load-card-line">{{ $rl->goods_type ?: 'Yük türü belirtilmemiş' }} · {{ implode(' · ', array_filter([\App\Support\VehicleTypes::label($rl->vehicle_type), $rl->bodyLabel()])) }} · Yükleme: {{ $rl->pickup_date?->format('d.m.Y') ?? 'Belirtilmemiş' }}</div>
-                            <div class="load-card-badges"><span class="badge-return"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/></svg>Dönüş yükü</span><span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">NavlunIQ ilanı</span></div>
-                        </div>
-                        <div class="load-card-side sm:min-h-0">
-                            <div class="load-card-price">{{ number_format($lp, 0, ',', '.') }} ₺</div>
-                            <a href="{{ route('driver.loads.index', ['ilan' => $rl->id]) }}" wire:navigate class="load-card-action">Teklif ver</a>
-                        </div>
-                    </div>
+                    <x-system-load-card :load="$rl" variant="return" :saved="in_array($rl->id, $savedSystemIds, true)" offer="link" wire:key="rl-s-{{ $trip->id }}-{{ $rl->id }}" />
                 @endforeach
                 @foreach($returnLoads['external'] as $item)
                     <x-external-load-card :item="$item" variant="return" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $trip->id }}-{{ $item->id }}" />
