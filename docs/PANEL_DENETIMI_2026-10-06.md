@@ -78,7 +78,14 @@ geçirme. Testler: tam paket 737/738 (tek hata ortamın PHP 8.3'üne özgü), il
   sözleşmesi, KVKK yurt dışı aktarım için sağlayıcı sözleşmeleri.
 - Kodda kalan yasal eksik: açık adres ve yük sahibinin adının teklif öncesi herkese açılması (E6/E7; "Ad S." yapıldı, adres kaldı).
 
-## 4. Önerilen paketler
+## 4. Paketler ve durum
+
+**Osman'ın kararları (2026-10-06):** 1. paket tamamen; canlı takip yalnız sistem ilanında, dış kaynakta yalnız dönüş yükü radarı;
+bildirimler (yeni ilan, dönüş yükü) yalnız premium şoföre, standart üyeye bildirim yok (panelde görür); dış kaynak standart üyeye kapalı;
+Telegram ilanı herkese açıldığı anda; çelişen tanıtım metinleri düzeltildi. 3. ve 4. paket uygun görüldüğü gibi.
+
+**Paket 1: ✅ uygulandı** (T1-T5, Y1-Y7, Y9, S1, S3, S4, S6-S10; S2 ve S5 Paket 4'e alındı; Y8 küçük, Paket 3'e). Test `ProcessAuditFixesTest`.
+
 - **Paket 1 (kesin hatalar, 1 gün):** T1-T5, Y1-Y6, Y9, S1, S3, S4, S6-S10; testler.
 - **Paket 2 (canlı takip iyileştirme, 1 gün):** "Yola çıktım" ile konum başlat + wake lock + görünürlükte yeniden bağlan; tazelik
   ("4 dk önce", eski konum gri); yükleme/teslim işaretçileri ve seyreltilmiş tam iz; ETA; yolda takılma bekçisi; otomatik onay

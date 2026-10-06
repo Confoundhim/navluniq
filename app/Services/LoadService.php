@@ -87,7 +87,7 @@ class LoadService
             throw new RuntimeException('Bu ilan size ait değil.');
         }
 
-        // Kasa tipi, yük biçimi ve teslim noktaları da taşınır; aksi halde "tenteli / 13.60" şartı kaybolup yanlış şoförlere bildirim giderdi.
+        // Kasa tipi ve yük biçimi de taşınır; aksi halde "tenteli / 13.60" şartı kaybolup yanlış şoförlere bildirim giderdi.
         $data = $source->only(['pickup_location', 'delivery_location', 'pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng', 'vehicle_type', 'goods_type', 'weight', 'volume', 'price', 'body_types', 'load_kind']);
         $data['pickup_date'] = now()->addDay()->startOfDay();
         $data['delivery_date'] = $source->delivery_date && $source->pickup_date
@@ -235,7 +235,7 @@ class LoadService
                 'visibility' => 'private',
             ]);
             ActivityLog::record($logEvent, $logText, $actorId, $locked);
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         app(DriverTripService::class)->closeForLoad($load->id);
 
         return $driverUser;

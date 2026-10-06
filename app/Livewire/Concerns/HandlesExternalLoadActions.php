@@ -39,7 +39,7 @@ trait HandlesExternalLoadActions
     public function toggleSave(string $kind, int $id): void
     {
         $profile = $this->actionProfile();
-        if (! $profile || ! $profile->isKycApproved()) {
+        if (! $profile || ! $profile->isKycApproved() || $profile->is_staff_view) {
             return;
         }
         $column = $kind === 'external' ? 'scraped_load_id' : 'load_id';

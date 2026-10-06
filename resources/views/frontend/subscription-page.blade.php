@@ -12,7 +12,8 @@
 
     $comparison = [
         ['Yük sahiplerinin sistem ilanları', $lead > 0 ? "{$lead} dakika sonra" : 'Yayınlandığı anda', 'Yayınlandığı anda'],
-        ['Yeni ilan bildirimi', $lead > 0 ? "{$lead} dakika sonra" : 'Anında', 'Anında'],
+        ['Yeni ilan bildirimi', 'Yok (ilan panelde görünür)', 'Anında, uygulama içi + e-posta'],
+        ['Dönüş yükü bildirimi', 'Yok (İşlerim sayfasında görünür)', 'Var'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         ['Onaylı dış kaynak ilanları', 'Görünmez', 'Tamamı, ilan sahibinin numarasıyla'],
         ['Telegram kanalı (sistem ilanları)', 'Herkese açık', 'Herkese açık'],
@@ -31,7 +32,7 @@
                 Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeler aynı ilanları {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür.
+                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeler aynı ilanları {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panellerinde görür, bildirim almaz.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
@@ -60,7 +61,7 @@
                 <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görünür</span></li>
+                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panelde görünür (bildirim yok)</span></li>
                     <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Dış kaynak ilanları görünmez</span></li>
                 </ul>
                 <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
@@ -114,7 +115,7 @@
                 <div class="md:col-span-2 space-y-2">
                     <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $leadText }} neden fark yaratır?</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür. Dış kaynak ilanları ise yalnız premium üyelere açıktır; standart üyeler bu ilanları hiç görmez. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
+                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür; standart üyeye bildirim gitmez, ilanı panelinde kendisi takip eder. Dış kaynak ilanları ise yalnız premium üyelere açıktır; standart üyeler bu ilanları hiç görmez. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">

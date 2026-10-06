@@ -62,7 +62,7 @@ new class extends Component {
             $result = (new GibService)->verifyTax($value);
             $this->taxNoFormatValid = (bool) $result['is_match'];
             $this->apiStatusMessage = $this->taxNoFormatValid
-                ? 'Vergi kimlik numarası biçimi geçerli. Resmi unvan KYC belge kontrolünde teyit edilecektir.'
+                ? 'Vergi kimlik numarası biçimi geçerli. Şirket bilgileri ekibimizce teyit edilince ilanlarınızda doğrulanmış rozeti görünür.'
                 : 'Vergi kimlik numarası geçersiz görünüyor, lütfen kontrol edin.';
         }
     }
@@ -295,7 +295,7 @@ new class extends Component {
         session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
             ['Yük sahibi hesabınız doğrulandı. İlk ilanınızı oluşturun; belgeleri onaylı şoförlerden teklif almaya hemen başlayın.',
-             'Kimlik (kurumsal hesapta vergi levhası) belgenizi profilinizden yükleyerek doğrulamanızı tamamlayın; teklif kabul ve ödeme adımı için gereklidir.'],
+             'Belge yüklemeniz gerekmez. İlk teklifi kabul ederken kimliğiniz bir kez doğrulanır (kurumsal hesapta vergi numaranız yeter); sonra bir daha sorulmaz.'],
             route('cargo-owner.loads.create'), 'İlan oluştur', 'welcome');
         session()->flash('success', 'Yük sahibi hesabınız doğrulandı.');
 

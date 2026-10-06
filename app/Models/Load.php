@@ -155,6 +155,24 @@ class Load extends Model
     }
 
     /** Verilen şoförün (premium değilse) görebileceği ilanlarla sınırlar. */
+    /**
+     * Şoförün teklif verebileceği ilanlar: yayında, herkese/premiuma açık, yükleme tarihi geçmemiş, kendi ilanı değil ve
+     * bu şoförün bekleyen/kabul edilmiş teklifi yok. Havuz, genel bakış ve dönüş yükü listesi aynı kuralı kullanır
+     * (genel bakışta teklif verilmiş ilan "Teklif ver" ile listelenip havuzda "bulunamadı" diyordu, 2026-10-06).
+     */
+    public function scopeOfferableBy(Builder $query, ?DriverProfile $profile): Builder
+    {
+        $profileId = $profile?->id ?? 0;
+        $userId = $profile?->user_id ?? 0;
+
+        return $query
+            ->where('status', self::STATUS_ACTIVE)->where('visibility', 'public')
+            ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', today()))
+            ->where(fn (Builder $q) => $q->whereNull('cargo_owner_profile_id')->orWhereHas('cargoOwnerProfile', fn ($o) => $o->where('user_id', '!=', $userId)))
+            ->openTo($profile)
+            ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']));
+    }
+
     public function scopeOpenTo(Builder $query, ?DriverProfile $profile): Builder
     {
         if ($profile?->isPremium()) {

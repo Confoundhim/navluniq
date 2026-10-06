@@ -98,7 +98,7 @@ class PremiumReleaseTest extends TestCase
         $pf = $this->premium->driverProfile;
         Volt::test('driver.loads.index')->assertSee('Paletli Yük')->assertSee('Erken erişim');
 
-        // Süre dolunca: herkese açılır, ücretsiz şoföre bildirim, Telegram'a tek mesaj.
+        // Süre dolunca: herkese açılır (ücretsiz şoföre bildirim yok, panelde görür), Telegram'a tek mesaj.
         $this->assertSame(0, app(LoadReleaseService::class)->releaseDue(), 'Süre dolmadan açılmamalı');
         $this->travel(21)->minutes();
         $this->assertSame(1, app(LoadReleaseService::class)->releaseDue());
@@ -107,7 +107,7 @@ class PremiumReleaseTest extends TestCase
         $load->refresh();
         $this->assertNotNull($load->released_at);
         $this->assertNotNull($load->telegram_posted_at);
-        $this->assertSame(1, UserNotification::where('user_id', $this->free->id)->count());
+        $this->assertSame(0, UserNotification::where('user_id', $this->free->id)->count(), 'Standart üyeye bildirim gitmez; ilan panelinde görünür (2026-10-06)');
         $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count(), 'Premium ikinci kez bildirilmez');
         Http::assertSentCount(1);
         Http::assertSent(fn ($r) => str_contains($r->url(), 'bot123456:ABCDEF/sendMessage')
@@ -144,10 +144,10 @@ class PremiumReleaseTest extends TestCase
         $this->assertNotContains(LoadReleaseService::MAIL_OPT_OUT_LINE, $n2->lines);
         Mail::assertSent(SystemNoticeMail::class, 1);
 
-        // Ücretsiz şoföre herkese açılışta e-posta gitmez (yalnız uygulama içi).
+        // Ücretsiz şoföre herkese açılışta bildirim de e-posta da gitmez; ilan panelinde görünür (2026-10-06).
         Settings::set('scraper_free_delay_minutes', '0');
         $this->publish();
-        $this->assertSame('skipped', UserNotification::where('user_id', $this->free->id)->latest('id')->first()->mail_status);
+        $this->assertNull(UserNotification::where('user_id', $this->free->id)->latest('id')->first());
     }
 
     public function test_zero_delay_releases_immediately_without_telegram_when_disabled(): void
@@ -156,7 +156,8 @@ class PremiumReleaseTest extends TestCase
         Http::fake();
         $load = $this->publish();
         $this->assertNotNull($load->fresh()->released_at);
-        $this->assertSame(1, UserNotification::where('user_id', $this->free->id)->count());
+        $this->assertSame(0, UserNotification::where('user_id', $this->free->id)->count(), 'Standart üyeye bildirim gitmez');
+        $this->assertSame(1, Load::query()->openTo($this->free->driverProfile)->count(), 'İlan standart üyenin panelinde görünür');
         $this->assertSame(1, UserNotification::where('user_id', $this->premium->id)->count(), 'Gecikme sıfırken de premium şoför yayın anında haber alır (eskiden hiç almıyordu)');
         Http::assertNothingSent();
     }

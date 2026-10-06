@@ -146,7 +146,7 @@ class extends Component {
         $load = $this->ownerLoad();
         $shipment = $load?->shipment;
 
-        if (! $shipment || ! in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+        if (! $shipment || ! in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_DISPUTED], true)) {
             return;
         }
 
@@ -163,7 +163,7 @@ class extends Component {
         $user = Auth::user();
 
         $trail = ['latest' => null, 'trail' => []];
-        if ($shipment && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+        if ($shipment && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_DISPUTED], true)) {
             $trail = app(DriverLocationService::class)->trailFor($shipment);
         }
 
@@ -232,8 +232,8 @@ class extends Component {
             $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && $load->escrow_status === 'paid_in_escrow' && ! $openDispute;
             $canReview = \App\Services\ReviewService::canReview($load) && ! $hasReviewed && $driverUser;
             $canCancelPaid = $load->canBeCancelledBeforeTransit();
-            $isLive = $shipment && $shipment->status === 'in_transit';
-            $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered'], true) && $latest;
+            $isLive = $shipment && ($shipment->status === 'in_transit' || ($shipment->status === 'disputed' && $shipment->delivered_at === null));
+            $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered', 'disputed'], true) && $latest;
         @endphp
 
         @if($load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment')
@@ -471,7 +471,7 @@ class extends Component {
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Marka / model</span>
-                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? \App\Support\VehicleTypes::label($vehicle->vehicle_type) : '—' }}</span>
+                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Araç tipi</span>

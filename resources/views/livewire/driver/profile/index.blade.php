@@ -34,8 +34,6 @@ class extends Component {
 
     public bool $notify_offer_results = true;
 
-    public string $preferred_routes = '';
-
     public function mount(): void
     {
         $user = Auth::user();
@@ -45,17 +43,13 @@ class extends Component {
         $prefs = $user->driverProfile?->preferences ?? [];
         $this->notify_new_loads = (bool) ($prefs['notify_new_loads'] ?? true);
         $this->notify_offer_results = (bool) ($prefs['notify_offer_results'] ?? true);
-        $this->preferred_routes = (string) ($prefs['preferred_routes'] ?? '');
     }
 
     public function updatePreferences(): void
     {
-        $this->validate(['preferred_routes' => 'nullable|string|max:300']);
-
         Auth::user()->driverProfile?->update(['preferences' => [
             'notify_new_loads' => $this->notify_new_loads,
             'notify_offer_results' => $this->notify_offer_results,
-            'preferred_routes' => trim($this->preferred_routes),
         ]]);
 
         session()->flash('success_message', 'Tercihleriniz kaydedildi.');
@@ -267,15 +261,10 @@ class extends Component {
                     <label class="flex items-start justify-between gap-3 cursor-pointer">
                         <span>
                             <span class="block font-bold text-neutral-900 dark:text-white">Teklif sonuçları</span>
-                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul veya reddedildiğinde e-posta alın.</span>
+                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul ya da reddedildiğinde e-posta alın. Kapatırsanız uygulama içi bildirim devam eder. Rota tercihi için İlan havuzu'ndaki kayıtlı filtreleri kullanın.</span>
                         </span>
                         <input type="checkbox" wire:model="notify_offer_results" class="form-input h-4">
                     </label>
-                    <div>
-                        <label class="form-label">Tercih ettiğim rotalar</label>
-                        <input type="text" wire:model="preferred_routes" placeholder="Örn. Ankara - İzmir, İstanbul - Bursa" class="form-input">
-                        @error('preferred_routes') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
                 </div>
                 <div class="flex items-center justify-between pt-2 text-xs">
                     <span class="text-neutral-500">Premium: <span class="font-bold {{ $profile?->isPremium() ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-700 dark:text-neutral-300' }}">{{ $profile?->isPremium() ? $profile->premium_until->format('d.m.Y').' tarihine kadar' : 'Pasif' }}</span></span>

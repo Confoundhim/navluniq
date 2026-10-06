@@ -44,10 +44,13 @@ class KycService
             return KycDocument::DRIVER_TYPES;
         }
 
-        $types = KycDocument::CARGO_OWNER_TYPES;
+        // Yük sahibinden belge fotoğrafı istenmez (karar 3): bireysel hesap hiç belge yüklemez, kurumsal hesap isterse vergi
+        // levhası / imza sirküleri yükler (rozet teyidini hızlandırır).
         if ($user->cargoOwnerProfile?->type !== 'corporate') {
-            unset($types['tax_plate'], $types['signature_circular']);
+            return [];
         }
+        $types = KycDocument::CARGO_OWNER_TYPES;
+        unset($types['id_card']);
 
         return $types;
     }

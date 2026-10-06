@@ -502,6 +502,22 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   (`sha1(şablon)|sha1(yazılan)`); `legal:refresh --if-stale` (update.sh çağırır) iz yoksa bir kez, şablon değiştiyse ve yönetici metne
   dokunmadıysa yeniler; yönetici elle değiştirdiyse dokunmaz; panel düğmesi (`legal:refresh`) tümünü şablona döndürür. Sürüm
   (`legal_document_version`) kendiliğinden artmaz: Osman panelden "Sürümü artır" der. Hukukçuya sorulacak 5 nokta PR açıklamasında.
+- **Bildirim ve erişim kuralları (Osman, 2026-10-06; kesin):** canlı konum takibi yalnız sistem ilanında; dış kaynak ilanında yalnız dönüş
+  yükü radarı. **Bildirim (uygulama içi + e-posta) yalnız premium şoföre**: yeni ilan (`LoadReleaseService::onPublished`) ve dönüş yükü
+  (`DriverTripService::scanReturnLoads` premium olmayan seferi atlar). Standart üyeye hiç bildirim gitmez; ilan `scraper_free_delay_minutes`
+  sonra paneline düşer, kendisi takip eder (`release()` artık `notifyDrivers(premium:false)` çağırmaz). Dış kaynak ilanı standart üyeye
+  kapalı. Telegram kanalı sistem ilanını **herkese açıldığı anda** (süre dolunca) alır, daha önce değil. Tanıtım metinleri (abonelik
+  sayfası karşılaştırma tablosu, SSS 5, ana sayfa plan kartı) buna göre; yeni metin yazarken bu kurallarla çelişme.
+- **Panel ve süreç denetimi düzeltmeleri (2026-10-06, `docs/PANEL_DENETIMI_2026-10-06.md` Paket 1):** konum uyuşmazlıkta da kaydedilir
+  (`DriverLocationService::record` in_transit|disputed-teslimsiz; yük sahibi haritası aynı), JS `recorded=false` ve izin reddi uyarısı,
+  CSP `img-src` cartocdn; bildirim e-postası kuyruk işçisi canlıysa `SendNotificationMail` işiyle (`QueueHeartbeat::alive()`), değilse
+  istek içinde; kilit sırası her serviste Load → Shipment + `DB::transaction(fn, 3)`; `Load::scopeOfferableBy` (genel bakış, dönüş yükü);
+  genel bakış poll imzası yalnız gösterilen ilan id'leri + `X-User-Idle-Ms`; `jobs/show` sahipliği sevkiyat üzerinden de; ücretsiz şoförde
+  "N yeni ilan" `COALESCE(available_to_free_at, created_at)` (`visibleSince/visibleUntil`); dış kaynak sekmesinde yükleme zamanı filtresi
+  gizli; `completeByDriver`/`toggleSave` staff kapısı; teklif sonucu e-postası `preferences.notify_offer_results` (`OfferService::wantsOfferMail`),
+  "tercih ettiğim rotalar" alanı kaldırıldı; kurumsal yük sahibi profilden unvan/VKN/vergi dairesi günceller (`updateCompany`, değişince
+  `gib_verified` sıfırlanır); bireysel yük sahibine belge kartı yok (`KycService::allowedTypes` boş); NVİ servis hatası deneme hakkı yakmaz.
+  Test: `ProcessAuditFixesTest`.
 - **Ekran görüntüsü, Playwright olmadan (2026-10-05):** `npm i playwright` izin denetimine takılıyor; doğrudan Chromium çalışıyor:
   `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --screenshot=cikti.png
   --window-size=1280,980 --virtual-time-budget=8000 --run-all-compositor-stages-before-draw URL`. Headless pencere 500 px'in altına

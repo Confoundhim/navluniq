@@ -22,12 +22,14 @@ class DriverLocationService
             return null;
         }
 
+        // Yoldaki sevkiyat; uyuşmazlık açılmış ama henüz teslim edilmemiş sevkiyat da "yolda" sayılır (hakem konumu görmeli).
+        $live = fn ($q) => $q->where(fn ($w) => $w->where('status', Shipment::STATUS_IN_TRANSIT)
+            ->orWhere(fn ($d) => $d->where('status', Shipment::STATUS_DISPUTED)->whereNull('delivered_at')));
         $shipment = null;
         if ($shipmentId) {
-            $shipment = Shipment::query()->whereKey($shipmentId)->where('driver_profile_id', $driver->id)
-                ->where('status', Shipment::STATUS_IN_TRANSIT)->first();
+            $shipment = Shipment::query()->whereKey($shipmentId)->where('driver_profile_id', $driver->id)->tap($live)->first();
         }
-        $shipment ??= Shipment::query()->where('driver_profile_id', $driver->id)->where('status', Shipment::STATUS_IN_TRANSIT)->latest('id')->first();
+        $shipment ??= Shipment::query()->where('driver_profile_id', $driver->id)->tap($live)->latest('id')->first();
         if (! $shipment) {
             // KVKK metni: konum yalnız aktif (yoldaki) sevkiyat süresince işlenir; tarayıcı yine de gönderirse kaydedilmez.
             return null;

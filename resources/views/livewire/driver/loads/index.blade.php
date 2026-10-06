@@ -126,7 +126,7 @@ class extends Component {
         if (in_array($this->tab, ['pool', 'external'], true) && ($this->profile()?->isKycApproved() ?? false)) {
             $since = $this->asOfTime();
             $count = $this->tab === 'pool'
-                ? $this->poolQuery(pinned: false)->where('created_at', '>', $since)->count()
+                ? $this->poolQuery(pinned: false)->tap(fn (Builder $q) => $this->visibleSince($q, $since))->count()
                 : $this->externalQuery(pinned: false)->where('last_seen_at', '>', $since)->count(); // yayın ya da yeniden paylaşım
         }
         if ($count === $this->newCount) {
@@ -372,7 +372,7 @@ class extends Component {
             ->where('status', Load::STATUS_ACTIVE)
             ->where('visibility', 'public')
             ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', today())) // yükleme tarihi geçmiş ilan havuzda görünmez
-            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $q->where('created_at', '<=', $this->asOfTime()))
+            ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $this->visibleUntil($q, $this->asOfTime()))
             ->openTo($this->profile())
             ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))
             ->when(trim($this->search) !== '', function (Builder $q): void {
@@ -380,6 +380,30 @@ class extends Component {
                 $q->where(fn (Builder $w) => $w->where('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term));
             })
             ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToLoads($q, LoadFilterService::normalize($this->filters), $this->profile()));
+    }
+
+    /**
+     * Sistem ilanının bu şoför için "göründüğü an": premium için yayın anı, standart üye için premium bekleme süresinin dolduğu an.
+     * Ücretsiz şoförde süre dolup açılan ilan created_at'e bakılınca "yeni" sayılmıyor ve düğmesiz kayma yapıyordu.
+     */
+    private function visibleSince(Builder $q, $since): Builder
+    {
+        if ($this->profile()?->isPremium()) {
+            return $q->where('created_at', '>', $since);
+        }
+
+        return $q->where(fn (Builder $w) => $w->where(fn (Builder $c) => $c->whereNull('available_to_free_at')->where('created_at', '>', $since))
+            ->orWhere('available_to_free_at', '>', $since));
+    }
+
+    private function visibleUntil(Builder $q, $until): Builder
+    {
+        if ($this->profile()?->isPremium()) {
+            return $q->where('created_at', '<=', $until);
+        }
+
+        return $q->where(fn (Builder $w) => $w->where(fn (Builder $c) => $c->whereNull('available_to_free_at')->where('created_at', '<=', $until))
+            ->orWhere('available_to_free_at', '<=', $until));
     }
 
     private function externalQuery(bool $pinned = true): Builder
@@ -782,12 +806,14 @@ class extends Component {
                             <label class="form-label">En az fiyat (₺)</label>
                             <input type="number" inputmode="numeric" min="0" step="500" wire:model.live.debounce.500ms="filters.min_price" class="form-input" placeholder="0">
                         </div>
+                        @if($tab === 'pool')
                         <div>
                             <label class="form-label">Yükleme zamanı</label>
                             <select wire:model.live="filters.pickup_within_days" class="form-input">
                                 @foreach($withinDays as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach
                             </select>
                         </div>
+                        @endif
                     </div>
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">

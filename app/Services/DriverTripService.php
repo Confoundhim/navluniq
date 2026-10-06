@@ -245,6 +245,7 @@ class DriverTripService
             ->when($trip->load_id, fn (Builder $q) => $q->whereKeyNot($trip->load_id))
             ->where(fn (Builder $q) => $q->whereNull('cargo_owner_profile_id')->orWhereHas('cargoOwnerProfile', fn ($o) => $o->where('user_id', '!=', $profile->user_id)))
             ->openTo($profile)
+            ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profile->id)->whereIn('status', ['pending', 'accepted'])) // teklif verilmiş ilan yeniden önerilmez
             ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', $earliest))
             ->tap(fn (Builder $q) => $this->filters->applyPickupAround($q, $trip->delivery_province_code, $point['lat'] ?? null, $point['lng'] ?? null, $radius))
             ->tap(fn (Builder $q) => $this->filters->applyToLoads($q, $filters, $profile))
@@ -279,6 +280,10 @@ class DriverTripService
             ->orderBy('id')->get();
         $notified = 0;
         foreach ($trips as $trip) {
+            // Dönüş yükü bildirimi yalnız premium şoföre (Osman, 2026-10-06); standart üye dönüş yüklerini İşlerim'de kendisi görür.
+            if (! $trip->driverProfile?->isPremium()) {
+                continue;
+            }
             try {
                 $found = $this->returnLoadsFor($trip, onlyNew: true, limit: 10);
                 $rows = $found['system']->map(fn (Load $l) => ['kind' => 'system', 'id' => $l->id, 'line' => $this->lineForLoad($l)])

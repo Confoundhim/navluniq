@@ -253,7 +253,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
        masaüstünde sağ sütunda sağa yaslı. Büyük yazıda bile yan yana sıkışmaz. */
     .load-card-side:has(.load-card-phones) { @apply flex-col items-stretch gap-2 sm:items-end; }
     .load-card-phones { @apply flex w-full flex-col gap-1.5 sm:w-auto sm:items-end; }
-    .load-card-phone { @apply flex items-center justify-between gap-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 sm:border-0 sm:bg-transparent dark:sm:bg-transparent sm:px-0 sm:py-0; }
+    .load-card-phone { @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 sm:border-0 sm:bg-transparent dark:sm:bg-transparent sm:px-0 sm:py-0; }
     .load-card-wa { @apply inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 whitespace-nowrap; }
 }
 

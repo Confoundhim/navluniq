@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Sistem ilanlarında premium önceliği: ilan yayınlanınca premium şoförlere anında bildirim gider;
- * bekleme süresi dolunca ilan herkese açılır, ücretsiz şoförlere bildirim gider ve Telegram kanalına düşer.
+ * bekleme süresi dolunca ilan herkese açılır (standart üyeye bildirim gitmez, panelde görür) ve Telegram kanalına düşer.
  * Dış kaynak ilanlar Telegram'a gönderilmez.
  */
 class LoadReleaseService
@@ -59,7 +59,7 @@ class LoadReleaseService
     private function release(Load $load): void
     {
         $load->forceFill(['released_at' => now(), 'available_to_free_at' => $load->available_to_free_at ?? now()])->save();
-        $this->notifyDrivers($load, premium: false);
+        // Osman (2026-10-06): standart üyeye bildirim gitmez; ilan paneline düşer, kendisi takip eder. Telegram bu anda paylaşılır.
         $this->postToTelegram($load);
     }
 

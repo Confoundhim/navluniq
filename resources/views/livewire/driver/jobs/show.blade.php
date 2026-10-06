@@ -42,9 +42,12 @@ class extends Component {
 
     private function ownedLoadQuery()
     {
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+
+        // Vazgeçilen / ödemesi gelmeyen işte ilan şoförden alınır (driver_profile_id boşalır); geçmiş sekmesindeki "Ayrıntı" yine açılsın.
         return Load::query()
-            ->where('driver_profile_id', Auth::user()->driverProfile?->id ?? 0)
-            ->whereKey($this->loadId);
+            ->whereKey($this->loadId)
+            ->where(fn ($q) => $q->where('driver_profile_id', $profileId)->orWhereHas('shipment', fn ($s) => $s->where('driver_profile_id', $profileId)));
     }
 
     private function ownedShipment(): ?Shipment
@@ -389,7 +392,10 @@ class extends Component {
                                     this.enabled = true;
                                     this.watchId = navigator.geolocation.watchPosition(
                                         (position) => this.onPosition(position),
-                                        (err) => { this.error = 'Konum alınamadı: ' + err.message; },
+                                        (err) => {
+                                            if (err.code === 1) { this.stop(); this.error = 'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açıp paylaşımı yeniden başlatın.'; return; }
+                                            this.error = 'Konum alınamadı: ' + err.message;
+                                        },
                                         { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
                                     );
                                 },
@@ -411,7 +417,10 @@ class extends Component {
                                         body: JSON.stringify({ lat: c.latitude, lng: c.longitude, speed: num(c.speed), heading: num(c.heading), accuracy: num(c.accuracy), shipment_id: this.shipmentId })
                                     }).then((response) => {
                                         if (!response.ok) throw new Error('Sunucu yanıtı ' + response.status);
-                                        this.lastSentLabel = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                        return response.json();
+                                    }).then((data) => {
+                                        if (data && data.recorded === false) { this.error = 'Konum kaydedilmedi: sevkiyat şu an yolda görünmüyor.'; return; }
+                                        this.lastSentLabel = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
                                         this.error = null;
                                         this.updateMarker(c.latitude, c.longitude);
                                     }).catch((e) => { this.error = 'Konum gönderilemedi: ' + e.message; });

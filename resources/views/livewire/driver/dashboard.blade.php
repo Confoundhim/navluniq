@@ -40,9 +40,12 @@ class extends Component {
     private function currentSignature(): string
     {
         $profileId = Auth::user()->driverProfile?->id ?? 0;
+        // İmza yalnız bu şoförün gördüğü 8+8 ilana bakar: canlıda dakikada onlarca dış kaynak ilanı gelirken tüm tablonun
+        // max(id)'si her 15 sn'de değişiyor ve liste parmağın altından kayıyordu.
+        [$systemQ, $externalQ] = $this->matchedQueries();
         $parts = [
-            ScrapedLoad::query()->where('visibility', 'public')->max('id'),
-            Load::query()->where('status', Load::STATUS_ACTIVE)->where('visibility', 'public')->max('id'),
+            $systemQ ? $systemQ->pluck('id')->implode(',') : '',
+            $externalQ ? $externalQ->pluck('id')->implode(',') : '',
             Load::query()->where('driver_profile_id', $profileId)->max('updated_at'),
             DriverTrip::query()->where('driver_profile_id', $profileId)->max('updated_at'),
             DriverTrip::query()->where('driver_profile_id', $profileId)->open()->count(),
@@ -55,6 +58,13 @@ class extends Component {
 
     public function tick(): void
     {
+        // Kullanıcı ekranla uğraşırken (dokunma, kaydırma) süreli yenileme çizilmez; $refresh dışındaki poll'lar için kancanın karşılığı.
+        $idle = request()->header('X-User-Idle-Ms');
+        if ($idle !== null && is_numeric($idle) && (int) $idle < \App\Livewire\PausePollWhileInteracting::IDLE_MS) {
+            $this->skipRender();
+
+            return;
+        }
         $signature = $this->currentSignature();
         if ($this->pollSignature === $signature) {
             $this->skipRender();
@@ -62,6 +72,31 @@ class extends Component {
             return;
         }
         $this->pollSignature = $signature;
+    }
+
+    /**
+     * "Size uygun ilanlar" sorguları (sistem + premium ise dış kaynak); imza ve liste aynı sorguyu kullanır.
+     *
+     * @return array{0: ?\Illuminate\Database\Eloquent\Builder, 1: ?\Illuminate\Database\Eloquent\Builder}
+     */
+    private function matchedQueries(): array
+    {
+        $user = Auth::user();
+        $profile = $user->driverProfile;
+        if (! $profile || $profile->kyc_status !== 'approved') {
+            return [null, null];
+        }
+        $preset = DriverFilterPreset::query()->where('driver_profile_id', $profile->id)->where('is_default', true)->first();
+        $filters = LoadFilterService::normalize($preset?->filters ?? []);
+        $filterSvc = app(LoadFilterService::class);
+        $system = Load::query()->with('cargoOwnerProfile.user')->offerableBy($profile)
+            ->tap(fn ($q) => $filterSvc->applyToLoads($q, $filters, $profile))->take(8);
+        $external = $profile->isPremium()
+            ? ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->complete()
+                ->tap(fn ($q) => $filterSvc->applyToScraped($q, $filters, $profile))->take(8)
+            : null;
+
+        return [$system, $external];
     }
 
     public function with(): array
@@ -83,24 +118,9 @@ class extends Component {
         $vehicle = $profile?->activeVehicle()->first();
         $canSeePool = $profile && $profile->kyc_status === 'approved';
 
-        $systemLoads = collect();
-        $externalLoads = collect();
-        if ($canSeePool) {
-            $systemLoads = Load::query()
-                ->with('cargoOwnerProfile.user')
-                ->where('status', Load::STATUS_ACTIVE)
-                ->where('visibility', 'public')
-                ->where(fn ($q) => $q->whereNull('cargo_owner_profile_id')->orWhereHas('cargoOwnerProfile', fn ($o) => $o->where('user_id', '!=', $user->id)))
-                ->openTo($profile)
-                ->tap(fn ($q) => $filterSvc->applyToLoads($q, $filters, $profile))
-                ->take(8)->get();
-            if ($profile->isPremium()) {
-                $externalLoads = ScrapedLoad::query()
-                    ->where('status', 'parsed_success')->where('visibility', 'public')->complete()
-                    ->tap(fn ($q) => $filterSvc->applyToScraped($q, $filters, $profile))
-                    ->take(8)->get();
-            }
-        }
+        [$systemQ, $externalQ] = $this->matchedQueries();
+        $systemLoads = $systemQ ? $systemQ->get() : collect();
+        $externalLoads = $externalQ ? $externalQ->get() : collect();
         $matchedLoads = $systemLoads->map(fn ($l) => ['kind' => 'system', 'at' => $l->published_at ?? $l->created_at, 'load' => $l])
             ->concat($externalLoads->map(fn ($l) => ['kind' => 'external', 'at' => $l->last_seen_at ?? $l->created_at, 'load' => $l]))
             ->sortByDesc('at')->take(8)->values();
