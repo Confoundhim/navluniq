@@ -3,6 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Faq;
+use App\Services\LoadReleaseService;
+use App\Services\SubscriptionService;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,9 @@ class FaqSeeder extends Seeder
         $autoApprovalHours = max(1, Settings::int('delivery_auto_approval_hours'));
         $offerDays = max(1, Settings::int('offer_validity_days'));
         $premiumPrice = number_format(Settings::float('premium_monthly_price'), 0, ',', '.');
+        $lead = app(LoadReleaseService::class)->delayMinutes();
+        $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
+        $trialDays = app(SubscriptionService::class)->trialDays();
 
         $ownerFeeText = $ownerRate > 0
             ? 'Yük sahiplerine navlun bedeli üzerinden %'.self::percent($ownerRate).' hizmet bedeli yansıtılır.'
@@ -44,12 +49,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Kısaca: yeni ilanları herkesten 20 dakika önce görürsünüz ve anında bildirim alırsınız. Yük sahiplerinin açtığı sistem ilanları önce premium üyelere açılır; standart üyelere ve Telegram kanalına 20 dakika sonra düşer. Onaylı dış kaynak ilanları ise ilan sahibinin telefon numarasıyla birlikte yalnız premium üyelere gösterilir. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur ve platform hizmet bedeli premium ile değişmez.',
+                'answer' => 'Üç şey: gruplardan derlenen ilanların tamamını ilan sahibinin numarasıyla görürsünüz (standart üyeye bu ilanlar hiç görünmez); yük sahiplerinin NavlunIQ ilanlarını herkesten '.$leadText.' önce görürsünüz; aracınıza uygun ilan ve dönüş yükü çıktığında anında bildirim alırsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur, otomatik yenilenmez ve platform hizmet bedeli premium ile değişmez.'.($trialDays > 0 ? ' Belgeleri onaylanan her şoföre bir kez '.$trialDays.' günlük ücretsiz deneme tanımlanır; kart bilgisi istenmez, süre sonunda ücret alınmaz.' : ''),
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni sistem ilanları ücretsiz hesaba premium üyelerden 20 dakika sonra açılır ve ücretsiz hesaba bildirim gönderilmez (ilanlar panelde görünür, siz takip edersiniz); dış kaynak ilanları ve dönüş yükü bildirimleri ise yalnız premium üyelere açıktır. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
+                'answer' => 'Ücretsiz hesap NavlunIQ ilanlarını görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Farklar: gruplardan derlenen ilanlar yalnız premium üyelere açıktır; yeni NavlunIQ ilanları ücretsiz hesaba premium üyelerden '.$leadText.' sonra açılır; ücretsiz hesaba bildirim gönderilmez, ilanlar ve dönüş yükleri panelde görünür, siz takip edersiniz. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır.',
             ],
             [
                 'order_num' => 6,

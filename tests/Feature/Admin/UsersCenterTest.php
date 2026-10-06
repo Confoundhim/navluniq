@@ -59,7 +59,9 @@ class UsersCenterTest extends TestCase
         $this->assertSame('approved', $profile->kyc_status);
         $this->assertSame($this->admin->id, $profile->kyc_verified_by);
         $this->assertSame('approved', KycDocument::where('user_id', $this->driver->id)->first()->status);
-        $this->assertSame('Belge doğrulamanız tamamlandı', UserNotification::where('user_id', $this->driver->id)->latest('id')->first()->title);
+        $titles = UserNotification::where('user_id', $this->driver->id)->pluck('title')->all();
+        $this->assertContains('Belge doğrulamanız tamamlandı', $titles);
+        $this->assertContains('7 günlük premium deneme süreniz başladı', $titles, 'Onayla birlikte ücretsiz deneme kendiliğinden başlar');
 
         Volt::test('admin.users-center')->call('approveKyc', $this->owner->id, 'cargo_owner');
         $this->assertSame('approved', $this->owner->cargoOwnerProfile->fresh()->kyc_status, 'Belge yüklenmemiş olsa da yönetici onaylayabilir');

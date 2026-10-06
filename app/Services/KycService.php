@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -159,6 +160,19 @@ class KycService
         $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
             ['Belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzunu görebilir ve yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
             route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
+        if ($isDriver) {
+            $this->startTrialQuietly($user);
+        }
+    }
+
+    /** Belgeleri onaylanan şoföre bir kez ücretsiz premium deneme; deneme kapalıysa ya da daha önce kullanıldıysa sessizce geçer. */
+    private function startTrialQuietly(User $user): void
+    {
+        try {
+            app(SubscriptionService::class)->startTrial($user->fresh(), automatic: true);
+        } catch (\Throwable $e) {
+            Log::warning('Ücretsiz premium deneme başlatılamadı.', ['user' => $user->id, 'error' => $e->getMessage()]);
+        }
     }
 
     /** Onayı geri alır: belgeler varsa "inceleniyor", yoksa "gönderilmedi". */
@@ -224,6 +238,9 @@ class KycService
             $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
                 ['Tüm belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzundaki yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
                 route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
+            if ($isDriver) {
+                $this->startTrialQuietly($user);
+            }
         }
     }
 }

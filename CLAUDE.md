@@ -540,6 +540,16 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   (`LoadService::repeat(..., ?Carbon)`, gizli alanları taşır). Teklif kartı: "Kabul edersen ödeyeceğin toplam" (`PaymentService::amountsFor`),
   şoförün tamamlanmış sevkiyat sayısı + son 2 yorum; ödeme sayfasında "Son ödeme" saati (`payment_due_at`), iyzico bandı yalnız ödenebilirken.
   Testler `LoadPrivacyAndEditTest`, `OfferCardInfoTest`, `JobPrivateDetailsTest`.
+- **Ücretsiz premium deneme ve üyelik sayfası (2026-10-06, Osman: "7 gün ücretsiz deneme, tüm üyelik alan şoförlere tek seferlik"):**
+  ayar `premium_trial_days` (varsayılan 7, 0 kapalı; Ayarlar → Komisyon ve limitler). `SubscriptionService::startTrial` belge onayında
+  kendiliğinden (`KycService::startTrialQuietly`, iki onay yolunda) ya da Premium sayfası düğmesiyle; `trialEligible`: deneme açık + KYC
+  onaylı + şu an premium değil + `driver_profiles.trial_started_at` boş + daha önce deneme/ücretli dönem yok (bir kez, `0001_01_58`).
+  Abonelik satırı `plan_code=premium_trial`, 0 ₺, `trial_ends_at`; `expireDue` ve `remindExpiring` denemede "ücret alınmadı / alınmaz"
+  metni; `activeTrialEndsAt` (ücretli dönem de varsa null). Sözleşmelerde `{{PREMIUM_TRIAL_DAYS}}` (MSS 2.1, İade 3.2; `ZERO_ALLOWED`).
+  **Plan kartları tek bileşen** `components/plan-cards` (ana sayfa #abonelik + /abonelik): telefonda premium üstte, "Son 7 günde N grup
+  ilanı" canlı sayaç (`LoadStatsService external_7d`), "Günde ≈ 30 ₺", ücretsiz kartta kısıtlar gri çizgiyle ve yumuşak dille ("panelinize
+  düşer, bildirim gelmez"); "Tüm ilanları görün" yazılmaz (standart grup ilanı görmez). Karşılaştırma tablosu telefonda satır kartları.
+  SSS 4/5 ve hoş geldin bildirimi aynı kuralla. Test `PremiumTrialTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

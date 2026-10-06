@@ -6,23 +6,29 @@
     $priceText = number_format($monthlyPrice, 0, ',', '.');
     $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes(); // panel ayarı: ücretsiz üyelere açılma gecikmesi
     $leadText = $lead > 0 ? "{$lead} dakika" : 'aynı anda';
+    $trialDays = app(\App\Services\SubscriptionService::class)->trialDays(); // panel ayarı: ücretsiz deneme (0 kapalı)
+    $stats = app(\App\Services\LoadStatsService::class)->summary();
+    $weekLoads = (int) ($stats['external_7d'] ?? 0);
+    $isDriver = auth()->user()?->driverProfile !== null;
+    $premiumHref = $isDriver ? route('driver.premium.index') : route('register.driver');
 
     $check = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
 
-    $comparison = [
-        ['Yük sahiplerinin sistem ilanları', $lead > 0 ? "{$lead} dakika sonra" : 'Yayınlandığı anda', 'Yayınlandığı anda'],
-        ['Yeni ilan bildirimi', 'Yok (ilan panelde görünür)', 'Anında, uygulama içi + e-posta'],
-        ['Dönüş yükü bildirimi', 'Yok (İşlerim sayfasında görünür)', 'Var'],
+    $comparison = array_values(array_filter([
+        ['Gruplardan derlenen ilanlar (numarasıyla)', 'Görünmez', 'Tamamı'],
+        ['Yük sahiplerinin NavlunIQ ilanları', $lead > 0 ? "{$lead} dakika sonra" : 'Yayınlandığı anda', 'Yayınlandığı anda'],
+        ['Yeni ilan bildirimi', 'Panele düşer, bildirim gelmez', 'Anında, uygulama içi + e-posta'],
+        ['Dönüş yükü radarı', 'İşlerim sayfasında görünür, bildirim gelmez', 'Bildirimle'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
-        ['Onaylı dış kaynak ilanları', 'Görünmez', 'Tamamı, ilan sahibinin numarasıyla'],
-        ['Telegram kanalı (sistem ilanları)', 'Herkese açık', 'Herkese açık'],
         ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
-    ];
+        $trialDays > 0 ? ['Ücretsiz deneme', '—', "{$trialDays} gün, bir kez, kart gerekmez"] : null,
+        ['Aylık ücret', '0 ₺', "{$priceText} ₺ (KDV dahil), otomatik yenilenmez"],
+    ]));
 @endphp
 
-<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ" description="NavlunIQ Premium: sistem ilanlarına erken erişim, gruplardan derlenen dış kaynak ilanları ve dönüş yükü bildirimleri.">
+<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ" description="NavlunIQ Premium: gruplardan derlenen ilanlar numarasıyla, NavlunIQ ilanlarına erken erişim, anında bildirim ve dönüş yükü radarı. Ücretsiz deneme ile başlayın.">
     <div class="max-w-6xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in">
 
         <!-- Giriş -->
@@ -32,90 +38,32 @@
                 Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Teklif vermek her zaman ücretsizdir. Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeler aynı ilanları {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panellerinde görür, bildirim almaz.
+                Gruplarda saatlerce kaydırmak yerine temiz ilan kartları, ilan sahibinin numarası ve size uyan yük çıkınca bildirim.
+                Teklif vermek her zaman ücretsizdir; Premium, yükü ilk gören olmanızı sağlar.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+                @if($trialDays > 0)
+                    <span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">{{ $trialDays }} gün ücretsiz</span>
+                    <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Kart gerekmez</span>
+                @endif
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
-                <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Aylık dönem</span>
+                <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Otomatik yenilenmez</span>
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">KDV dahil fatura</span>
             </div>
         </section>
 
-        <!-- Plan kartları -->
-        <section class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto items-stretch">
-            <div class="apple-glass rounded-3xl p-8 shadow-apple-sm flex flex-col gap-6">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">STANDART</span>
-                        <span class="w-9 h-9 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-300 flex items-center justify-center">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        </span>
-                    </div>
-                    <h2 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h2>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Platforma yeni katılan ve yükünü kendi hızında bulmak isteyen şoförler için.</p>
-                    <div class="pt-2 flex items-baseline gap-1.5">
-                        <span class="text-4xl font-black text-neutral-900 dark:text-white tabular-nums">0 ₺</span>
-                        <span class="text-xs text-neutral-400">/ süresiz</span>
-                    </div>
-                </div>
-                <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panelde görünür (bildirim yok)</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Dış kaynak ilanları görünmez</span></li>
-                </ul>
-                <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
-            </div>
-
-            <div class="relative rounded-3xl p-[2px] bg-gradient-to-b from-brand-500 via-brand-500/60 to-brand-500/20 shadow-apple-lg">
-                <div class="h-full rounded-[22px] bg-white dark:bg-neutral-900 p-8 flex flex-col gap-6">
-                    <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-md shadow-brand-500/30">ÖNERİLEN</div>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PREMIUM</span>
-                            <span class="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                            </span>
-                        </div>
-                        <h2 class="text-2xl font-black text-neutral-900 dark:text-white">Premium Şoför Üyeliği</h2>
-                        <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Düzenli sefer yapan ve her ay daha fazla yük taşımak isteyen profesyoneller için.</p>
-                        <div class="pt-2 flex items-baseline gap-1.5">
-                            <span class="text-4xl font-black text-brand-500 tabular-nums">{{ $priceText }} ₺</span>
-                            <span class="text-xs text-neutral-400">/ ay, KDV dahil</span>
-                        </div>
-                    </div>
-                    <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni ilanları herkesten {{ $leadText }} önce görün</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görün (yalnız premium)</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
-                    </ul>
-                    <div class="space-y-2">
-                        @auth
-                            <a href="{{ route('driver.premium.index') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Premium Sayfasına Git</a>
-                        @else
-                            <a href="{{ route('register.driver') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Şoför Olarak Kaydol</a>
-                        @endauth
-                        <p class="text-[11px] text-center text-neutral-400">
-                            @if($paymentReady)
-                                Premium, şoför panelinizdeki Premium sayfasından etkinleştirilir.
-                            @else
-                                Ödeme altyapısı aktivasyon aşamasında; satın alma yakında panelinizden açılacak.
-                            @endif
-                        </p>
-                    </div>
-                </div>
-            </div>
+        <!-- Plan kartları (ana sayfa ile ortak bileşen) -->
+        <section>
+            <x-plan-cards />
         </section>
 
         <!-- Erken erişim ne demek -->
         <section class="max-w-4xl mx-auto">
             <div class="apple-glass rounded-3xl p-6 md:p-8 shadow-apple-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                 <div class="md:col-span-2 space-y-2">
-                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $leadText }} neden fark yaratır?</h3>
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $lead > 0 ? $leadText.' neden fark yaratır?' : 'Bildirim neden fark yaratır?' }}</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler ve Telegram kanalı aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür; standart üyeye bildirim gitmez, ilanı panelinde kendisi takip eder. Dış kaynak ilanları ise yalnız premium üyelere açıktır; standart üyeler bu ilanları hiç görmez. Platform hizmet bedeli iki planda da aynıdır; premium ücretin karşılığı yalnız bu öncelik ve bildirimdir.
+                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panellerinde görür, bildirim almaz. Gruplardan derlenen ilanlar ise yalnız premium üyelere açıktır.@if($weekLoads > 0) Son 7 günde {{ number_format($weekLoads, 0, ',', '.') }} grup ilanı derlendi; bunların hiçbiri standart üyeye görünmez.@endif Platform hizmet bedeli iki planda da aynıdır.
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">
@@ -140,7 +88,25 @@
                 <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-neutral-950 dark:text-white">Neyi, ne zaman görürsünüz?</h2>
             </div>
             <div class="apple-glass rounded-3xl shadow-apple-sm overflow-hidden">
-                <div class="overflow-x-auto">
+                {{-- Telefonda satır satır kart (yatay kaydırma yok); geniş ekranda tablo --}}
+                <div class="sm:hidden divide-y divide-neutral-100 dark:divide-neutral-800">
+                    @foreach($comparison as [$feature, $standard, $premium])
+                        <div class="px-5 py-3.5 space-y-2 text-xs">
+                            <div class="text-neutral-800 dark:text-neutral-100 font-bold">{{ $feature }}</div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="rounded-xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-2.5">
+                                    <div class="text-3xs font-bold uppercase tracking-wider text-neutral-400">Standart</div>
+                                    <div class="text-neutral-600 dark:text-neutral-300 mt-0.5 leading-snug">{{ $standard }}</div>
+                                </div>
+                                <div class="rounded-xl bg-brand-500/5 border border-brand-500/20 p-2.5">
+                                    <div class="text-3xs font-bold uppercase tracking-wider text-brand-500">Premium</div>
+                                    <div class="text-neutral-900 dark:text-white font-semibold mt-0.5 leading-snug">{{ $premium }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                <div class="hidden sm:block overflow-x-auto">
                     <table class="w-full text-xs min-w-[560px]">
                         <thead>
                             <tr class="border-b border-neutral-200 dark:border-neutral-800">
@@ -182,15 +148,21 @@
                     <div class="w-11 h-11 rounded-2xl bg-brand-500 text-white shadow-lg shadow-brand-500/30 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                     </div>
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">2. Premium'u etkinleştirin</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Şoför panelinizdeki Premium sayfasından aylık üyeliğinizi başlatın. Kart bilgileriniz NavlunIQ'da saklanmaz, faturanız panelinizde görünür.</p>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">2. {{ $trialDays > 0 ? $trialDays.' gün ücretsiz deneyin' : "Premium'u etkinleştirin" }}</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                        @if($trialDays > 0)
+                            Belgeleriniz onaylandığı anda {{ $trialDays }} günlük premium deneme kendiliğinden başlar; kart bilgisi istenmez. Süre bitince ücret alınmaz, hesabınız standart üyeliğe döner.
+                        @else
+                            Şoför panelinizdeki Premium sayfasından aylık üyeliğinizi başlatın. Kart bilgileriniz NavlunIQ'da saklanmaz, faturanız panelinizde görünür.
+                        @endif
+                    </p>
                 </div>
                 <div class="apple-glass rounded-3xl p-7 space-y-3 shadow-apple-sm">
                     <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" d="M7 14h4"/></svg>
                     </div>
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. İlanları ilk siz görün</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Üyeliğiniz süresince yeni sistem ilanları panelinize anında, bildirimle düşer; onaylı dış kaynak ilanları da yalnız size açılır. Dönem bittiğinde hesabınız kendiliğinden standarda döner.</p>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. {{ $trialDays > 0 ? 'Beğenirseniz aylık devam edin' : 'İlanları ilk siz görün' }}</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">{{ $trialDays > 0 ? 'Deneme bitince Premium sayfasından aylık üyeliği başlatırsınız: '.$priceText.' ₺, KDV dahil, otomatik yenilenmez. Kart bilgileriniz NavlunIQ\'da saklanmaz, faturanız panelinizde görünür.' : 'Üyeliğiniz süresince yeni NavlunIQ ilanları panelinize anında, bildirimle düşer; gruplardan derlenen ilanlar da yalnız size açılır. Dönem bittiğinde hesabınız kendiliğinden standarda döner.' }}</p>
                 </div>
             </div>
         </section>
@@ -202,13 +174,19 @@
                 <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-neutral-950 dark:text-white">Üyelik hakkında kısa cevaplar</h2>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @if($trialDays > 0)
+                    <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
+                        <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Ücretsiz deneme nasıl işler?</h3>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Belgeleri onaylanan her şoföre bir kez {{ $trialDays }} günlük premium tanımlanır; kart bilgisi istenmez. Süre bitince hiçbir ücret alınmaz, hesabınız standart üyeliğe döner. Devam etmek isterseniz Premium sayfasından aylık üyelik başlatırsınız.</p>
+                    </div>
+                @endif
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Üyelik otomatik yenilenir mi?</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Hayır. Premium aylık dönemler halinde satın alınır. Dönem sonunda uzatmazsanız hesabınız standart plana döner; hiçbir şey kaybetmezsiniz.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Dış kaynak ilanları nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli gruplardan derlenip ekibimizce onaylanan ilanlardır; ilan çeşitliliğini artırır ve yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız sistem ilanlarında geçerlidir.</p>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Gruplardan derlenen ilanlar nedir?</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan sahibinin numarası kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>
@@ -234,10 +212,10 @@
                 <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-brand-500/20 blur-3xl"></div>
                 <div class="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-brand-500/10 blur-3xl"></div>
                 <div class="relative space-y-4">
-                    <h2 class="text-2xl sm:text-3xl font-black tracking-tight">Ücretsiz başlayın, hazır olduğunuzda Premium'a geçin.</h2>
-                    <p class="text-sm text-neutral-300 max-w-xl mx-auto leading-relaxed">Kayıt ve evrak onayı ücretsizdir. Premium'a ne zaman geçeceğinize siz karar verirsiniz.</p>
+                    <h2 class="text-2xl sm:text-3xl font-black tracking-tight">{{ $trialDays > 0 ? "Premium'u {$trialDays} gün ücretsiz deneyin." : "Ücretsiz başlayın, hazır olduğunuzda Premium'a geçin." }}</h2>
+                    <p class="text-sm text-neutral-300 max-w-xl mx-auto leading-relaxed">{{ $trialDays > 0 ? 'Kayıt ve belge onayı ücretsizdir; onaylanınca deneme kendiliğinden başlar, kart gerekmez. Devam edip etmemek size kalır.' : "Kayıt ve evrak onayı ücretsizdir. Premium'a ne zaman geçeceğinize siz karar verirsiniz." }}</p>
                     <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-                        <a href="{{ route('register.driver') }}" class="btn-apple-brand w-full sm:w-auto px-8 py-3.5 text-xs font-bold">Şoför Olarak Kaydol</a>
+                        <a href="{{ $premiumHref }}" class="btn-apple-brand w-full sm:w-auto px-8 py-3.5 text-xs font-bold">{{ $trialDays > 0 ? $trialDays.' gün ücretsiz dene' : 'Şoför Olarak Kaydol' }}</a>
                         <a href="{{ route('contact') }}" class="btn-apple-secondary w-full sm:w-auto px-8 py-3.5 text-xs font-bold">Bize Ulaşın</a>
                     </div>
                 </div>

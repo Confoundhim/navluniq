@@ -264,14 +264,21 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
                 <h3 class="section-title">Premium</h3>
-                @if($profile?->isPremium())
+                @php $subs = app(\App\Services\SubscriptionService::class); $trialEnds = $subs->activeTrialEndsAt(auth()->user()); $trialOffer = $subs->trialEligible($profile); @endphp
+                @if($trialEnds)
+                    <div class="text-emerald-600 dark:text-emerald-400 font-bold">Ücretsiz deneme sürüyor</div>
+                    <div class="text-neutral-500 dark:text-neutral-400">{{ $trialEnds->format('d.m.Y H:i') }} tarihine kadar; ücret alınmaz.</div>
+                @elseif($profile?->isPremium())
                     <div class="text-emerald-600 dark:text-emerald-400 font-bold">Aktif</div>
                     <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->premium_until->format('d.m.Y H:i') }} tarihine kadar geçerli.</div>
+                @elseif($trialOffer)
+                    <div class="text-neutral-900 dark:text-white font-bold">{{ $subs->trialDays() }} gün ücretsiz deneyin</div>
+                    <div class="text-neutral-500 dark:text-neutral-400">Kart gerekmez; grup ilanları ve erken erişim hemen açılır.</div>
                 @else
                     <div class="text-neutral-700 dark:text-neutral-300 font-bold">Pasif</div>
                     <div class="text-neutral-500 dark:text-neutral-400">Komisyon oranınız: %{{ number_format($profile?->commissionRate() ?? 0, 1, ',', '.') }}</div>
                 @endif
-                <a href="{{ route('driver.premium.index') }}" wire:navigate class="inline-block text-brand-400 font-bold hover:underline">Premium ayrıntıları</a>
+                <a href="{{ route('driver.premium.index') }}" wire:navigate class="inline-block text-brand-400 font-bold hover:underline">{{ $trialOffer ? 'Denemeyi başlat' : 'Premium ayrıntıları' }}</a>
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">

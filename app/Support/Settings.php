@@ -20,6 +20,7 @@ final class Settings
         'offer_payment_hours' => 24,            // Teklif kabulünden sonra yük sahibinin ödeme süresi (saat); dolunca ilan yeniden havuza döner
         'load_expiry_grace_days' => 1,          // Yükleme tarihi bu kadar gün geçmiş, hâlâ teklif bekleyen ilan kapatılır
         'premium_monthly_price' => 900.0,       // Premium abonelik aylık ücreti (₺)
+        'premium_trial_days' => 7,              // Belgeleri onaylanan her şoföre bir kez ücretsiz premium deneme (gün; 0 kapalı)
         'min_load_price' => 500.0,              // İlan için asgari navlun bedeli (₺)
         'cargo_owner_verification_required' => 1, // 1: bireysel yük sahibi ilk teklif kabulünde kimliğini NVİ ile bir kez doğrular; kurumsalda vergi numarası yeter (karar 3, 2026-10-05)
         'return_load_radius_km' => 150,         // Dönüş yükü: varış noktasına bu kadar km içinden çıkan ilanlar bildirilir (aynı il her zaman)

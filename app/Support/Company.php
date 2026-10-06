@@ -94,10 +94,11 @@ final class Company
         '{{OFFER_PAYMENT_HOURS}}' => 'offer_payment_hours',
         '{{PREMIUM_LEAD_MINUTES}}' => 'scraper_free_delay_minutes',
         '{{EXTERNAL_LIST_DAYS}}' => 'scraper_list_days',
+        '{{PREMIUM_TRIAL_DAYS}}' => 'premium_trial_days',
     ];
 
     /** Sıfır değeri anlamlı olan süre yer tutucuları (gecikme 0 dk = ilan herkese aynı anda açılır); diğerleri en az 1 gösterir. */
-    public const ZERO_ALLOWED_TOKENS = ['{{PREMIUM_LEAD_MINUTES}}'];
+    public const ZERO_ALLOWED_TOKENS = ['{{PREMIUM_LEAD_MINUTES}}', '{{PREMIUM_TRIAL_DAYS}}'];
 
     /** Sözleşme metnindeki {{COMPANY_*}} ve süre ({{AUTO_APPROVAL_HOURS}}, {{PREMIUM_LEAD_MINUTES}} vb.) yer tutucularını güncel değerlerle doldurur (HTML kaçışlı). */
     public static function fillTokens(?string $html): string
