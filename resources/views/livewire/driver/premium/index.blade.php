@@ -2,6 +2,7 @@
 
 use App\Models\Invoice;
 use App\Services\PaymentService;
+use App\Services\SubscriptionService;
 use App\Support\Settings;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -25,15 +26,38 @@ class extends Component {
         session()->flash('success_message', $prefs['notify_new_loads'] ? 'Yeni ilan e-postaları açıldı.' : 'Yeni ilan e-postaları kapatıldı; uygulama içi bildirimler devam eder.');
     }
 
+    /** Ücretsiz denemeyi başlat (bir kez; belgeleri onaylı şoför). */
+    public function startTrial(SubscriptionService $subscriptions): void
+    {
+        $user = Auth::user();
+        if ($user->driverProfile?->is_staff_view) {
+            session()->flash('error_message', 'Yönetici görünümünde işlem yapılamaz.');
+
+            return;
+        }
+        $subscription = $subscriptions->startTrial($user);
+        if ($subscription) {
+            session()->flash('success_message', $subscriptions->trialDays().' günlük ücretsiz premium deneme süreniz başladı.');
+            $this->redirect(route('driver.loads.index', ['tab' => 'external']), navigate: true);
+
+            return;
+        }
+        session()->flash('error_message', 'Deneme süresi başlatılamadı: belgeleriniz onaylı değil ya da deneme hakkınızı daha önce kullandınız.');
+    }
+
     public function with(): array
     {
         $user = Auth::user();
         $profile = $user->driverProfile;
+        $subscriptions = app(SubscriptionService::class);
 
         return [
             'profile' => $profile,
             'isPremium' => $profile?->isPremium() ?? false,
             'premiumUntil' => $profile?->premium_until,
+            'trialDays' => $subscriptions->trialDays(),
+            'trialEligible' => $subscriptions->trialEligible($profile),
+            'trialEndsAt' => $subscriptions->activeTrialEndsAt($user),
             'loadMail' => $profile ? \App\Services\LoadReleaseService::wantsLoadMail($profile) : true,
             'monthlyPrice' => Settings::float('premium_monthly_price'),
             'standardRate' => Settings::float('commission_standard_driver'),
@@ -51,7 +75,7 @@ class extends Component {
     @endphp
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyeler yeni ilanları herkesten {{ $leadText }} önce görür, anında bildirim alır ve yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görür.</p>
+        <p class="page-subtitle">Premium üyeler gruplardan derlenen ilanları ilan sahibinin numarasıyla görür, yeni NavlunIQ ilanlarını herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeye bildirim gitmez, grup ilanları görünmez.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -62,10 +86,12 @@ class extends Component {
                     <div>
                         <h3 class="section-title">Üyelik durumu</h3>
                         <div class="mt-1 text-base font-bold {{ $isPremium ? 'text-amber-700 dark:text-amber-300' : 'text-neutral-900 dark:text-white' }}">
-                            {{ $isPremium ? 'Premium aktif' : 'Standart üyelik' }}
+                            {{ $isPremium ? ($trialEndsAt ? 'Premium aktif · ücretsiz deneme' : 'Premium aktif') : 'Standart üyelik' }}
                         </div>
                         <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                            @if($isPremium)
+                            @if($trialEndsAt)
+                                Deneme süreniz {{ $trialEndsAt->format('d.m.Y H:i') }} tarihine kadar; ücret alınmaz, sonra isterseniz aylık devam edersiniz.
+                            @elseif($isPremium)
                                 {{ $premiumUntil->format('d.m.Y H:i') }} tarihine kadar geçerli.
                             @elseif($premiumUntil)
                                 Premium üyeliğiniz {{ $premiumUntil->format('d.m.Y H:i') }} tarihinde sona erdi.
@@ -80,6 +106,20 @@ class extends Component {
                     </div>
                 </div>
 
+                @if($trialEligible)
+                    <div class="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 space-y-3">
+                        <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $trialDays }} gün ücretsiz deneyin</div>
+                        <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">Premium'un tamamı {{ $trialDays }} gün boyunca ücretsiz: gruplardan derlenen ilanlar numarasıyla, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı. Kart bilgisi istenmez; süre bitince ücret alınmaz, hesabınız kendiliğinden standart üyeliğe döner.</p>
+                        <button type="button" wire:click="startTrial" wire:loading.attr="disabled" class="btn-primary text-sm px-6 py-3">
+                            <span wire:loading.remove wire:target="startTrial">{{ $trialDays }} günlük denemeyi başlat</span>
+                            <span wire:loading wire:target="startTrial">Başlatılıyor…</span>
+                        </button>
+                    </div>
+                @elseif($trialDays > 0 && ! ($profile?->isKycApproved() ?? false) && ! $isPremium && ! $profile?->trial_started_at)
+                    <div class="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                        Belgeleriniz onaylandığında {{ $trialDays }} günlük ücretsiz premium deneme kendiliğinden başlar; kart gerekmez.
+                    </div>
+                @endif
                 @if(! $paymentReady)
                     <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs leading-relaxed">
                         Ödeme altyapısı aktivasyon aşamasında; premium satın alma yakında. Altyapı devreye alındığında bu sayfadan abonelik başlatabileceksiniz.
@@ -90,7 +130,7 @@ class extends Component {
                     </div>
                 @else
                     <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <a href="{{ route('driver.premium.checkout') }}" wire:navigate class="btn-primary text-sm px-6 py-3 text-center">{{ $isPremium ? '1 ay daha uzat' : 'Premium\'u başlat' }} · {{ number_format($monthlyPrice, 2, ',', '.') }} ₺</a>
+                        <a href="{{ route('driver.premium.checkout') }}" wire:navigate class="btn-primary text-sm px-6 py-3 text-center">{{ $trialEndsAt ? 'Denemeden sonra devam et' : ($isPremium ? '1 ay daha uzat' : 'Premium\'u başlat') }} · {{ number_format($monthlyPrice, 2, ',', '.') }} ₺</a>
                         <span class="text-2xs text-neutral-500">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez.</span>
                     </div>
                 @endif
@@ -111,7 +151,7 @@ class extends Component {
                         </button>
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
-                        <div class="text-neutral-900 dark:text-white font-bold">Dış kaynak ilanları yalnız size</div>
+                        <div class="text-neutral-900 dark:text-white font-bold">Grup ilanları yalnız size</div>
                         <div class="text-neutral-500 dark:text-neutral-400">Numaralar yalnız o ilan için ilan sahibiyle görüşmeniz içindir; üçüncü kişilerle paylaşılamaz (Kullanıcı Sözleşmesi md. 3.4). İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
                     </div>
                 </div>

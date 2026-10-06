@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\DriverProfile;
 use App\Models\Invoice;
 use App\Models\PaymentOrder;
 use App\Models\Subscription;
@@ -35,6 +36,93 @@ class SubscriptionService
     }
 
     public const PLAN_PREMIUM_GIFT = 'premium_gift';
+
+    /** Ücretsiz deneme dönemi: her şoföre bir kez, ödeme kaydı yok, otomatik ücretlendirme yok. */
+    public const PLAN_PREMIUM_TRIAL = 'premium_trial';
+
+    /** Panel ayarı: ücretsiz deneme süresi (gün); 0 ise deneme kapalı. */
+    public function trialDays(): int
+    {
+        return max(0, min(90, Settings::int('premium_trial_days')));
+    }
+
+    /**
+     * Bu şoför ücretsiz denemeyi başlatabilir mi? Deneme açık, belgeler onaylı, şu an premium değil, daha önce deneme ya da
+     * ücretli dönem kullanmamış.
+     */
+    public function trialEligible(?DriverProfile $profile): bool
+    {
+        if (! $profile || $this->trialDays() <= 0 || $profile->is_staff_view || ! $profile->isKycApproved() || $profile->trial_started_at || $profile->isPremium()) {
+            return false; // zaten premium (ücretli ya da hediye) olana deneme sunulmaz
+        }
+
+        return ! Subscription::query()->where('user_id', $profile->user_id)
+            ->whereIn('plan_code', [self::PLAN_PREMIUM_MONTHLY, self::PLAN_PREMIUM_TRIAL])->exists();
+    }
+
+    /**
+     * Ücretsiz denemeyi başlatır (belge onayında kendiliğinden ya da Premium sayfasındaki düğmeyle). Mevcut premium süre bitmediyse
+     * üzerine eklenir. Bir kez verilir; uygun değilse null döner, hata fırlatmaz (onay akışını bozmasın).
+     */
+    public function startTrial(User $user, bool $automatic = false): ?Subscription
+    {
+        $profile = $user->driverProfile;
+        if (! $this->trialEligible($profile)) {
+            return null;
+        }
+        $days = $this->trialDays();
+
+        $subscription = DB::transaction(function () use ($user, $profile, $days, $automatic): ?Subscription {
+            $locked = DriverProfile::query()->lockForUpdate()->find($profile->id);
+            if (! $locked || $locked->trial_started_at) {
+                return null; // aynı anda iki istek: ikincisi boş döner
+            }
+            $start = $locked->premium_until && $locked->premium_until->isFuture() ? $locked->premium_until->copy() : now();
+            $end = $start->copy()->addDays($days);
+            $locked->update(['premium_until' => $end, 'trial_started_at' => now()]);
+
+            $subscription = Subscription::create([
+                'user_id' => $user->id,
+                'plan_code' => self::PLAN_PREMIUM_TRIAL,
+                'provider' => 'manual',
+                'status' => 'active',
+                'amount' => 0,
+                'currency' => 'TRY',
+                'interval' => 'trial',
+                'trial_ends_at' => $end,
+                'current_period_starts_at' => $start,
+                'current_period_ends_at' => $end,
+            ]);
+            ActivityLog::record('subscription.trial_started', "Ücretsiz premium deneme: {$days} gün → kullanıcı #{$user->id} (".$end->format('d.m.Y').' tarihine kadar'.($automatic ? ', belge onayında' : ', şoför başlattı').')', null, $subscription);
+
+            return $subscription;
+        });
+        if (! $subscription) {
+            return null;
+        }
+
+        $until = $profile->fresh()->premium_until->format('d.m.Y H:i');
+        $this->notifications->notify($user, "{$days} günlük premium deneme süreniz başladı",
+            ["Premium'un tüm özellikleri {$until} tarihine kadar ücretsiz: gruplardan derlenen ilanlar numarasıyla, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı.",
+                'Kart bilgisi istenmez, süre sonunda ücret alınmaz; beğenirseniz Premium sayfasından aylık devam edersiniz.'],
+            route('driver.loads.index', ['tab' => 'external']), 'İlanlara git', 'subscription');
+
+        return $subscription;
+    }
+
+    /** Sürmekte olan deneme döneminin bitişi; deneme yoksa ya da ücretli dönem de varsa null (ekranda "deneme" yazmasın). */
+    public function activeTrialEndsAt(User $user): ?Carbon
+    {
+        $trial = Subscription::query()->where('user_id', $user->id)->where('plan_code', self::PLAN_PREMIUM_TRIAL)
+            ->where('status', 'active')->where('current_period_ends_at', '>', now())->value('current_period_ends_at');
+        if (! $trial) {
+            return null;
+        }
+        $paid = Subscription::query()->where('user_id', $user->id)->where('plan_code', self::PLAN_PREMIUM_MONTHLY)
+            ->where('status', 'active')->where('current_period_ends_at', '>', now())->exists();
+
+        return $paid ? null : Carbon::parse($trial);
+    }
 
     /**
      * Yönetici hediyesi / test premium'u: mevcut süre bitmediyse üzerine eklenir. Ödeme kaydı yoktur;
@@ -239,6 +327,13 @@ class SubscriptionService
             if (! $user || $user->driverProfile?->isPremium()) {
                 continue; // başka bir dönem hâlâ sürüyor: premium bitmedi
             }
+            if ($subscription->plan_code === self::PLAN_PREMIUM_TRIAL) {
+                $this->notifications->notify($user, 'Ücretsiz deneme süreniz bitti',
+                    ['Premium deneme döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart üyeliğe döndü, ücret alınmadı.', 'Gruplardan derlenen ilanları ve erken erişimi sürdürmek için Premium sayfasından aylık '.number_format($this->monthlyPrice(), 0, ',', '.').' ₺ ile devam edebilirsiniz.'],
+                    route('driver.premium.index'), 'Premium ile devam et', 'subscription');
+
+                continue;
+            }
             $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi',
                 ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.', 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
                 route('driver.premium.index'), 'Premium\'u yeniden başlat', 'subscription');
@@ -263,9 +358,15 @@ class SubscriptionService
                 if ($already) {
                     return;
                 }
-                $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
-                    ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Üyelik otomatik yenilenmez.', 'Kesinti olmaması için şimdi 1 ay daha uzatabilirsiniz; süre mevcut dönemin bitiminden itibaren eklenir.'],
-                    route('driver.premium.checkout'), '1 ay daha uzat', 'subscription');
+                if ($subscription->plan_code === self::PLAN_PREMIUM_TRIAL) {
+                    $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
+                        ['Ücretsiz deneme süreniz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor; ücret alınmaz, hesabınız standart üyeliğe döner.', 'Gruplardan derlenen ilanları ve erken erişimi kesintisiz sürdürmek için şimdi aylık premium başlatabilirsiniz; süre denemenin bitiminden itibaren eklenir.'],
+                        route('driver.premium.index'), 'Premium ile devam et', 'subscription');
+                } else {
+                    $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
+                        ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Üyelik otomatik yenilenmez.', 'Kesinti olmaması için şimdi 1 ay daha uzatabilirsiniz; süre mevcut dönemin bitiminden itibaren eklenir.'],
+                        route('driver.premium.checkout'), '1 ay daha uzat', 'subscription');
+                }
                 $sent++;
             });
 

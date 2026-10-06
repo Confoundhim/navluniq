@@ -18,6 +18,7 @@ class DriverProfile extends Model
         'user_id',
         'is_staff_view',
         'premium_until',
+        'trial_started_at',
         'payout_provider_ref',
         'payout_provider',
         'legal_type',
@@ -44,6 +45,7 @@ class DriverProfile extends Model
     protected $casts = [
         'is_staff_view' => 'boolean',
         'premium_until' => 'datetime',
+        'trial_started_at' => 'datetime',
         'ocr_data' => 'array',
         'preferences' => 'array',
         'kyc_submitted_at' => 'datetime',

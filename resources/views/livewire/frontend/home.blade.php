@@ -462,7 +462,7 @@ new class extends Component {
                     <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">NavlunIQ İlan Aboneliği</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Premium üyeler yeni sistem ilanlarını herkesten {{ $leadText }} önce görür, anında bildirim alır ve onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görür; standart üyeler dış kaynak ilanlarını görmez. Sistem ilanları herkese açıldığı anda Telegram kanalında da yayınlanır.
+                        Premium üyeler gruplardan derlenen ilanları ilan sahibinin numarasıyla görür, yeni NavlunIQ ilanlarına herkesten {{ $leadText }} önce ulaşır ve anında bildirim alır; standart üyeler grup ilanlarını görmez ve bildirim almaz, ilanlar panellerine {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} düşer.
                     </p>
                 </div>
                 <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
@@ -496,67 +496,14 @@ new class extends Component {
     <!-- 7. BÖLÜM: ABONELİK SİSTEMİ -->
     <!-- ========================================================= -->
     <section id="abonelik" class="max-w-7xl mx-auto px-6 md:px-12 space-y-12 scroll-mt-24">
-        @php
-            $premiumPrice = number_format(\App\Support\Settings::float('premium_monthly_price'), 0, ',', '.');
-            $checkIcon = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
-        @endphp
+        @php $trialDays = app(\App\Services\SubscriptionService::class)->trialDays(); @endphp
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yükleri herkesten önce görün.</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Teklif vermek her zaman ücretsiz. Premium üyeler yeni ilanları {{ $leadText }} önce görür ve anında bildirim alır.</p>
+            <p class="text-xs sm:text-sm text-neutral-400">Teklif vermek her zaman ücretsiz. Premium üyeler gruplardan derlenen ilanları numarasıyla görür, yeni ilanlara {{ $leadText }} önce ulaşır ve anında bildirim alır.{{ $trialDays > 0 ? " İlk {$trialDays} gün ücretsiz, kart gerekmez." : '' }}</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 max-w-4xl mx-auto items-stretch">
-            <div class="apple-glass rounded-3xl p-8 shadow-apple-sm flex flex-col gap-6">
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">STANDART</span>
-                        <span class="w-9 h-9 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-300 flex items-center justify-center">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                        </span>
-                    </div>
-                    <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Ücretsiz Şoför Hesabı</h3>
-                    <div class="pt-1 flex items-baseline gap-1.5">
-                        <span class="text-4xl font-black text-neutral-900 dark:text-white tabular-nums">0 ₺</span>
-                        <span class="text-xs text-neutral-400">/ süresiz</span>
-                    </div>
-                </div>
-                <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Tüm ilanları görün, sınırsız teklif verin</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Teslimat onaylı güvenli ödeme, ödeme geçmişi ve teslimat kayıtları</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Yeni ilanlar {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panelde görünür (bildirim yok)</span></li>
-                    <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $checkIcon !!}</span><span>Sistem ilanlarını Telegram kanalından da takip edin</span></li>
-                </ul>
-                <a href="{{ route('register.driver') }}" class="btn-apple-secondary w-full py-3.5 text-xs font-bold">Ücretsiz Kaydol</a>
-            </div>
-
-            <div class="relative rounded-3xl p-[2px] bg-gradient-to-b from-brand-500 via-brand-500/60 to-brand-500/20 shadow-apple-lg">
-                <div class="h-full rounded-[22px] bg-white dark:bg-neutral-900 p-8 flex flex-col gap-6">
-                    <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-md shadow-brand-500/30">ÖNERİLEN</div>
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-brand-500 uppercase tracking-wider">PREMIUM</span>
-                            <span class="w-9 h-9 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                            </span>
-                        </div>
-                        <h3 class="text-2xl font-black text-neutral-900 dark:text-white">Premium Şoför Üyeliği</h3>
-                        <div class="pt-1 flex items-baseline gap-1.5">
-                            <span class="text-4xl font-black text-brand-500 tabular-nums">{{ $premiumPrice }} ₺</span>
-                            <span class="text-xs text-neutral-400">/ ay, KDV dahil</span>
-                        </div>
-                    </div>
-                    <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Ücretsiz hesabın tüm özellikleri</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Yeni ilanları herkesten {{ $leadText }} önce görün</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Aracınıza uygun ilan yayınlanınca anında bildirim alın</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Onaylı dış kaynak ilanlarını ilan sahibinin numarasıyla görün (yalnız premium)</span></li>
-                        <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $checkIcon !!}</span><span>Sabit aylık ücret, sevkiyat başına ek ödeme yok</span></li>
-                    </ul>
-                    <a href="{{ route('subscription') }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">Planları Karşılaştır</a>
-                </div>
-            </div>
-        </div>
+        <x-plan-cards />
     </section>
 
     <!-- ========================================================= -->
