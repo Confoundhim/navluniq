@@ -87,6 +87,10 @@ Telegram ilanı herkese açıldığı anda; çelişen tanıtım metinleri düzel
 **Paket 2: ✅ uygulandı** (konum "Yola çıktım"la başlar + wake lock + görünürlükte yeniden bağlanma; tazelik; işaretçiler ve seyreltilmiş tam iz;
 varışa kalan km; tahmini varış; yolda takılma bekçisi; otomatik onay hatırlatması; e-posta kuyruğu Paket 1'de; B8, B11 düzeltildi).
 
+**Paket 3: ✅ uygulandı** (il/ilçe seçici + gizli açık adres ve yükleme yetkilisi, şoföre not, ilan düzenleme, tarihli "Tekrar yayınla",
+teklif kartında ödenecek toplam + şoför geçmişi, ödeme sayfasında son saat, bireyselde belge bölümü gizli; Y8). Şoför iş sayfası açık adres/not/yetkiliyi
+ödeme sonrası gösterir. Testler `LoadPrivacyAndEditTest`, `OfferCardInfoTest`, `JobPrivateDetailsTest`. Migration `0001_01_56`.
+
 **Paket 4: ✅ uygulandı** (tek kart bileşeni `system-load-card`, mesafe ve ₺/km `Geo`/`HasRouteDistance`, bildirimde varsayılan ön ayar
 süzgeci, teklif penceresinde son teklifler + hazır notlar, "Paylaş", benzer ilan listesi, büyük yazı kipi: piksel sınıfları `text-2xs/3xs`'e
 çevrildi; S2 ve S5 burada). Testler `SystemLoadCardTest`, `PresetNotificationTest`.

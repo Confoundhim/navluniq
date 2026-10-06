@@ -528,6 +528,18 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `loads:transit-overdue` (saatlik; teslim/yükleme tarihi `transit_overdue_grace_days` geçmiş yoldaki ilan → şoför, yük sahibi, operasyon
   bir kez, `loads.transit_overdue_notified_at`), `shipments:remind-approval` (saatlik; otomatik onaya 24 saat kala yük sahibine bir kez,
   `shipments.approval_reminded_at`; uyuşmazlıkta yok). Migration `0001_01_57`. Test `LiveTrackingTest`.
+- **Yük sahibi paneli paketi (2026-10-06, Paket 3; E6/E7):** ilan formu il/ilçe seçici (`components/place-picker`, `TurkishLocations::districtsOf`;
+  adres defteri de aynı); **açık adres gizli:** `loads.pickup_address_private/delivery_address_private`, yükleme yetkilisi
+  `pickup_contact_name/phone` (sabit hat da olur, sıfırsız), şoföre `notes` (≤500, `Load::NOTES_MAX`); migration `0001_01_56`. Kartlar,
+  Telegram ve havuz yalnız `pickup_location` ("Ankara Yenimahalle", `LoadService::routeAttributes` → `TurkishLocations::label`) görür;
+  `Load::publicRoute()/publicPickup()`. Görme hakkı `Load::canSeePrivateDetails(?User)` (ilan sahibi, yönetici, **ödeme alınmış atanmış
+  şoför**) → `privateAddressFor / notesFor / pickupContactFor`; yük sahibi sevkiyat sayfası ve şoför `jobs/show` bunları gösterir
+  (şoförde ödeme öncesi "ödeme alındığında burada görünür"). Sihirbaz ve düzenleme ortak trait `App\Livewire\Concerns\ManagesLoadForm` +
+  `cargo-owner/loads/partials/{route-fields,cargo-fields}`. **İlan düzenleme** `LoadService::update` (yalnız `active_seeking`; bekleyen teklif
+  varsa yalnız tarih/açık adres/yetkili/not; ActivityLog `load.updated`), rota `cargo-owner.loads.edit`; "Tekrar yayınla" tarih sorar
+  (`LoadService::repeat(..., ?Carbon)`, gizli alanları taşır). Teklif kartı: "Kabul edersen ödeyeceğin toplam" (`PaymentService::amountsFor`),
+  şoförün tamamlanmış sevkiyat sayısı + son 2 yorum; ödeme sayfasında "Son ödeme" saati (`payment_due_at`), iyzico bandı yalnız ödenebilirken.
+  Testler `LoadPrivacyAndEditTest`, `OfferCardInfoTest`, `JobPrivateDetailsTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

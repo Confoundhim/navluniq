@@ -249,6 +249,37 @@ class extends Component {
                             <div class="text-neutral-500">Navlun bedeli</div>
                             <div class="text-neutral-900 dark:text-white tabular-nums font-bold">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
                         </div>
+                        @php $privateAddress = $load->privateAddressFor(auth()->user()); $pickupContact = $load->pickupContactFor(auth()->user()); $driverNotes = $load->notesFor(auth()->user()); @endphp
+                        @if($privateAddress && (($privateAddress['pickup'] ?? null) || ($privateAddress['delivery'] ?? null) || $pickupContact))
+                            {{-- Açık adres ve yükleme yetkilisi yalnız ödeme alındıktan sonra, atanmış şoföre görünür (Load::canSeePrivateDetails). --}}
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-neutral-500">Yükleme adresi</div>
+                                <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['pickup'] ?? $load->pickup_location }}</div>
+                                @if($pickupContact)
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-neutral-700 dark:text-neutral-300">
+                                        @if($pickupContact['name'])<span class="break-words">{{ $pickupContact['name'] }}</span>@endif
+                                        @if($pickupContact['phone'])
+                                            <a href="{{ \App\Support\Phone::telHref($pickupContact['phone']) }}" class="font-semibold text-brand-500 hover:underline tabular-nums whitespace-nowrap">{{ \App\Support\Phone::format($pickupContact['phone']) }}</a>
+                                            @if(\App\Support\Phone::supportsWhatsapp($pickupContact['phone']))
+                                                <a href="https://wa.me/90{{ $pickupContact['phone'] }}" target="_blank" rel="noopener" class="load-card-wa">WhatsApp</a>
+                                            @endif
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-neutral-500">Teslim adresi</div>
+                                <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['delivery'] ?? $load->delivery_location }}</div>
+                            </div>
+                        @elseif(! $load->isPaid() && $shipment)
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 text-neutral-500">Açık yükleme ve teslim adresi, yükleme yetkilisi ve yük sahibinin notu ödeme alındığında burada görünür.</div>
+                        @endif
+                        @if($driverNotes)
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2">
+                                <div class="text-neutral-500">Yük sahibinin notu</div>
+                                <div class="text-neutral-900 dark:text-white"><x-clamp-text :text="$driverNotes" lines="4" /></div>
+                            </div>
+                        @endif
                         @if($load->e_irsaliye_no || $load->e_irsaliye_path)
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
