@@ -52,6 +52,10 @@ trait HandlesJobActions
             return;
         }
         session()->flash('success_message', 'İş durumu: '.$trip->displayStatusLabel());
+        if ($status === DriverTrip::STATUS_ON_THE_WAY && $trip->isSystem() && $trip->load_id) {
+            // Sistem ilanında canlı konum yük sahibine gider: ayrıntı sayfasına geç, paylaşım kendiliğinden başlar.
+            $this->redirect(route('driver.jobs.show', $trip->load_id).'?konum=1', navigate: true);
+        }
     }
 
     /** NavlunIQ işi: yük sahibi ödemeyi yapmadıysa şoför beklemekten vazgeçer; ilan yeniden havuza döner. */

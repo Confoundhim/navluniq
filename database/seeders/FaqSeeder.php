@@ -49,7 +49,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni sistem ilanları ücretsiz hesaba premium üyelerden 20 dakika sonra açılır; dış kaynak ilanları ise yalnız premium üyelere görünür. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
+                'answer' => 'Tek fark zamandır. Ücretsiz hesap tüm ilanları görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Ancak yeni sistem ilanları ücretsiz hesaba premium üyelerden 20 dakika sonra açılır ve ücretsiz hesaba bildirim gönderilmez (ilanlar panelde görünür, siz takip edersiniz); dış kaynak ilanları ve dönüş yükü bildirimleri ise yalnız premium üyelere açıktır. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır. Uygulamayı sürekli açmak istemeyenler sistem ilanlarını herkese açıldığı anda Telegram kanalımızdan da takip edebilir.',
             ],
             [
                 'order_num' => 6,

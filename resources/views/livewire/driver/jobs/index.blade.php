@@ -69,6 +69,7 @@ class extends Component {
             'trips' => $trips,
             'past' => $past,
             'returnLoads' => $returnLoads,
+            'savedSystemIds' => DriverSavedLoad::query()->where('driver_profile_id', $profileId)->whereNotNull('load_id')->pluck('load_id')->map(fn ($v) => (int) $v)->all(),
             'savedExternalIds' => DriverSavedLoad::query()->where('driver_profile_id', $profileId)->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all(),
             'takenExternalIds' => $takenIds,
             'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
@@ -109,7 +110,7 @@ class extends Component {
 
     <div class="space-y-3">
         @forelse($trips as $trip)
-            <x-job-card :trip="$trip" :expanded="$expandedJob === $trip->id" :return-loads="$expandedJob === $trip->id ? $returnLoads : null" :saved-external-ids="$savedExternalIds" :taken-external-ids="$takenExternalIds" :is-premium="$isPremium" wire:key="job-{{ $trip->id }}" />
+            <x-job-card :trip="$trip" :expanded="$expandedJob === $trip->id" :return-loads="$expandedJob === $trip->id ? $returnLoads : null" :saved-system-ids="$savedSystemIds" :saved-external-ids="$savedExternalIds" :taken-external-ids="$takenExternalIds" :is-premium="$isPremium" wire:key="job-{{ $trip->id }}" />
         @empty
             <div class="p-8 bg-white dark:bg-neutral-900 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-center text-xs text-neutral-500 dark:text-neutral-400 space-y-2">
                 <div>{{ $tab === 'past' ? 'Kapanmış iş yok.' : 'Açık işiniz yok.' }}</div>

@@ -34,8 +34,6 @@ class extends Component {
 
     public bool $notify_offer_results = true;
 
-    public string $preferred_routes = '';
-
     public function mount(): void
     {
         $user = Auth::user();
@@ -45,17 +43,13 @@ class extends Component {
         $prefs = $user->driverProfile?->preferences ?? [];
         $this->notify_new_loads = (bool) ($prefs['notify_new_loads'] ?? true);
         $this->notify_offer_results = (bool) ($prefs['notify_offer_results'] ?? true);
-        $this->preferred_routes = (string) ($prefs['preferred_routes'] ?? '');
     }
 
     public function updatePreferences(): void
     {
-        $this->validate(['preferred_routes' => 'nullable|string|max:300']);
-
         Auth::user()->driverProfile?->update(['preferences' => [
             'notify_new_loads' => $this->notify_new_loads,
             'notify_offer_results' => $this->notify_offer_results,
-            'preferred_routes' => trim($this->preferred_routes),
         ]]);
 
         session()->flash('success_message', 'Tercihleriniz kaydedildi.');
@@ -169,7 +163,7 @@ class extends Component {
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <h3 class="section-title">Sürücü ve araç belgeleri</h3>
                     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
-                    <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                    <span class="px-2.5 py-1 rounded-full text-2xs font-bold border
                         {{ $kycStatus === 'approved' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($kycStatus === 'pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($kycStatus === 'rejected' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400' : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300')) }}">
                         {{ ['approved' => 'Doğrulandı', 'pending' => 'İnceleniyor', 'rejected' => 'Belge reddedildi', 'unsubmitted' => 'Belge bekleniyor'][$kycStatus] ?? $kycStatus }}
                     </span>
@@ -185,7 +179,7 @@ class extends Component {
                         <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div>
                                 <div class="text-neutral-900 dark:text-white font-semibold">{{ $label }} @if(in_array($type, $requiredTypes, true))<span class="text-brand-500">*</span>@endif</div>
-                                <div class="text-[11px] text-neutral-500">
+                                <div class="text-2xs text-neutral-500">
                                     @if($doc)
                                         Yüklendi: {{ $doc->created_at->format('d.m.Y H:i') }}
                                         @if($doc->status === 'rejected' && $doc->review_notes) · {{ $doc->review_notes }} @endif
@@ -233,7 +227,7 @@ class extends Component {
                                 <div class="h-1.5 w-full rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
                                     <div class="h-full rounded-full bg-brand-500 transition-all duration-200" :style="'width: ' + progress + '%'"></div>
                                 </div>
-                                <div class="text-[11px] text-neutral-500">Dosya yükleniyor: <span x-text="progress"></span>%</div>
+                                <div class="text-2xs text-neutral-500">Dosya yükleniyor: <span x-text="progress"></span>%</div>
                             </div>
                             <span x-show="clientError" x-cloak x-text="clientError" class="form-error"></span>
                             @error('upload_file') <span class="form-error">{{ $message }}</span> @enderror
@@ -247,7 +241,7 @@ class extends Component {
                         </div>
                     </form>
                     @if(count($missingTypes))
-                        <p class="text-[11px] text-neutral-500">Eksik zorunlu belgeler yüklendiğinde profiliniz incelemeye alınır.</p>
+                        <p class="text-2xs text-neutral-500">Eksik zorunlu belgeler yüklendiğinde profiliniz incelemeye alınır.</p>
                     @endif
                 @endif
             </div>
@@ -267,15 +261,10 @@ class extends Component {
                     <label class="flex items-start justify-between gap-3 cursor-pointer">
                         <span>
                             <span class="block font-bold text-neutral-900 dark:text-white">Teklif sonuçları</span>
-                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul veya reddedildiğinde e-posta alın.</span>
+                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul ya da reddedildiğinde e-posta alın. Kapatırsanız uygulama içi bildirim devam eder. Rota tercihi için İlan havuzu'ndaki kayıtlı filtreleri kullanın.</span>
                         </span>
                         <input type="checkbox" wire:model="notify_offer_results" class="form-input h-4">
                     </label>
-                    <div>
-                        <label class="form-label">Tercih ettiğim rotalar</label>
-                        <input type="text" wire:model="preferred_routes" placeholder="Örn. Ankara - İzmir, İstanbul - Bursa" class="form-input">
-                        @error('preferred_routes') <span class="form-error">{{ $message }}</span> @enderror
-                    </div>
                 </div>
                 <div class="flex items-center justify-between pt-2 text-xs">
                     <span class="text-neutral-500">Premium: <span class="font-bold {{ $profile?->isPremium() ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-700 dark:text-neutral-300' }}">{{ $profile?->isPremium() ? $profile->premium_until->format('d.m.Y').' tarihine kadar' : 'Pasif' }}</span></span>
@@ -293,7 +282,7 @@ class extends Component {
                     <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div class="min-w-0">
                             <div class="font-bold text-neutral-900 dark:text-white">{{ $preset->name }} @if($preset->is_default)<span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400 ml-1">Varsayılan</span>@endif</div>
-                            <div class="text-[11px] text-neutral-500 truncate">{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}</div>
+                            <div class="text-2xs text-neutral-500 truncate">{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}</div>
                         </div>
                         <div class="flex items-center gap-3 shrink-0">
                             @unless($preset->is_default)<button type="button" wire:click="makeDefaultPreset({{ $preset->id }})" class="text-brand-400 font-bold hover:underline">Varsayılan yap</button>@endunless
@@ -314,7 +303,7 @@ class extends Component {
 
             <div class="bg-white dark:bg-neutral-900 border border-rose-900/40 rounded-2xl p-6 space-y-3">
                 <h3 class="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Hesabı kapat</h3>
-                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya tamamlanmamış ödeme yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
+                <p class="text-2xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Devam eden ilan, sevkiyat veya tamamlanmamış ödeme yoksa hesabınız kapatılır ve kişisel verileriniz anonimleştirilir. Bu işlem geri alınamaz.</p>
                 <button type="button" wire:click="$set('deleteModalOpen', true)" class="btn-danger w-full py-2 text-xs">Hesabımı kapatmak istiyorum</button>
             </div>
         </div>

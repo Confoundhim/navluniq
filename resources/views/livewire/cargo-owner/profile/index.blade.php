@@ -25,6 +25,13 @@ class extends Component {
 
     public $upload_file = null;
 
+    /** Kurumsal bilgiler (unvan, VKN, vergi dairesi): yük sahibi profilden düzeltebilir; değişince yönetici teyidi (rozet) sıfırlanır. */
+    public string $company_title_input = '';
+
+    public string $tax_no_input = '';
+
+    public string $tax_office_input = '';
+
     public string $delete_password = '';
 
     public string $delete_reason = '';
@@ -42,11 +49,46 @@ class extends Component {
         $this->fillAccountFields($user);
         $this->upload_type = array_key_first($this->allowedTypes()) ?? '';
         $profile = $user->cargoOwnerProfile;
+        $this->company_title_input = (string) ($profile?->company_title ?? '');
+        $this->tax_no_input = (string) ($profile?->tax_no ?? '');
+        $this->tax_office_input = (string) ($profile?->tax_office ?? '');
         $this->verify_tc = (string) ($profile?->tc_no ?? '');
         $this->verify_birth_year = (string) ($profile?->birth_year ?? '');
     }
 
     /** Bireysel yük sahibi kimliğini yeniden doğrular (günde en çok 3 deneme; TC ve doğum yılı düzeltilebilir). */
+    /** Kurumsal: unvan / VKN / vergi dairesi güncelle. VKN mod-10 sağlaması; unvan ya da VKN değişirse yönetici teyidi kalkar. */
+    public function updateCompany(): void
+    {
+        $user = Auth::user();
+        $profile = $user->cargoOwnerProfile;
+        if (! $profile || $profile->type !== 'corporate' || $profile->is_staff_view) {
+            return;
+        }
+        $this->validate([
+            'company_title_input' => ['required', 'string', 'min:3', 'max:255'],
+            'tax_no_input' => ['required', 'digits:10', Rule::unique('cargo_owner_profiles', 'tax_no')->ignore($profile->id)],
+            'tax_office_input' => ['nullable', 'string', 'max:120'],
+        ], [
+            'tax_no_input.digits' => 'Vergi kimlik numarası 10 haneli olmalıdır.',
+            'tax_no_input.unique' => 'Bu vergi kimlik numarası başka bir hesapta kayıtlı.',
+            'company_title_input.min' => 'Şirket unvanı en az 3 karakter olmalıdır.',
+        ]);
+        if (! (new \App\Services\GibService)->verifyTax($this->tax_no_input)['is_match']) {
+            $this->addError('tax_no_input', 'Vergi kimlik numarası geçersiz görünüyor, lütfen kontrol edin.');
+
+            return;
+        }
+        $changed = trim($this->company_title_input) !== (string) $profile->company_title || $this->tax_no_input !== (string) $profile->tax_no;
+        $profile->update(array_merge([
+            'company_title' => trim($this->company_title_input),
+            'tax_no' => $this->tax_no_input,
+            'tax_office' => trim($this->tax_office_input) ?: null,
+        ], $changed ? ['gib_verified' => false, 'gib_verified_at' => null, 'gib_verified_by' => null] : []));
+        \App\Models\ActivityLog::record('kyc.company_updated', 'Yük sahibi şirket bilgilerini güncelledi'.($changed ? ' (teyit sıfırlandı)' : ''), $user->id, $profile);
+        session()->flash('success_message', $changed ? 'Şirket bilgileri kaydedildi; teklif kabul edebilirsiniz. Rozet için ekibimiz bilgileri yeniden teyit edecek.' : 'Şirket bilgileri kaydedildi.');
+    }
+
     public function reverifyIdentity(CargoOwnerVerificationService $verification): void
     {
         $user = Auth::user();
@@ -157,6 +199,8 @@ class extends Component {
 
             <x-account-security-forms :emailChangePending="$emailChangePending" />
 
+            {{-- Belge kartı yalnız kurumsal hesapta (vergi levhası, imza sirküleri; isteğe bağlı). Bireysel hesaptan belge istenmez. --}}
+            @if($profile?->type === 'corporate' || count($documents))
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <h3 class="section-title">Belgeler (isteğe bağlı)</h3>
@@ -166,7 +210,7 @@ class extends Component {
                         {{ ['approved' => 'Belgeler onaylandı', 'pending' => 'İnceleniyor', 'rejected' => 'Belge reddedildi', 'unsubmitted' => 'Belge zorunlu değil'][$kycStatus] ?? $kycStatus }}
                     </span>
                 </div>
-                <p class="text-[11px] text-neutral-500 leading-relaxed">Hesap doğrulaması için belge fotoğrafı gerekmez; bireysel hesaplar kimlik numarasıyla, kurumsal hesaplar vergi bilgileriyle doğrulanır. Kurumsal hesapta vergi levhası yüklemek doğrulamayı hızlandırır.</p>
+                <p class="text-[11px] text-neutral-500 leading-relaxed">Hesap doğrulaması için belge fotoğrafı gerekmez; kurumsal hesaplar vergi bilgileriyle doğrulanır. Vergi levhası yüklemek "Doğrulanmış yük sahibi" rozetini hızlandırır.</p>
 
                 @if($profile?->kyc_notes)
                     <div class="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">{{ $profile->kyc_notes }}</div>
@@ -244,6 +288,7 @@ class extends Component {
                     @endif
                 @endif
             </div>
+            @endif
         </div>
 
         <div class="space-y-6">
@@ -251,24 +296,31 @@ class extends Component {
                 <h3 class="section-title">{{ $profile?->type === 'corporate' ? 'Şirket bilgileri' : 'Kimlik bilgileri' }}</h3>
                 <div class="space-y-3 text-xs">
                     @if($profile?->type === 'corporate')
-                        <div>
-                            <span class="text-neutral-500 block mb-0.5">Firma unvanı</span>
-                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 font-semibold text-neutral-800 dark:text-neutral-200">{{ $profile->company_title ?: '—' }}</div>
-                        </div>
-                        <div>
-                            <span class="text-neutral-500 block mb-0.5">Vergi kimlik numarası</span>
-                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 tabular-nums font-bold text-neutral-900 dark:text-white">{{ $profile->tax_no ?: '—' }}</div>
-                        </div>
-                        <div>
-                            <span class="text-neutral-500 block mb-0.5">Vergi dairesi</span>
-                            <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200">{{ $profile->tax_office ?: '—' }}</div>
-                        </div>
+                        <form wire:submit.prevent="updateCompany" class="space-y-2">
+                            <div>
+                                <label class="form-label">Firma unvanı</label>
+                                <input type="text" wire:model="company_title_input" maxlength="255" class="form-input">
+                                @error('company_title_input') <span class="form-error">{{ $message }}</span> @enderror
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                    <label class="form-label">Vergi kimlik numarası</label>
+                                    <input type="text" wire:model="tax_no_input" maxlength="10" inputmode="numeric" class="form-input font-mono">
+                                    @error('tax_no_input') <span class="form-error">{{ $message }}</span> @enderror
+                                </div>
+                                <div>
+                                    <label class="form-label">Vergi dairesi</label>
+                                    <input type="text" wire:model="tax_office_input" maxlength="120" class="form-input">
+                                </div>
+                            </div>
+                            <button type="submit" wire:loading.attr="disabled" class="btn-secondary py-2 text-xs">Şirket bilgilerini kaydet</button>
+                        </form>
                         <div class="flex items-center justify-between pt-1">
                             <span class="text-neutral-500">Şirket doğrulaması</span>
                             <span class="font-bold {{ $profile->gib_verified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400' }}">{{ $profile->gib_verified ? 'Doğrulandı' : 'Bekleniyor' }}</span>
                         </div>
                         @unless($profile->gib_verified)
-                            <p class="text-[11px] text-neutral-500 leading-relaxed">Vergi numaranız kayıtlı; teklif kabul edebilirsiniz. Ekibimiz şirket bilgilerinizi teyit edince ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür. Vergi levhanızı aşağıdan yüklerseniz teyit hızlanır.</p>
+                            <p class="text-[11px] text-neutral-500 leading-relaxed">Vergi numaranız kayıtlı; teklif kabul edebilirsiniz. Ekibimiz şirket bilgilerinizi teyit edince ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür. Vergi levhanızı Belgeler bölümünden yüklerseniz teyit hızlanır.</p>
                         @endunless
                     @else
                         <div>

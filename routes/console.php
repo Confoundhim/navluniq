@@ -228,6 +228,16 @@ Artisan::command('payments:expire-stale', function (PaymentService $payments) {
     $this->info('Süresi dolan açık ödeme emri: '.$payments->expireStale());
 })->purpose('Ayarlı saatten (payment_order_stale_hours) eski açık ödeme emirlerini kapatır; geç gelen ödeme iade edilir');
 
+Artisan::command('loads:transit-overdue', function (LoadService $loads) {
+    $this->info('"Teslim tarihi geçti" uyarısı gönderilen sevkiyat: '.$loads->notifyOverdueTransit());
+})->purpose('Yolda olup teslim tarihi geçmiş sevkiyatlarda şoför, yük sahibi ve operasyonu bir kez uyarır');
+
+Artisan::command('shipments:remind-approval', function (ShipmentService $shipments) {
+    $this->info('Onay hatırlatması gönderilen sevkiyat: '.$shipments->remindPendingApprovals());
+})->purpose('Otomatik onaydan 24 saat önce yük sahibine tek hatırlatma gönderir');
+
 Schedule::command('loads:no-show')->hourly()->withoutOverlapping(10);
+Schedule::command('loads:transit-overdue')->hourlyAt(23)->withoutOverlapping(10);
+Schedule::command('shipments:remind-approval')->hourlyAt(41)->withoutOverlapping(10);
 Schedule::command('payouts:reconcile')->everyTenMinutes()->withoutOverlapping(10);
 Schedule::command('payments:expire-stale')->dailyAt('04:50');

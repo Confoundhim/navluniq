@@ -57,9 +57,13 @@ class CargoOwnerVerificationService
         if (RateLimiter::tooManyAttempts($limitKey, self::NVI_RETRY_PER_DAY)) {
             return 'Günlük doğrulama deneme sınırına ulaştınız; yarın yeniden deneyin.';
         }
-        RateLimiter::hit($limitKey, 86400);
 
         $result = $this->nvi->verify($tc, (string) $user->first_name, (string) $user->last_name, $birthYear);
+        if (! ($result['success'] ?? false)) {
+            // Nüfus servisi cevap vermedi: deneme hakkı yanmaz, profil değişmez; kullanıcı az sonra yeniden dener.
+            return (string) ($result['message'] ?? 'Nüfus Müdürlüğü servisine şu an ulaşılamıyor; birkaç dakika sonra yeniden deneyin.');
+        }
+        RateLimiter::hit($limitKey, 86400);
         $match = (bool) ($result['is_match'] ?? false);
         $profile->update([
             'tc_no' => $tc,

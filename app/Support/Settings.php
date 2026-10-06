@@ -115,6 +115,7 @@ final class Settings
         'iyzico_marketplace' => 0,              // 1: pazaryeri (alt üye işyeri) ürünü aktif
 
         // Para ve sevkiyat (2026-10-05)
+        'transit_overdue_grace_days' => 1,      // Yoldaki sevkiyatta teslim (yoksa yükleme) tarihi bu kadar gün geçip teslim bildirilmediyse uyarı (bir kez)
         'no_show_grace_days' => 1,              // Ödenmiş ilanda yükleme tarihi bu kadar gün geçip yola çıkılmadıysa "şoför gelmedi" uyarısı (bir kez)
         'payout_processing_stale_minutes' => 15, // "işlemde" takılı hakediş bu kadar dakika sonra "bekliyor"a döner ve finans uyarılır
         'payout_retry_max_attempts' => 6,       // Ödeme kuruluşu aktarımı en çok bu kadar kez denenir (artan bekleme: 10, 20, 40 dk…)

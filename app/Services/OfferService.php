@@ -125,8 +125,14 @@ class OfferService
             $load = $offer->cargoLoad;
             $this->notifications->notify($driverUser, 'Teklifiniz kabul edilmedi',
                 ["{$load->pickup_location} → {$load->delivery_location} ilanına verdiğiniz ".number_format((float) $offer->amount, 2, ',', '.').' ₺ tutarındaki teklif yük sahibi tarafından kabul edilmedi.', 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
-                route('driver.loads.index'), 'İlan havuzuna git', 'offer');
+                route('driver.loads.index'), 'İlan havuzuna git', 'offer', sendMail: self::wantsOfferMail($offer->driverProfile));
         }
+    }
+
+    /** Profil → Bildirim tercihleri "Teklif sonuçları": kapalıysa yalnız uygulama içi bildirim, e-posta gitmez. */
+    public static function wantsOfferMail(?DriverProfile $profile): bool
+    {
+        return (bool) (($profile?->preferences ?? [])['notify_offer_results'] ?? true);
     }
 
     /** Teklif kabulü: şoför atanır, diğer teklifler reddedilir, sevkiyat ve mesajlaşma kaydı açılır. */
@@ -257,7 +263,8 @@ class OfferService
                     'Yük sahibinin ödeme süresi '.max(1, Settings::int('offer_payment_hours')).' saattir; ödeme gelmezse ilan yeniden havuza döner ve işiniz kapanır. Beklemek istemezseniz İşlerim\'den vazgeçebilirsiniz.'],
                 route('driver.jobs.show', $shipment->load_id),
                 'Sevkiyatı görüntüle',
-                'offer'
+                'offer',
+                sendMail: self::wantsOfferMail($shipment->driverProfile)
             );
         }
 
@@ -265,7 +272,7 @@ class OfferService
             if ($lostUser = $lost->driverProfile?->user) {
                 $this->notifications->notify($lostUser, 'İlan başka bir şoföre verildi',
                     ["{$load->pickup_location} → {$load->delivery_location} ilanı için yük sahibi başka bir teklifi kabul etti; teklifiniz kapandı.", 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
-                    route('driver.loads.index'), 'İlan havuzuna git', 'offer');
+                    route('driver.loads.index'), 'İlan havuzuna git', 'offer', sendMail: self::wantsOfferMail($lost->driverProfile));
             }
         }
         $this->pendingLosers = null;
@@ -382,7 +389,7 @@ class OfferService
                 'payment_reminded_at' => null,
                 'no_show_notified_at' => null,
             ]);
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         app(DriverTripService::class)->closeForLoad($load->id);
         $load->refresh();
 

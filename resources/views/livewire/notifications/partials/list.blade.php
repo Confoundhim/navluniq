@@ -4,7 +4,7 @@
             <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight">Bildirimler</h2>
             <p class="page-subtitle">Teklif, sevkiyat, ödeme ve belge süreçlerinizle ilgili tüm gelişmeler. Aynı bildirimler e-posta adresinize de gönderilir.</p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
             <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl text-xs font-semibold">
                 <button type="button" wire:click="setFilter('all')" class="px-3 py-1.5 rounded-lg {{ $filter === 'all' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Tümü</button>
                 <button type="button" wire:click="setFilter('unread')" class="px-3 py-1.5 rounded-lg {{ $filter === 'unread' ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">Okunmamış @if($unreadCount > 0)<span class="ml-1 text-brand-500">{{ $unreadCount }}</span>@endif</button>

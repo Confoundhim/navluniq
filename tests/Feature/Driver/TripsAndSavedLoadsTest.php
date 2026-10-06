@@ -231,8 +231,11 @@ class TripsAndSavedLoadsTest extends TestCase
 
         // Ödeme alınınca kart üzerinden "Yola çıktım" sevkiyatı da yola çıkarır
         $load->fresh()->update(['escrow_status' => Load::ESCROW_PAID]);
-        Volt::test('driver.jobs.index')->assertSee('Yüklemeye hazır')->assertSee('Yola çıktım')->call('setStatus', $trip->id, 'on_the_way')->assertSee('Yolda')->assertSee('Teslim ettim');
+        // Sistem ilanında yola çıkınca ayrıntı sayfasına geçilir; konum paylaşımı orada kendiliğinden başlar (2026-10-06).
+        Volt::test('driver.jobs.index')->assertSee('Yüklemeye hazır')->assertSee('Yola çıktım')->call('setStatus', $trip->id, 'on_the_way')
+            ->assertRedirect(route('driver.jobs.show', $load->id).'?konum=1');
         $this->assertSame('on_the_way', $trip->fresh()->status);
+        Volt::test('driver.jobs.index')->assertSee('Yolda')->assertSee('Teslim ettim');
         $this->assertSame(Load::STATUS_ON_THE_WAY, $load->fresh()->status);
 
     }

@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\FitsColumnWidths;
+use App\Models\Concerns\HasRouteDistance;
 use App\Support\BodyTypes;
 use App\Support\Phone;
 use App\Support\Settings;
 use App\Support\TurkishText;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,7 +21,7 @@ use Illuminate\Support\Facades\Crypt;
 class ScrapedLoad extends Model
 {
     use FitsColumnWidths;
-    use HasFactory, SoftDeletes;
+    use HasFactory, HasRouteDistance, SoftDeletes;
 
     /** Metin kolonlarının genişliği (migration'larla aynı); uzun değer kesilir, kayıt düşmez. */
     public const COLUMN_LIMITS = [
@@ -321,6 +323,43 @@ class ScrapedLoad extends Model
     public function hasSimilar(): bool
     {
         return $this->similarIds() !== [];
+    }
+
+    /**
+     * Benzer ilanlar (aynı yük, başka numara) yayında olanlar; kartta rozete dokununca açılan küçük liste.
+     *
+     * @return Collection<int, self>
+     */
+    public function similarLoads(): Collection
+    {
+        $ids = array_values(array_diff($this->similarIds(), [(int) $this->id]));
+        if ($ids === []) {
+            return new Collection;
+        }
+
+        return self::query()->whereKey($ids)->where('visibility', 'public')->where('status', 'parsed_success')->orderBy('price')->get();
+    }
+
+    /**
+     * "Paylaş" metni: rota, araç, yük, fiyat ve dış kaynak sekmesi bağlantısı. İlan sahibinin numarası ve adı asla paylaşılmaz
+     * (Kullanıcı Sözleşmesi md. 3.4: numaralar yalnız premium üyeye, üçüncü kişiye aktarılmaz).
+     */
+    public function shareText(): string
+    {
+        $lines = array_filter([
+            'Gruptan derlenen ilan: '.$this->routeLabel(),
+            implode(' · ', array_filter([$this->goods_type, $this->vehicleSummary(), $this->weightLabel()])),
+            $this->priceLabel() ? 'Navlun: '.$this->priceLabel() : null,
+            $this->meta('pickup_note') ? 'Yükleme: '.$this->meta('pickup_note') : null,
+        ]);
+
+        return implode("\n", $lines);
+    }
+
+    /** Paylaşılan bağlantı: dış kaynak sekmesi, ilanın kalkış yeri aramada (ilan sahibine ait bilgi taşımaz). */
+    public function shareUrl(): string
+    {
+        return route('driver.loads.index', array_filter(['tab' => 'external', 'ara' => $this->pickup_location ? mb_substr($this->pickup_location, 0, 40) : null]));
     }
 
     public function isUrgent(): bool

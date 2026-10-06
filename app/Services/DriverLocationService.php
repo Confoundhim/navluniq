@@ -22,12 +22,14 @@ class DriverLocationService
             return null;
         }
 
+        // Yoldaki sevkiyat; uyuşmazlık açılmış ama henüz teslim edilmemiş sevkiyat da "yolda" sayılır (hakem konumu görmeli).
+        $live = fn ($q) => $q->where(fn ($w) => $w->where('status', Shipment::STATUS_IN_TRANSIT)
+            ->orWhere(fn ($d) => $d->where('status', Shipment::STATUS_DISPUTED)->whereNull('delivered_at')));
         $shipment = null;
         if ($shipmentId) {
-            $shipment = Shipment::query()->whereKey($shipmentId)->where('driver_profile_id', $driver->id)
-                ->where('status', Shipment::STATUS_IN_TRANSIT)->first();
+            $shipment = Shipment::query()->whereKey($shipmentId)->where('driver_profile_id', $driver->id)->tap($live)->first();
         }
-        $shipment ??= Shipment::query()->where('driver_profile_id', $driver->id)->where('status', Shipment::STATUS_IN_TRANSIT)->latest('id')->first();
+        $shipment ??= Shipment::query()->where('driver_profile_id', $driver->id)->tap($live)->latest('id')->first();
         if (! $shipment) {
             // KVKK metni: konum yalnız aktif (yoldaki) sevkiyat süresince işlenir; tarayıcı yine de gönderirse kaydedilmez.
             return null;
@@ -46,14 +48,52 @@ class DriverLocationService
     }
 
     /** Sevkiyat için son konum ve rota izi. */
-    public function trailFor(Shipment $shipment, int $limit = 200): array
-    {
-        $points = DriverLocation::query()->where('shipment_id', $shipment->id)->latest('id')->take($limit)->get()->reverse()->values();
+    /** Haritada en çok bu kadar nokta çizilir; uzun yolda iz seyreltilir (eskiden son 200 nokta ≈ 50 dakika görünüyordu). */
+    public const TRAIL_MAX_POINTS = 300;
 
-        return [
-            'latest' => $points->last(),
-            'trail' => $points->map(fn (DriverLocation $p) => [(float) $p->latitude, (float) $p->longitude])->all(),
-        ];
+    /**
+     * Sevkiyatın tüm izi (seyreltilmiş) ve son konum. Seyreltme başlangıç ve son noktayı her zaman korur.
+     *
+     * @return array{latest: ?DriverLocation, trail: list<array{0: float, 1: float}>}
+     */
+    public function trailFor(Shipment $shipment, int $maxPoints = self::TRAIL_MAX_POINTS): array
+    {
+        $latest = DriverLocation::query()->where('shipment_id', $shipment->id)->latest('id')->first();
+        $total = $latest ? DriverLocation::query()->where('shipment_id', $shipment->id)->count() : 0;
+        if ($total === 0) {
+            return ['latest' => null, 'trail' => []];
+        }
+        $step = max(1, (int) ceil($total / max(2, $maxPoints)));
+        $query = DriverLocation::query()->where('shipment_id', $shipment->id)->orderBy('id')->select(['id', 'latitude', 'longitude']);
+        $trail = [];
+        $i = 0;
+        foreach ($query->lazy(1000) as $p) {
+            if ($i % $step === 0) {
+                $trail[] = [(float) $p->latitude, (float) $p->longitude];
+            }
+            $i++;
+        }
+        $last = [(float) $latest->latitude, (float) $latest->longitude];
+        if ($trail === [] || end($trail) !== $last) {
+            $trail[] = $last;
+        }
+
+        return ['latest' => $latest, 'trail' => $trail];
+    }
+
+    /** Son konumdan teslim noktasına kuş uçuşu × 1,25 (kara yolu yaklaşımı) km; koordinat yoksa null. */
+    public static function remainingKm(?DriverLocation $latest, ?float $deliveryLat, ?float $deliveryLng): ?float
+    {
+        if (! $latest || $deliveryLat === null || $deliveryLng === null) {
+            return null;
+        }
+        $lat1 = deg2rad((float) $latest->latitude);
+        $lat2 = deg2rad($deliveryLat);
+        $dLat = $lat2 - $lat1;
+        $dLng = deg2rad($deliveryLng - (float) $latest->longitude);
+        $a = sin($dLat / 2) ** 2 + cos($lat1) * cos($lat2) * sin($dLng / 2) ** 2;
+
+        return round(6371 * 2 * atan2(sqrt($a), sqrt(1 - $a)) * 1.25, 1);
     }
 
     /** Saklama süresi dolan konum izlerini siler (günlük görev); varsayılan 90 gün. */

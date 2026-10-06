@@ -25,8 +25,9 @@ class ShipmentService
     public function startTransit(Shipment $shipment, DriverProfile $driver): void
     {
         DB::transaction(function () use ($shipment, $driver): void {
+            // Kilit sırası her serviste Load → Shipment (iptal, uyuşmazlık ve yeniden açma da bu sırayla); ters sıra kilitlenme yapıyordu.
+            $load = Load::query()->lockForUpdate()->findOrFail($shipment->load_id);
             $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
-            $load = Load::query()->lockForUpdate()->findOrFail($locked->load_id);
 
             if ($locked->driver_profile_id !== $driver->id) {
                 throw new RuntimeException('Bu sevkiyat size atanmamış.');
@@ -48,7 +49,7 @@ class ShipmentService
                 'in_transit_at' => now(),
             ]);
             $load->update(['status' => Load::STATUS_ON_THE_WAY]);
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_ON_THE_WAY);
 
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
@@ -62,8 +63,9 @@ class ShipmentService
     public function markDelivered(Shipment $shipment, DriverProfile $driver, UploadedFile $proof, ?string $note = null): ShipmentEvidence
     {
         $evidence = DB::transaction(function () use ($shipment, $driver, $proof, $note): ShipmentEvidence {
+            // Kilit sırası her serviste Load → Shipment (iptal, uyuşmazlık ve yeniden açma da bu sırayla); ters sıra kilitlenme yapıyordu.
+            $load = Load::query()->lockForUpdate()->findOrFail($shipment->load_id);
             $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
-            $load = Load::query()->lockForUpdate()->findOrFail($locked->load_id);
 
             if ($locked->driver_profile_id !== $driver->id) {
                 throw new RuntimeException('Bu sevkiyat size atanmamış.');
@@ -105,7 +107,7 @@ class ShipmentService
             $load->update(['status' => Load::STATUS_DELIVERED]);
 
             return $evidence;
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         if ($shipment->fresh()->status === Shipment::STATUS_DISPUTED) {
             return $evidence; // uyuşmazlık sürerken sefer durumu değişmez, yük sahibine "onayla" denmez
         }
@@ -133,8 +135,9 @@ class ShipmentService
     public function approveDelivery(Shipment $shipment, ?User $owner, bool $automatic = false): void
     {
         DB::transaction(function () use ($shipment, $owner, $automatic): void {
+            // Kilit sırası her serviste Load → Shipment (iptal, uyuşmazlık ve yeniden açma da bu sırayla); ters sıra kilitlenme yapıyordu.
+            $load = Load::query()->lockForUpdate()->findOrFail($shipment->load_id);
             $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
-            $load = Load::query()->lockForUpdate()->findOrFail($locked->load_id);
 
             if (! $automatic && $load->cargoOwnerProfile?->user_id !== $owner?->id) {
                 throw new RuntimeException('Bu sevkiyat size ait değil.');
@@ -151,7 +154,7 @@ class ShipmentService
 
             $locked->update(['status' => Shipment::STATUS_COMPLETED, 'owner_approved_at' => now()]);
             $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_RELEASE_APPROVED]);
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         // Hakediş ve ödeme kuruluşu aktarımı kilit dışında (yavaş sağlayıcı satırları kilitlemesin); ilan başına tek hakediş zaten korunur.
         $this->payouts->createForLoad($shipment->cargoLoad()->firstOrFail()->fresh());
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
@@ -173,6 +176,34 @@ class ShipmentService
     }
 
     /** Onay süresi dolan teslimatları otomatik onaylar (zamanlanmış görev). */
+    /**
+     * Otomatik onaydan 24 saat önce yük sahibine tek hatırlatma (2026-10-06): "onaylamazsanız sevkiyat kendiliğinden onaylanır".
+     * Uyuşmazlık açıkken hatırlatma gönderilmez.
+     */
+    public function remindPendingApprovals(int $hoursBefore = 24): int
+    {
+        $count = 0;
+        Shipment::query()->where('status', Shipment::STATUS_DELIVERED)
+            ->whereNull('approval_reminded_at')
+            ->whereNotNull('auto_approval_due_at')->where('auto_approval_due_at', '<=', now()->addHours($hoursBefore))
+            ->with('cargoLoad.cargoOwnerProfile.user')->orderBy('id')->limit(200)->get()
+            ->each(function (Shipment $shipment) use (&$count): void {
+                $load = $shipment->cargoLoad;
+                $shipment->forceFill(['approval_reminded_at' => now()])->save();
+                if (! $load || $load->status !== Load::STATUS_DELIVERED || ! ($owner = $load->cargoOwnerProfile?->user)) {
+                    return;
+                }
+                $count++;
+                $due = $shipment->auto_approval_due_at;
+                $this->notifications->notify($owner, 'Teslimatı onaylamanız bekleniyor',
+                    ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için şoför teslimat kanıtını yükledi. {$due->format('d.m.Y H:i')} tarihine kadar onaylamaz ya da sorun bildirmezseniz teslimat kendiliğinden onaylanır ve navlun şoföre aktarılır.",
+                        'Yükte sorun varsa aynı sayfadan uyuşmazlık açın; onay ve ödeme o zaman durur.'],
+                    route('cargo-owner.shipments.show', $load->id), 'Teslimatı onayla', 'shipment');
+            });
+
+        return $count;
+    }
+
     public function autoApproveDue(): int
     {
         $count = 0;

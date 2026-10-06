@@ -26,6 +26,9 @@ class extends Component {
 
     public string $pod_note = '';
 
+    /** "Yola çıktım" sonrası (bu sayfada ya da İşlerim'den ?konum=1 ile gelince) konum paylaşımı kendiliğinden başlar. */
+    public bool $autoStartLocation = false;
+
     public int $rating = 5;
 
     public string $review_comment = '';
@@ -38,13 +41,17 @@ class extends Component {
             session()->flash('error_message', 'İş bulunamadı veya size ait değil.');
             $this->redirect(route('driver.jobs.index'), navigate: true);
         }
+        $this->autoStartLocation = request()->boolean('konum');
     }
 
     private function ownedLoadQuery()
     {
+        $profileId = Auth::user()->driverProfile?->id ?? 0;
+
+        // Vazgeçilen / ödemesi gelmeyen işte ilan şoförden alınır (driver_profile_id boşalır); geçmiş sekmesindeki "Ayrıntı" yine açılsın.
         return Load::query()
-            ->where('driver_profile_id', Auth::user()->driverProfile?->id ?? 0)
-            ->whereKey($this->loadId);
+            ->whereKey($this->loadId)
+            ->where(fn ($q) => $q->where('driver_profile_id', $profileId)->orWhereHas('shipment', fn ($s) => $s->where('driver_profile_id', $profileId)));
     }
 
     private function ownedShipment(): ?Shipment
@@ -73,7 +80,8 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Yola çıktığınız kaydedildi. Konum paylaşımını açarak yük sahibinin sizi takip etmesini sağlayabilirsiniz.');
+        $this->autoStartLocation = true;
+        session()->flash('success_message', 'Yola çıktığınız kaydedildi; konum paylaşımı başlatılıyor, yük sahibi sizi haritada görebilir.');
     }
 
     /** Ödeme alınmış ama yola çıkılmamış işten vazgeçme (karar 4): ilan havuza döner, navlun yük sahibine iade edilir. */
@@ -241,6 +249,37 @@ class extends Component {
                             <div class="text-neutral-500">Navlun bedeli</div>
                             <div class="text-neutral-900 dark:text-white tabular-nums font-bold">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</div>
                         </div>
+                        @php $privateAddress = $load->privateAddressFor(auth()->user()); $pickupContact = $load->pickupContactFor(auth()->user()); $driverNotes = $load->notesFor(auth()->user()); @endphp
+                        @if($privateAddress && (($privateAddress['pickup'] ?? null) || ($privateAddress['delivery'] ?? null) || $pickupContact))
+                            {{-- Açık adres ve yükleme yetkilisi yalnız ödeme alındıktan sonra, atanmış şoföre görünür (Load::canSeePrivateDetails). --}}
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-neutral-500">Yükleme adresi</div>
+                                <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['pickup'] ?? $load->pickup_location }}</div>
+                                @if($pickupContact)
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-neutral-700 dark:text-neutral-300">
+                                        @if($pickupContact['name'])<span class="break-words">{{ $pickupContact['name'] }}</span>@endif
+                                        @if($pickupContact['phone'])
+                                            <a href="{{ \App\Support\Phone::telHref($pickupContact['phone']) }}" class="font-semibold text-brand-500 hover:underline tabular-nums whitespace-nowrap">{{ \App\Support\Phone::format($pickupContact['phone']) }}</a>
+                                            @if(\App\Support\Phone::supportsWhatsapp($pickupContact['phone']))
+                                                <a href="https://wa.me/90{{ $pickupContact['phone'] }}" target="_blank" rel="noopener" class="load-card-wa">WhatsApp</a>
+                                            @endif
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                                <div class="text-neutral-500">Teslim adresi</div>
+                                <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['delivery'] ?? $load->delivery_location }}</div>
+                            </div>
+                        @elseif(! $load->isPaid() && $shipment)
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 text-neutral-500">Açık yükleme ve teslim adresi, yükleme yetkilisi ve yük sahibinin notu ödeme alındığında burada görünür.</div>
+                        @endif
+                        @if($driverNotes)
+                            <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2">
+                                <div class="text-neutral-500">Yük sahibinin notu</div>
+                                <div class="text-neutral-900 dark:text-white"><x-clamp-text :text="$driverNotes" lines="4" /></div>
+                            </div>
+                        @endif
                         @if($load->e_irsaliye_no || $load->e_irsaliye_path)
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div>
@@ -354,11 +393,32 @@ class extends Component {
                                 lastSentAt: 0,
                                 lastSentLabel: null,
                                 error: null,
+                                autoStart: @js((bool) $autoStartLocation),
+                                wakeLock: null,
                                 init() {
                                     this.$nextTick(() => this.initMap());
-                                    window.addEventListener('livewire:navigating', () => this.stop(), { once: true });
+                                    window.addEventListener('livewire:navigating', () => this.stop(false), { once: true });
+                                    // Sekme arka plandan dönünce konum izlemeyi ve ekran kilidini tazele (telefon kilidi / navigasyon uygulaması).
+                                    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && this.enabled) { this.resume(); } });
+                                    let remembered = false;
+                                    try { remembered = localStorage.getItem('nt-share-' + this.shipmentId) === '1'; } catch (e) {}
+                                    if (this.autoStart || remembered) { this.$nextTick(() => this.start()); }
                                 },
-                                destroy() { this.stop(); },
+                                destroy() { this.stop(false); },
+                                remember(on) { try { on ? localStorage.setItem('nt-share-' + this.shipmentId, '1') : localStorage.removeItem('nt-share-' + this.shipmentId); } catch (e) {} },
+                                async keepAwake() {
+                                    if (!('wakeLock' in navigator)) return;
+                                    try { this.wakeLock = await navigator.wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } catch (e) { this.wakeLock = null; }
+                                },
+                                resume() {
+                                    if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
+                                    this.watchId = navigator.geolocation.watchPosition((p) => this.onPosition(p), (err) => this.onError(err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+                                    this.keepAwake();
+                                },
+                                onError(err) {
+                                    if (err.code === 1) { this.stop(); this.error = 'Konum izni verilmedi. Tarayıcı ayarlarından bu site için konum iznini açıp paylaşımı yeniden başlatın.'; return; }
+                                    this.error = 'Konum alınamadı: ' + err.message;
+                                },
                                 csrf() { const m = document.querySelector('meta[name=csrf-token]'); return m ? m.content : ''; },
                                 initMap() {
                                     if (typeof L === 'undefined' || this.map) return;
@@ -385,18 +445,18 @@ class extends Component {
                                 toggle() { this.enabled ? this.stop() : this.start(); },
                                 start() {
                                     if (!('geolocation' in navigator)) { this.error = 'Tarayıcınız konum paylaşımını desteklemiyor.'; return; }
+                                    if (this.enabled) return;
                                     this.error = null;
                                     this.enabled = true;
-                                    this.watchId = navigator.geolocation.watchPosition(
-                                        (position) => this.onPosition(position),
-                                        (err) => { this.error = 'Konum alınamadı: ' + err.message; },
-                                        { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
-                                    );
+                                    this.remember(true);
+                                    this.resume();
                                 },
-                                stop() {
+                                stop(forget = true) {
                                     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId);
                                     this.watchId = null;
                                     this.enabled = false;
+                                    if (this.wakeLock) { try { this.wakeLock.release(); } catch (e) {} this.wakeLock = null; }
+                                    if (forget) this.remember(false);
                                 },
                                 onPosition(position) {
                                     const now = Date.now();
@@ -411,7 +471,10 @@ class extends Component {
                                         body: JSON.stringify({ lat: c.latitude, lng: c.longitude, speed: num(c.speed), heading: num(c.heading), accuracy: num(c.accuracy), shipment_id: this.shipmentId })
                                     }).then((response) => {
                                         if (!response.ok) throw new Error('Sunucu yanıtı ' + response.status);
-                                        this.lastSentLabel = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                                        return response.json();
+                                    }).then((data) => {
+                                        if (data && data.recorded === false) { this.error = 'Konum kaydedilmedi: sevkiyat şu an yolda görünmüyor.'; return; }
+                                        this.lastSentLabel = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
                                         this.error = null;
                                         this.updateMarker(c.latitude, c.longitude);
                                     }).catch((e) => { this.error = 'Konum gönderilemedi: ' + e.message; });
@@ -427,6 +490,7 @@ class extends Component {
                                         <template x-if="!lastSentLabel"><span> · Bu oturumda henüz konum gönderilmedi</span></template>
                                     </div>
                                     <div class="text-rose-600 dark:text-rose-400" x-show="error" x-text="error" x-cloak></div>
+                                    <div class="text-neutral-500 dark:text-neutral-400" x-show="enabled && !('wakeLock' in navigator)" x-cloak>Bu tarayıcı ekranı açık tutamıyor; telefon kilitlenince paylaşım durabilir, sayfaya dönünce kendiliğinden sürer.</div>
                                 </div>
                                 <button type="button" @click="toggle()" class="shrink-0 px-4 py-2 rounded-xl font-bold border transition-colors" :class="enabled ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' : 'bg-brand-500 border-brand-500 text-white hover:bg-brand-600'">
                                     <span x-text="enabled ? 'Paylaşımı durdur' : 'Paylaşımı başlat'"></span>

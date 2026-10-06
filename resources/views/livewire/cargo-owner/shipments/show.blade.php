@@ -146,13 +146,16 @@ class extends Component {
         $load = $this->ownerLoad();
         $shipment = $load?->shipment;
 
-        if (! $shipment || ! in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+        if (! $shipment || ! in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_DISPUTED], true)) {
             return;
         }
 
         $trail = $locations->trailFor($shipment);
         if ($trail['latest']) {
-            $this->dispatch('trail-updated', trail: $trail['trail'], latest: $trail['latest']->lat_lng, recordedAt: $trail['latest']->recorded_at?->format('d.m.Y H:i'));
+            $this->dispatch('trail-updated', trail: $trail['trail'], latest: $trail['latest']->lat_lng,
+                recordedAt: $trail['latest']->recorded_at?->format('d.m.Y H:i'), recordedTs: $trail['latest']->recorded_at?->getTimestamp(),
+                stale: $trail['latest']->recorded_at?->lt(now()->subMinutes(15)) ?? true,
+                remainingKm: DriverLocationService::remainingKm($trail['latest'], $load->delivery_lat !== null ? (float) $load->delivery_lat : null, $load->delivery_lng !== null ? (float) $load->delivery_lng : null));
         }
     }
 
@@ -163,7 +166,7 @@ class extends Component {
         $user = Auth::user();
 
         $trail = ['latest' => null, 'trail' => []];
-        if ($shipment && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED], true)) {
+        if ($shipment && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DELIVERED, Shipment::STATUS_DISPUTED], true)) {
             $trail = app(DriverLocationService::class)->trailFor($shipment);
         }
 
@@ -171,11 +174,16 @@ class extends Component {
             ['label' => 'İlan yayınlandı', 'at' => $load->published_at ?? $load->created_at],
             ['label' => 'Şoför atandı', 'at' => $shipment?->created_at],
             ['label' => 'Ödeme havuza alındı', 'at' => $load->isPaid() ? ($load->paymentOrders()->where('status', 'paid')->latest('paid_at')->value('paid_at')) : null, 'done' => $load->isPaid()],
-            ['label' => 'Yük teslim alındı', 'at' => $shipment?->pickup_confirmed_at],
-            ['label' => 'Yola çıkıldı', 'at' => $shipment?->in_transit_at],
+            ['label' => 'Yük alındı, yola çıkıldı', 'at' => $shipment?->in_transit_at ?? $shipment?->pickup_confirmed_at],
             ['label' => 'Teslim edildi', 'at' => $shipment?->delivered_at],
             ['label' => 'Teslimat onaylandı', 'at' => $shipment?->owner_approved_at],
         ] : [];
+
+        // Tahmini varış: kabul edilen teklifteki gün sayısı + yola çıkış; yalnız yoldayken anlamlı.
+        $estimatedDays = $shipment?->acceptedOffer?->estimated_days;
+        $eta = ($shipment?->in_transit_at && $estimatedDays && in_array($shipment->status, [Shipment::STATUS_IN_TRANSIT, Shipment::STATUS_DISPUTED], true) && $shipment->delivered_at === null)
+            ? $shipment->in_transit_at->copy()->addDays((int) $estimatedDays) : null;
+        $latestAt = $trail['latest']?->recorded_at;
 
         return [
             'load' => $load,
@@ -185,6 +193,11 @@ class extends Component {
             'openDispute' => $load?->openDispute(),
             'trail' => $trail['trail'],
             'latest' => $trail['latest'],
+            'latestStale' => $latestAt ? $latestAt->lt(now()->subMinutes(15)) : false,
+            'remainingKm' => DriverLocationService::remainingKm($trail['latest'], $load?->delivery_lat !== null ? (float) $load->delivery_lat : null, $load?->delivery_lng !== null ? (float) $load->delivery_lng : null),
+            'routePoints' => ['pickup' => ($load?->pickup_lat !== null && $load?->pickup_lng !== null) ? [(float) $load->pickup_lat, (float) $load->pickup_lng] : null,
+                'delivery' => ($load?->delivery_lat !== null && $load?->delivery_lng !== null) ? [(float) $load->delivery_lat, (float) $load->delivery_lng] : null],
+            'eta' => $eta,
             'timeline' => $timeline,
             'hasReviewed' => $load ? app(ReviewService::class)->hasReviewed($load, $user) : false,
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
@@ -232,8 +245,8 @@ class extends Component {
             $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && $load->escrow_status === 'paid_in_escrow' && ! $openDispute;
             $canReview = \App\Services\ReviewService::canReview($load) && ! $hasReviewed && $driverUser;
             $canCancelPaid = $load->canBeCancelledBeforeTransit();
-            $isLive = $shipment && $shipment->status === 'in_transit';
-            $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered'], true) && $latest;
+            $isLive = $shipment && ($shipment->status === 'in_transit' || ($shipment->status === 'disputed' && $shipment->delivered_at === null));
+            $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered', 'disputed'], true) && $latest;
         @endphp
 
         @if($load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment')
@@ -280,13 +293,19 @@ class extends Component {
             <div class="lg:col-span-2 space-y-6">
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden isolate z-0" @if($isLive) wire:poll.15s="refreshTrail" @endif>
-                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                         x-data="{ stale: @js($latestStale), km: @js($remainingKm) }" x-on:trail-updated.window="stale = !!$event.detail.stale; km = $event.detail.remainingKm ?? km; if ($refs.ago && $event.detail.recordedTs) { $refs.ago.dataset.ago = $event.detail.recordedTs; $refs.ago.title = $event.detail.recordedAt; }">
                         <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full {{ $isLive && $latest ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-600' }}"></span>
+                            <span class="w-2.5 h-2.5 rounded-full" :class="{{ $isLive && $latest ? 'true' : 'false' }} && !stale ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-400 dark:bg-neutral-600'"></span>
                             <span class="font-bold text-neutral-900 dark:text-white">Canlı konum</span>
+                            @if($eta)<span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400">Tahmini varış {{ $eta->format('d.m') }}</span>@endif
                         </div>
                         @if($latest)
-                            <span class="text-neutral-500 dark:text-neutral-400" x-data="{ at: @js($latest->recorded_at?->format('d.m.Y H:i')) }" x-on:trail-updated.window="at = $event.detail.recordedAt || at">Son konum: <span class="text-neutral-800 dark:text-neutral-200" x-text="at"></span></span>
+                            <span class="text-neutral-500 dark:text-neutral-400">
+                                Son konum: <x-time-ago :at="$latest->recorded_at" x-ref="ago" class="text-neutral-800 dark:text-neutral-200" />
+                                <template x-if="km !== null"><span> · varışa ≈ <span class="text-neutral-800 dark:text-neutral-200 tabular-nums" x-text="Math.round(km).toLocaleString('tr-TR')"></span> km</span></template>
+                                <template x-if="stale && {{ $isLive ? 'true' : 'false' }}"><span class="block text-amber-600 dark:text-amber-400">Konum bir süredir gelmiyor; şoförün telefonu kapalı ya da uygulama arka planda olabilir.</span></template>
+                            </span>
                         @endif
                     </div>
 
@@ -299,11 +318,16 @@ class extends Component {
                                     if (!el || el._leaflet_id) return;
                                     const trail = @js($trail);
                                     const latest = @js($latest->lat_lng);
+                                    const route = @js($routePoints);
                                     const map = L.map(el, { zoomControl: true }).setView(latest, 11);
                                     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO' }).addTo(map);
+                                    const bounds = [];
+                                    if (route.pickup) { L.circleMarker(route.pickup, { radius: 6, color: '#ffffff', weight: 2, fillColor: '#737373', fillOpacity: 1 }).bindTooltip('Yükleme').addTo(map); bounds.push(route.pickup); }
+                                    if (route.delivery) { L.circleMarker(route.delivery, { radius: 7, color: '#ffffff', weight: 2, fillColor: '#10b981', fillOpacity: 1 }).bindTooltip('Teslimat').addTo(map); bounds.push(route.delivery); }
                                     el._ntLine = L.polyline(trail, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
                                     el._ntMarker = L.circleMarker(latest, { radius: 9, color: '#ffffff', weight: 3, fillColor: '#f97316', fillOpacity: 1 }).addTo(map);
-                                    if (trail.length > 1) { map.fitBounds(el._ntLine.getBounds(), { padding: [30, 30] }); }
+                                    trail.forEach((pt) => bounds.push(pt));
+                                    if (bounds.length > 1) { map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30] }); }
                                     el._ntMap = map;
                                 },
                                 update(detail) {
@@ -332,17 +356,33 @@ class extends Component {
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                     <h3 class="section-title">Rota ve yük</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        @php $privateAddress = $load->privateAddressFor(auth()->user()); $pickupContact = $load->pickupContactFor(auth()->user()); @endphp
                         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Yükleme adresi</span>
                             <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->pickup_location }}</span>
+                            @if($privateAddress['pickup'] ?? null)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ $privateAddress['pickup'] }}</span>
+                            @endif
+                            @if($pickupContact)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ implode(' · ', array_filter([$pickupContact['name'], $pickupContact['phone'] ? \App\Support\Phone::format($pickupContact['phone']) : null])) }}</span>
+                            @endif
                             <span class="text-neutral-500 block mt-1">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
                         </div>
                         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Teslimat adresi</span>
                             <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->delivery_location }}</span>
+                            @if($privateAddress['delivery'] ?? null)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ $privateAddress['delivery'] }}</span>
+                            @endif
                             <span class="text-neutral-500 block mt-1">{{ $load->delivery_date ? 'En geç '.$load->delivery_date->format('d.m.Y') : 'Teslim tarihi belirtilmedi' }}</span>
                         </div>
                     </div>
+                    @if($notes = $load->notesFor(auth()->user()))
+                        <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs">
+                            <span class="text-neutral-500 block mb-0.5">Şoföre not</span>
+                            <x-clamp-text :text="$notes" lines="3" />
+                        </div>
+                    @endif
                     <div class="flex flex-wrap gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                         <span>Yük: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->goods_type }}</span></span>
                         <span>Ağırlık: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span></span>
@@ -471,7 +511,7 @@ class extends Component {
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Marka / model</span>
-                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? \App\Support\VehicleTypes::label($vehicle->vehicle_type) : '—' }}</span>
+                                <span class="text-neutral-800 dark:text-neutral-200 text-right">{{ $vehicle ? (trim(($vehicle->brand ?? '').' '.($vehicle->model ?? '')) ?: '—') : '—' }}</span>
                             </div>
                             <div class="flex items-center justify-between gap-3">
                                 <span class="text-neutral-500 dark:text-neutral-400">Araç tipi</span>

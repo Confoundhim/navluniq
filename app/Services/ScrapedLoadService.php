@@ -623,6 +623,9 @@ class ScrapedLoadService
     /** Şoför ilan sahibini arayıp öğrendi: araç tipi (ya da "fark etmez") girilince ilan tamamlanır. */
     public function completeByDriver(ScrapedLoad $load, DriverProfile $driver, string $vehicleType): void
     {
+        if ($driver->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
         if (! $load->is_incomplete || $load->visibility !== 'public') {
             throw new RuntimeException('Bu ilan tamamlanmayı beklemiyor.');
         }

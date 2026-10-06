@@ -38,7 +38,7 @@ class BodyTypeFormsTest extends TestCase
         $this->assertSame([], $c->get('body_types'), 'Panelvan yalnız kapalı / frigo');
 
         $c->set('vehicle_type', 'tir')->set('body_types', ['damperli'])->set('load_kind', 'komple')
-            ->set('pickup_location', 'Ankara')->set('delivery_location', 'İzmir')->set('pickup_date', now()->addDay()->format('Y-m-d'))
+            ->set('pickup_province_code', '6')->set('delivery_province_code', '35')->set('pickup_date', now()->addDay()->format('Y-m-d'))
             ->set('goods_type', Load::GOODS_TYPES[0])->set('weight', '24000')->set('price', '45000')->set('terms_accepted', true)
             ->set('currentStep', 3)->call('submitLoad');
         $load = Load::query()->latest('id')->first();

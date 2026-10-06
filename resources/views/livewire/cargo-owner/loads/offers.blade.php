@@ -3,8 +3,11 @@
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Models\Offer;
+use App\Models\Review;
 use App\Services\CargoOwnerVerificationService;
 use App\Services\OfferService;
+use App\Services\PaymentService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
@@ -148,7 +151,21 @@ class extends Component {
                 ->get()
             : collect();
 
-        $pending = $all->where('status', 'pending')->map(function (Offer $offer): array {
+        $pendingOffers = $all->where('status', 'pending');
+        // Şoför güveni tek sorguyla: tamamlanmış sevkiyat sayısı (iade ile kapananlar sayılmaz) ve son iki yorum.
+        $driverIds = $pendingOffers->pluck('driver_profile_id')->filter()->unique()->values();
+        $completedCounts = $driverIds->isEmpty() ? collect() : Load::query()
+            ->select('driver_profile_id', DB::raw('count(*) as c'))
+            ->whereIn('driver_profile_id', $driverIds)->where('status', Load::STATUS_COMPLETED)
+            ->whereNotIn('escrow_status', [Load::ESCROW_REFUNDED, Load::ESCROW_REFUND_PENDING])
+            ->groupBy('driver_profile_id')->pluck('c', 'driver_profile_id');
+        $userIds = $pendingOffers->map(fn (Offer $o) => $o->driverProfile?->user_id)->filter()->unique()->values();
+        $recentReviews = $userIds->isEmpty() ? collect() : Review::query()
+            ->whereIn('reviewee_id', $userIds)->whereNotNull('comment')->where('comment', '!=', '')
+            ->latest()->get()->groupBy('reviewee_id')->map(fn ($g) => $g->take(2)->values());
+        $payments = app(PaymentService::class);
+
+        $pending = $pendingOffers->map(function (Offer $offer) use ($completedCounts, $recentReviews, $payments): array {
             $driver = $offer->driverProfile;
             $user = $driver?->user;
 
@@ -159,6 +176,10 @@ class extends Component {
                 'vehicle' => $driver?->activeVehicle,
                 'rating' => $user?->reviews_received_avg_rating !== null ? round((float) $user->reviews_received_avg_rating, 1) : null,
                 'reviews_count' => (int) ($user?->reviews_received_count ?? 0),
+                'completed_count' => (int) ($completedCounts[$driver?->id] ?? 0),
+                'recent_reviews' => $user ? ($recentReviews[$user->id] ?? collect()) : collect(),
+                // Kabul edilince ilan bedeli teklif tutarı olur; ödeme sayfasındaki toplamla aynı formül.
+                'amounts' => $payments->amountsFor((float) $offer->amount, $driver),
             ];
         });
 
@@ -266,7 +287,7 @@ class extends Component {
                                         <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold">Belgeleri doğrulandı</span>
                                     @endif
                                 </div>
-                                <div class="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                                     @if($row['rating'] !== null)
                                         <span class="text-amber-600 dark:text-amber-400 font-semibold">{{ number_format($row['rating'], 1, ',', '.') }} / 5</span>
                                         <span class="text-neutral-600">·</span>
@@ -274,6 +295,7 @@ class extends Component {
                                     @else
                                         <span>Henüz değerlendirme yok</span>
                                     @endif
+                                    <span class="whitespace-nowrap"><span class="text-neutral-600">· </span><span class="{{ $row['completed_count'] > 0 ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : '' }}">{{ $row['completed_count'] > 0 ? $row['completed_count'].' tamamlanmış sevkiyat' : 'İlk NavlunIQ sevkiyatı olacak' }}</span></span>
                                 </div>
                             </div>
                         </div>
@@ -306,6 +328,21 @@ class extends Component {
                         @if($offer->message)
                             <p class="text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-950/60 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800/80 leading-relaxed break-words">{{ $offer->message }}</p>
                         @endif
+
+                        @if($row['recent_reviews']->isNotEmpty())
+                            <div class="space-y-1.5">
+                                <span class="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">Son yorumlar</span>
+                                @foreach($row['recent_reviews'] as $review)
+                                    <div class="text-xs text-neutral-700 dark:text-neutral-300 p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800/80">
+                                        <div class="flex flex-wrap items-center gap-x-2 text-[11px] text-neutral-500 mb-0.5">
+                                            <span class="text-amber-600 dark:text-amber-400 font-semibold">{{ $review->rating }} / 5</span>
+                                            <span>{{ $review->created_at?->format('d.m.Y') }}</span>
+                                        </div>
+                                        <x-clamp-text :text="$review->comment" lines="2" />
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
                     </div>
 
                     <div class="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-neutral-200 dark:border-neutral-800">
@@ -314,6 +351,7 @@ class extends Component {
                             <div class="text-3xl font-black text-neutral-900 dark:text-white tabular-nums">
                                 {{ number_format((float) $offer->amount, 2, ',', '.') }} <span class="text-brand-500 text-xl">₺</span>
                             </div>
+                            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen ödeyeceğin toplam: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format($row['amounts']['total'], 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(navlun + hizmet bedeli)</span></p>
                         </div>
 
                         @if($load->status === 'active_seeking')

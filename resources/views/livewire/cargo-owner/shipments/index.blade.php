@@ -30,7 +30,7 @@ class extends Component {
             'active' => [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY],
             'delivered' => [Load::STATUS_DELIVERED],
             'completed' => [Load::STATUS_COMPLETED],
-            default => [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED, Load::STATUS_COMPLETED, Load::STATUS_DISPUTED],
+            default => [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED, Load::STATUS_COMPLETED, Load::STATUS_DISPUTED, Load::STATUS_CANCELLED], // iade ile kapanan da burada
         };
 
         $shipments = Load::query()

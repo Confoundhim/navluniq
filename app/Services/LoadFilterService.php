@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\DriverProfile;
+use App\Models\Load;
 use App\Support\BodyTypes;
+use App\Support\Geo;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
@@ -388,9 +390,20 @@ class LoadFilterService
         };
     }
 
-    /** Haversine (km); bağlamalar sırası: lat, lat, lng. Trigonometrik fonksiyon gerektirir (MySQL/MariaDB). */
+    /** Haversine (km); bağlamalar sırası: lat, lat, lng. Formül tek yerde: App\Support\Geo. */
     public static function distanceSql(string $latCol, string $lngCol): string
     {
-        return "(6371 * 2 * ASIN(SQRT(POWER(SIN(RADIANS({$latCol} - ?) / 2), 2) + COS(RADIANS(?)) * COS(RADIANS({$latCol})) * POWER(SIN(RADIANS({$lngCol} - ?) / 2), 2))))";
+        return Geo::distanceSql($latCol, $lngCol);
+    }
+
+    /**
+     * Tek ilan şoförün süzgecine uyuyor mu? (bildirimde kayıtlı varsayılan filtre: il/ilçe, kasa, tonaj, fiyat, araç).
+     * İlan sorguya alınır (whereKey) ve aynı süzgeç uygulanır; böylece liste ile bildirim hiç ayrışmaz.
+     */
+    public function loadMatches(Load $load, array $filters, ?DriverProfile $profile): bool
+    {
+        $q = Load::query()->whereKey($load->id);
+
+        return $this->applyToLoads($q, self::normalize($filters), $profile)->exists();
     }
 }

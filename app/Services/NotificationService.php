@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Jobs\QueueHeartbeat;
+use App\Jobs\SendNotificationMail;
 use App\Mail\SystemNoticeMail;
 use App\Models\User;
 use App\Models\UserNotification;
@@ -33,7 +35,12 @@ class NotificationService
         ]);
 
         if ($sendMail) {
-            $this->sendMail($notification->setRelation('user', $user));
+            // Kuyruk işçisi canlıysa e-posta kuyrukta gider (istek SMTP'yi beklemez); değilse eskisi gibi istek içinde.
+            if (QueueHeartbeat::alive()) {
+                SendNotificationMail::dispatch($notification->id);
+            } else {
+                $this->sendMail($notification->setRelation('user', $user));
+            }
         }
 
         return $notification;

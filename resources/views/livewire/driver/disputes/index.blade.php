@@ -173,7 +173,7 @@ class extends Component {
                                     İlan kaldırılmış
                                 @endif
                             </div>
-                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border
+                            <span class="px-2.5 py-1 rounded-full text-2xs font-bold border
                                 {{ $dispute->status === 'open' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' : ($dispute->status === 'resolved_driver_paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400') }}">
                                 {{ \App\Models\Dispute::STATUS_LABELS[$dispute->status] ?? $dispute->status }}
                             </span>
@@ -184,7 +184,7 @@ class extends Component {
                         </div>
 
                         <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
-                            <div class="text-[11px] uppercase text-neutral-500 font-bold">Yük sahibinin iddiası</div>
+                            <div class="text-2xs uppercase text-neutral-500 font-bold">Yük sahibinin iddiası</div>
                             <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->cargo_owner_claim }}</div>
                             @if($dispute->claim_photo_path)
                                 <a href="{{ route('files.dispute', [$dispute->id, 'claim']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">İddia fotoğrafını görüntüle</a>
@@ -193,7 +193,7 @@ class extends Component {
 
                         @if($dispute->driver_defense)
                             <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
-                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Savunmanız</div>
+                                <div class="text-2xs uppercase text-neutral-500 font-bold">Savunmanız</div>
                                 <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->driver_defense }}</div>
                                 @if($dispute->driver_proof_photo_path)
                                     <a href="{{ route('files.dispute', [$dispute->id, 'defense']) }}" target="_blank" rel="noopener" class="inline-block text-brand-400 font-bold hover:underline">Kanıtınızı görüntüle</a>
@@ -203,10 +203,10 @@ class extends Component {
 
                         @if($dispute->status !== 'open')
                             <div class="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
-                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Hakem kararı</div>
+                                <div class="text-2xs uppercase text-neutral-500 font-bold">Hakem kararı</div>
                                 <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $dispute->arbitration_notes ?: 'Karar notu girilmedi.' }}</div>
                                 @if($dispute->resolved_at)
-                                    <div class="text-[11px] text-neutral-500">{{ $dispute->resolved_at->format('d.m.Y H:i') }}</div>
+                                    <div class="text-2xs text-neutral-500">{{ $dispute->resolved_at->format('d.m.Y H:i') }}</div>
                                 @endif
                             </div>
                         @else
@@ -266,16 +266,16 @@ class extends Component {
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-neutral-900 dark:text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
-                            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold border
+                            <span class="px-2 py-0.5 rounded-full text-2xs font-bold border
                                 {{ $ticket->status === 'answered' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : ($ticket->status === 'closed' ? 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400') }}">
                                 {{ ['open' => 'Açık', 'answered' => 'Yanıtlandı', 'closed' => 'Kapatıldı'][$ticket->status] ?? $ticket->status }}
                             </span>
                         </div>
-                        <div class="text-[11px] text-neutral-500">{{ $categories[$ticket->category] ?? $ticket->category }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</div>
+                        <div class="text-2xs text-neutral-500">{{ $categories[$ticket->category] ?? $ticket->category }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</div>
                         <div class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $ticket->message }}</div>
                         @if($ticket->admin_reply)
                             <div class="mt-2 p-2 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
-                                <div class="text-[11px] uppercase text-neutral-500 font-bold">Destek yanıtı @if($ticket->replied_at) · {{ $ticket->replied_at->format('d.m.Y H:i') }} @endif</div>
+                                <div class="text-2xs uppercase text-neutral-500 font-bold">Destek yanıtı @if($ticket->replied_at) · {{ $ticket->replied_at->format('d.m.Y H:i') }} @endif</div>
                                 <div class="text-neutral-800 dark:text-neutral-200 leading-relaxed">{{ $ticket->admin_reply }}</div>
                             </div>
                         @endif
@@ -308,7 +308,7 @@ class extends Component {
                     <label class="form-label">Kanıt fotoğrafı veya belgesi (isteğe bağlı)</label>
                     <input type="file" wire:model="defense_photo" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
                     @error('defense_photo') <span class="form-error">{{ $message }}</span> @enderror
-                    <div wire:loading wire:target="defense_photo" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                    <div wire:loading wire:target="defense_photo" class="text-2xs text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button type="button" wire:click="closeDefense" class="btn-secondary flex-1">Vazgeç</button>

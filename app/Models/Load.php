@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasPublicId;
+use App\Models\Concerns\HasRouteDistance;
 use App\Support\BodyTypes;
+use App\Support\TurkishLocations;
+use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -68,7 +71,7 @@ class Load extends Model
         'İnşaat / Yapı Malzemesi', 'Makine & Ağır Sanayi', 'Tehlikeli Madde (ADR)', 'Diğer / Özel',
     ];
 
-    use HasFactory, HasPublicId, SoftDeletes;
+    use HasFactory, HasPublicId, HasRouteDistance, SoftDeletes;
 
     protected $fillable = [
         'cargo_owner_profile_id',
@@ -81,6 +84,11 @@ class Load extends Model
         'delivery_location',
         'delivery_province_code',
         'delivery_district',
+        'pickup_address_private',
+        'delivery_address_private',
+        'pickup_contact_name',
+        'pickup_contact_phone',
+        'notes',
         'pickup_coordinates',
         'delivery_coordinates',
         'pickup_lat',
@@ -113,6 +121,7 @@ class Load extends Model
         'payment_due_at',
         'payment_reminded_at',
         'no_show_notified_at',
+        'transit_overdue_notified_at',
     ];
 
     protected $casts = [
@@ -126,10 +135,112 @@ class Load extends Model
         'payment_due_at' => 'datetime',
         'payment_reminded_at' => 'datetime',
         'no_show_notified_at' => 'datetime',
+        'transit_overdue_notified_at' => 'datetime',
         'price' => 'decimal:2',
         'body_types' => 'array',
         'delivery_stops' => 'array',
     ];
+
+    /** Şoföre not en çok bu kadar karakter. */
+    public const NOTES_MAX = 500;
+
+    /**
+     * Herkese açık kalkış etiketi ("Ankara Yenimahalle"): il/ilçe çözülmüşse ondan, yoksa ilan metninden. Eski (serbest metinli)
+     * ilanlarda da yalnız il/ilçe gösterilir; açık adres `pickup_address_private` kolonunda ayrı durur.
+     */
+    public function publicPickup(): string
+    {
+        return $this->publicPlace('pickup');
+    }
+
+    public function publicDelivery(): string
+    {
+        return $this->publicPlace('delivery');
+    }
+
+    /** "Ankara Yenimahalle → İzmir Aliağa": kartlar, bildirimler ve Telegram için herkese açık rota. */
+    public function publicRoute(): string
+    {
+        return $this->publicPickup().' → '.$this->publicDelivery();
+    }
+
+    private function publicPlace(string $side): string
+    {
+        $code = $this->{$side.'_province_code'};
+        if ($code && ($province = TurkishLocations::province((int) $code))) {
+            return (string) TurkishLocations::label(['province' => $province['name'], 'district' => $this->{$side.'_district'}]);
+        }
+
+        return (string) $this->{$side.'_location'};
+    }
+
+    /**
+     * Açık adres, yükleme yetkilisi ve şoföre not kime görünür: ilan sahibi, atanmış ve ödemesi alınmış (ya da sonrası) şoför,
+     * yönetici paneli kullanıcıları. Havuzdaki şoför yalnız il/ilçe görür (KVKK, plan E6/E7).
+     */
+    public function canSeePrivateDetails(?User $viewer): bool
+    {
+        if (! $viewer) {
+            return false;
+        }
+        if ($viewer->hasAnyRole(User::ADMIN_PANEL_ROLES)) {
+            return true;
+        }
+        if ($this->cargo_owner_profile_id && $viewer->cargoOwnerProfile?->id === $this->cargo_owner_profile_id) {
+            return true;
+        }
+
+        return $this->driver_profile_id
+            && $viewer->driverProfile?->id === $this->driver_profile_id
+            && $this->isPaid();
+    }
+
+    /**
+     * Açık adresler; görme hakkı yoksa null. Dönen dizi: ['pickup' => ?string, 'delivery' => ?string].
+     *
+     * @return array{pickup: ?string, delivery: ?string}|null
+     */
+    public function privateAddressFor(?User $viewer): ?array
+    {
+        if (! $this->canSeePrivateDetails($viewer)) {
+            return null;
+        }
+
+        return [
+            'pickup' => $this->pickup_address_private ?: null,
+            'delivery' => $this->delivery_address_private ?: null,
+        ];
+    }
+
+    /** Şoföre not; görme hakkı yoksa ya da not yoksa null. */
+    public function notesFor(?User $viewer): ?string
+    {
+        if (! $this->canSeePrivateDetails($viewer)) {
+            return null;
+        }
+
+        return $this->notes !== null && trim($this->notes) !== '' ? $this->notes : null;
+    }
+
+    /**
+     * Yükleme yetkilisi (adres defterinden taşınır); görme hakkı yoksa ya da ikisi de boşsa null.
+     *
+     * @return array{name: ?string, phone: ?string}|null
+     */
+    public function pickupContactFor(?User $viewer): ?array
+    {
+        if (! $this->canSeePrivateDetails($viewer) || (! $this->pickup_contact_name && ! $this->pickup_contact_phone)) {
+            return null;
+        }
+
+        return ['name' => $this->pickup_contact_name ?: null, 'phone' => $this->pickup_contact_phone ?: null];
+    }
+
+    /** Yük sahibi ilanı düzenleyebilir mi (yalnız teklif bekleyen ilan)? */
+    public function isEditableByOwner(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
 
     /** Kasa etiketi ("Tenteli", "Damper / Açık"); belirtilmemişse null. */
     public function bodyLabel(): ?string
@@ -140,6 +251,61 @@ class Load extends Model
     public function loadKindLabel(): ?string
     {
         return BodyTypes::LOAD_KINDS[$this->load_kind ?? ''] ?? null;
+    }
+
+    /** "24 ton" / "800 kg" / null (dış kaynak kartıyla aynı biçim). */
+    public function weightLabel(): ?string
+    {
+        $kg = (int) $this->weight;
+        if ($kg <= 0) {
+            return null;
+        }
+        if ($kg >= 1000) {
+            $t = $kg / 1000;
+
+            return (fmod($t, 1.0) === 0.0 ? number_format($t, 0, ',', '.') : number_format($t, 1, ',', '.')).' ton';
+        }
+
+        return number_format($kg, 0, ',', '.').' kg';
+    }
+
+    /** "45.000 ₺" / "45.000,50 ₺"; fiyat yoksa null. */
+    public function priceLabel(): ?string
+    {
+        if ($this->price === null || (float) $this->price <= 0) {
+            return null;
+        }
+        $v = (float) $this->price;
+
+        return number_format($v, fmod($v, 1.0) === 0.0 ? 0 : 2, ',', '.').' ₺';
+    }
+
+    /** Kart satırı: "TIR · Tenteli · Komple yük". */
+    public function vehicleSummary(): string
+    {
+        return implode(' · ', array_filter([VehicleTypes::label($this->vehicle_type) ?: 'Araç belirtilmemiş', $this->bodyLabel(), $this->loadKindLabel()]));
+    }
+
+    /**
+     * "Paylaş" metni: rota, araç, yük, fiyat ve ilan bağlantısı. Yük sahibinin adı ya da iletişim bilgisi paylaşılmaz
+     * (Kullanıcı Sözleşmesi md. 3.4); ilana ulaşan şoför bilgileri kendi hesabıyla görür.
+     */
+    public function shareText(): string
+    {
+        $lines = array_filter([
+            'NavlunIQ ilanı: '.($this->pickup_location ?: 'Belirtilmemiş').' → '.($this->delivery_location ?: 'Belirtilmemiş'),
+            implode(' · ', array_filter([$this->goods_type, $this->vehicleSummary(), $this->weightLabel()])),
+            $this->priceLabel() ? 'Navlun: '.$this->priceLabel() : null,
+            $this->pickup_date ? 'Yükleme: '.$this->pickup_date->format('d.m.Y H:i') : null,
+        ]);
+
+        return implode("\n", $lines);
+    }
+
+    /** Paylaşılan bağlantı: ilan havuzunda bu ilanla açılır. */
+    public function shareUrl(): string
+    {
+        return route('driver.loads.index', ['ilan' => $this->id]);
     }
 
     /** Ücretsiz (premium olmayan) şoförlere açıldı mı? Süre tanımsızsa her zaman açık. */
@@ -155,6 +321,24 @@ class Load extends Model
     }
 
     /** Verilen şoförün (premium değilse) görebileceği ilanlarla sınırlar. */
+    /**
+     * Şoförün teklif verebileceği ilanlar: yayında, herkese/premiuma açık, yükleme tarihi geçmemiş, kendi ilanı değil ve
+     * bu şoförün bekleyen/kabul edilmiş teklifi yok. Havuz, genel bakış ve dönüş yükü listesi aynı kuralı kullanır
+     * (genel bakışta teklif verilmiş ilan "Teklif ver" ile listelenip havuzda "bulunamadı" diyordu, 2026-10-06).
+     */
+    public function scopeOfferableBy(Builder $query, ?DriverProfile $profile): Builder
+    {
+        $profileId = $profile?->id ?? 0;
+        $userId = $profile?->user_id ?? 0;
+
+        return $query
+            ->where('status', self::STATUS_ACTIVE)->where('visibility', 'public')
+            ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', today()))
+            ->where(fn (Builder $q) => $q->whereNull('cargo_owner_profile_id')->orWhereHas('cargoOwnerProfile', fn ($o) => $o->where('user_id', '!=', $userId)))
+            ->openTo($profile)
+            ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']));
+    }
+
     public function scopeOpenTo(Builder $query, ?DriverProfile $profile): Builder
     {
         if ($profile?->isPremium()) {

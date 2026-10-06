@@ -37,6 +37,7 @@ class Shipment extends Model
         'owner_approved_at',
         'owner_rejected_at',
         'auto_approval_due_at',
+        'approval_reminded_at',
     ];
 
     protected $casts = [
@@ -44,6 +45,7 @@ class Shipment extends Model
         'in_transit_at' => 'datetime',
         'delivered_at' => 'datetime',
         'owner_approved_at' => 'datetime',
+        'approval_reminded_at' => 'datetime',
         'owner_rejected_at' => 'datetime',
         'auto_approval_due_at' => 'datetime',
     ];

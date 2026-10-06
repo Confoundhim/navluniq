@@ -411,7 +411,7 @@ olursa bu dosya da güncellenir. **Bu dosyaya asla şifre, anahtar ya da .env i�
 (10 dk), `scraped-loads:purge-expired` (günlük; arşivler, silmez), `scraped-loads:ai-enrich` (5 dk),
 `scraped-loads:auto-approve` (dakikada; aday en çok 10 dk'da bir ya da değişince / ayar değişince yeniden değerlendirilir,
 `auto_checked_at`; çalıştırma en çok 20 sn), `loads:release-to-free` (dakikada), `shipments:auto-approve` (saatlik),
-`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `intake-layers:review` (saatlik; okuma katmanı aşamaları, bkz. §4), `loads:no-show` (saatlik), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
+`accounts:purge-drafts` (saatlik; 2 saatten eski taslaklar), `privacy:purge` (04:20; 90 günden eski konum izleri), `system:backup` (03:30 tam, 7 gün; `--type=database --keep=12` 6 saatte bir), `system:watchdog` (5 dk; uyarılar Telegram + yönetici bildirimi), `intake-layers:review` (saatlik; okuma katmanı aşamaları, bkz. §4), `loads:no-show` (saatlik), `loads:transit-overdue` (saatlik; yolda takılan sevkiyat uyarısı), `shipments:remind-approval` (saatlik; otomatik onaya 24 sa kala hatırlatma), `payouts:reconcile` (10 dk), `payments:expire-stale` (04:50), `schedule-log-trim` (Pazartesi 04:50), `scraped-loads:ai-audit` (05:20; öğrenme çemberi denetimi, bkz. §5), `queue:prune-failed --hours=72` (04:40; sağlık ekranındaki "Başarısız işler" satırı son işin adını ve nedenini gösterir, "Yeniden dene" / "Temizle" düğmeleri var), `trips:scan-return-loads` (10 dk), `trips:auto-close` (04:10),
 `scheduler-heartbeat` (dakikada; sağlık ekranı buna bakar), `queue-heartbeat` (dakikada kuyruğa `QueueHeartbeat` işi bırakır;
 işçi çalıştırınca `queue.heartbeat` önbelleğe yazılır). Bakım modunda zamanlayıcı çalışmaz; ödeme geri çağrıları (`odeme/bildirim/*`) bakımdan muaftır. Her `withoutOverlapping` kilidinin süresi vardır (10/60/180 dk).
 **Telefon mesajları kuyrukta işlenir:** `NotificationWebhookController`, kuyruk nabzı 3 dk'dan tazeyse mesajı
@@ -502,6 +502,56 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   (`sha1(şablon)|sha1(yazılan)`); `legal:refresh --if-stale` (update.sh çağırır) iz yoksa bir kez, şablon değiştiyse ve yönetici metne
   dokunmadıysa yeniler; yönetici elle değiştirdiyse dokunmaz; panel düğmesi (`legal:refresh`) tümünü şablona döndürür. Sürüm
   (`legal_document_version`) kendiliğinden artmaz: Osman panelden "Sürümü artır" der. Hukukçuya sorulacak 5 nokta PR açıklamasında.
+- **Bildirim ve erişim kuralları (Osman, 2026-10-06; kesin):** canlı konum takibi yalnız sistem ilanında; dış kaynak ilanında yalnız dönüş
+  yükü radarı. **Bildirim (uygulama içi + e-posta) yalnız premium şoföre**: yeni ilan (`LoadReleaseService::onPublished`) ve dönüş yükü
+  (`DriverTripService::scanReturnLoads` premium olmayan seferi atlar). Standart üyeye hiç bildirim gitmez; ilan `scraper_free_delay_minutes`
+  sonra paneline düşer, kendisi takip eder (`release()` artık `notifyDrivers(premium:false)` çağırmaz). Dış kaynak ilanı standart üyeye
+  kapalı. Telegram kanalı sistem ilanını **herkese açıldığı anda** (süre dolunca) alır, daha önce değil. Tanıtım metinleri (abonelik
+  sayfası karşılaştırma tablosu, SSS 5, ana sayfa plan kartı) buna göre; yeni metin yazarken bu kurallarla çelişme.
+- **Panel ve süreç denetimi düzeltmeleri (2026-10-06, `docs/PANEL_DENETIMI_2026-10-06.md` Paket 1):** konum uyuşmazlıkta da kaydedilir
+  (`DriverLocationService::record` in_transit|disputed-teslimsiz; yük sahibi haritası aynı), JS `recorded=false` ve izin reddi uyarısı,
+  CSP `img-src` cartocdn; bildirim e-postası kuyruk işçisi canlıysa `SendNotificationMail` işiyle (`QueueHeartbeat::alive()`), değilse
+  istek içinde; kilit sırası her serviste Load → Shipment + `DB::transaction(fn, 3)`; `Load::scopeOfferableBy` (genel bakış, dönüş yükü);
+  genel bakış poll imzası yalnız gösterilen ilan id'leri + `X-User-Idle-Ms`; `jobs/show` sahipliği sevkiyat üzerinden de; ücretsiz şoförde
+  "N yeni ilan" `COALESCE(available_to_free_at, created_at)` (`visibleSince/visibleUntil`); dış kaynak sekmesinde yükleme zamanı filtresi
+  gizli; `completeByDriver`/`toggleSave` staff kapısı; teklif sonucu e-postası `preferences.notify_offer_results` (`OfferService::wantsOfferMail`),
+  "tercih ettiğim rotalar" alanı kaldırıldı; kurumsal yük sahibi profilden unvan/VKN/vergi dairesi günceller (`updateCompany`, değişince
+  `gib_verified` sıfırlanır); bireysel yük sahibine belge kartı yok (`KycService::allowedTypes` boş); NVİ servis hatası deneme hakkı yakmaz.
+  Test: `ProcessAuditFixesTest`.
+- **Canlı takip paketi (2026-10-06, Paket 2; yalnız sistem ilanında):** "Yola çıktım" (ayrıntı sayfası ya da İşlerim kartı →
+  `?konum=1` yönlendirmesi) konum paylaşımını kendiliğinden başlatır (`autoStartLocation`), tercih `localStorage nt-share-{shipment}`
+  ile sayfaya dönüşte sürer, `navigator.wakeLock` ekranı açık tutar, `visibilitychange`'de izleme tazelenir, `livewire:navigating`'de
+  durur (tercih silinmez). İz `DriverLocationService::trailFor` seyreltilmiş tam iz (`TRAIL_MAX_POINTS` 300, ilk/son nokta korunur);
+  `remainingKm` (haversine × 1,25). Yük sahibi sayfası: `<x-time-ago>` ile tazelik (15 dk'dan eskiyse gri nokta + uyarı; `trail-updated`
+  olayı `recordedTs/stale/remainingKm` taşır), yükleme/teslim işaretçileri, "Tahmini varış" (`acceptedOffer.estimated_days` +
+  `in_transit_at`), zaman çizelgesinde tek "Yük alındı, yola çıkıldı" adımı; iade ile kapanan sevkiyat "Sevkiyatlarım"da. Bekçiler:
+  `loads:transit-overdue` (saatlik; teslim/yükleme tarihi `transit_overdue_grace_days` geçmiş yoldaki ilan → şoför, yük sahibi, operasyon
+  bir kez, `loads.transit_overdue_notified_at`), `shipments:remind-approval` (saatlik; otomatik onaya 24 saat kala yük sahibine bir kez,
+  `shipments.approval_reminded_at`; uyuşmazlıkta yok). Migration `0001_01_57`. Test `LiveTrackingTest`.
+- **Yük sahibi paneli paketi (2026-10-06, Paket 3; E6/E7):** ilan formu il/ilçe seçici (`components/place-picker`, `TurkishLocations::districtsOf`;
+  adres defteri de aynı); **açık adres gizli:** `loads.pickup_address_private/delivery_address_private`, yükleme yetkilisi
+  `pickup_contact_name/phone` (sabit hat da olur, sıfırsız), şoföre `notes` (≤500, `Load::NOTES_MAX`); migration `0001_01_56`. Kartlar,
+  Telegram ve havuz yalnız `pickup_location` ("Ankara Yenimahalle", `LoadService::routeAttributes` → `TurkishLocations::label`) görür;
+  `Load::publicRoute()/publicPickup()`. Görme hakkı `Load::canSeePrivateDetails(?User)` (ilan sahibi, yönetici, **ödeme alınmış atanmış
+  şoför**) → `privateAddressFor / notesFor / pickupContactFor`; yük sahibi sevkiyat sayfası ve şoför `jobs/show` bunları gösterir
+  (şoförde ödeme öncesi "ödeme alındığında burada görünür"). Sihirbaz ve düzenleme ortak trait `App\Livewire\Concerns\ManagesLoadForm` +
+  `cargo-owner/loads/partials/{route-fields,cargo-fields}`. **İlan düzenleme** `LoadService::update` (yalnız `active_seeking`; bekleyen teklif
+  varsa yalnız tarih/açık adres/yetkili/not; ActivityLog `load.updated`), rota `cargo-owner.loads.edit`; "Tekrar yayınla" tarih sorar
+  (`LoadService::repeat(..., ?Carbon)`, gizli alanları taşır). Teklif kartı: "Kabul edersen ödeyeceğin toplam" (`PaymentService::amountsFor`),
+  şoförün tamamlanmış sevkiyat sayısı + son 2 yorum; ödeme sayfasında "Son ödeme" saati (`payment_due_at`), iyzico bandı yalnız ödenebilirken.
+  Testler `LoadPrivacyAndEditTest`, `OfferCardInfoTest`, `JobPrivateDetailsTest`.
+- **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
+  ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
+  taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
+  ScrapedLoad: `distanceKm/pricePerKm/distanceLabel`; ton başına fiyatta ₺/km yok); "yakınımda" süzgeci `LoadFilterService::distanceSql` aynı yarıçapı kullanır.
+  Yeni ilan bildirimi şoförün **varsayılan kayıtlı filtresine** uyarsa gider (`LoadReleaseService::presetMatches` →
+  `LoadFilterService::loadMatches`, liste ile aynı süzgeç; ön ayar yoksa herkese). Teklif penceresi son 5 teklifi ve hazır notları
+  gösterir (`OFFER_PHRASES`, `recentOffers`). Kartta "Paylaş" (`Alpine.data('shareLoad')`: `navigator.share`, yoksa panoya).
+  Dış kaynak kartında "Benzer ilan · farklı numara" rozeti açılır liste olur (`ScrapedLoad::similarLoads`). **Büyük yazı kipi
+  kuralı:** şoför ekranlarında `text-[11px]`/`text-[10px]` gibi piksel sınıfı yazılmaz; `text-2xs` (0.6875rem) / `text-3xs` (0.625rem)
+  (`tailwind.config.js fontSize`) kullanılır ki büyük yazı kipinde oranlı büyüsün; `.badge/.trip-status/.badge-return/.load-card-wa`
+  rem tabanlı; kart yan sütunu `.load-card-side` sarmalı, eylem satırı `.load-card-actions`. Testler `SystemLoadCardTest`,
+  `PresetNotificationTest`.
 - **Ekran görüntüsü, Playwright olmadan (2026-10-05):** `npm i playwright` izin denetimine takılıyor; doğrudan Chromium çalışıyor:
   `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --screenshot=cikti.png
   --window-size=1280,980 --virtual-time-budget=8000 --run-all-compositor-stages-before-draw URL`. Headless pencere 500 px'in altına

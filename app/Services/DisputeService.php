@@ -56,7 +56,7 @@ class DisputeService
             $locked->shipment()->update(['status' => Shipment::STATUS_DISPUTED]);
 
             return $dispute;
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
 
         if ($driverUser = $load->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Sevkiyatınız için uyuşmazlık açıldı',

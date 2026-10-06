@@ -9,10 +9,12 @@ use App\Models\PaymentOrder;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Support\BodyTypes;
+use App\Support\Phone;
 use App\Support\Settings;
 use App\Support\TurkishLocations;
 use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -29,37 +31,19 @@ class LoadService
         if ((float) $data['price'] < $minPrice) {
             throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
         }
-        // Adres metninden il/ilçe ve koordinat çözümlenir; koordinat açıkça verildiyse o korunur.
-        $pickupGeo = TurkishLocations::resolve($data['pickup_location'] ?? null);
-        $deliveryGeo = TurkishLocations::resolve($data['delivery_location'] ?? null);
 
-        $load = DB::transaction(function () use ($owner, $data, $eIrsaliyeFile, $pickupGeo, $deliveryGeo): Load {
+        $load = DB::transaction(function () use ($owner, $data, $eIrsaliyeFile): Load {
             $load = Load::create([
                 'cargo_owner_profile_id' => $owner->id,
                 'source_type' => 'internal',
                 'visibility' => 'public',
-                'pickup_location' => trim($data['pickup_location']),
-                'pickup_province_code' => $pickupGeo['province_code'] ?? null,
-                'pickup_district' => $pickupGeo['district'] ?? null,
-                'delivery_location' => trim($data['delivery_location']),
-                'delivery_province_code' => $deliveryGeo['province_code'] ?? null,
-                'delivery_district' => $deliveryGeo['district'] ?? null,
-                'pickup_lat' => $data['pickup_lat'] ?? $pickupGeo['lat'] ?? null,
-                'pickup_lng' => $data['pickup_lng'] ?? $pickupGeo['lng'] ?? null,
-                'delivery_lat' => $data['delivery_lat'] ?? $deliveryGeo['lat'] ?? null,
-                'delivery_lng' => $data['delivery_lng'] ?? $deliveryGeo['lng'] ?? null,
+                'currency' => 'TRY',
+                'status' => Load::STATUS_ACTIVE,
                 'pickup_date' => $data['pickup_date'],
                 'delivery_date' => $data['delivery_date'] ?? null,
-                'vehicle_type' => $data['vehicle_type'],
-                'body_types' => ($bodies = BodyTypes::clean($data['body_types'] ?? [])) !== [] ? $bodies : null,
-                'load_kind' => in_array($data['load_kind'] ?? null, ['komple', 'parca'], true) ? $data['load_kind'] : null,
-                'goods_type' => trim($data['goods_type']),
-                'weight' => isset($data['weight']) && $data['weight'] !== '' ? (int) $data['weight'] : null,
-                'volume' => isset($data['volume']) && $data['volume'] !== '' ? (int) $data['volume'] : null,
+            ] + self::routeAttributes($data) + self::cargoAttributes($data) + self::privateAttributes($data) + [
                 'price' => round((float) $data['price'], 2),
-                'currency' => 'TRY',
                 'e_irsaliye_no' => $data['e_irsaliye_no'] ?? null,
-                'status' => Load::STATUS_ACTIVE,
                 'escrow_status' => Load::ESCROW_PENDING,
                 'published_at' => now(),
                 // Premium şoförler anında görür; süre dolunca herkese ve Telegram kanalına açılır.
@@ -80,18 +64,142 @@ class LoadService
         return $load;
     }
 
-    /** Tamamlanmış veya iptal edilmiş bir ilanı yeni tarihle yeniden yayınlar. */
-    public function repeat(Load $source, CargoOwnerProfile $owner): Load
+    /**
+     * Rota alanları: il/ilçe seçiciden kod geldiyse (`pickup_province_code`, `pickup_district`) herkese açık etiket
+     * "İl İlçe" olur ve koordinat katalogdan dolar; kod yoksa (eski serbest metin, API) metin çözümlenir.
+     * Açıkça verilen koordinat korunur.
+     */
+    public static function routeAttributes(array $data): array
+    {
+        $out = [];
+        foreach (['pickup', 'delivery'] as $side) {
+            $code = isset($data[$side.'_province_code']) && $data[$side.'_province_code'] !== '' ? (int) $data[$side.'_province_code'] : null;
+            $province = $code ? TurkishLocations::province($code) : null;
+            if ($province) {
+                $district = trim((string) ($data[$side.'_district'] ?? ''));
+                $district = $district !== '' && in_array($district, TurkishLocations::districtsOf($code), true) ? $district : null;
+                $geo = ($district ? TurkishLocations::resolveCatalog($province['name'].' '.$district) : null)
+                    ?? ['lat' => $province['lat'], 'lng' => $province['lng']];
+                $out[$side.'_location'] = TurkishLocations::label(['province' => $province['name'], 'district' => $district]);
+                $out[$side.'_province_code'] = $code;
+                $out[$side.'_district'] = $district;
+            } else {
+                $text = trim((string) ($data[$side.'_location'] ?? ''));
+                $geo = TurkishLocations::resolve($text);
+                $out[$side.'_location'] = $text;
+                $out[$side.'_province_code'] = $geo['province_code'] ?? null;
+                $out[$side.'_district'] = $geo['district'] ?? null;
+            }
+            $out[$side.'_lat'] = $data[$side.'_lat'] ?? $geo['lat'] ?? null;
+            $out[$side.'_lng'] = $data[$side.'_lng'] ?? $geo['lng'] ?? null;
+        }
+
+        return $out;
+    }
+
+    /** Yük alanları (araç, kasa, biçim, cins, ağırlık, hacim). */
+    public static function cargoAttributes(array $data): array
+    {
+        return [
+            'vehicle_type' => $data['vehicle_type'],
+            'body_types' => ($bodies = BodyTypes::clean($data['body_types'] ?? [])) !== [] ? $bodies : null,
+            'load_kind' => in_array($data['load_kind'] ?? null, ['komple', 'parca'], true) ? $data['load_kind'] : null,
+            'goods_type' => trim((string) $data['goods_type']),
+            'weight' => isset($data['weight']) && $data['weight'] !== '' ? (int) $data['weight'] : null,
+            'volume' => isset($data['volume']) && $data['volume'] !== '' ? (int) $data['volume'] : null,
+        ];
+    }
+
+    /** Yalnız yük sahibi, ödemesi alınmış şoför ve yöneticinin gördüğü alanlar: açık adresler, yükleme yetkilisi, şoföre not. */
+    public static function privateAttributes(array $data): array
+    {
+        $text = fn (string $key, int $max): ?string => isset($data[$key]) && trim((string) $data[$key]) !== '' ? mb_substr(trim((string) $data[$key]), 0, $max) : null;
+
+        return [
+            'pickup_address_private' => $text('pickup_address_private', 1000),
+            'delivery_address_private' => $text('delivery_address_private', 1000),
+            'pickup_contact_name' => $text('pickup_contact_name', 120),
+            'pickup_contact_phone' => Phone::normalizeContact($data['pickup_contact_phone'] ?? null),
+            'notes' => $text('notes', Load::NOTES_MAX),
+        ];
+    }
+
+    /**
+     * Yük sahibi teklif bekleyen ilanını düzenler. Bekleyen teklif yoksa her alan; teklif varsa yalnız tarihler, açık adresler,
+     * yükleme yetkilisi ve not değişir (şoförler teklifi rota/araç/bedele göre verdi). Durum ve görünürlük değişmez.
+     *
+     * @return array<int, string> değişen alan adları
+     */
+    public function update(Load $load, CargoOwnerProfile $owner, array $data): array
+    {
+        if ($owner->is_staff_view) {
+            throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
+        }
+        $changed = [];
+        DB::transaction(function () use ($load, $owner, $data, &$changed): void {
+            $locked = Load::query()->lockForUpdate()->findOrFail($load->id);
+            if ($locked->cargo_owner_profile_id !== $owner->id) {
+                throw new RuntimeException('Bu ilan size ait değil.');
+            }
+            if (! $locked->isEditableByOwner()) {
+                throw new RuntimeException('Yalnız teklif bekleyen ilan düzenlenebilir.');
+            }
+            $restricted = $locked->offers()->where('status', 'pending')->exists();
+
+            $attributes = self::privateAttributes($data);
+            if (array_key_exists('pickup_date', $data)) {
+                $attributes['pickup_date'] = $data['pickup_date'];
+            }
+            if (array_key_exists('delivery_date', $data)) {
+                $attributes['delivery_date'] = $data['delivery_date'];
+            }
+            if (! $restricted) {
+                $minPrice = Settings::float('min_load_price');
+                if (array_key_exists('price', $data) && (float) $data['price'] < $minPrice) {
+                    throw new RuntimeException('Navlun bedeli en az '.number_format($minPrice, 0, ',', '.').' ₺ olmalıdır.');
+                }
+                $attributes += self::routeAttributes($data + $locked->only(['pickup_location', 'delivery_location']))
+                    + self::cargoAttributes($data + $locked->only(['vehicle_type', 'goods_type']));
+                if (array_key_exists('price', $data)) {
+                    $attributes['price'] = round((float) $data['price'], 2);
+                }
+                if (array_key_exists('e_irsaliye_no', $data)) {
+                    $attributes['e_irsaliye_no'] = $data['e_irsaliye_no'] !== null && trim((string) $data['e_irsaliye_no']) !== '' ? trim((string) $data['e_irsaliye_no']) : null;
+                }
+            }
+            $locked->fill($attributes);
+            $changed = array_keys($locked->getDirty());
+            if ($changed === []) {
+                return;
+            }
+            $locked->save();
+            ActivityLog::record('load.updated', "İlan #{$locked->id} yük sahibi tarafından düzenlendi: ".implode(', ', $changed).($restricted ? ' (teklif varken sınırlı düzenleme)' : ''), $owner->user_id, $locked, ['fields' => $changed]);
+        });
+        if ($changed !== []) {
+            app(LoadStatsService::class)->forget();
+        }
+
+        return $changed;
+    }
+
+    /** Tamamlanmış veya iptal edilmiş bir ilanı yeni tarihle yeniden yayınlar (tarih verilmezse yarın). */
+    public function repeat(Load $source, CargoOwnerProfile $owner, ?Carbon $pickupDate = null): Load
     {
         if ($source->cargo_owner_profile_id !== $owner->id) {
             throw new RuntimeException('Bu ilan size ait değil.');
         }
+        $pickupDate = ($pickupDate ?? now()->addDay())->copy()->startOfDay();
+        if ($pickupDate->lt(today())) {
+            throw new RuntimeException('Yükleme tarihi bugünden önce olamaz.');
+        }
 
-        // Kasa tipi, yük biçimi ve teslim noktaları da taşınır; aksi halde "tenteli / 13.60" şartı kaybolup yanlış şoförlere bildirim giderdi.
-        $data = $source->only(['pickup_location', 'delivery_location', 'pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng', 'vehicle_type', 'goods_type', 'weight', 'volume', 'price', 'body_types', 'load_kind']);
-        $data['pickup_date'] = now()->addDay()->startOfDay();
+        // Kasa tipi, yük biçimi, il/ilçe kodları, açık adres ve not da taşınır; aksi halde "tenteli / 13.60" şartı kaybolup yanlış şoförlere bildirim giderdi.
+        $data = $source->only(['pickup_location', 'delivery_location', 'pickup_province_code', 'pickup_district', 'delivery_province_code', 'delivery_district',
+            'pickup_lat', 'pickup_lng', 'delivery_lat', 'delivery_lng', 'vehicle_type', 'goods_type', 'weight', 'volume', 'price', 'body_types', 'load_kind',
+            'pickup_address_private', 'delivery_address_private', 'pickup_contact_name', 'pickup_contact_phone', 'notes']);
+        $data['pickup_date'] = $pickupDate;
         $data['delivery_date'] = $source->delivery_date && $source->pickup_date
-            ? $data['pickup_date']->copy()->addDays(max(0, $source->pickup_date->diffInDays($source->delivery_date)))
+            ? $pickupDate->copy()->addDays(max(0, (int) $source->pickup_date->diffInDays($source->delivery_date)))->endOfDay()
             : null;
 
         return $this->publish($owner, $data);
@@ -235,7 +343,7 @@ class LoadService
                 'visibility' => 'private',
             ]);
             ActivityLog::record($logEvent, $logText, $actorId, $locked);
-        });
+        }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
         app(DriverTripService::class)->closeForLoad($load->id);
 
         return $driverUser;
@@ -245,6 +353,46 @@ class LoadService
      * "Şoför gelmedi" (zamanlanmış görev): ödenmiş, yola çıkılmamış ilanda yükleme tarihi ayarlı gün kadar geçmişse yük sahibine
      * (iptal + iade düğmesiyle), şoföre ve operasyon ekibine bir kez haber verilir. Karar yük sahibinde ya da yöneticide kalır.
      */
+    /**
+     * Yolda takılan sevkiyat (2026-10-06): teslim (yoksa yükleme) tarihi + bekleme süresi geçmiş, hâlâ "teslim ettim" denmemiş
+     * ilanlarda şoföre kanıt yüklemesi, yük sahibine durumu ve uyuşmazlık yolunu, operasyona uyarıyı bir kez bildirir.
+     */
+    public function notifyOverdueTransit(): int
+    {
+        $grace = max(0, Settings::int('transit_overdue_grace_days'));
+        $count = 0;
+        $notifications = app(NotificationService::class);
+        Load::query()->with(['cargoOwnerProfile.user', 'driverProfile.user'])
+            ->where('status', Load::STATUS_ON_THE_WAY)
+            ->whereNull('transit_overdue_notified_at')
+            ->where(fn ($q) => $q->where('delivery_date', '<', today()->subDays($grace))
+                ->orWhere(fn ($w) => $w->whereNull('delivery_date')->where('pickup_date', '<', today()->subDays($grace + 2))))
+            ->orderBy('id')->limit(100)->get()
+            ->each(function (Load $load) use (&$count, $notifications): void {
+                $load->forceFill(['transit_overdue_notified_at' => now()])->save();
+                $count++;
+                $route = "{$load->pickup_location} → {$load->delivery_location}";
+                $due = $load->delivery_date?->format('d.m.Y') ?? $load->pickup_date?->format('d.m.Y');
+                if ($driver = $load->driverProfile?->user) {
+                    $notifications->notify($driver, 'Teslimat bildirimi bekleniyor',
+                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin; navlun ödemeniz yük sahibinin onayıyla başlar.",
+                            'Yolda bir sorun varsa yük sahibiyle görüşün; gecikme uzarsa yük sahibi uyuşmazlık açabilir.'],
+                        route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
+                }
+                if ($owner = $load->cargoOwnerProfile?->user) {
+                    $notifications->notify($owner, 'Sevkiyat teslim tarihini geçti',
+                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi. Navlun bedeliniz ödeme kuruluşunda bekliyor.",
+                            'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
+                        route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
+                }
+                $notifications->notifyAdmins('manage operations', 'Yolda takılan sevkiyat',
+                    ["İlan #{$load->id} ({$route}): teslim tarihi {$due} geçti, teslimat bildirilmedi. İki taraf bilgilendirildi."],
+                    route('admin.operations'), 'Operasyon ekranı', 'admin');
+            });
+
+        return $count;
+    }
+
     public function notifyNoShows(): int
     {
         $grace = max(0, Settings::int('no_show_grace_days'));
