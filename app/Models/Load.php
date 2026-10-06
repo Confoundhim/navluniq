@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasPublicId;
 use App\Models\Concerns\HasRouteDistance;
 use App\Support\BodyTypes;
+use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -83,6 +84,11 @@ class Load extends Model
         'delivery_location',
         'delivery_province_code',
         'delivery_district',
+        'pickup_address_private',
+        'delivery_address_private',
+        'pickup_contact_name',
+        'pickup_contact_phone',
+        'notes',
         'pickup_coordinates',
         'delivery_coordinates',
         'pickup_lat',
@@ -134,6 +140,107 @@ class Load extends Model
         'body_types' => 'array',
         'delivery_stops' => 'array',
     ];
+
+    /** Şoföre not en çok bu kadar karakter. */
+    public const NOTES_MAX = 500;
+
+    /**
+     * Herkese açık kalkış etiketi ("Ankara Yenimahalle"): il/ilçe çözülmüşse ondan, yoksa ilan metninden. Eski (serbest metinli)
+     * ilanlarda da yalnız il/ilçe gösterilir; açık adres `pickup_address_private` kolonunda ayrı durur.
+     */
+    public function publicPickup(): string
+    {
+        return $this->publicPlace('pickup');
+    }
+
+    public function publicDelivery(): string
+    {
+        return $this->publicPlace('delivery');
+    }
+
+    /** "Ankara Yenimahalle → İzmir Aliağa": kartlar, bildirimler ve Telegram için herkese açık rota. */
+    public function publicRoute(): string
+    {
+        return $this->publicPickup().' → '.$this->publicDelivery();
+    }
+
+    private function publicPlace(string $side): string
+    {
+        $code = $this->{$side.'_province_code'};
+        if ($code && ($province = TurkishLocations::province((int) $code))) {
+            return (string) TurkishLocations::label(['province' => $province['name'], 'district' => $this->{$side.'_district'}]);
+        }
+
+        return (string) $this->{$side.'_location'};
+    }
+
+    /**
+     * Açık adres, yükleme yetkilisi ve şoföre not kime görünür: ilan sahibi, atanmış ve ödemesi alınmış (ya da sonrası) şoför,
+     * yönetici paneli kullanıcıları. Havuzdaki şoför yalnız il/ilçe görür (KVKK, plan E6/E7).
+     */
+    public function canSeePrivateDetails(?User $viewer): bool
+    {
+        if (! $viewer) {
+            return false;
+        }
+        if ($viewer->hasAnyRole(User::ADMIN_PANEL_ROLES)) {
+            return true;
+        }
+        if ($this->cargo_owner_profile_id && $viewer->cargoOwnerProfile?->id === $this->cargo_owner_profile_id) {
+            return true;
+        }
+
+        return $this->driver_profile_id
+            && $viewer->driverProfile?->id === $this->driver_profile_id
+            && $this->isPaid();
+    }
+
+    /**
+     * Açık adresler; görme hakkı yoksa null. Dönen dizi: ['pickup' => ?string, 'delivery' => ?string].
+     *
+     * @return array{pickup: ?string, delivery: ?string}|null
+     */
+    public function privateAddressFor(?User $viewer): ?array
+    {
+        if (! $this->canSeePrivateDetails($viewer)) {
+            return null;
+        }
+
+        return [
+            'pickup' => $this->pickup_address_private ?: null,
+            'delivery' => $this->delivery_address_private ?: null,
+        ];
+    }
+
+    /** Şoföre not; görme hakkı yoksa ya da not yoksa null. */
+    public function notesFor(?User $viewer): ?string
+    {
+        if (! $this->canSeePrivateDetails($viewer)) {
+            return null;
+        }
+
+        return $this->notes !== null && trim($this->notes) !== '' ? $this->notes : null;
+    }
+
+    /**
+     * Yükleme yetkilisi (adres defterinden taşınır); görme hakkı yoksa ya da ikisi de boşsa null.
+     *
+     * @return array{name: ?string, phone: ?string}|null
+     */
+    public function pickupContactFor(?User $viewer): ?array
+    {
+        if (! $this->canSeePrivateDetails($viewer) || (! $this->pickup_contact_name && ! $this->pickup_contact_phone)) {
+            return null;
+        }
+
+        return ['name' => $this->pickup_contact_name ?: null, 'phone' => $this->pickup_contact_phone ?: null];
+    }
+
+    /** Yük sahibi ilanı düzenleyebilir mi (yalnız teklif bekleyen ilan)? */
+    public function isEditableByOwner(): bool
+    {
+        return $this->status === self::STATUS_ACTIVE;
+    }
 
     /** Kasa etiketi ("Tenteli", "Damper / Açık"); belirtilmemişse null. */
     public function bodyLabel(): ?string
