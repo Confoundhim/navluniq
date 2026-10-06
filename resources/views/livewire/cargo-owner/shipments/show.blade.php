@@ -332,17 +332,33 @@ class extends Component {
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                     <h3 class="section-title">Rota ve yük</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        @php $privateAddress = $load->privateAddressFor(auth()->user()); $pickupContact = $load->pickupContactFor(auth()->user()); @endphp
                         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Yükleme adresi</span>
                             <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->pickup_location }}</span>
+                            @if($privateAddress['pickup'] ?? null)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ $privateAddress['pickup'] }}</span>
+                            @endif
+                            @if($pickupContact)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ implode(' · ', array_filter([$pickupContact['name'], $pickupContact['phone'] ? \App\Support\Phone::format($pickupContact['phone']) : null])) }}</span>
+                            @endif
                             <span class="text-neutral-500 block mt-1">{{ $load->pickup_date?->format('d.m.Y') ?? '—' }}</span>
                         </div>
                         <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
                             <span class="text-neutral-500 block mb-0.5">Teslimat adresi</span>
                             <span class="text-neutral-900 dark:text-white font-medium break-words">{{ $load->delivery_location }}</span>
+                            @if($privateAddress['delivery'] ?? null)
+                                <span class="text-neutral-700 dark:text-neutral-300 block mt-0.5 break-words">{{ $privateAddress['delivery'] }}</span>
+                            @endif
                             <span class="text-neutral-500 block mt-1">{{ $load->delivery_date ? 'En geç '.$load->delivery_date->format('d.m.Y') : 'Teslim tarihi belirtilmedi' }}</span>
                         </div>
                     </div>
+                    @if($notes = $load->notesFor(auth()->user()))
+                        <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs">
+                            <span class="text-neutral-500 block mb-0.5">Şoföre not</span>
+                            <x-clamp-text :text="$notes" lines="3" />
+                        </div>
+                    @endif
                     <div class="flex flex-wrap gap-4 text-xs text-neutral-500 dark:text-neutral-400">
                         <span>Yük: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ $load->goods_type }}</span></span>
                         <span>Ağırlık: <span class="text-neutral-800 dark:text-neutral-200 font-medium">{{ number_format((int) ($load->weight ?? 0), 0, ',', '.') }} kg</span></span>

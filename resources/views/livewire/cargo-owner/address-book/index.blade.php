@@ -2,11 +2,13 @@
 
 use App\Models\SavedAddress;
 use App\Support\Phone;
+use App\Support\TurkishLocations;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
+use Illuminate\Validation\Rule;
 use Livewire\Volt\Component;
 
 new
@@ -23,6 +25,9 @@ class extends Component {
     public string $contact_person = '';
 
     public string $contact_phone = '';
+
+    /** İl/ilçe seçici: il kodu; kayıtta il adı `city` kolonuna yazılır. */
+    public string $province_code = '';
 
     public string $city = '';
 
@@ -41,7 +46,7 @@ class extends Component {
 
     private function resetForm(): void
     {
-        $this->reset(['editingId', 'title', 'contact_person', 'contact_phone', 'city', 'district', 'address_detail', 'type', 'is_default']);
+        $this->reset(['editingId', 'title', 'contact_person', 'contact_phone', 'province_code', 'city', 'district', 'address_detail', 'type', 'is_default']);
         $this->resetErrorBag();
     }
 
@@ -66,23 +71,36 @@ class extends Component {
         $this->contact_person = $address->contact_person;
         $this->contact_phone = Phone::format($address->contact_phone);
         $this->city = $address->city;
-        $this->district = $address->district;
+        $this->province_code = ($code = TurkishLocations::provinceCode($address->city)) ? (string) $code : '';
+        $this->district = $this->province_code !== '' && in_array($address->district, TurkishLocations::districtsOf((int) $this->province_code), true) ? $address->district : '';
         $this->address_detail = $address->address_detail;
         $this->type = $address->type;
         $this->is_default = (bool) $address->is_default;
         $this->modalOpen = true;
     }
 
+    /** İl değişince eski ilin ilçesi kalmaz. */
+    public function updatedProvinceCode(): void
+    {
+        $this->district = '';
+    }
+
     public function save(): void
     {
         $this->contact_phone = preg_replace('/\s+/', '', $this->contact_phone) ?? '';
+        // Eski testler/çağrılar il adını `city` ile verebilir: koda çevrilir.
+        if ($this->province_code === '' && $this->city !== '' && ($code = TurkishLocations::provinceCode($this->city))) {
+            $this->province_code = (string) $code;
+        }
+        $province = $this->province_code !== '' ? TurkishLocations::province((int) $this->province_code) : null;
+        $this->city = $province['name'] ?? '';
 
         $this->validate([
             'title' => 'required|string|min:3|max:120',
             'contact_person' => 'required|string|min:3|max:120',
             'contact_phone' => ['required', Phone::RULE],
-            'city' => 'required|string|min:2|max:96',
-            'district' => 'required|string|min:2|max:96',
+            'province_code' => ['required', Rule::in(array_map(fn (array $p) => (string) $p['code'], TurkishLocations::provinces()))],
+            'district' => ['required', Rule::in($province ? TurkishLocations::districtsOf((int) $this->province_code) : [])],
             'address_detail' => 'required|string|min:10|max:1000',
             'type' => 'required|in:pickup,delivery,both',
             'is_default' => 'boolean',
@@ -91,6 +109,10 @@ class extends Component {
             'contact_person.required' => 'Yetkili kişi adı zorunludur.',
             'contact_phone.required' => 'İletişim telefonu zorunludur.',
             'contact_phone.regex' => 'Geçerli bir cep telefonu numarası girin (05XX XXX XX XX).',
+            'province_code.required' => 'İl seçin.',
+            'province_code.in' => 'İli listeden seçin.',
+            'district.required' => 'İlçe seçin.',
+            'district.in' => 'İlçeyi listeden seçin.',
             'address_detail.required' => 'Açık adresi girin.',
             'address_detail.min' => 'Açık adres en az 10 karakter olmalıdır.',
         ]);
@@ -302,19 +324,7 @@ class extends Component {
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="form-label">İl <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="city" maxlength="96" class="form-input">
-                            @error('city') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div>
-                            <label class="form-label">İlçe <span class="text-brand-500">*</span></label>
-                            <input type="text" wire:model="district" maxlength="96" class="form-input">
-                            @error('district') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
+                    <x-place-picker province-model="province_code" district-model="district" :province-code="$province_code" label="Adres" district-placeholder="İlçe seçin" />
 
                     <div>
                         <label class="form-label">Açık adres <span class="text-brand-500">*</span></label>

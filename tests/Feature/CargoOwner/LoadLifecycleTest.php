@@ -34,8 +34,10 @@ class LoadLifecycleTest extends TestCase
         $owner = $this->cargoOwner();
 
         Volt::test('cargo-owner.loads.create')
-            ->set('pickup_location', 'Ostim OSB 1234. Cadde No:12 Yenimahalle / Ankara')
-            ->set('delivery_location', 'Aliağa OSB 4. Sokak No:5 Aliağa / İzmir')
+            ->set('pickup_province_code', '6')->set('pickup_district', 'Yenimahalle')
+            ->set('pickup_address_private', 'Ostim OSB 1234. Cadde No:12')
+            ->set('delivery_province_code', '35')->set('delivery_district', 'Aliağa')
+            ->set('delivery_address_private', 'Aliağa OSB 4. Sokak No:5')
             ->set('pickup_date', now()->addDay()->format('Y-m-d'))
             ->set('delivery_date', now()->addDays(3)->format('Y-m-d'))
             ->call('nextStep')
@@ -66,6 +68,9 @@ class LoadLifecycleTest extends TestCase
         $load = Load::query()->firstOrFail();
         $this->assertSame(18500.0, (float) $load->price);
         $this->assertNotNull($load->published_at);
+        $this->assertSame('Ankara Yenimahalle', $load->pickup_location);
+        $this->assertSame('İzmir Aliağa', $load->delivery_location);
+        $this->assertSame('Ostim OSB 1234. Cadde No:12', $load->pickup_address_private);
     }
 
     public function test_wizard_rejects_price_below_minimum(): void
@@ -73,8 +78,8 @@ class LoadLifecycleTest extends TestCase
         $this->cargoOwner();
 
         Volt::test('cargo-owner.loads.create')
-            ->set('pickup_location', 'Ostim OSB 1234. Cadde No:12 Yenimahalle / Ankara')
-            ->set('delivery_location', 'Aliağa OSB 4. Sokak No:5 Aliağa / İzmir')
+            ->set('pickup_province_code', '6')->set('pickup_district', 'Yenimahalle')
+            ->set('delivery_province_code', '35')->set('delivery_district', 'Aliağa')
             ->set('pickup_date', now()->addDay()->format('Y-m-d'))
             ->call('nextStep')
             ->set('weight', '1000')

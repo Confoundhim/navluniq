@@ -3,6 +3,7 @@
 use App\Models\DriverVehicle;
 use App\Models\Load;
 use App\Services\LoadService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -57,26 +58,58 @@ class extends Component {
         session()->flash('success_message', '#'.$load->id.' numaralı ilanınız iptal edildi.');
     }
 
-    public function repeatLoad(int $loadId, LoadService $loads): void
+    /** "Tekrar yayınla" küçük penceresi: tarih seçtirir (varsayılan yarın). */
+    public ?int $repeatLoadId = null;
+
+    public string $repeat_pickup_date = '';
+
+    public function openRepeat(int $loadId): void
     {
         $profile = Auth::user()->cargoOwnerProfile;
-        $load = Load::query()->whereKey($loadId)->where('cargo_owner_profile_id', $profile?->id)->first();
+        $load = Load::query()->whereKey($loadId)->where('cargo_owner_profile_id', $profile?->id)->whereIn('status', self::PAST_STATUSES)->first();
+        if (! $load) {
+            session()->flash('error_message', 'İlan bulunamadı.');
+
+            return;
+        }
+        $this->repeatLoadId = $load->id;
+        $this->repeat_pickup_date = now()->addDay()->format('Y-m-d');
+        $this->resetErrorBag();
+    }
+
+    public function closeRepeat(): void
+    {
+        $this->repeatLoadId = null;
+        $this->resetErrorBag();
+    }
+
+    public function repeatLoad(LoadService $loads): void
+    {
+        $this->validate(['repeat_pickup_date' => 'required|date|after_or_equal:today'], [
+            'repeat_pickup_date.required' => 'Yükleme tarihini seçin.',
+            'repeat_pickup_date.after_or_equal' => 'Yükleme tarihi bugünden önce olamaz.',
+        ]);
+
+        $profile = Auth::user()->cargoOwnerProfile;
+        $load = $this->repeatLoadId ? Load::query()->whereKey($this->repeatLoadId)->where('cargo_owner_profile_id', $profile?->id)->first() : null;
 
         if (! $load) {
+            $this->repeatLoadId = null;
             session()->flash('error_message', 'İlan bulunamadı.');
 
             return;
         }
 
         try {
-            $new = $loads->repeat($load, $profile);
+            $new = $loads->repeat($load, $profile, Carbon::parse($this->repeat_pickup_date));
         } catch (\RuntimeException $e) {
-            session()->flash('error_message', $e->getMessage());
+            $this->addError('repeat_pickup_date', $e->getMessage());
 
             return;
         }
 
-        session()->flash('success_message', 'İlan #'.$new->id.' olarak yeniden yayınlandı. Yükleme tarihi yarın olarak ayarlandı.');
+        $this->repeatLoadId = null;
+        session()->flash('success_message', 'İlan #'.$new->id.' olarak yeniden yayınlandı. Yükleme tarihi '.$new->pickup_date->format('d.m.Y').'.');
         $this->setTab('active');
     }
 
@@ -202,6 +235,9 @@ class extends Component {
                             <a href="{{ route('cargo-owner.loads.offers', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-1.5">
                                 Teklifler
                             </a>
+                            <a href="{{ route('cargo-owner.loads.edit', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center">
+                                Düzenle
+                            </a>
                             <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Bu ilanı iptal etmek istediğinize emin misiniz? Bekleyen teklifler reddedilecek." class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
                                 İptal et
                             </button>
@@ -218,7 +254,7 @@ class extends Component {
                                 Teslimatı onayla
                             </a>
                         @elseif(in_array($load->status, ['completed', 'cancelled'], true))
-                            <button type="button" wire:click="repeatLoad({{ $load->id }})" wire:confirm="Bu ilan aynı bilgilerle ve yarınki yükleme tarihiyle yeniden yayınlanacak. Devam edilsin mi?" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
+                            <button type="button" wire:click="openRepeat({{ $load->id }})" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
@@ -256,6 +292,30 @@ class extends Component {
 
     @if($loads->hasPages())
         <div class="text-xs">{{ $loads->links() }}</div>
+    @endif
+
+    @if($repeatLoadId)
+        <div class="fixed inset-0 z-[9999] overflow-y-auto flex items-start sm:items-center justify-center p-4">
+            <div class="fixed inset-0 bg-neutral-950/70 backdrop-blur-md" wire:click="closeRepeat"></div>
+            <form wire:submit.prevent="repeatLoad" class="relative w-full max-w-sm bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 shadow-2xl">
+                <div class="space-y-1">
+                    <h3 class="text-base font-bold text-neutral-900 dark:text-white">İlanı tekrar yayınla</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">#{{ $repeatLoadId }} numaralı ilan aynı bilgilerle, seçtiğiniz yükleme tarihiyle yeni ilan olarak yayınlanır.</p>
+                </div>
+                <div>
+                    <label class="form-label">Yükleme tarihi</label>
+                    <input type="date" wire:model="repeat_pickup_date" min="{{ now()->format('Y-m-d') }}" class="form-input">
+                    @error('repeat_pickup_date') <span class="form-error">{{ $message }}</span> @enderror
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                    <button type="button" wire:click="closeRepeat" class="flex-1 px-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 text-xs font-semibold transition-colors">Vazgeç</button>
+                    <button type="submit" wire:loading.attr="disabled" class="flex-1 px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs shadow-lg shadow-brand-500/25 transition-all">
+                        <span wire:loading.remove wire:target="repeatLoad">Yayınla</span>
+                        <span wire:loading wire:target="repeatLoad">Yayınlanıyor…</span>
+                    </button>
+                </div>
+            </form>
+        </div>
     @endif
 
 </div>

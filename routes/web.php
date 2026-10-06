@@ -231,6 +231,7 @@ Route::middleware(['auth', EnsureCargoOwner::class])->prefix('panel/yuk-sahibi')
     Volt::route('/ilan-olustur', 'cargo-owner.loads.create')->name('loads.create');
     Volt::route('/ilanlarim', 'cargo-owner.loads.index')->name('loads.index');
     Volt::route('/ilanlar/{loadId}/teklifler', 'cargo-owner.loads.offers')->name('loads.offers')->whereNumber('loadId');
+    Volt::route('/ilanlar/{loadId}/duzenle', 'cargo-owner.loads.edit')->name('loads.edit')->whereNumber('loadId');
     Volt::route('/odeme/{loadId}', 'cargo-owner.finance.payment')->name('finance.payment')->whereNumber('loadId');
     Volt::route('/finans-ve-faturalar', 'cargo-owner.finance.index')->name('finance.index');
     Volt::route('/sevkiyatlarim', 'cargo-owner.shipments.index')->name('shipments.index');
