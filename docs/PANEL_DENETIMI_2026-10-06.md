@@ -87,6 +87,10 @@ Telegram ilanı herkese açıldığı anda; çelişen tanıtım metinleri düzel
 **Paket 2: ✅ uygulandı** (konum "Yola çıktım"la başlar + wake lock + görünürlükte yeniden bağlanma; tazelik; işaretçiler ve seyreltilmiş tam iz;
 varışa kalan km; tahmini varış; yolda takılma bekçisi; otomatik onay hatırlatması; e-posta kuyruğu Paket 1'de; B8, B11 düzeltildi).
 
+**Paket 4: ✅ uygulandı** (tek kart bileşeni `system-load-card`, mesafe ve ₺/km `Geo`/`HasRouteDistance`, bildirimde varsayılan ön ayar
+süzgeci, teklif penceresinde son teklifler + hazır notlar, "Paylaş", benzer ilan listesi, büyük yazı kipi: piksel sınıfları `text-2xs/3xs`'e
+çevrildi; S2 ve S5 burada). Testler `SystemLoadCardTest`, `PresetNotificationTest`.
+
 **Paket 1: ✅ uygulandı** (T1-T5, Y1-Y7, Y9, S1, S3, S4, S6-S10; S2 ve S5 Paket 4'e alındı; Y8 küçük, Paket 3'e). Test `ProcessAuditFixesTest`.
 
 - **Paket 1 (kesin hatalar, 1 gün):** T1-T5, Y1-Y6, Y9, S1, S3, S4, S6-S10; testler.

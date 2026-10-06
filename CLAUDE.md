@@ -528,6 +528,18 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `loads:transit-overdue` (saatlik; teslim/yükleme tarihi `transit_overdue_grace_days` geçmiş yoldaki ilan → şoför, yük sahibi, operasyon
   bir kez, `loads.transit_overdue_notified_at`), `shipments:remind-approval` (saatlik; otomatik onaya 24 saat kala yük sahibine bir kez,
   `shipments.approval_reminded_at`; uyuşmazlıkta yok). Migration `0001_01_57`. Test `LiveTrackingTest`.
+- **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
+  ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
+  taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
+  ScrapedLoad: `distanceKm/pricePerKm/distanceLabel`; ton başına fiyatta ₺/km yok); "yakınımda" süzgeci `LoadFilterService::distanceSql` aynı yarıçapı kullanır.
+  Yeni ilan bildirimi şoförün **varsayılan kayıtlı filtresine** uyarsa gider (`LoadReleaseService::presetMatches` →
+  `LoadFilterService::loadMatches`, liste ile aynı süzgeç; ön ayar yoksa herkese). Teklif penceresi son 5 teklifi ve hazır notları
+  gösterir (`OFFER_PHRASES`, `recentOffers`). Kartta "Paylaş" (`Alpine.data('shareLoad')`: `navigator.share`, yoksa panoya).
+  Dış kaynak kartında "Benzer ilan · farklı numara" rozeti açılır liste olur (`ScrapedLoad::similarLoads`). **Büyük yazı kipi
+  kuralı:** şoför ekranlarında `text-[11px]`/`text-[10px]` gibi piksel sınıfı yazılmaz; `text-2xs` (0.6875rem) / `text-3xs` (0.625rem)
+  (`tailwind.config.js fontSize`) kullanılır ki büyük yazı kipinde oranlı büyüsün; `.badge/.trip-status/.badge-return/.load-card-wa`
+  rem tabanlı; kart yan sütunu `.load-card-side` sarmalı, eylem satırı `.load-card-actions`. Testler `SystemLoadCardTest`,
+  `PresetNotificationTest`.
 - **Ekran görüntüsü, Playwright olmadan (2026-10-05):** `npm i playwright` izin denetimine takılıyor; doğrudan Chromium çalışıyor:
   `/opt/pw-browsers/chromium-*/chrome-linux/chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --screenshot=cikti.png
   --window-size=1280,980 --virtual-time-budget=8000 --run-all-compositor-stages-before-draw URL`. Headless pencere 500 px'in altına
