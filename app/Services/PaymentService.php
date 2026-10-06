@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\DriverProfile;
 use App\Models\Load;
 use App\Models\PaymentEvent;
 use App\Models\PaymentOrder;
@@ -57,10 +58,19 @@ class PaymentService
     /** Navlun bedeli + yük sahibi hizmet bedeli + şoför komisyonu anlık görüntüsü (ödeme emrinde dondurulur). */
     public function calculateAmounts(Load $load): array
     {
-        $price = round((float) $load->price, 2);
+        return $this->amountsFor((float) $load->price, $load->driverProfile);
+    }
+
+    /**
+     * Verilen navlun bedeli için tutarlar (teklif kartında "kabul edersen ödeyeceğin toplam": teklif tutarı + hizmet bedeli).
+     * Kabul edilince ilan bedeli teklif tutarı olur; bu yüzden ödeme sayfasındaki toplamla aynı formül.
+     */
+    public function amountsFor(float $price, ?DriverProfile $driver = null): array
+    {
+        $price = round($price, 2);
         $feeRate = Settings::float('commission_cargo_owner');
         $fee = round($price * $feeRate / 100, 2);
-        $commissionRate = $load->driverProfile?->commissionRate() ?? Settings::float('commission_standard_driver');
+        $commissionRate = $driver?->commissionRate() ?? Settings::float('commission_standard_driver');
         $commission = round($price * $commissionRate / 100, 2);
 
         return [
