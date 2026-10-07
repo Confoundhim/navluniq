@@ -63,6 +63,10 @@ sayfaları; altbilgide ve ödeme sayfalarında "iyzico ile Öde" + Mastercard/Vi
 | Kart Saklama / BKM Express | Kapalı kalabilir | Kullanılmıyor |
 | Pazaryeri (alt üye işyeri) ürünü | iyzico temsilcisinden **açtırılır** (ayrı sözleşme); sonra NavlunIQ panelinde "Pazaryeri ürünü aktif" | Navlun tahsilatı canlıda yalnız bu modelle açılır (`PaymentReadiness::escrowBlocker`) |
 
+**Premium süreleri:** 1 ay tam fiyat; 3/6/12 ay panel ayarlı indirimle (`premium_discount_3m/6m/12m`). Ödeme emri `subscription_months`
+taşır, onayda o kadar ay eklenir. iyzico'nun "Abonelik" (tekrarlayan ödeme) ürünü ve kart saklama kullanılmaz; her dönem tek çekimdir.
+XML ürün yükleme ve sonuç sayfası alanları iyzico panelinde boş bırakılır (dönüş adresi her ödemede `callbackUrl` ile gönderilir).
+
 **Para akışı (pazaryeri):** yük sahibi navlunun tamamını iyzico ödeme formunda öder → tutar iyzico'da bekler (NavlunIQ hesabına
 girmez) → teslimat onayında NavlunIQ "kalem onayı" (`/payment/iyzipos/item/approve`) verir → iyzico şoför payını (`subMerchantPrice`,
 navlun − hizmet bedeli) şoförün alt üye işyeri IBAN'ına, kalanı NavlunIQ'ya aktarır. Teslimden önce iptal/uyuşmazlıkta kalem

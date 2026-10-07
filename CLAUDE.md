@@ -445,6 +445,9 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - Blade'de `@php($x = app(\App\X::class)->y())` tek satır biçimi `::class` ile bozulur (derleyici parantezi yanlış keser); `@php ... @endphp`
   bloğu kullan. Volt bileşeninde `request()->session()` Livewire testinde "Session store not set" verir; `session()` yardımcısını kullan.
   Volt bileşeninin kök öğesinden önce yazılan `@php` satırları derlenmez; değişkenleri kök `<div>` içinde tanımla.
+- **Livewire onay kutusu string'e bağlanmaz:** `wire:model` ile `'1'/'0'` metni taşıyan `<input type="checkbox">` tarayıcıda `'0'` için de
+  işaretli görünür (JS'te boş olmayan metin truthy); kayıt doğru yazılır ama kutu "tekrar açılmış" gibi durur (2026-10-07 iyzico
+  sandbox kutusu). Kutuya gerçek boolean ver, kaydederken `filter_var(..., FILTER_VALIDATE_BOOLEAN)`; testte `assertSame(false, ...)`.
 - Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
   Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
 
@@ -556,6 +559,12 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `0001_01_59`, Ödemelerim formu); var olan dış kimlik iyzico'da bulunursa kayıt yerine güncelleme (`/onboarding/submerchant/retrieve`
   → PUT); `IyzicoGateway::diagnose()` + panel "Bağlantıyı sına" (BIN sorgusu, pazaryeri sorgusu, anahtar–ortam uyumu, bildirim adresi;
   `settings.payment_diagnosed`). Bu ortam iyzico'ya erişemez; canlı doğrulama Osman'ın panel sınamasıyla. Test `IyzicoGatewayTest`.
+- **Premium süre seçenekleri (2026-10-07, Osman: "1/3/6/12 ay, kademeli makul indirim, panelden yönetilsin"):** `SubscriptionService::PLAN_MONTHS`
+  [1,3,6,12]; ayarlar `premium_discount_3m/6m/12m` (% varsayılan 10/15/25; Komisyon ve limitler), `priceFor()/plans()/discountFor()`.
+  `payment_orders.subscription_months` (`0001_01_60`) emirde durur; `activate()` o kadar ay ekler (`addMonthsNoOverflow`), abonelik
+  `interval` `monthly|3_months|…`. Premium sayfası 4 plan kartı (12 ay vurgulu, "ayda ≈", "kazanç"), ödeme sayfası `?sure=N` (geçersiz → 1)
+  ve liste fiyatı/indirim satırı. Üyelik kartında "%25'e varan indirim" satırı ayardan; MSS 2.1 ve İade 3.2 "1, 3, 6 ya da 12 aylık".
+  iyzico tarafında ek ayar gerekmez (tek çekim, otomatik yenileme yok). Test `PremiumPlansTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

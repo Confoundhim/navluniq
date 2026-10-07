@@ -60,6 +60,7 @@ class extends Component {
             'trialEndsAt' => $subscriptions->activeTrialEndsAt($user),
             'loadMail' => $profile ? \App\Services\LoadReleaseService::wantsLoadMail($profile) : true,
             'monthlyPrice' => Settings::float('premium_monthly_price'),
+            'plans' => $subscriptions->plans(),
             'standardRate' => Settings::float('commission_standard_driver'),
             'paymentReady' => app(PaymentService::class)->isConfigured(),
             'invoices' => Invoice::query()->where('user_id', $user->id)->where('invoice_type', 'subscription')->latest('id')->take(20)->get(),
@@ -129,9 +130,27 @@ class extends Component {
                         Premium üyelik için önce belgelerinizin onaylanması gerekir. <a href="{{ route('driver.profile.index') }}" wire:navigate class="text-brand-400 font-bold hover:underline">Belgelerime git</a>
                     </div>
                 @else
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <a href="{{ route('driver.premium.checkout') }}" wire:navigate class="btn-primary text-sm px-6 py-3 text-center">{{ $trialEndsAt ? 'Denemeden sonra devam et' : ($isPremium ? '1 ay daha uzat' : 'Premium\'u başlat') }} · {{ number_format($monthlyPrice, 2, ',', '.') }} ₺</a>
-                        <span class="text-2xs text-neutral-500">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez.</span>
+                    {{-- Süre seçimi: 1 ay tam fiyat, 3/6/12 ay panel ayarlı indirimle (SubscriptionService::plans). Ödeme sayfasına ?sure=N ile gider. --}}
+                    <div class="space-y-3">
+                        <div class="text-xs font-bold text-neutral-900 dark:text-white">{{ $trialEndsAt ? 'Denemeden sonra devam edin: süre seçin' : ($isPremium ? 'Üyeliği uzatın: süre seçin' : 'Süre seçin') }}</div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            @foreach($plans as $plan)
+                                @php $best = $plan['months'] === 12 && $plan['discount'] > 0; @endphp
+                                <a href="{{ route('driver.premium.checkout', ['sure' => $plan['months']]) }}" wire:navigate
+                                   class="relative flex flex-col rounded-2xl border p-3 transition-colors hover:border-brand-500 {{ $best ? 'border-brand-500 bg-brand-500/5' : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950' }}">
+                                    @if($plan['discount'] > 0)
+                                        <span class="absolute -top-2 right-2 rounded-full bg-emerald-600 px-2 py-0.5 text-3xs font-black text-white">%{{ rtrim(rtrim(number_format($plan['discount'], 1, ',', '.'), '0'), ',') }} indirim</span>
+                                    @endif
+                                    <span class="text-sm font-black text-neutral-900 dark:text-white">{{ $plan['label'] }}</span>
+                                    <span class="mt-1 text-base font-black tabular-nums {{ $best ? 'text-brand-500' : 'text-neutral-900 dark:text-white' }}">{{ number_format($plan['price'], 0, ',', '.') }} ₺</span>
+                                    <span class="text-2xs text-neutral-500 dark:text-neutral-400">{{ $plan['months'] > 1 ? 'ayda ≈ '.number_format($plan['per_month'], 0, ',', '.').' ₺' : 'aylık' }}</span>
+                                    @if($plan['saving'] > 0)
+                                        <span class="text-2xs font-bold text-emerald-600 dark:text-emerald-400">{{ number_format($plan['saving'], 0, ',', '.') }} ₺ kazanç</span>
+                                    @endif
+                                </a>
+                            @endforeach
+                        </div>
+                        <span class="text-2xs text-neutral-500 block">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez; süre mevcut dönemin bitiminden itibaren eklenir.</span>
                     </div>
                 @endif
             </div>

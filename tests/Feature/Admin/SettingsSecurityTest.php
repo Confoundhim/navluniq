@@ -153,6 +153,13 @@ class SettingsSecurityTest extends TestCase
         $c->set('currentPassword', 'Sifre12345!')->call('savePayment')->assertHasNoErrors();
         $this->assertFalse(Settings::bool('iyzico_sandbox'));
         $this->assertSame(1, UserNotification::query()->where('user_id', $admin->id)->where('title', 'Ödeme/gizli ayar değişti')->count());
+        // Kutu kaydedildikten ve sayfa yeniden yüklendikten sonra gerçek boolean false taşır ("0" metni tarayıcıda işaretli görünür).
+        $this->assertSame(false, $c->get('paymentForm.iyzico_sandbox'));
+        $this->assertSame(false, Volt::test('admin.settings-center')->set('activeTab', 'payment')->get('paymentForm.iyzico_sandbox'));
+        // Tarayıcı kutuyu işaretleyince true gönderir; kayıt '1' olur
+        $c->set('paymentForm.iyzico_sandbox', true)->set('currentPassword', 'Sifre12345!')->call('savePayment')->assertHasNoErrors();
+        $this->assertTrue(Settings::bool('iyzico_sandbox'));
+        $this->assertSame(true, $c->get('paymentForm.iyzico_sandbox'));
 
         // Emirler kapanınca açık emir sayacı sıfırlanır (sağlayıcı kilidi kalkar).
         PaymentOrder::query()->whereIn('status', ['paid', 'pending'])->update(['status' => 'refunded']);

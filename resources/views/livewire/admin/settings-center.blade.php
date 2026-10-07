@@ -28,6 +28,9 @@ new class extends Component {
         'load_expiry_grace_days' => 'Yükleme tarihi geçen ilanın kapanma süresi (gün)',
         'premium_monthly_price' => 'Premium abonelik aylık ücreti (₺)',
         'premium_trial_days' => 'Ücretsiz premium deneme süresi (gün; belgeleri onaylanan her şoföre bir kez, 0 kapalı)',
+        'premium_discount_3m' => '3 aylık premium indirimi (%; aylık ücret × 3 üzerinden, 0 = indirim yok)',
+        'premium_discount_6m' => '6 aylık premium indirimi (%)',
+        'premium_discount_12m' => '12 aylık premium indirimi (%)',
         'min_load_price' => 'Asgari navlun bedeli (₺)',
         'cargo_owner_verification_required' => 'Yük sahibi doğrulaması zorunlu (1 açık · 0 kapalı)',
         'return_load_radius_km' => 'Dönüş yükü arama yarıçapı (km)',
@@ -216,8 +219,10 @@ new class extends Component {
         }
         $this->mailForm['mail_password_set'] = Settings::string('mail_password') !== '' ? '1' : '0';
         foreach (array_keys(self::PAYMENT_KEYS) as $key) {
+            // Onay kutuları gerçek boolean taşır: tarayıcıda "0" metni de doğru (truthy) sayıldığından string bağlanınca kutu
+            // kapatılıp kaydedilse bile işaretli görünüyordu (2026-10-07, Osman: "sandbox tiki tekrar açılıyor").
             $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
-                ? (Settings::bool($key) ? '1' : '0')
+                ? Settings::bool($key)
                 : ($key === 'iyzico_secret_key' ? '' : (string) Settings::get($key));
         }
         $this->paymentForm['payment_provider'] = \App\Payments\GatewayManager::selectedId();
@@ -351,7 +356,11 @@ new class extends Component {
             return;
         }
         foreach (self::PAYMENT_KEYS as $key => $label) {
-            $this->paymentForm[$key] = trim((string) ($this->paymentForm[$key] ?? ''));
+            $raw = $this->paymentForm[$key] ?? '';
+            // Onay kutusu: tarayıcı true/false, testler '1'/'0' gönderebilir; ikisi de '1' ya da '0' metnine indirgenir.
+            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
+                ? (filter_var($raw, FILTER_VALIDATE_BOOLEAN) ? '1' : '0')
+                : trim((string) $raw);
         }
         $this->validate([
             'paymentForm.payment_provider' => 'required|in:iyzico', // PayTR sözleşme yokken seçilemez (sınıf duruyor)
@@ -533,6 +542,9 @@ new class extends Component {
             'limits.load_expiry_grace_days' => 'required|integer|min:0|max:30',
             'limits.premium_monthly_price' => 'required|numeric|min:0|max:1000000',
             'limits.premium_trial_days' => 'required|integer|min:0|max:90',
+            'limits.premium_discount_3m' => 'required|numeric|min:0|max:90',
+            'limits.premium_discount_6m' => 'required|numeric|min:0|max:90',
+            'limits.premium_discount_12m' => 'required|numeric|min:0|max:90',
             'limits.min_load_price' => 'required|numeric|min:0|max:10000000',
             'limits.cargo_owner_verification_required' => 'required|integer|min:0|max:1',
             'limits.return_load_radius_km' => 'required|integer|min:0|max:1000',

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
- * Premium şoför üyeliği: aylık dönemler halinde satın alınır, otomatik yenilenmez.
+ * Premium şoför üyeliği: 1, 3, 6 ya da 12 aylık dönemler halinde satın alınır (uzun sürede panel ayarlı indirim), otomatik yenilenmez.
  * Ödeme yalnız doğrulanmış sunucu bildirimiyle etkinleşir (PaymentService::afterPaid → activate).
  */
 class SubscriptionService
@@ -33,6 +33,52 @@ class SubscriptionService
     public function monthlyPrice(): float
     {
         return round(Settings::float('premium_monthly_price'), 2);
+    }
+
+    /** Satın alınabilen süreler (ay). 1 ay tam fiyat; diğerleri panel ayarındaki yüzdeyle indirimli. */
+    public const PLAN_MONTHS = [1, 3, 6, 12];
+
+    /** Süreye göre indirim yüzdesi (panel: premium_discount_3m/6m/12m; 0-90 arası). */
+    public function discountFor(int $months): float
+    {
+        if (! in_array($months, self::PLAN_MONTHS, true) || $months === 1) {
+            return 0.0;
+        }
+
+        return max(0.0, min(90.0, Settings::float('premium_discount_'.$months.'m')));
+    }
+
+    /** Seçilen sürenin toplam ücreti (KDV dahil): aylık × ay × (1 − indirim). */
+    public function priceFor(int $months): float
+    {
+        if (! in_array($months, self::PLAN_MONTHS, true)) {
+            throw new RuntimeException('Geçersiz üyelik süresi.');
+        }
+
+        return round($this->monthlyPrice() * $months * (1 - $this->discountFor($months) / 100), 2);
+    }
+
+    /**
+     * Plan kartları: ay, toplam, aya düşen, indirim yüzdesi, tasarruf, etiket.
+     *
+     * @return list<array{months:int,price:float,per_month:float,discount:float,saving:float,label:string}>
+     */
+    public function plans(): array
+    {
+        $monthly = $this->monthlyPrice();
+
+        return array_map(function (int $months) use ($monthly): array {
+            $price = $this->priceFor($months);
+
+            return [
+                'months' => $months,
+                'price' => $price,
+                'per_month' => $months > 0 ? round($price / $months, 2) : $price,
+                'discount' => $this->discountFor($months),
+                'saving' => round($monthly * $months - $price, 2),
+                'label' => $months === 1 ? '1 ay' : $months.' ay',
+            ];
+        }, self::PLAN_MONTHS);
     }
 
     public const PLAN_PREMIUM_GIFT = 'premium_gift';
@@ -196,7 +242,7 @@ class SubscriptionService
     }
 
     /** Şoför için premium ödeme emri; ödeme ekranı PaymentService::checkout ile açılır. */
-    public function startCheckout(User $driverUser): PaymentOrder
+    public function startCheckout(User $driverUser, int $months = 1): PaymentOrder
     {
         if ($driverUser->driverProfile?->is_staff_view) {
             throw new RuntimeException('Yönetici görünümünde işlem yapılamaz.');
@@ -209,7 +255,7 @@ class SubscriptionService
             throw new RuntimeException('Premium üyelik için belgelerinizin onaylanmış olması gerekir.');
         }
 
-        return $this->payments->orderForSubscription($driverUser, $this->monthlyPrice());
+        return $this->payments->orderForSubscription($driverUser, $this->priceFor($months), $months);
     }
 
     /** Ödenmiş abonelik siparişini üyeliğe çevirir: dönem, fatura kaydı, premium süresi, bildirim, defter. */
@@ -230,10 +276,11 @@ class SubscriptionService
             return null;
         }
 
-        $subscription = DB::transaction(function () use ($order, $user, $profile): Subscription {
-            // Mevcut süre bitmediyse üzerine eklenir; bittiyse bugünden başlar.
+        $months = max(1, (int) ($order->subscription_months ?: 1));
+        $subscription = DB::transaction(function () use ($order, $user, $profile, $months): Subscription {
+            // Mevcut süre bitmediyse üzerine eklenir; bittiyse bugünden başlar. Seçilen süre (1/3/6/12 ay) emirde durur.
             $start = $profile->premium_until && $profile->premium_until->isFuture() ? $profile->premium_until->copy() : now();
-            $end = $start->copy()->addMonthNoOverflow(); // 31 Ocak + 1 ay = 28/29 Şubat (3 Mart'a taşmaz)
+            $end = $start->copy()->addMonthsNoOverflow($months); // 31 Ocak + 1 ay = 28/29 Şubat (3 Mart'a taşmaz)
 
             $subscription = Subscription::query()->where('user_id', $user->id)->where('plan_code', self::PLAN_PREMIUM_MONTHLY)->latest('id')->first()
                 ?? Subscription::create([
@@ -243,12 +290,13 @@ class SubscriptionService
                     'status' => 'active',
                     'amount' => $order->amount,
                     'currency' => $order->currency,
-                    'interval' => 'monthly',
+                    'interval' => $months === 1 ? 'monthly' : $months.'_months',
                 ]);
 
             $subscription->update([
                 'status' => 'active',
                 'amount' => $order->amount,
+                'interval' => $months === 1 ? 'monthly' : $months.'_months',
                 'provider' => $order->provider,
                 'current_period_starts_at' => $start,
                 'current_period_ends_at' => $end,
@@ -302,7 +350,7 @@ class SubscriptionService
         }
 
         $this->notifications->notify($user, 'Premium üyeliğiniz etkinleşti',
-            ['Premium üyeliğiniz '.$profile->fresh()->premium_until?->format('d.m.Y H:i').' tarihine kadar geçerli. Onaylı dış kaynak ilanlarını artık herkesten önce, ilan sahibinin numarasıyla görüyorsunuz.'],
+            [$months.' aylık premium üyeliğiniz '.$profile->fresh()->premium_until?->format('d.m.Y H:i').' tarihine kadar geçerli. Onaylı dış kaynak ilanlarını artık herkesten önce, ilan sahibinin numarasıyla görüyorsunuz.'],
             route('driver.loads.index', ['tab' => 'external']), 'İlanlara git', 'subscription');
 
         return $subscription;
@@ -364,8 +412,8 @@ class SubscriptionService
                         route('driver.premium.index'), 'Premium ile devam et', 'subscription');
                 } else {
                     $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
-                        ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Üyelik otomatik yenilenmez.', 'Kesinti olmaması için şimdi 1 ay daha uzatabilirsiniz; süre mevcut dönemin bitiminden itibaren eklenir.'],
-                        route('driver.premium.checkout'), '1 ay daha uzat', 'subscription');
+                        ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Üyelik otomatik yenilenmez.', 'Kesinti olmaması için şimdi uzatabilirsiniz (1, 3, 6 ya da 12 ay; uzun sürelerde indirim); süre mevcut dönemin bitiminden itibaren eklenir.'],
+                        route('driver.premium.index'), 'Üyeliği uzat', 'subscription');
                 }
                 $sent++;
             });

@@ -128,7 +128,7 @@ class PaymentService
     }
 
     /** Premium abonelik için açık bir ödeme emri döner (varsa yeniden kullanır). */
-    public function orderForSubscription(User $payer, float $amount): PaymentOrder
+    public function orderForSubscription(User $payer, float $amount, int $months = 1): PaymentOrder
     {
         $amount = round($amount, 2);
         if ($amount <= 0) {
@@ -137,7 +137,7 @@ class PaymentService
 
         $existing = PaymentOrder::query()->where('user_id', $payer->id)->where('purpose', self::PURPOSE_SUBSCRIPTION)
             ->whereIn('status', ['created', 'pending'])->where('created_at', '>=', now()->subHours(6))->latest()->first();
-        if ($existing && abs((float) $existing->amount - $amount) < 0.01) {
+        if ($existing && abs((float) $existing->amount - $amount) < 0.01 && (int) ($existing->subscription_months ?: 1) === $months) {
             return $existing;
         }
 
@@ -145,6 +145,7 @@ class PaymentService
             'load_id' => null,
             'user_id' => $payer->id,
             'purpose' => self::PURPOSE_SUBSCRIPTION,
+            'subscription_months' => $months,
             'provider' => $this->gateway()->id(),
             'merchant_oid' => $this->merchantOid('NQS'.$payer->id),
             'amount' => $amount,
@@ -167,7 +168,7 @@ class PaymentService
 
         $load = $order->cargoLoad;
         $description = $order->purpose === self::PURPOSE_SUBSCRIPTION
-            ? 'NavlunIQ Premium şoför üyeliği (1 ay)'
+            ? 'NavlunIQ Premium şoför üyeliği ('.max(1, (int) ($order->subscription_months ?: 1)).' ay)'
             : 'Navlun bedeli #'.$order->load_id.' '.($load?->pickup_location).' - '.($load?->delivery_location);
 
         $context = [

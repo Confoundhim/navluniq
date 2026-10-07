@@ -16,6 +16,7 @@ class PaymentOrder extends Model
         'load_id',
         'user_id',
         'purpose',
+        'subscription_months',
         'provider',
         'merchant_oid',
         'provider_reference',
