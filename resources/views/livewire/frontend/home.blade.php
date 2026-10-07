@@ -462,7 +462,7 @@ new class extends Component {
                     <div class="w-12 h-12 rounded-2xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center text-xl"></div>
                     <h3 class="text-lg font-bold text-neutral-900 dark:text-white">NavlunIQ İlan Aboneliği</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Premium üyeler gruplardan derlenen ilanları ilan sahibinin numarasıyla görür, yeni NavlunIQ ilanlarına herkesten {{ $leadText }} önce ulaşır ve anında bildirim alır; standart üyeler grup ilanlarını görmez ve bildirim almaz, ilanlar panellerine {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} düşer.
+                        Premium üyeler gruplardan derlenen ilanları ilan bilgileriyle görür, yeni NavlunIQ ilanlarına herkesten {{ $leadText }} önce ulaşır ve anında bildirim alır; standart üyeler grup ilanlarını görmez ve bildirim almaz, ilanlar panellerine {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} düşer.
                     </p>
                 </div>
                 <a href="{{ route('subscription') }}" class="text-xs font-bold text-brand-500 hover:underline pt-2 block">Abonelik Detayları →</a>
@@ -500,7 +500,7 @@ new class extends Component {
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">SÜRÜCÜ ÜYELİK PLANLARI</span>
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Yükleri herkesten önce görün.</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Teklif vermek her zaman ücretsiz. Premium üyeler gruplardan derlenen ilanları numarasıyla görür, yeni ilanlara {{ $leadText }} önce ulaşır ve anında bildirim alır.{{ $trialDays > 0 ? " İlk {$trialDays} gün ücretsiz, kart gerekmez." : '' }}</p>
+            <p class="text-xs sm:text-sm text-neutral-400">Teklif vermek her zaman ücretsiz. Premium üyeler gruplardan derlenen ilanları ilan bilgileriyle görür, yeni ilanlara {{ $leadText }} önce ulaşır ve anında bildirim alır.{{ $trialDays > 0 ? " İlk {$trialDays} gün ücretsiz, kart gerekmez." : '' }}</p>
         </div>
 
         <x-plan-cards />

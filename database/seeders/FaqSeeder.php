@@ -49,12 +49,12 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Üç şey: gruplardan derlenen ilanların tamamını ilan sahibinin numarasıyla görürsünüz (standart üyeye bu ilanlar hiç görünmez); yük sahiplerinin NavlunIQ ilanlarını herkesten '.$leadText.' önce görürsünüz; aracınıza uygun ilan ve dönüş yükü çıktığında anında bildirim alırsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur, otomatik yenilenmez ve platform hizmet bedeli premium ile değişmez.'.($trialDays > 0 ? ' Belgeleri onaylanan her şoföre bir kez '.$trialDays.' günlük ücretsiz deneme tanımlanır; kart bilgisi istenmez, süre sonunda ücret alınmaz.' : ''),
+                'answer' => 'Üç şey: gruplardan derlenen ilanların tamamını ilan bilgileriyle görürsünüz (standart üyeye bu ilanlar hiç görünmez); yük sahiplerinin NavlunIQ ilanlarını herkesten '.$leadText.' önce görürsünüz; aracınıza uygun ilan ve dönüş yükü çıktığında anında bildirim alırsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur, otomatik yenilenmez ve platform hizmet bedeli premium ile değişmez.'.($trialDays > 0 ? ' Belgeleri onaylanan her şoföre bir kez '.$trialDays.' günlük ücretsiz deneme tanımlanır; kart bilgisi istenmez, süre sonunda ücret alınmaz.' : ''),
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Ücretsiz hesap NavlunIQ ilanlarını görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Farklar: gruplardan derlenen ilanlar yalnız premium üyelere açıktır; yeni NavlunIQ ilanları ücretsiz hesaba premium üyelerden '.$leadText.' sonra açılır; ücretsiz hesaba bildirim gönderilmez, ilanlar ve dönüş yükleri panelde görünür, siz takip edersiniz. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır.',
+                'answer' => 'Ücretsiz hesap NavlunIQ ilanlarını görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Farklar: gruplardan derlenen ilanlar yalnız premium üyelere açıktır; yeni NavlunIQ ilanları ücretsiz hesaba premium üyelerden '.$leadText.' sonra açılır; ücretsiz hesaba bildirim gönderilmez; NavlunIQ ilanları ve dönüş yükü radarı ilanları panelinize düşer, siz takip edersiniz. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır.',
             ],
             [
                 'order_num' => 6,

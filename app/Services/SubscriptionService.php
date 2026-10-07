@@ -103,7 +103,7 @@ class SubscriptionService
 
         $until = $profile->fresh()->premium_until->format('d.m.Y H:i');
         $this->notifications->notify($user, "{$days} günlük premium deneme süreniz başladı",
-            ["Premium'un tüm özellikleri {$until} tarihine kadar ücretsiz: gruplardan derlenen ilanlar numarasıyla, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı.",
+            ["Premium'un tüm özellikleri {$until} tarihine kadar ücretsiz: gruplardan derlenen ilanlar ilan bilgileriyle, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı.",
                 'Kart bilgisi istenmez, süre sonunda ücret alınmaz; beğenirseniz Premium sayfasından aylık devam edersiniz.'],
             route('driver.loads.index', ['tab' => 'external']), 'İlanlara git', 'subscription');
 

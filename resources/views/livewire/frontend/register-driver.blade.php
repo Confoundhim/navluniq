@@ -264,7 +264,7 @@ new class extends Component {
         session()->regenerate();
         app(\App\Services\NotificationService::class)->notify($user, 'NavlunIQ\'ya hoş geldiniz',
             ['Şoför hesabınız doğrulandı. Teklif verebilmek için ehliyet, SRC, psikoteknik, ruhsat ve kimlikli selfie belgelerinizi yükleyin; ekibimiz genellikle 24 saat içinde inceler.',
-             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilirsiniz'.(($trialDays = app(\App\Services\SubscriptionService::class)->trialDays()) > 0 ? ' ve '.$trialDays.' günlük ücretsiz premium deneme kendiliğinden başlar: gruplardan derlenen ilanlar numarasıyla, yeni ilanlar herkesten önce ve bildirimle.' : '; premium ile yeni ilanları herkesten önce görür ve anında bildirim alırsınız.')],
+             'Belgeleriniz onaylanınca ilan havuzundaki yüklere teklif verebilirsiniz'.(($trialDays = app(\App\Services\SubscriptionService::class)->trialDays()) > 0 ? ' ve '.$trialDays.' günlük ücretsiz premium deneme kendiliğinden başlar: gruplardan derlenen ilanlar ilan bilgileriyle, yeni ilanlar herkesten önce ve bildirimle.' : '; premium ile yeni ilanları herkesten önce görür ve anında bildirim alırsınız.')],
             route('driver.profile.index'), 'Belgelerimi yükle', 'welcome');
         session()->flash('success', 'Şoför hesabınız doğrulandı.');
 
