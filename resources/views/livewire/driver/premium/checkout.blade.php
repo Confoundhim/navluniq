@@ -35,8 +35,14 @@ class extends Component {
     #[Locked]
     public bool $sandbox = true;
 
+    /** Seçilen süre (ay): Premium sayfasından ?sure=1|3|6|12 ile gelir; geçersizse 1. */
+    #[Locked]
+    public int $months = 1;
+
     public function mount(PaymentService $payments, SubscriptionService $subscriptions): void
     {
+        $requested = (int) request()->query('sure', 1);
+        $this->months = in_array($requested, SubscriptionService::PLAN_MONTHS, true) ? $requested : 1;
         $this->configured = $payments->isConfigured();
         $this->sandbox = $payments->isSandbox();
         if (! $this->configured) {
@@ -44,7 +50,7 @@ class extends Component {
         }
 
         try {
-            $order = $subscriptions->startCheckout(Auth::user());
+            $order = $subscriptions->startCheckout(Auth::user(), $this->months);
             $this->orderId = $order->id;
             $cacheKey = 'checkout.'.$order->id;
             $cached = session($cacheKey);
@@ -78,8 +84,12 @@ class extends Component {
 
     public function with(): array
     {
+        $subscriptions = app(SubscriptionService::class);
+
         return [
-            'price' => app(SubscriptionService::class)->monthlyPrice(),
+            'price' => $subscriptions->priceFor($this->months),
+            'listPrice' => round($subscriptions->monthlyPrice() * $this->months, 2),
+            'discount' => $subscriptions->discountFor($this->months),
             'vatRate' => \App\Support\Settings::float('payment_vat_rate'),
             'premiumUntil' => Auth::user()->driverProfile?->premium_until,
         ];
@@ -100,7 +110,11 @@ class extends Component {
     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
         <h3 class="section-title">Sipariş özeti</h3>
         <div class="divide-y divide-neutral-200 dark:divide-neutral-800 border-t border-neutral-200 dark:border-neutral-800">
-            <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Premium şoför üyeliği</span><span class="text-neutral-900 dark:text-white">1 ay</span></div>
+            <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Premium şoför üyeliği</span><span class="text-neutral-900 dark:text-white">{{ $months }} ay <a href="{{ route('driver.premium.index') }}" wire:navigate class="ml-2 text-brand-400 font-semibold hover:underline">Değiştir</a></span></div>
+            @if($discount > 0)
+                <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Liste fiyatı ({{ $months }} × aylık)</span><span class="text-neutral-500 line-through tabular-nums">{{ number_format($listPrice, 2, ',', '.') }} ₺</span></div>
+                <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Süre indirimi</span><span class="text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">−%{{ rtrim(rtrim(number_format($discount, 1, ',', '.'), '0'), ',') }} · {{ number_format($listPrice - $price, 2, ',', '.') }} ₺</span></div>
+            @endif
             <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Başlangıç</span><span class="text-neutral-900 dark:text-white">{{ $premiumUntil && $premiumUntil->isFuture() ? 'Mevcut sürenin bitiminde ('.$premiumUntil->format('d.m.Y').')' : 'Ödeme onaylandığında' }}</span></div>
             <div class="flex items-center justify-between py-3"><span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam (KDV %{{ number_format($vatRate, 0) }} dahil)</span><span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($price, 2, ',', '.') }} ₺</span></div>
         </div>
@@ -126,7 +140,7 @@ class extends Component {
         <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">
             <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Ödeme başlatılamadı</h3>
             <p class="text-neutral-700 dark:text-neutral-300">{{ $error }}</p>
-            <a href="{{ route('driver.premium.checkout') }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
+            <a href="{{ route('driver.premium.checkout', ['sure' => $months]) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
         </div>
     @elseif($checkoutType === 'iframe' && $checkoutUrl)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
