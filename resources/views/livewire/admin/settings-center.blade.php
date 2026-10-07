@@ -216,8 +216,10 @@ new class extends Component {
         }
         $this->mailForm['mail_password_set'] = Settings::string('mail_password') !== '' ? '1' : '0';
         foreach (array_keys(self::PAYMENT_KEYS) as $key) {
+            // Onay kutuları gerçek boolean taşır: tarayıcıda "0" metni de doğru (truthy) sayıldığından string bağlanınca kutu
+            // kapatılıp kaydedilse bile işaretli görünüyordu (2026-10-07, Osman: "sandbox tiki tekrar açılıyor").
             $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
-                ? (Settings::bool($key) ? '1' : '0')
+                ? Settings::bool($key)
                 : ($key === 'iyzico_secret_key' ? '' : (string) Settings::get($key));
         }
         $this->paymentForm['payment_provider'] = \App\Payments\GatewayManager::selectedId();
@@ -351,7 +353,11 @@ new class extends Component {
             return;
         }
         foreach (self::PAYMENT_KEYS as $key => $label) {
-            $this->paymentForm[$key] = trim((string) ($this->paymentForm[$key] ?? ''));
+            $raw = $this->paymentForm[$key] ?? '';
+            // Onay kutusu: tarayıcı true/false, testler '1'/'0' gönderebilir; ikisi de '1' ya da '0' metnine indirgenir.
+            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
+                ? (filter_var($raw, FILTER_VALIDATE_BOOLEAN) ? '1' : '0')
+                : trim((string) $raw);
         }
         $this->validate([
             'paymentForm.payment_provider' => 'required|in:iyzico', // PayTR sözleşme yokken seçilemez (sınıf duruyor)

@@ -445,6 +445,9 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
 - Blade'de `@php($x = app(\App\X::class)->y())` tek satır biçimi `::class` ile bozulur (derleyici parantezi yanlış keser); `@php ... @endphp`
   bloğu kullan. Volt bileşeninde `request()->session()` Livewire testinde "Session store not set" verir; `session()` yardımcısını kullan.
   Volt bileşeninin kök öğesinden önce yazılan `@php` satırları derlenmez; değişkenleri kök `<div>` içinde tanımla.
+- **Livewire onay kutusu string'e bağlanmaz:** `wire:model` ile `'1'/'0'` metni taşıyan `<input type="checkbox">` tarayıcıda `'0'` için de
+  işaretli görünür (JS'te boş olmayan metin truthy); kayıt doğru yazılır ama kutu "tekrar açılmış" gibi durur (2026-10-07 iyzico
+  sandbox kutusu). Kutuya gerçek boolean ver, kaydederken `filter_var(..., FILTER_VALIDATE_BOOLEAN)`; testte `assertSame(false, ...)`.
 - Playwright'ta `getByPlaceholder` gibi seçiciler iki kutuda (çıkış/varış) çift eşleşir; `.first()` kullan.
   Depodaki hazır denetim betiği: `scripts/mobile-audit.cjs` (`PW_MODULE` ile Playwright yolu verilir).
 
