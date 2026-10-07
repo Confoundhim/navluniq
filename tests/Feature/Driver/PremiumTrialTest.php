@@ -120,7 +120,7 @@ class PremiumTrialTest extends TestCase
             ->assertSee('7 gün ücretsiz dene')
             ->assertSee('Kart gerekmez')
             ->assertSee('Gruplardan derlenen ilanlar yalnız Premium')
-            ->assertSee('Yeni ilanlar panelinize düşer, bildirim gelmez')
+            ->assertSee('dönüş yükü radarı ilanları panelinize düşer, ancak bildirim gelmez')
             ->assertDontSee('Tüm ilanları görün')
             ->assertSee('Günde ≈ 30 ₺');
         $this->get(route('home'))->assertOk()->assertSee('7 gün ücretsiz dene')->assertDontSee('Tüm ilanları görün');

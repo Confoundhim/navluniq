@@ -16,10 +16,10 @@
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
 
     $comparison = array_values(array_filter([
-        ['Gruplardan derlenen ilanlar (numarasıyla)', 'Görünmez', 'Tamamı'],
+        ['Gruplardan derlenen ilanlar (ilan bilgileriyle)', 'Görünmez', 'Tamamı'],
         ['Yük sahiplerinin NavlunIQ ilanları', $lead > 0 ? "{$lead} dakika sonra" : 'Yayınlandığı anda', 'Yayınlandığı anda'],
-        ['Yeni ilan bildirimi', 'Panele düşer, bildirim gelmez', 'Anında, uygulama içi + e-posta'],
-        ['Dönüş yükü radarı', 'İşlerim sayfasında görünür, bildirim gelmez', 'Bildirimle'],
+        ['Yeni ilan bildirimi', 'NavlunIQ ilanları panele düşer, ancak bildirim gelmez', 'Anında, uygulama içi + e-posta'],
+        ['Dönüş yükü radarı', 'Radar ilanları panele düşer, ancak bildirim gelmez', 'Bildirimle'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
@@ -28,7 +28,7 @@
     ]));
 @endphp
 
-<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ" description="NavlunIQ Premium: gruplardan derlenen ilanlar numarasıyla, NavlunIQ ilanlarına erken erişim, anında bildirim ve dönüş yükü radarı. Ücretsiz deneme ile başlayın.">
+<x-layouts.frontend title="Sürücü Üyelik Planları - NavlunIQ" description="NavlunIQ Premium: gruplardan derlenen ilanlar ilan bilgileriyle, NavlunIQ ilanlarına erken erişim, anında bildirim ve dönüş yükü radarı. Ücretsiz deneme ile başlayın.">
     <div class="max-w-6xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in">
 
         <!-- Giriş -->
@@ -38,7 +38,7 @@
                 Yükleri herkesten önce görün.
             </h1>
             <p class="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Gruplarda saatlerce kaydırmak yerine temiz ilan kartları, ilan sahibinin numarası ve size uyan yük çıkınca bildirim.
+                Gruplarda saatlerce kaydırmak yerine temiz ilan kartları, tüm ilan bilgileri ve size uyan yük çıkınca bildirim.
                 Teklif vermek her zaman ücretsizdir; Premium, yükü ilk gören olmanızı sağlar.
             </p>
             <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
@@ -186,7 +186,7 @@
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Gruplardan derlenen ilanlar nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan sahibinin numarası kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan bilgilerinin tamamı kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>

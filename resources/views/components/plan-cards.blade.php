@@ -55,7 +55,7 @@
                 </div>
             </div>
             <ul class="space-y-3 text-xs text-neutral-700 dark:text-neutral-200 font-medium pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
-                <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span><strong class="text-neutral-900 dark:text-white">Gruplardan derlenen tüm ilanlar</strong>, ilan sahibinin numarasıyla; yalnız Premium'da</span></li>
+                <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span><strong class="text-neutral-900 dark:text-white">Gruplardan derlenen tüm ilanlar</strong>, ilan bilgileriyle; yalnız Premium'da</span></li>
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni NavlunIQ ilanlarını herkesten <strong class="text-neutral-900 dark:text-white">{{ $leadText }} önce</strong> görün, ilk teklifi siz verin</span></li>
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Aracınıza uygun ilan çıkınca <strong class="text-neutral-900 dark:text-white">anında bildirim</strong>; uygulamayı açık tutmanız gerekmez</span></li>
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span><strong class="text-neutral-900 dark:text-white">Dönüş yükü radarı</strong>: teslimden sonra boş dönmeyin, uygun yük size haber verilir</span></li>
@@ -94,7 +94,7 @@
             <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>NavlunIQ ilanlarına sınırsız teklif verin</span></li>
             <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Paranız güvende: teslim onaylanınca navlun hesabınıza geçer</span></li>
             <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Gruplardan derlenen ilanlar yalnız Premium'da</span></li>
-            <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Yeni ilanlar panelinize düşer, bildirim gelmez</span></li>
+            <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>NavlunIQ ilanları ve dönüş yükü radarı ilanları panelinize düşer, ancak bildirim gelmez</span></li>
             <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>NavlunIQ ilanlarını {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür</span></li>
         </ul>
         <div class="space-y-2">

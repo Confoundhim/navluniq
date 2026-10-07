@@ -75,7 +75,7 @@ class extends Component {
     @endphp
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Premium Abonelik</h2>
-        <p class="page-subtitle">Premium üyeler gruplardan derlenen ilanları ilan sahibinin numarasıyla görür, yeni NavlunIQ ilanlarını herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeye bildirim gitmez, grup ilanları görünmez.</p>
+        <p class="page-subtitle">Premium üyeler gruplardan derlenen ilanları ilan bilgileriyle görür, yeni NavlunIQ ilanlarını herkesten {{ $leadText }} önce görür ve anında bildirim alır; standart üyeye bildirim gitmez, grup ilanları görünmez.</p>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -109,7 +109,7 @@ class extends Component {
                 @if($trialEligible)
                     <div class="p-4 rounded-xl bg-brand-500/10 border border-brand-500/20 space-y-3">
                         <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $trialDays }} gün ücretsiz deneyin</div>
-                        <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">Premium'un tamamı {{ $trialDays }} gün boyunca ücretsiz: gruplardan derlenen ilanlar numarasıyla, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı. Kart bilgisi istenmez; süre bitince ücret alınmaz, hesabınız kendiliğinden standart üyeliğe döner.</p>
+                        <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">Premium'un tamamı {{ $trialDays }} gün boyunca ücretsiz: gruplardan derlenen ilanlar ilan bilgileriyle, yeni ilanlar herkesten önce ve bildirimle, dönüş yükü radarı. Kart bilgisi istenmez; süre bitince ücret alınmaz, hesabınız kendiliğinden standart üyeliğe döner.</p>
                         <button type="button" wire:click="startTrial" wire:loading.attr="disabled" class="btn-primary text-sm px-6 py-3">
                             <span wire:loading.remove wire:target="startTrial">{{ $trialDays }} günlük denemeyi başlat</span>
                             <span wire:loading wire:target="startTrial">Başlatılıyor…</span>
