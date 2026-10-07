@@ -35,6 +35,8 @@ class extends Component {
 
     public string $tax_number = '';
 
+    public string $tax_office = '';
+
     public string $bank_password = '';
 
     public function mount(): void
@@ -43,6 +45,7 @@ class extends Component {
         $this->account_holder = $user->full_name;
         $profile = $user->driverProfile;
         $this->legal_type = $profile?->legal_type ?: DriverProfile::LEGAL_INDIVIDUAL;
+        $this->tax_office = (string) ($profile?->tax_office ?? '');
     }
 
     public function saveBankAccount(BankAccountService $bankAccounts): void
@@ -53,6 +56,7 @@ class extends Component {
             'legal_type' => 'required|in:individual,company',
             'identity_number' => 'nullable|digits:11',
             'tax_number' => 'nullable|digits:10',
+            'tax_office' => 'nullable|string|max:120',
             'bank_password' => 'required|current_password',
         ], [
             'iban.required' => 'IBAN zorunludur.',
@@ -115,11 +119,18 @@ class extends Component {
         }
 
         $ibanChanged = ! $previous || $previous->id !== $account->id;
-        $identityChanged = $identity !== $profile->identity_number || $tax !== $profile->tax_number || $this->legal_type !== $profile->legal_type;
+        $taxOffice = $this->legal_type === DriverProfile::LEGAL_COMPANY ? trim($this->tax_office) : null;
+        if ($this->legal_type === DriverProfile::LEGAL_COMPANY && $taxOffice === '') {
+            $this->addError('tax_office', 'Şirket hesabı için vergi dairesi zorunludur (ödeme kuruluşu kaydında istenir).');
+
+            return;
+        }
+        $identityChanged = $identity !== $profile->identity_number || $tax !== $profile->tax_number || $this->legal_type !== $profile->legal_type || $taxOffice !== $profile->tax_office;
         $profile->update([
             'legal_type' => $this->legal_type,
             'identity_number' => $identity,
             'tax_number' => $tax,
+            'tax_office' => $taxOffice,
             // IBAN ya da kimlik değişince kuruluş kaydı yeni bilgiyle yenilenir; otomatik aktarım ayarlı süre bekler.
             'payout_provider_ref' => ($ibanChanged || $identityChanged) ? null : $profile->payout_provider_ref,
             'bank_account_changed_at' => $ibanChanged ? now() : $profile->bank_account_changed_at,
@@ -328,6 +339,11 @@ class extends Component {
                             <label class="form-label">Vergi numarası (10 hane){{ $profile?->tax_number ? ' · kayıtlı: '.$profile->maskedPayoutIdentity() : '' }}</label>
                             <input type="text" inputmode="numeric" wire:model="tax_number" maxlength="10" autocomplete="off" placeholder="{{ $profile?->tax_number ? 'Değiştirmek için yeni numara' : '' }}" class="form-input font-mono">
                             @error('tax_number') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                        <div>
+                            <label class="form-label">Vergi dairesi</label>
+                            <input type="text" wire:model="tax_office" maxlength="120" autocomplete="organization" placeholder="Örn. Başkent" class="form-input">
+                            @error('tax_office') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     @else
                         <div>

@@ -550,6 +550,12 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   ilanı" canlı sayaç (`LoadStatsService external_7d`), "Günde ≈ 30 ₺", ücretsiz kartta kısıtlar gri çizgiyle ve yumuşak dille ("panelinize
   düşer, bildirim gelmez"); "Tüm ilanları görün" yazılmaz (standart grup ilanı görmez). Karşılaştırma tablosu telefonda satır kartları.
   SSS 4/5 ve hoş geldin bildirimi aynı kuralla. Test `PremiumTrialTest`.
+- **iyzico canlı anahtarlar geldi (2026-10-07; anahtarlar yalnız panele girilir, depoya/sohbete yazılmaz):** `docs/ODEME_ALTYAPISI.md`
+  "iyzico üye işyeri paneli" tablosu (3D Secure tutar 1, bildirim Url açık, para gönderimi banka hesabına, pazaryeri temsilciden).
+  Kod düzeltmeleri: şirket şoförü alt üye işyeri türü `LIMITED_OR_JOINT_STOCK_COMPANY` (VKN + `driver_profiles.tax_office` zorunlu,
+  `0001_01_59`, Ödemelerim formu); var olan dış kimlik iyzico'da bulunursa kayıt yerine güncelleme (`/onboarding/submerchant/retrieve`
+  → PUT); `IyzicoGateway::diagnose()` + panel "Bağlantıyı sına" (BIN sorgusu, pazaryeri sorgusu, anahtar–ortam uyumu, bildirim adresi;
+  `settings.payment_diagnosed`). Bu ortam iyzico'ya erişemez; canlı doğrulama Osman'ın panel sınamasıyla. Test `IyzicoGatewayTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

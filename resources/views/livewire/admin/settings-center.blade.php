@@ -138,6 +138,9 @@ new class extends Component {
     /** @var array<string, string> */
     public array $paymentForm = [];
 
+    /** "Bağlantıyı sına" sonucu (IyzicoGateway::diagnose); sayfa yenilenince sıfırlanır. */
+    public array $paymentDiagnosis = [];
+
     /** Gizli anahtar ya da ödeme ayarı kaydedilirken yeniden girilen yönetici şifresi; kayıttan sonra temizlenir (denetim Y2). */
     public string $currentPassword = '';
 
@@ -317,6 +320,25 @@ new class extends Component {
         $this->loadValues();
         \App\Support\RuntimeMailConfig::apply();
         session()->flash('success_message', $changed > 0 ? "{$changed} e-posta ayarı kaydedildi; aşağıdan deneme e-postası gönderin." : 'Değişiklik yok.');
+    }
+
+    /** Kayıtlı anahtarlarla ödeme kuruluşuna para hareketi yapmayan sınama istekleri atar (anahtar, ortam, pazaryeri yetkisi, bildirim adresi). */
+    public function diagnosePayment(): void
+    {
+        if (! $this->isSuperAdmin()) {
+            session()->flash('error_message', 'Bağlantı sınamasını yalnız süper yönetici çalıştırabilir.');
+
+            return;
+        }
+        $gateway = app(\App\Payments\GatewayManager::class)->active();
+        if (! $gateway instanceof \App\Payments\Gateways\IyzicoGateway) {
+            $this->paymentDiagnosis = [['label' => 'Sağlayıcı', 'ok' => false, 'detail' => 'Sınama yalnız iyzico için; önce anahtarları kaydedin.']];
+
+            return;
+        }
+        $this->paymentDiagnosis = $gateway->diagnose();
+        $failed = collect($this->paymentDiagnosis)->where('ok', false)->pluck('label')->implode(', ');
+        ActivityLog::record('settings.payment_diagnosed', 'Ödeme kuruluşu bağlantı sınaması: '.($failed === '' ? 'tümü geçti' : 'geçmeyen: '.$failed), auth()->id());
     }
 
     /** Ödeme kuruluşu seçimi ve iyzico anahtarları (gizli anahtar boşsa mevcut korunur). */
@@ -959,6 +981,25 @@ new class extends Component {
                 <span class="text-neutral-400 block">Sağlayıcı paneline yazılacak sunucu bildirimi (webhook) adresi</span>
                 <span class="font-mono break-all">{{ $payment['webhook'] }}</span>
                 <span class="text-[11px] text-neutral-400 block">Eski adres de çalışır: {{ $payment['legacy_webhook'] }}</span>
+            </div>
+            <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-3">
+                    <button type="button" wire:click="diagnosePayment" wire:loading.attr="disabled" class="btn-apple-secondary py-2 px-4 text-xs" {{ $payment['configured'] ? '' : 'disabled' }}>
+                        <span wire:loading.remove wire:target="diagnosePayment">Bağlantıyı sına</span>
+                        <span wire:loading wire:target="diagnosePayment">iyzico'ya soruluyor…</span>
+                    </button>
+                    <span class="text-[11px] text-neutral-400">Para hareketi yapmaz: anahtarları, ortamı ve pazaryeri yetkisini kayıtlı anahtarlarla sorar.</span>
+                </div>
+                @if($paymentDiagnosis !== [])
+                    <ul class="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-2xl border border-neutral-200/60 dark:border-neutral-700/40 overflow-hidden">
+                        @foreach($paymentDiagnosis as $row)
+                            <li class="flex items-start gap-3 px-4 py-2.5 bg-white/60 dark:bg-neutral-900/60">
+                                <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full {{ $row['ok'] ? 'bg-emerald-500' : 'bg-rose-500' }}"></span>
+                                <div><div class="font-bold text-neutral-900 dark:text-white">{{ $row['label'] }}</div><div class="text-neutral-600 dark:text-neutral-300 break-words">{{ $row['detail'] }}</div></div>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
             <form wire:submit="savePayment" class="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
                 <h3 class="text-xs font-bold text-neutral-900 dark:text-white">Ödeme kuruluşu ve anahtarlar</h3>

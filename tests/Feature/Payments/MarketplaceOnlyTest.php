@@ -327,9 +327,12 @@ class MarketplaceOnlyTest extends TestCase
         $this->assertContains('IBAN bilginiz değiştirildi', $this->titles($driver));
         $this->assertSame('10*******46', $profile->maskedPayoutIdentity());
 
-        // Şirket hesabında VKN algoritması
+        // Şirket hesabında VKN algoritması; geçerli VKN'de vergi dairesi de zorunlu (iyzico şirket kaydı ister)
         Volt::test('driver.wallet.index')->set(['legal_type' => 'company', 'tax_number' => '1234567899', 'iban' => 'TR330006100519786457841326', 'account_holder' => 'Şoför Ltd', 'bank_password' => 'password'])
             ->call('saveBankAccount')->assertHasErrors(['tax_number']);
+        Volt::test('driver.wallet.index')->set(['legal_type' => 'company', 'tax_number' => '6301481858', 'tax_office' => '', 'iban' => 'TR330006100519786457841326', 'account_holder' => 'Şoför Ltd', 'bank_password' => 'password'])
+            ->call('saveBankAccount')->assertHasErrors(['tax_office']);
+        $this->assertSame('10000000146', $driver->driverProfile->fresh()->identity_number, 'Hatalı kayıt denemesi profili değiştirmez');
 
         // IBAN yeni değiştiği için otomatik aktarım bekletilir; süre dolunca mutabakat aktarır
         $owner = User::factory()->create();

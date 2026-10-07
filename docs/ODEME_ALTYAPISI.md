@@ -50,6 +50,35 @@ Site kriterleri (iyzico başvurusu): Hakkımızda, SSL, Teslimat ve İade Şartl
 sayfaları; altbilgide ve ödeme sayfalarında "iyzico ile Öde" + Mastercard/Visa/Amex/Troy logoları
 (`public/images/payment`).
 
+## iyzico üye işyeri paneli: hangi ayar nasıl olmalı (2026-10-07)
+
+| iyzico paneli | Olması gereken | Neden |
+|---|---|---|
+| Ayarlar → API Anahtarları | API anahtarı + Güvenlik (gizli) anahtarı **yalnız NavlunIQ paneline** (Sistem Ayarları → Ödeme altyapısı) girilir; sohbete, dosyaya, depoya yazılmaz | Gizli anahtar veritabanında şifreli; sızarsa iyzico panelinden "Yenile" |
+| Test (sandbox) modu | Canlı anahtarla **kapalı**; `sandbox-` ile başlayan anahtarla açık | Yanlış eşleşmeyi "Bağlantıyı sına" kırmızı gösterir |
+| İşyeri Bildirimleri | "Ödeme bildirimlerini gönder" **açık**, Url: `https://navluniq.com/odeme/bildirim/iyzico` | Tarayıcı dönüşü kesilse de ödeme sunucuya ulaşır; adaptör token ile sunucudan sorgular |
+| Para Gönderimi Tercihi | **Banka Hesabıma** (şirket IBAN'ı) | Komisyon ve premium gelirleri periyodik olarak şirkete geçer; iyzico bakiyesinde beklemez |
+| Üye İşyerine Açık Taksitler | Fark etmez; NavlunIQ tek çekim gönderir (`enabledInstallments: [1]`) | Pazaryeri kaleminde taksit komisyonu karmaşası olmasın |
+| Ödeme Bazında 3D Secure → Tutar | **1** (her ödeme 3D Secure) | Navlun tutarları yüksek; itiraz (chargeback) riski 3D ile taşınmaz |
+| Kart Saklama / BKM Express | Kapalı kalabilir | Kullanılmıyor |
+| Pazaryeri (alt üye işyeri) ürünü | iyzico temsilcisinden **açtırılır** (ayrı sözleşme); sonra NavlunIQ panelinde "Pazaryeri ürünü aktif" | Navlun tahsilatı canlıda yalnız bu modelle açılır (`PaymentReadiness::escrowBlocker`) |
+
+**Para akışı (pazaryeri):** yük sahibi navlunun tamamını iyzico ödeme formunda öder → tutar iyzico'da bekler (NavlunIQ hesabına
+girmez) → teslimat onayında NavlunIQ "kalem onayı" (`/payment/iyzipos/item/approve`) verir → iyzico şoför payını (`subMerchantPrice`,
+navlun − hizmet bedeli) şoförün alt üye işyeri IBAN'ına, kalanı NavlunIQ'ya aktarır. Teslimden önce iptal/uyuşmazlıkta kalem
+onaylanmadan iade edilir (`/payment/refund`). Premium üyelik pazaryeri dışı normal tahsilattır.
+
+**Alt üye işyeri türleri:** bireysel şoför `PERSONAL` (TC + IBAN), şirket şoförü `LIMITED_OR_JOINT_STOCK_COMPANY` (VKN + vergi
+dairesi + unvan; vergi dairesi Ödemelerim sayfasında zorunlu). Aynı dış kimlik (`DRV-{şoför}-{hesap}`) iyzico'da zaten varsa kayıt
+yerine güncelleme (PUT + `subMerchantKey`) yapılır.
+
+**"Bağlantıyı sına" (Ödeme altyapısı sekmesi):** para hareketi yapmaz; BIN sorgusu ile anahtar/imza, alt üye işyeri sorgusu ile
+pazaryeri yetkisi, ayrıca anahtar–ortam uyumu ve bildirim adresi denetlenir; iyzico'nun hata metni aynen gösterilir.
+
+**iyzico'ya sorulacaklar:** (1) pazaryeri ürünü hesapta açık mı, açık değilse sözleşme; (2) kalem onayı için azami süre var mı,
+süre dolunca kalem kendiliğinden onaylanır mı yoksa iade mi edilir (uzun seferlerde teslim gecikebilir); (3) alt üye işyeri
+ödemelerinin takvimi (onaydan kaç gün sonra IBAN'a geçer) ve şoföre giden tutardan iyzico kesintisi olup olmadığı.
+
 ## Ödeme kuruluşu başvurusu
 
 Yönetici paneli → Sistem Ayarları → **Ödeme altyapısı** sekmesindeki hazırlık listesi (31 madde) yeşil olmalı:
