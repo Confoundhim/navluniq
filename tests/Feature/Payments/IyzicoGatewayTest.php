@@ -17,6 +17,7 @@ use App\Payments\Gateways\IyzicoGateway;
 use App\Services\LoadService;
 use App\Services\OfferService;
 use App\Services\PaymentService;
+use App\Services\PayoutService;
 use App\Services\ShipmentService;
 use App\Support\RuntimeMailConfig;
 use App\Support\Settings;
@@ -27,6 +28,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 class IyzicoGatewayTest extends TestCase
@@ -203,6 +205,94 @@ class IyzicoGatewayTest extends TestCase
         $this->assertSame('paid', $payout->status);
         $this->assertSame('gateway', $payout->channel);
         Http::assertSent(fn ($r) => str_contains($r->url(), 'item/approve') && $r->data()['paymentTransactionId'] === '55');
+    }
+
+    public function test_company_driver_registers_as_limited_company_with_tax_office(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake(['sandbox-api.iyzipay.com/onboarding/submerchant' => Http::response(['status' => 'success', 'subMerchantKey' => 'SUB-CO-1'])]);
+        $owner = User::factory()->create(['current_role' => 'cargo_owner']);
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'co'), 'iban_last4' => '1326', 'account_holder' => 'Deneme Nakliyat Ltd. Şti.', 'is_default' => true]);
+        $driver->driverProfile->update(['legal_type' => DriverProfile::LEGAL_COMPANY, 'tax_number' => '1234567890', 'tax_office' => 'Başkent']);
+
+        $this->assignedLoad($owner, $driver);
+
+        $this->assertSame('SUB-CO-1', $driver->driverProfile->fresh()->payout_provider_ref);
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'submerchant')
+            && $r->data()['subMerchantType'] === 'LIMITED_OR_JOINT_STOCK_COMPANY'
+            && $r->data()['taxNumber'] === '1234567890'
+            && $r->data()['taxOffice'] === 'Başkent'
+            && $r->data()['legalCompanyTitle'] === 'Deneme Nakliyat Ltd. Şti.'
+            && ! isset($r->data()['identityNumber']));
+    }
+
+    public function test_company_driver_without_tax_office_is_not_registered(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake();
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'co2'), 'iban_last4' => '1326', 'account_holder' => 'X', 'is_default' => true]);
+        $driver->driverProfile->update(['legal_type' => DriverProfile::LEGAL_COMPANY, 'tax_number' => '1234567890', 'tax_office' => null]);
+
+        $this->assertFalse(app(PayoutService::class)->ensureSubMerchant($driver->driverProfile->fresh()));
+        Http::assertNothingSent();
+    }
+
+    public function test_existing_submerchant_is_updated_instead_of_duplicated(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake([
+            'sandbox-api.iyzipay.com/onboarding/submerchant/retrieve' => Http::response(['status' => 'success', 'subMerchantKey' => 'SUB-OLD']),
+            'sandbox-api.iyzipay.com/onboarding/submerchant' => function ($request) {
+                return $request->method() === 'PUT'
+                    ? Http::response(['status' => 'success'])
+                    : Http::response(['status' => 'failure', 'errorCode' => '10000', 'errorMessage' => 'Bu dış kimlikle kayıtlı alt üye işyeri zaten var']);
+            },
+        ]);
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'up'), 'iban_last4' => '1326', 'account_holder' => $driver->full_name, 'is_default' => true]);
+        $driver->driverProfile->update(['identity_number' => '10000000146']);
+
+        $this->assertTrue(app(PayoutService::class)->ensureSubMerchant($driver->driverProfile->fresh()));
+        $this->assertSame('SUB-OLD', $driver->driverProfile->fresh()->payout_provider_ref);
+        Http::assertSent(fn ($r) => $r->method() === 'PUT' && str_ends_with($r->url(), '/onboarding/submerchant') && $r->data()['subMerchantKey'] === 'SUB-OLD' && $r->data()['identityNumber'] === '10000000146');
+    }
+
+    public function test_connection_diagnosis_reports_keys_marketplace_and_webhook(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake([
+            'sandbox-api.iyzipay.com/payment/bin/check' => Http::response(['status' => 'success', 'binNumber' => '554960']),
+            'sandbox-api.iyzipay.com/onboarding/submerchant/retrieve' => Http::response(['status' => 'failure', 'errorCode' => '10601', 'errorMessage' => 'Alt üye işyeri bulunamadı']),
+        ]);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin);
+
+        $c = Volt::test('admin.settings-center')->set('activeTab', 'payment')->assertSee('Bağlantıyı sına')->call('diagnosePayment');
+        $rows = collect($c->get('paymentDiagnosis'));
+        $this->assertTrue($rows->firstWhere('label', 'Anahtarlar ve imza (test (sandbox))')['ok']);
+        $this->assertTrue($rows->firstWhere('label', 'Pazaryeri (alt üye işyeri) yetkisi')['ok']);
+        $this->assertStringContainsString('/odeme/bildirim/iyzico', $rows->firstWhere('label', 'Bildirim adresi')['detail']); // test ortamında http olduğundan ok=false olabilir
+        $c->assertSee('iyzico anahtarları kabul etti');
+
+    }
+
+    public function test_connection_diagnosis_shows_iyzico_rejections_verbatim(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake([
+            'sandbox-api.iyzipay.com/payment/bin/check' => Http::response(['status' => 'failure', 'errorCode' => '1001', 'errorMessage' => 'api bilgileri bulunamadı']),
+            'sandbox-api.iyzipay.com/onboarding/submerchant/retrieve' => Http::response(['status' => 'failure', 'errorCode' => '5001', 'errorMessage' => 'Pazaryeri yetkiniz bulunmamaktadır']),
+        ]);
+        $admin = User::factory()->create(['current_role' => 'admin']);
+        $admin->syncRoles(['super_admin']);
+        $this->actingAs($admin);
+
+        $rows = collect(Volt::test('admin.settings-center')->set('activeTab', 'payment')->call('diagnosePayment')->assertSee('api bilgileri bulunamadı')->get('paymentDiagnosis'));
+        $this->assertFalse($rows->firstWhere('label', 'Anahtarlar ve imza (test (sandbox))')['ok']);
+        $this->assertFalse($rows->firstWhere('label', 'Pazaryeri (alt üye işyeri) yetkisi')['ok']);
     }
 
     public function test_refund_uses_payment_transaction_id(): void

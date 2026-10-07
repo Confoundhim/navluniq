@@ -131,6 +131,7 @@ class PayoutService
                 'legal_type' => $driver->legal_type ?: DriverProfile::LEGAL_INDIVIDUAL,
                 'identity' => (string) ($driver->identity_number ?? ''),
                 'tax_no' => (string) ($driver->tax_number ?? ''),
+                'tax_office' => (string) ($driver->tax_office ?? ''),
                 'company_title' => $driver->legal_type === DriverProfile::LEGAL_COMPANY ? $account->account_holder : '',
                 'address' => 'Türkiye',
             ]);

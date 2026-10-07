@@ -37,6 +37,10 @@ final class IyzicoGateway implements PaymentGateway
 
     public const PATH_SUBMERCHANT = '/onboarding/submerchant';
 
+    public const PATH_SUBMERCHANT_RETRIEVE = '/onboarding/submerchant/retrieve';
+
+    public const PATH_BIN_CHECK = '/payment/bin/check';
+
     public const PATH_APPROVE = '/payment/iyzipos/item/approve';
 
     public function id(): string
@@ -220,13 +224,22 @@ final class IyzicoGateway implements PaymentGateway
 
             return null;
         }
+        $taxOffice = trim((string) ($data['tax_office'] ?? ''));
+        if ($company && $taxOffice === '') {
+            Log::warning('iyzico alt üye işyeri kaydı: şirket için vergi dairesi eksik, kayıt yapılmadı.', ['external_id' => $data['external_id'] ?? null]);
+
+            return null;
+        }
         $phone = preg_replace('/\D/', '', (string) ($data['phone'] ?? ''));
         $fullName = trim(($data['name'] ?? '').' '.($data['surname'] ?? ''));
+        $externalId = (string) ($data['external_id'] ?? '');
+        // iyzico alt üye işyeri türleri: PERSONAL (TC), PRIVATE_COMPANY (şahıs şirketi: TC + vergi dairesi),
+        // LIMITED_OR_JOINT_STOCK_COMPANY (VKN + vergi dairesi + unvan). Şoförde "şirket" = VKN'li şirket.
         $payload = [
             'locale' => 'tr',
-            'conversationId' => 'SUB-'.($data['external_id'] ?? uniqid()),
-            'subMerchantExternalId' => (string) ($data['external_id'] ?? ''),
-            'subMerchantType' => $company ? 'PRIVATE_COMPANY' : 'PERSONAL',
+            'conversationId' => 'SUB-'.($externalId !== '' ? $externalId : uniqid()),
+            'subMerchantExternalId' => $externalId,
+            'subMerchantType' => $company ? 'LIMITED_OR_JOINT_STOCK_COMPANY' : 'PERSONAL',
             'name' => $company ? (string) ($data['company_title'] ?: $fullName) : $fullName,
             'contactName' => (string) ($data['name'] ?? ''),
             'contactSurname' => (string) ($data['surname'] ?? ''),
@@ -238,19 +251,72 @@ final class IyzicoGateway implements PaymentGateway
         ];
         if ($company) {
             $payload['taxNumber'] = $taxNo;
-            $payload['taxOffice'] = (string) ($data['tax_office'] ?? '');
+            $payload['taxOffice'] = $taxOffice;
             $payload['legalCompanyTitle'] = (string) ($data['company_title'] ?: $fullName);
         } else {
             $payload['identityNumber'] = $identity;
         }
         $response = $this->request(self::PATH_SUBMERCHANT, $payload);
-        if (($response['status'] ?? '') !== 'success' || empty($response['subMerchantKey'])) {
-            Log::warning('iyzico alt üye işyeri kaydı başarısız.', ['external_id' => $data['external_id'] ?? null, 'response' => $response]);
+        if (($response['status'] ?? '') === 'success' && ! empty($response['subMerchantKey'])) {
+            return (string) $response['subMerchantKey'];
+        }
+
+        // Aynı dış kimlik daha önce kaydedilmişse (kimlik/vergi dairesi değişti, IBAN aynı) kayıt güncellenir (PUT + subMerchantKey).
+        $existing = $externalId !== '' ? $this->request(self::PATH_SUBMERCHANT_RETRIEVE, ['locale' => 'tr', 'conversationId' => 'SUBQ-'.$externalId, 'subMerchantExternalId' => $externalId]) : [];
+        if (! empty($existing['subMerchantKey'])) {
+            $update = $this->request(self::PATH_SUBMERCHANT, $payload + ['subMerchantKey' => (string) $existing['subMerchantKey']], 'PUT');
+            if (($update['status'] ?? '') === 'success') {
+                return (string) $existing['subMerchantKey'];
+            }
+            Log::warning('iyzico alt üye işyeri güncellemesi başarısız.', ['external_id' => $externalId, 'response' => $update]);
 
             return null;
         }
+        Log::warning('iyzico alt üye işyeri kaydı başarısız.', ['external_id' => $externalId, 'response' => $response]);
 
-        return (string) $response['subMerchantKey'];
+        return null;
+    }
+
+    /**
+     * Panelden "Bağlantıyı sına": para hareketi yapmayan isteklerle anahtarları, ortamı ve (açıksa) pazaryeri yetkisini denetler.
+     *
+     * @return list<array{label:string,ok:bool,detail:string}>
+     */
+    public function diagnose(): array
+    {
+        $checks = [];
+        $env = $this->isSandbox() ? 'test (sandbox)' : 'canlı';
+        if (! $this->isConfigured()) {
+            return [['label' => 'Anahtarlar', 'ok' => false, 'detail' => 'API anahtarı ya da gizli anahtar boş.']];
+        }
+        $looksSandboxKey = str_starts_with($this->apiKey(), 'sandbox-');
+        if ($looksSandboxKey !== $this->isSandbox()) {
+            $checks[] = ['label' => 'Anahtar / ortam uyumu', 'ok' => false, 'detail' => $looksSandboxKey
+                ? 'API anahtarı "sandbox-" ile başlıyor ama test modu kapalı: canlı adrese test anahtarı gönderiliyor.'
+                : 'Canlı görünen anahtarla test modu açık: ödemeler sahte parayla "başarılı" olur. Canlıya geçerken test modunu kapatın.'];
+        }
+
+        $bin = $this->request(self::PATH_BIN_CHECK, ['locale' => 'tr', 'conversationId' => 'DIAG-'.time(), 'binNumber' => '554960']);
+        $authOk = ($bin['status'] ?? '') === 'success';
+        $checks[] = ['label' => 'Anahtarlar ve imza ('.$env.')', 'ok' => $authOk,
+            'detail' => $authOk ? 'iyzico anahtarları kabul etti ('.$this->baseUrl().').' : 'iyzico reddetti: '.trim(($bin['errorCode'] ?? '').' '.($bin['errorMessage'] ?? 'yanıt yok'))];
+
+        if ($this->supportsSubMerchants()) {
+            $probe = $this->request(self::PATH_SUBMERCHANT_RETRIEVE, ['locale' => 'tr', 'conversationId' => 'DIAG-SUB-'.time(), 'subMerchantExternalId' => 'NAVLUNIQ-DIAG-0']);
+            $msg = mb_strtolower((string) ($probe['errorMessage'] ?? ''));
+            $notFound = ($probe['status'] ?? '') === 'success' || str_contains($msg, 'bulunamad') || str_contains($msg, 'not found');
+            $checks[] = ['label' => 'Pazaryeri (alt üye işyeri) yetkisi', 'ok' => $authOk && $notFound,
+                'detail' => ! $authOk ? 'Anahtar denetimi geçmeden sınanamaz.' : ($notFound
+                    ? 'Pazaryeri uç noktası yanıt veriyor; alt üye işyeri kaydı açılabilir.'
+                    : 'iyzico pazaryeri isteğini reddetti: '.trim(($probe['errorCode'] ?? '').' '.($probe['errorMessage'] ?? 'yanıt yok')).' — pazaryeri ürünü hesapta açık değilse iyzico temsilcinizden açılmasını isteyin.')];
+        } else {
+            $checks[] = ['label' => 'Pazaryeri (alt üye işyeri)', 'ok' => $this->isSandbox(), 'detail' => $this->isSandbox() ? 'Test modunda pazaryeri şartı aranmaz.' : 'Kapalı: canlıda navlun tahsilatı açılmaz. Sözleşme imzalanınca "Pazaryeri ürünü aktif" kutusunu işaretleyin.'];
+        }
+
+        $webhook = route('payment.webhook', ['provider' => 'iyzico']);
+        $checks[] = ['label' => 'Bildirim adresi', 'ok' => str_starts_with($webhook, 'https://'), 'detail' => $webhook.' — iyzico panelinde İşyeri Bildirimleri → "İşyeri Bildirimleri Url" alanına bu adres yazılır ve bildirim gönderimi açılır.'];
+
+        return $checks;
     }
 
     /** Teslimat onayı: navlun kalemi onaylanır, iyzico tutarı alt üye işyerine (şoför) aktarır. */
@@ -286,8 +352,8 @@ final class IyzicoGateway implements PaymentGateway
         return Settings::string('iyzico_secret_key') ?: trim((string) config('services.iyzico.secret_key'));
     }
 
-    /** IYZWSv2 imzalı JSON istek. */
-    private function request(string $path, array $body): array
+    /** IYZWSv2 imzalı JSON istek (POST; alt üye işyeri güncellemesi PUT). */
+    private function request(string $path, array $body, string $method = 'POST'): array
     {
         $json = json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
         $randomKey = (string) hrtime(true).random_int(100000, 999999);
@@ -300,7 +366,7 @@ final class IyzicoGateway implements PaymentGateway
                 'x-iyzi-rnd' => $randomKey,
                 'x-iyzi-client-version' => 'navluniq-php-1.0',
                 'Accept' => 'application/json',
-            ])->withBody($json, 'application/json')->timeout(25)->post($this->baseUrl().$path);
+            ])->withBody($json, 'application/json')->timeout(25)->send($method, $this->baseUrl().$path);
         } catch (\Throwable $e) {
             Log::error('iyzico isteği başarısız.', ['path' => $path, 'error' => $e->getMessage()]);
 

@@ -24,6 +24,7 @@ class DriverProfile extends Model
         'legal_type',
         'identity_number',
         'tax_number',
+        'tax_office',
         'withdrawals_after_payment',
         'bank_account_changed_at',
         'avatar_path',
