@@ -38,6 +38,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 /**
@@ -223,7 +224,10 @@ class PaymentInfrastructureTest extends TestCase
         $this->assertSame(900.0, (float) $order->amount);
         $this->assertSame($order->id, $subscriptions->startCheckout($driver)->id, 'Açık sipariş yeniden kullanılmalı');
 
-        $this->actingAs($driver)->get(route('driver.premium.checkout'))->assertOk()->assertSee('fake.test/pay/');
+        // Ödeme kuruluşuna geçmeden önce özet + sözleşme onayı adımı; onaysız 'pay' ilerlemez
+        $this->actingAs($driver)->get(route('driver.premium.checkout'))->assertOk()->assertSee('cayma hakkımın bulunmadığını')->assertDontSee('fake.test/pay/');
+        Volt::test('driver.premium.checkout')->call('pay')->assertHasErrors(['accepted'])
+            ->set('accepted', true)->call('pay')->assertHasNoErrors()->assertSee('fake.test/pay/');
 
         $this->post('/odeme/bildirim/fake', ['merchant_oid' => $order->merchant_oid, 'status' => 'success', 'sig' => 'ok', 'amount' => 900])->assertOk();
         $this->post('/odeme/bildirim/fake', ['merchant_oid' => $order->merchant_oid, 'status' => 'success', 'sig' => 'ok', 'amount' => 900])->assertOk();
@@ -247,7 +251,7 @@ class PaymentInfrastructureTest extends TestCase
         $this->assertEqualsWithDelta(now()->addMonths(2)->timestamp, $profile->fresh()->premium_until->timestamp, 120);
         $this->assertSame(2, SubscriptionCycle::query()->count());
 
-        $this->actingAs($driver->fresh())->get(route('driver.premium.index'))->assertOk()->assertSee('1 ay daha uzat');
+        $this->actingAs($driver->fresh())->get(route('driver.premium.index'))->assertOk()->assertSee('Üyeliği uzatın: süre seçin');
         $this->actingAs($driver)->get(route('payment.result', ['order' => $order->public_id, 'outcome' => 'basarili']))->assertOk()->assertSee('Premium üyeliğiniz etkinleştirildi');
     }
 

@@ -13,6 +13,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Livewire\Volt\Volt;
 use Tests\TestCase;
 
 /** Premium süre seçenekleri: 1 ay tam fiyat; 3/6/12 ay panel ayarlı indirimle; ödeme onayında seçilen ay kadar süre eklenir. */
@@ -83,11 +84,35 @@ class PremiumPlansTest extends TestCase
             ->assertSee('Süre seçin')->assertSee('12 ay')->assertSee('%25 indirim')->assertSee('8.100 ₺')->assertSee('2.700 ₺ kazanç')
             ->assertSee(route('driver.premium.checkout', ['sure' => 12]));
 
-        // Ödeme formu başlatılamasa da (sahte iyzico cevabı) sipariş özeti seçilen süreyi ve indirimi gösterir
+        // Özet seçilen süreyi, indirimi ve yeni bitişi gösterir; sipariş yalnız onaydan sonra açılır
         $this->get(route('driver.premium.checkout', ['sure' => 12]))->assertOk()
-            ->assertSee('12 ay')->assertSee('10.800,00 ₺')->assertSee('8.100,00 ₺')->assertSee('Süre indirimi');
-        $this->assertSame(12, (int) PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->value('subscription_months'));
+            ->assertSee('12 ay')->assertSee('10.800,00 ₺')->assertSee('8.100,00 ₺')->assertSee('Süre indirimi')->assertSee('Yeni bitiş')
+            ->assertSee(now()->addMonthsNoOverflow(12)->format('d.m.Y'))->assertDontSee('Premium üyeliğiniz zaten aktif');
+        $this->assertSame(0, PaymentOrder::query()->where('user_id', $driver->id)->count());
         $this->get(route('driver.premium.checkout', ['sure' => 7]))->assertOk()->assertSee('1 ay')->assertSee('900,00 ₺');
+
+        $c = Volt::test('driver.premium.checkout', ['sure' => 12])->call('pay')->assertHasErrors(['accepted']);
+        $this->assertSame(0, PaymentOrder::query()->where('user_id', $driver->id)->count(), 'Onaysız sipariş açılmaz');
+        $c->set('accepted', true)->call('pay')->assertSee('deneme'); // sahte iyzico reddi hata kutusunda kodla birlikte görünür
+        $this->assertSame(12, (int) PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->value('subscription_months'));
+    }
+
+    public function test_active_premium_sees_extension_warning_and_new_end_date(): void
+    {
+        Settings::set('payment_provider', 'iyzico');
+        Settings::set('iyzico_api_key', 'sandbox-x');
+        Settings::set('iyzico_secret_key', 'sandbox-y');
+        Settings::set('iyzico_sandbox', '1');
+        $driver = $this->driver();
+        $driver->driverProfile->update(['premium_until' => now()->addDays(20)]);
+        $this->actingAs($driver->fresh());
+
+        $this->get(route('driver.premium.index'))->assertOk()->assertSee('Üyeliği uzatın: süre seçin');
+        $this->get(route('driver.premium.checkout', ['sure' => 3]))->assertOk()
+            ->assertSee('Premium üyeliğiniz zaten aktif')
+            ->assertSee('Bu ödeme süreyi kısaltmaz')
+            ->assertSee(now()->addDays(20)->addMonthsNoOverflow(3)->format('d.m.Y'))
+            ->assertSee('Süreyi uzat');
     }
 
     public function test_public_plan_card_mentions_long_term_discount(): void

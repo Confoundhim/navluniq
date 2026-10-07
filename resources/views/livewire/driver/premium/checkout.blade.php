@@ -39,15 +39,33 @@ class extends Component {
     #[Locked]
     public int $months = 1;
 
-    public function mount(PaymentService $payments, SubscriptionService $subscriptions): void
+    /** Mesafeli satış sözleşmesi ve "cayma hakkı yok" onayı (MSS 3.1: satın alma ekranında açıkça gösterilir ve onay alınır). */
+    public bool $accepted = false;
+
+    public function mount(PaymentService $payments, ?int $sure = null): void
     {
-        $requested = (int) request()->query('sure', 1);
+        $requested = (int) ($sure ?? request()->query('sure', 1));
         $this->months = in_array($requested, SubscriptionService::PLAN_MONTHS, true) ? $requested : 1;
         $this->configured = $payments->isConfigured();
         $this->sandbox = $payments->isSandbox();
+    }
+
+    /**
+     * Onay kutusu işaretlenince sipariş açılır ve ödeme kuruluşunun ekranına geçilir. Özet ve uyarılar (süre uzatma,
+     * cayma hakkı) bu adımdan önce görünür; doğrudan iyzico'ya atlanmaz.
+     */
+    public function pay(PaymentService $payments, SubscriptionService $subscriptions): void
+    {
         if (! $this->configured) {
             return;
         }
+        $this->resetErrorBag('accepted');
+        if (! $this->accepted) {
+            $this->addError('accepted', 'Devam etmek için mesafeli satış sözleşmesini ve cayma hakkı bilgisini onaylayın.');
+
+            return;
+        }
+        $this->error = null;
 
         try {
             $order = $subscriptions->startCheckout(Auth::user(), $this->months);
@@ -73,6 +91,14 @@ class extends Component {
         }
     }
 
+    /** Hata kutusundaki "Tekrar dene": özet ekranına döner. */
+    public function retry(): void
+    {
+        $this->error = null;
+        $this->checkoutType = null;
+        $this->checkoutUrl = null;
+    }
+
     /** wire:poll: sunucu bildirimi geldiyse sonuç sayfasına geç. */
     public function checkStatus(): void
     {
@@ -86,12 +112,19 @@ class extends Component {
     {
         $subscriptions = app(SubscriptionService::class);
 
+        $premiumUntil = Auth::user()->driverProfile?->premium_until;
+        $active = $premiumUntil && $premiumUntil->isFuture();
+
         return [
             'price' => $subscriptions->priceFor($this->months),
             'listPrice' => round($subscriptions->monthlyPrice() * $this->months, 2),
             'discount' => $subscriptions->discountFor($this->months),
             'vatRate' => \App\Support\Settings::float('payment_vat_rate'),
-            'premiumUntil' => Auth::user()->driverProfile?->premium_until,
+            'premiumUntil' => $premiumUntil,
+            'premiumActive' => $active,
+            'trialEndsAt' => $subscriptions->activeTrialEndsAt(Auth::user()),
+            // Ödeme sonrası yeni bitiş: aktif süre varsa onun üstüne, yoksa bugünden itibaren
+            'newUntil' => ($active ? $premiumUntil->copy() : now())->addMonthsNoOverflow($this->months),
         ];
     }
 }; ?>
@@ -115,10 +148,11 @@ class extends Component {
                 <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Liste fiyatı ({{ $months }} × aylık)</span><span class="text-neutral-500 line-through tabular-nums">{{ number_format($listPrice, 2, ',', '.') }} ₺</span></div>
                 <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Süre indirimi</span><span class="text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">−%{{ rtrim(rtrim(number_format($discount, 1, ',', '.'), '0'), ',') }} · {{ number_format($listPrice - $price, 2, ',', '.') }} ₺</span></div>
             @endif
-            <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Başlangıç</span><span class="text-neutral-900 dark:text-white">{{ $premiumUntil && $premiumUntil->isFuture() ? 'Mevcut sürenin bitiminde ('.$premiumUntil->format('d.m.Y').')' : 'Ödeme onaylandığında' }}</span></div>
+            <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Başlangıç</span><span class="text-neutral-900 dark:text-white">{{ $premiumActive ? 'Mevcut sürenin bitiminde ('.$premiumUntil->format('d.m.Y').')' : 'Ödeme onaylandığında' }}</span></div>
+            <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Yeni bitiş</span><span class="text-neutral-900 dark:text-white font-semibold">{{ $newUntil->format('d.m.Y') }}</span></div>
             <div class="flex items-center justify-between py-3"><span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam (KDV %{{ number_format($vatRate, 0) }} dahil)</span><span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($price, 2, ',', '.') }} ₺</span></div>
         </div>
-        <p class="text-2xs text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde iade yapılmaz. Ödeme için <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesini</a> kabul etmiş sayılırsınız.</p>
+        <p class="text-2xs text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet kullanıma açıldığından dönem içinde iade yapılmaz; ayrıntılar <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesinde</a>.</p>
     </div>
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
@@ -131,6 +165,16 @@ class extends Component {
         <img src="/images/payment/iyzico-band-white.svg" alt="Mastercard, Visa, American Express, Troy" class="h-6 w-auto shrink-0 hidden dark:block">
     </div>
 
+    @if($premiumActive && ! $checkoutUrl)
+        <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-1.5 text-xs">
+            <h3 class="text-sm font-bold text-amber-800 dark:text-amber-200">{{ $trialEndsAt ? 'Ücretsiz deneme süreniz devam ediyor' : 'Premium üyeliğiniz zaten aktif' }}</h3>
+            <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                Üyeliğiniz <strong>{{ $premiumUntil->format('d.m.Y H:i') }}</strong> tarihine kadar geçerli. Bu ödeme süreyi kısaltmaz, o tarihin üzerine ekler:
+                yeni bitiş <strong>{{ $newUntil->format('d.m.Y') }}</strong>. Şimdi ödemek zorunda değilsiniz; bitişe 3 gün kala hatırlatma gönderilir ve o zaman da uzatabilirsiniz.
+            </p>
+        </div>
+    @endif
+
     @if(! $configured)
         <div class="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 space-y-2 text-xs">
             <h3 class="text-sm font-bold text-amber-800 dark:text-amber-200">Ödeme altyapısı aktivasyon aşamasında</h3>
@@ -140,7 +184,22 @@ class extends Component {
         <div class="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 space-y-3 text-xs">
             <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Ödeme başlatılamadı</h3>
             <p class="text-neutral-700 dark:text-neutral-300">{{ $error }}</p>
-            <a href="{{ route('driver.premium.checkout', ['sure' => $months]) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
+            <button type="button" wire:click="retry" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-semibold">Tekrar dene</button>
+        </div>
+    @elseif(! $checkoutUrl)
+        {{-- Onay adımı: MSS 3.1 gereği cayma hakkının olmadığı gösterilir ve onay alınır; ancak ondan sonra ödeme kuruluşuna geçilir. --}}
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+            <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" wire:model="accepted" class="mt-0.5 rounded">
+                <span class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                    <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 font-semibold hover:underline">Mesafeli satış sözleşmesini</a> okudum. Premium'un dijital bir hizmet olduğunu, ödeme onaylanınca {{ $premiumActive ? 'mevcut sürenin bitiminde uzayacağını' : 'hemen başlayacağını' }} ve bu nedenle cayma hakkımın bulunmadığını, üyeliğin otomatik yenilenmediğini kabul ediyorum.
+                </span>
+            </label>
+            @error('accepted') <p class="text-rose-500 font-semibold">{{ $message }}</p> @enderror
+            <button type="button" wire:click="pay" wire:loading.attr="disabled" class="btn-primary w-full sm:w-auto text-sm px-6 py-3">
+                <span wire:loading.remove wire:target="pay">{{ $premiumActive ? 'Süreyi uzat' : 'Ödemeye geç' }} · {{ number_format($price, 2, ',', '.') }} ₺</span>
+                <span wire:loading wire:target="pay">iyzico ödeme sayfası açılıyor…</span>
+            </button>
         </div>
     @elseif($checkoutType === 'iframe' && $checkoutUrl)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
