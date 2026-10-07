@@ -130,7 +130,8 @@ final class IyzicoGateway implements PaymentGateway
         $data = $this->request(self::PATH_INITIALIZE, $payload);
         if (($data['status'] ?? '') !== 'success' || empty($data['paymentPageUrl']) || empty($data['token'])) {
             Log::error('iyzico ödeme formu başlatılamadı.', ['order' => $order->id, 'response' => $data]);
-            throw new RuntimeException('Ödeme sağlayıcısından yanıt alınamadı: '.($data['errorMessage'] ?? 'bilinmeyen hata'));
+            // Hata kodu da yazılır: iyzico'nun genel mesajı ("Şu anda işleminizi gerçekleştiremiyoruz") tek başına sebebi söylemez.
+            throw new RuntimeException('Ödeme sağlayıcısından yanıt alınamadı: '.trim(($data['errorCode'] ?? '').' '.($data['errorMessage'] ?? 'bilinmeyen hata')).(isset($data['errorGroup']) ? ' ('.$data['errorGroup'].')' : ''));
         }
 
         $order->update(['status' => 'pending', 'request_snapshot' => $payload]);
