@@ -565,6 +565,12 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `interval` `monthly|3_months|…`. Premium sayfası 4 plan kartı (12 ay vurgulu, "ayda ≈", "kazanç"), ödeme sayfası `?sure=N` (geçersiz → 1)
   ve liste fiyatı/indirim satırı. Üyelik kartında "%25'e varan indirim" satırı ayardan; MSS 2.1 ve İade 3.2 "1, 3, 6 ya da 12 aylık".
   iyzico tarafında ek ayar gerekmez (tek çekim, otomatik yenileme yok). Test `PremiumPlansTest`.
+- **Ödeme sayfasında onay adımı ve süre uzatma uyarısı (2026-10-07, Osman: "zaten premium varsa süreyi uzatma, uyarılarla çıksın"):**
+  `driver/premium/checkout` artık iyzico'ya kendiliğinden yönlendirmez: sipariş özeti (süre + "Değiştir", liste fiyatı/indirim, başlangıç,
+  "Yeni bitiş"), premium zaten aktifse sarı uyarı kutusu ("Premium üyeliğiniz zaten aktif / Ücretsiz deneme süreniz devam ediyor", ödeme
+  süreyi kısaltmaz, mevcut bitişin üzerine ekler, şimdi ödemek zorunlu değil, bitişe 3 gün kala hatırlatma), mesafeli satış onay kutusu
+  (`$accepted`; MSS 3.1 cayma hakkı yok, otomatik yenileme yok) ve "Süreyi uzat / Ödemeye geç" düğmesi `pay()` ile ödeme emrini açar;
+  kutu işaretsizse `accepted` hatası. `retry()` özete döner. Testler `PremiumPlansTest`, `PaymentInfrastructureTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
