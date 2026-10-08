@@ -72,9 +72,26 @@ girmez) → teslimat onayında NavlunIQ "kalem onayı" (`/payment/iyzipos/item/a
 navlun − hizmet bedeli) şoförün alt üye işyeri IBAN'ına, kalanı NavlunIQ'ya aktarır. Teslimden önce iptal/uyuşmazlıkta kalem
 onaylanmadan iade edilir (`/payment/refund`). Premium üyelik pazaryeri dışı normal tahsilattır.
 
-**Alt üye işyeri türleri:** bireysel şoför `PERSONAL` (TC + IBAN), şirket şoförü `LIMITED_OR_JOINT_STOCK_COMPANY` (VKN + vergi
-dairesi + unvan; vergi dairesi Ödemelerim sayfasında zorunlu). Aynı dış kimlik (`DRV-{şoför}-{hesap}`) iyzico'da zaten varsa kayıt
-yerine güncelleme (PUT + `subMerchantKey`) yapılır.
+**Alt üye işyeri türleri (resmî belge "Satıcı Oluşturma" ile birebir):** bireysel şoför `PERSONAL` (TC + IBAN; IBAN ad-soyada ait
+olmalı), şahıs şirketi `PRIVATE_COMPANY` (TC + vergi dairesi + unvan; tırcıların çoğu bu tiptedir, Ödemelerim'de "Şahıs şirketi"),
+limited/anonim `LIMITED_OR_JOINT_STOCK_COMPANY` (VKN + vergi dairesi + unvan). Unvan = Ödemelerim'deki "Hesap sahibi" alanı; IBAN
+unvana ait olmalı (iyzico başka ada aktarım yapmaz). Vergi dairesi şahıs şirketi ve şirkette zorunlu (`DriverProfile::requiresTaxOffice`).
+Aynı dış kimlik (`DRV-{şoför}-{hesap}`) iyzico'da zaten varsa kayıt yerine güncelleme (PUT + `subMerchantKey`) yapılır.
+
+**iyzico platform sözleşmeleri (zorunlu, belge "Alıcı ve Satıcı Sözleşmeleri"):** pazaryerinde ödeme akışını iyzico yürüttüğünden
+satıcı (şoför) ve alıcı (yük sahibi) iyzico sözleşmesini **bir kez** dijital olarak onaylar. Şoför: Ödemelerim formunda
+"iyzico Pazaryeri Satıcı Sözleşmesi" kutusu (`driver_profiles.iyzico_seller_agreed_at`, `0001_01_61`); onaysız alt üye işyeri kaydı
+yapılmaz ve teklifi kabul edilemez (`PayoutService::payoutReadinessBlocker`). Yük sahibi: ilk navlun ödemesinde "Ödemeden önce tek
+seferlik onay" adımı (`users.iyzico_buyer_agreed_at`); onaylayınca iyzico formuna geçer, sonraki ödemelerde sorulmaz. Her iki kutu
+yalnız etkin ödeme kuruluşu iyzico iken çıkar. Bağlantılar `IyzicoGateway::SELLER_AGREEMENT_URL / BUYER_AGREEMENT_URL`.
+
+**Resmî pazaryeri belgesiyle karşılaştırma (2026-10-08, docs.iyzico.com/urunler/pazaryeri + iyzipay-php örnekleri):** alt üye
+oluşturma/güncelleme/sorgulama (`/onboarding/submerchant`, PUT, `/retrieve`), sepet kaleminde `subMerchantKey` + `subMerchantPrice`
+(ödeme formunda da geçerli), kalem onayı (`/payment/iyzipos/item/approve`, `paymentTransactionId`), iade (`/payment/refund`:
+`paymentTransactionId` + `price` + `ip`, kırılım tutarına kadar art arda iade olabilir, 365 gün) kodla uyumlu. "Onay Geri Çekme"
+(`/payment/iyzipos/item/disapprove`) `IyzicoGateway::withdrawApproval` olarak hazır, akışta kullanılmaz (onay yalnız teslimat
+onayında verilir). Belgenin notu: sandbox hesabında pazaryeri, üye işyeri numarasıyla entegrasyon@iyzico.com'a yazılarak açtırılır;
+canlıda temsilciden. Belge kalem onayı için süre sınırı yazmıyor; iyzico'ya sorulacaklar listesinde (2) duruyor.
 
 **"Bağlantıyı sına" (Ödeme altyapısı sekmesi):** para hareketi yapmaz; BIN sorgusu ile anahtar/imza, alt üye işyeri sorgusu ile
 pazaryeri yetkisi, ayrıca anahtar–ortam uyumu ve bildirim adresi denetlenir; iyzico'nun hata metni aynen gösterilir.

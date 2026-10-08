@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\Load;
+use App\Payments\GatewayManager;
+use App\Payments\Gateways\IyzicoGateway;
 use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -33,6 +35,9 @@ class extends Component {
     #[Locked]
     public bool $sandbox = true;
 
+    /** iyzico pazaryeri alıcı sözleşmesi onayı (bir kez; sonraki ödemelerde sorulmaz). */
+    public bool $buyer_terms = false;
+
     public function mount(int $loadId, PaymentService $payments): void
     {
         $this->loadId = $loadId;
@@ -48,28 +53,58 @@ class extends Component {
         $this->configured = $payments->isConfigured();
         $this->sandbox = $payments->isSandbox();
 
-        if ($this->configured && $this->isPayable($load)) {
-            try {
-                $order = $payments->orderFor($load, Auth::user());
-                $cacheKey = 'checkout.'.$order->id;
-                $cached = session($cacheKey);
-                if (is_array($cached) && ($cached['expires'] ?? 0) > time() && ! empty($cached['url'])) {
-                    $this->checkoutType = $cached['type'];
-                    $this->checkoutUrl = $cached['url'];
-                    $this->resizerScript = $cached['resizer'] ?? null;
-                } else {
-                    $checkout = $payments->checkout($order, request());
-                    $this->checkoutType = $checkout->type;
-                    $this->checkoutUrl = $checkout->url;
-                    $this->resizerScript = $checkout->resizerScript;
-                    session()->put($cacheKey, ['type' => $checkout->type, 'url' => $checkout->url, 'resizer' => $checkout->resizerScript, 'expires' => time() + $checkout->expiresInSeconds]);
-                }
-                if ($this->checkoutType === 'redirect') {
-                    $this->redirect($this->checkoutUrl);
-                }
-            } catch (\RuntimeException $e) {
-                $this->tokenError = $e->getMessage();
+        if ($this->configured && $this->isPayable($load) && ! $this->needsBuyerAgreement()) {
+            $this->startCheckout($load, $payments);
+        }
+    }
+
+    /** Alıcı sözleşmesi onaylanınca kaydedilir ve ödeme formu açılır. */
+    public function acceptAndPay(PaymentService $payments): void
+    {
+        $this->resetErrorBag('buyer_terms');
+        if (! $this->buyer_terms) {
+            $this->addError('buyer_terms', 'Ödemeye geçmek için iyzico alıcı sözleşmesini onaylayın.');
+
+            return;
+        }
+        $user = Auth::user();
+        if (! $user->iyzico_buyer_agreed_at) {
+            $user->forceFill(['iyzico_buyer_agreed_at' => now()])->save();
+        }
+        $load = $this->ownerLoad();
+        if ($load && $this->configured && $this->isPayable($load)) {
+            $this->startCheckout($load, $payments);
+        }
+    }
+
+    /** Etkin ödeme kuruluşu iyzico ise alıcı, pazaryeri alıcı sözleşmesini bir kez dijital olarak onaylar (iyzico kuralı). */
+    private function needsBuyerAgreement(): bool
+    {
+        return app(GatewayManager::class)->active()->id() === 'iyzico' && ! Auth::user()->iyzico_buyer_agreed_at;
+    }
+
+    private function startCheckout(Load $load, PaymentService $payments): void
+    {
+        try {
+            $order = $payments->orderFor($load, Auth::user());
+            $cacheKey = 'checkout.'.$order->id;
+            $cached = session($cacheKey);
+            if (is_array($cached) && ($cached['expires'] ?? 0) > time() && ! empty($cached['url'])) {
+                $this->checkoutType = $cached['type'];
+                $this->checkoutUrl = $cached['url'];
+                $this->resizerScript = $cached['resizer'] ?? null;
+            } else {
+                $checkout = $payments->checkout($order, request());
+                $this->checkoutType = $checkout->type;
+                $this->checkoutUrl = $checkout->url;
+                $this->resizerScript = $checkout->resizerScript;
+                session()->put($cacheKey, ['type' => $checkout->type, 'url' => $checkout->url, 'resizer' => $checkout->resizerScript, 'expires' => time() + $checkout->expiresInSeconds]);
             }
+            if ($this->checkoutType === 'redirect') {
+                $this->redirect($this->checkoutUrl);
+            }
+        } catch (\RuntimeException $e) {
+            $this->tokenError = $e->getMessage();
         }
     }
 
@@ -107,6 +142,8 @@ class extends Component {
             'payable' => $load ? $this->isPayable($load) : false,
             'amounts' => $load ? $payments->calculateAmounts($load) : ['price' => 0.0, 'service_fee' => 0.0, 'total' => 0.0],
             'iframeUrl' => $this->checkoutType === 'iframe' ? $this->checkoutUrl : null,
+            'needsBuyerAgreement' => $load && $this->isPayable($load) && $this->configured && $this->needsBuyerAgreement() && ! $this->checkoutUrl,
+            'buyerAgreementUrl' => IyzicoGateway::BUYER_AGREEMENT_URL,
         ];
     }
 }; ?>
@@ -207,6 +244,22 @@ class extends Component {
                 <h3 class="text-sm font-bold text-rose-700 dark:text-rose-300">Ödeme sayfası açılamadı</h3>
                 <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">{{ $tokenError }}</p>
                 <a href="{{ route('cargo-owner.finance.payment', $load->id) }}" class="inline-flex px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white font-semibold">Tekrar dene</a>
+            </div>
+        @elseif($needsBuyerAgreement)
+            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+                <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Ödemeden önce tek seferlik onay</h3>
+                <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed">Navlun bedeli, teslimatı onaylayana kadar lisanslı ödeme kuruluşu iyzico'nun korumalı hesabında bekler. iyzico bunun için alıcının platform sözleşmesini bir kez onaylamasını ister; sonraki ödemelerde tekrar sorulmaz.</p>
+                <label class="flex items-start gap-3 p-3 rounded-xl border {{ $errors->has('buyer_terms') ? 'border-rose-400 bg-rose-500/5' : 'border-neutral-200 dark:border-neutral-700' }} cursor-pointer">
+                    <input type="checkbox" wire:model="buyer_terms" class="mt-0.5 h-4 w-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500">
+                    <span class="text-neutral-700 dark:text-neutral-200 leading-relaxed">
+                        <a href="{{ $buyerAgreementUrl }}" target="_blank" rel="noopener" class="text-brand-400 font-semibold hover:underline">iyzico Pazaryeri Alıcı Sözleşmesi</a>'ni okudum, kabul ediyorum.
+                    </span>
+                </label>
+                @error('buyer_terms') <span class="form-error">{{ $message }}</span> @enderror
+                <button type="button" wire:click="acceptAndPay" wire:loading.attr="disabled" class="w-full sm:w-auto px-5 py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold">
+                    <span wire:loading.remove wire:target="acceptAndPay">Ödemeye geç · {{ number_format($amounts['total'], 2, ',', '.') }} ₺</span>
+                    <span wire:loading wire:target="acceptAndPay">Ödeme sayfası açılıyor...</span>
+                </button>
             </div>
         @elseif($iframeUrl)
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden">
