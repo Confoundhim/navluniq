@@ -118,6 +118,12 @@ class PayoutService
         if (! $user || ! $account || ! $driver->hasPayoutIdentity()) {
             return false;
         }
+        // iyzico pazaryeri kuralı: satıcı, iyzico platform sözleşmesini bir kez dijital olarak onaylamadan kaydedilmez.
+        if ($gateway->id() === 'iyzico' && ! $driver->iyzico_seller_agreed_at) {
+            Log::info('Alt üye işyeri kaydı bekliyor: şoför iyzico satıcı sözleşmesini onaylamadı.', ['driver' => $driver->id]);
+
+            return false;
+        }
 
         try {
             $ref = $gateway->registerSubMerchant([
@@ -132,7 +138,7 @@ class PayoutService
                 'identity' => (string) ($driver->identity_number ?? ''),
                 'tax_no' => (string) ($driver->tax_number ?? ''),
                 'tax_office' => (string) ($driver->tax_office ?? ''),
-                'company_title' => $driver->legal_type === DriverProfile::LEGAL_COMPANY ? $account->account_holder : '',
+                'company_title' => $driver->requiresTaxOffice() ? $account->account_holder : '',
                 'address' => 'Türkiye',
             ]);
         } catch (\Throwable $e) {
@@ -166,6 +172,12 @@ class PayoutService
         }
         if (! $driver->hasPayoutIdentity()) {
             return 'Şoförün kimlik (T.C. / vergi) numarası kayıtlı değil: Ödemelerim sayfasından girilmeden teklif kabul edilemez.';
+        }
+        if ($driver->requiresTaxOffice() && blank($driver->tax_office)) {
+            return 'Şoförün vergi dairesi kayıtlı değil: Ödemelerim sayfasından girilmeden teklif kabul edilemez.';
+        }
+        if ($this->gateways->active()->id() === 'iyzico' && ! $driver->iyzico_seller_agreed_at) {
+            return 'Şoför, ödeme kuruluşu iyzico\'nun satıcı sözleşmesini henüz onaylamadı: Ödemelerim sayfasından onaylamadan teklif kabul edilemez.';
         }
 
         return null;

@@ -25,6 +25,7 @@ class DriverProfile extends Model
         'identity_number',
         'tax_number',
         'tax_office',
+        'iyzico_seller_agreed_at',
         'withdrawals_after_payment',
         'bank_account_changed_at',
         'avatar_path',
@@ -52,6 +53,7 @@ class DriverProfile extends Model
         'kyc_submitted_at' => 'datetime',
         'kyc_verified_at' => 'datetime',
         'bank_account_changed_at' => 'datetime',
+        'iyzico_seller_agreed_at' => 'datetime',
         'withdrawals_after_payment' => 'integer',
     ];
 
@@ -59,7 +61,27 @@ class DriverProfile extends Model
 
     public const LEGAL_COMPANY = 'company';
 
-    /** Pazaryeri alt üye işyeri kaydı için gereken kimlik: bireyselde TC, şirkette VKN. */
+    /** Şahıs şirketi: TC ile vergi mükellefi (iyzico PRIVATE_COMPANY: TC + vergi dairesi + unvan). Tırcıların çoğu bu tiptedir. */
+    public const LEGAL_SOLE = 'sole_proprietor';
+
+    public const LEGAL_TYPES = [
+        self::LEGAL_INDIVIDUAL => 'Bireysel',
+        self::LEGAL_SOLE => 'Şahıs şirketi',
+        self::LEGAL_COMPANY => 'Limited / Anonim şirket',
+    ];
+
+    public function legalTypeLabel(): string
+    {
+        return self::LEGAL_TYPES[$this->legal_type] ?? self::LEGAL_TYPES[self::LEGAL_INDIVIDUAL];
+    }
+
+    /** Vergi dairesi ödeme kuruluşu kaydında zorunlu mu (şahıs şirketi ve şirket). */
+    public function requiresTaxOffice(): bool
+    {
+        return in_array($this->legal_type, [self::LEGAL_SOLE, self::LEGAL_COMPANY], true);
+    }
+
+    /** Pazaryeri alt üye işyeri kaydı için gereken kimlik: bireysel ve şahıs şirketinde TC, şirkette VKN. */
     public function payoutIdentityNumber(): ?string
     {
         $value = $this->legal_type === self::LEGAL_COMPANY ? $this->tax_number : $this->identity_number;

@@ -334,6 +334,19 @@ class MarketplaceOnlyTest extends TestCase
             ->call('saveBankAccount')->assertHasErrors(['tax_office']);
         $this->assertSame('10000000146', $driver->driverProfile->fresh()->identity_number, 'Hatalı kayıt denemesi profili değiştirmez');
 
+        // Şahıs şirketi: TC ile vergi mükellefi; vergi dairesi zorunlu, VKN istenmez (iyzico PRIVATE_COMPANY)
+        Volt::test('driver.wallet.index')->set(['legal_type' => 'sole_proprietor', 'tax_office' => '', 'iban' => 'TR330006100519786457841326', 'account_holder' => 'Test Şoför Nakliyat', 'bank_password' => 'password'])
+            ->call('saveBankAccount')->assertHasErrors(['tax_office']);
+        Volt::test('driver.wallet.index')->set(['legal_type' => 'sole_proprietor', 'tax_office' => 'Kadıköy', 'iban' => 'TR330006100519786457841326', 'account_holder' => 'Test Şoför Nakliyat', 'bank_password' => 'password'])
+            ->call('saveBankAccount')->assertHasNoErrors();
+        $sole = $driver->driverProfile->fresh();
+        $this->assertSame(['sole_proprietor', 'Kadıköy', '10000000146'], [$sole->legal_type, $sole->tax_office, $sole->identity_number]);
+        $this->assertTrue($sole->requiresTaxOffice());
+        $this->assertSame('Şahıs şirketi', $sole->legalTypeLabel());
+        $this->assertSame('sole_proprietor', end($this->gateway->registrations)['legal_type']);
+        $this->assertSame('Test Şoför Nakliyat', end($this->gateway->registrations)['company_title']);
+        $sole->update(['legal_type' => 'individual', 'tax_office' => null]);
+
         // IBAN yeni değiştiği için otomatik aktarım bekletilir; süre dolunca mutabakat aktarır
         $owner = User::factory()->create();
         $load = $this->assigned($owner, $driver->fresh());

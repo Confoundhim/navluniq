@@ -51,7 +51,8 @@ class IyzicoGatewayTest extends TestCase
     private function driver(): User
     {
         $user = User::factory()->driver()->create();
-        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved']);
+        // iyzico kuralı: satıcı sözleşmesi onaylanmadan alt üye işyeri kaydı yapılmaz; testlerde onaylı başlar.
+        $profile = DriverProfile::create(['user_id' => $user->id, 'kyc_status' => 'approved', 'iyzico_seller_agreed_at' => now()]);
         DriverVehicle::create(['driver_profile_id' => $profile->id, 'plate' => '34IYZ'.$user->id, 'vehicle_type' => 'tir', 'is_active' => true]);
 
         return $user->fresh();
@@ -225,6 +226,83 @@ class IyzicoGatewayTest extends TestCase
             && $r->data()['taxOffice'] === 'Başkent'
             && $r->data()['legalCompanyTitle'] === 'Deneme Nakliyat Ltd. Şti.'
             && ! isset($r->data()['identityNumber']));
+    }
+
+    public function test_sole_proprietor_driver_registers_as_private_company_with_identity_and_tax_office(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake(['sandbox-api.iyzipay.com/onboarding/submerchant' => Http::response(['status' => 'success', 'subMerchantKey' => 'SUB-SOLE-1'])]);
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'sole'), 'iban_last4' => '1326', 'account_holder' => 'Ali Veli Nakliyat', 'is_default' => true]);
+        $driver->driverProfile->update(['legal_type' => DriverProfile::LEGAL_SOLE, 'identity_number' => '10000000146', 'tax_office' => 'Kadıköy']);
+
+        $this->assertTrue(app(PayoutService::class)->ensureSubMerchant($driver->driverProfile->fresh()));
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'submerchant')
+            && $r->data()['subMerchantType'] === 'PRIVATE_COMPANY'
+            && $r->data()['identityNumber'] === '10000000146'
+            && $r->data()['taxOffice'] === 'Kadıköy'
+            && $r->data()['legalCompanyTitle'] === 'Ali Veli Nakliyat'
+            && ! isset($r->data()['taxNumber']));
+
+        // Vergi dairesi yoksa şahıs şirketi de kaydedilmez
+        $driver->driverProfile->fresh()->update(['tax_office' => null, 'payout_provider_ref' => null]);
+        $this->assertFalse(app(PayoutService::class)->ensureSubMerchant($driver->driverProfile->fresh()));
+        $this->assertStringContainsString('vergi dairesi', (string) app(PayoutService::class)->payoutReadinessBlocker($driver->driverProfile->fresh()));
+    }
+
+    public function test_seller_agreement_is_required_before_submerchant_registration_and_offer_acceptance(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake(['sandbox-api.iyzipay.com/onboarding/submerchant' => Http::response(['status' => 'success', 'subMerchantKey' => 'SUB-AGR'])]);
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'agr'), 'iban_last4' => '1326', 'account_holder' => $driver->full_name, 'is_default' => true]);
+        $driver->driverProfile->update(['identity_number' => '10000000146', 'iyzico_seller_agreed_at' => null]);
+
+        $this->assertFalse(app(PayoutService::class)->ensureSubMerchant($driver->driverProfile->fresh()));
+        Http::assertNothingSent();
+        $this->assertStringContainsString('satıcı sözleşmesi', (string) app(PayoutService::class)->payoutReadinessBlocker($driver->driverProfile->fresh()));
+
+        // Ödemelerim: kutu görünür, işaretlenmeden kaydedilmez; işaretlenince onay zamanı yazılır ve kayıt yapılır
+        $this->actingAs($driver);
+        $this->get(route('driver.wallet.index'))->assertOk()->assertSee('iyzico Pazaryeri Satıcı Sözleşmesi')->assertSee(IyzicoGateway::SELLER_AGREEMENT_URL);
+        Volt::test('driver.wallet.index')->set(['iban' => 'TR330006100519786457841326', 'account_holder' => $driver->full_name, 'bank_password' => 'password'])
+            ->call('saveBankAccount')->assertHasErrors(['iyzico_terms']);
+        Volt::test('driver.wallet.index')->set(['iban' => 'TR330006100519786457841326', 'account_holder' => $driver->full_name, 'bank_password' => 'password', 'iyzico_terms' => true])
+            ->call('saveBankAccount')->assertHasNoErrors();
+        $profile = $driver->driverProfile->fresh();
+        $this->assertNotNull($profile->iyzico_seller_agreed_at);
+        $this->assertSame('SUB-AGR', $profile->payout_provider_ref);
+        $this->assertNull(app(PayoutService::class)->payoutReadinessBlocker($profile));
+        $this->actingAs($driver->fresh());
+        $this->get(route('driver.wallet.index'))->assertOk()->assertDontSee('iyzico Pazaryeri Satıcı Sözleşmesi');
+    }
+
+    public function test_buyer_agreement_is_asked_once_before_the_first_iyzico_payment(): void
+    {
+        Settings::set('iyzico_marketplace', '1');
+        Http::fake([
+            'sandbox-api.iyzipay.com/onboarding/submerchant' => Http::response(['status' => 'success', 'subMerchantKey' => 'SUB-B']),
+            'sandbox-api.iyzipay.com/payment/iyzipos/checkoutform/initialize/auth/ecom' => Http::response(['status' => 'success', 'token' => 'tok-b', 'paymentPageUrl' => 'https://sandbox-cpp.iyzipay.com?token=tok-b']),
+        ]);
+        $owner = User::factory()->create(['current_role' => 'cargo_owner']);
+        $driver = $this->driver();
+        BankAccount::create(['user_id' => $driver->id, 'encrypted_iban' => Crypt::encryptString('TR330006100519786457841326'), 'iban_hash' => hash('sha256', 'b'), 'iban_last4' => '1326', 'account_holder' => $driver->full_name, 'is_default' => true]);
+        $driver->driverProfile->update(['identity_number' => '10000000146']);
+        $load = $this->assignedLoad($owner, $driver);
+
+        // İlk ödeme: iyzico'ya yönlendirilmez, alıcı sözleşmesi kutusu çıkar
+        $this->actingAs($owner->fresh());
+        $this->get(route('cargo-owner.finance.payment', $load->id))->assertOk()->assertSee('iyzico Pazaryeri Alıcı Sözleşmesi')->assertSee(IyzicoGateway::BUYER_AGREEMENT_URL);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), 'initialize'));
+
+        Volt::test('cargo-owner.finance.payment', ['loadId' => $load->id])->call('acceptAndPay')->assertHasErrors(['buyer_terms']);
+        Volt::test('cargo-owner.finance.payment', ['loadId' => $load->id])->set('buyer_terms', true)->call('acceptAndPay')->assertHasNoErrors()
+            ->assertRedirect('https://sandbox-cpp.iyzipay.com?token=tok-b');
+        $this->assertNotNull($owner->fresh()->iyzico_buyer_agreed_at);
+
+        // Sonraki açılış: doğrudan iyzico'ya
+        $this->actingAs($owner->fresh());
+        $this->get(route('cargo-owner.finance.payment', $load->id))->assertRedirect('https://sandbox-cpp.iyzipay.com?token=tok-b');
     }
 
     public function test_company_driver_without_tax_office_is_not_registered(): void

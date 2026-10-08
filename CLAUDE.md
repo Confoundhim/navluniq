@@ -571,6 +571,16 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   süreyi kısaltmaz, mevcut bitişin üzerine ekler, şimdi ödemek zorunlu değil, bitişe 3 gün kala hatırlatma), mesafeli satış onay kutusu
   (`$accepted`; MSS 3.1 cayma hakkı yok, otomatik yenileme yok) ve "Süreyi uzat / Ödemeye geç" düğmesi `pay()` ile ödeme emrini açar;
   kutu işaretsizse `accepted` hatası. `retry()` özete döner. Testler `PremiumPlansTest`, `PaymentInfrastructureTest`.
+- **iyzico pazaryeri belgesiyle hizalama (2026-10-08, Osman: resmî belgedeki tüm kırılımları incele; docs.iyzico.com bu ortamda
+  kapalı, GitHub kopyası `iyzico-kurtulussahin/iyzico.gitbook` ve `iyzico/iyzipay-php` örnekleri okundu):** uç noktalar ve alanlar
+  uyumluydu; iki eksik kapatıldı. (1) **Şahıs şirketi** `DriverProfile::LEGAL_SOLE` (`sole_proprietor`) → iyzico `PRIVATE_COMPANY`
+  (TC + vergi dairesi + unvan); Ödemelerim'de üçüncü seçenek, `requiresTaxOffice()`, `legalTypeLabel()`, IBAN "kendi adınıza / unvana"
+  uyarısı. (2) **iyzico platform sözleşmeleri** bir kez onaylanır: şoför Ödemelerim kutusu (`iyzico_seller_agreed_at`; onaysız alt
+  üye kaydı ve teklif kabulü yok), yük sahibi ilk ödemede "tek seferlik onay" adımı (`users.iyzico_buyer_agreed_at`,
+  `acceptAndPay`); kutular yalnız etkin kuruluş iyzico iken (`GatewayManager::active()->id()`), migration `0001_01_61`.
+  `withdrawApproval` (disapprove) hazır, akışta yok. Cüzdan formu profili taze sorguyla okur (önbellekli ilişki aynı istekte
+  yazılan `payout_provider_ref`'i görmüyordu). Hata kodu **9000** = hesap iyzico tarafında dondurulmuş/canlıya açılmamış; kod değil,
+  iyzico destek çözer. Testler `IyzicoGatewayTest` (+3), `MarketplaceOnlyTest`. Ayrıntı `docs/ODEME_ALTYAPISI.md`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

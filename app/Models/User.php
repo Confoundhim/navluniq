@@ -46,6 +46,7 @@ class User extends Authenticatable
         'phone_verified_at',
         'marketing_consent_at',
         'marketing_consent_revoked_at',
+        'iyzico_buyer_agreed_at',
         'last_login_at',
     ];
 
@@ -76,6 +77,7 @@ class User extends Authenticatable
         'phone_verified_at' => 'datetime',
         'marketing_consent_at' => 'datetime',
         'marketing_consent_revoked_at' => 'datetime',
+        'iyzico_buyer_agreed_at' => 'datetime',
         'last_login_at' => 'datetime',
         'is_active' => 'boolean',
     ];

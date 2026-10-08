@@ -4,6 +4,8 @@ use App\Models\BankAccount;
 use App\Models\DriverProfile;
 use App\Models\Invoice;
 use App\Models\Payout;
+use App\Payments\GatewayManager;
+use App\Payments\Gateways\IyzicoGateway;
 use App\Services\BankAccountService;
 use App\Services\GibService;
 use App\Services\KycService;
@@ -37,6 +39,9 @@ class extends Component {
 
     public string $tax_office = '';
 
+    /** iyzico pazaryeri satıcı sözleşmesi onayı (bir kez; onaylanınca kutu bir daha çıkmaz). */
+    public bool $iyzico_terms = false;
+
     public string $bank_password = '';
 
     public function mount(): void
@@ -53,7 +58,7 @@ class extends Component {
         $this->validate([
             'iban' => 'required|string|min:26|max:40',
             'account_holder' => 'required|string|min:3|max:120',
-            'legal_type' => 'required|in:individual,company',
+            'legal_type' => 'required|in:individual,sole_proprietor,company',
             'identity_number' => 'nullable|digits:11',
             'tax_number' => 'nullable|digits:10',
             'tax_office' => 'nullable|string|max:120',
@@ -69,14 +74,21 @@ class extends Component {
         ]);
 
         $user = Auth::user();
-        $profile = $user->driverProfile;
+        // Taze sorgu: önbellekli ilişki, bu istek içinde başka yerden yazılan payout_provider_ref'i görmez ve "değişmedi" sanıp yazmaz.
+        $profile = $user->driverProfile()->first();
         if (! $profile) {
             $this->addError('iban', 'Şoför profili bulunamadı.');
 
             return;
         }
 
-        // Kimlik: bireyselde TC (sağlama denetimi), şirkette VKN (GİB algoritması). Yoksa mevcut kayıt korunur; uydurma numara kabul edilmez.
+        if ($this->needsSellerAgreement($profile) && ! $this->iyzico_terms) {
+            $this->addError('iyzico_terms', 'Ödeme alabilmek için iyzico satıcı sözleşmesini onaylamanız gerekir.');
+
+            return;
+        }
+
+        // Kimlik: bireysel ve şahıs şirketinde TC (sağlama denetimi), şirkette VKN (GİB algoritması). Yoksa mevcut kayıt korunur; uydurma numara kabul edilmez.
         $identity = $profile->identity_number;
         $tax = $profile->tax_number;
         if ($this->legal_type === DriverProfile::LEGAL_COMPANY) {
@@ -119,9 +131,10 @@ class extends Component {
         }
 
         $ibanChanged = ! $previous || $previous->id !== $account->id;
-        $taxOffice = $this->legal_type === DriverProfile::LEGAL_COMPANY ? trim($this->tax_office) : null;
-        if ($this->legal_type === DriverProfile::LEGAL_COMPANY && $taxOffice === '') {
-            $this->addError('tax_office', 'Şirket hesabı için vergi dairesi zorunludur (ödeme kuruluşu kaydında istenir).');
+        $requiresTaxOffice = in_array($this->legal_type, [DriverProfile::LEGAL_SOLE, DriverProfile::LEGAL_COMPANY], true);
+        $taxOffice = $requiresTaxOffice ? trim($this->tax_office) : null;
+        if ($requiresTaxOffice && $taxOffice === '') {
+            $this->addError('tax_office', 'Şahıs şirketi ve şirket hesabı için vergi dairesi zorunludur (ödeme kuruluşu kaydında istenir).');
 
             return;
         }
@@ -131,6 +144,7 @@ class extends Component {
             'identity_number' => $identity,
             'tax_number' => $tax,
             'tax_office' => $taxOffice,
+            'iyzico_seller_agreed_at' => $profile->iyzico_seller_agreed_at ?: ($this->iyzico_terms ? now() : null),
             // IBAN ya da kimlik değişince kuruluş kaydı yeni bilgiyle yenilenir; otomatik aktarım ayarlı süre bekler.
             'payout_provider_ref' => ($ibanChanged || $identityChanged) ? null : $profile->payout_provider_ref,
             'bank_account_changed_at' => $ibanChanged ? now() : $profile->bank_account_changed_at,
@@ -148,7 +162,7 @@ class extends Component {
             // kuruluş kaydı sonra (teklif kabulünde) yeniden denenir
         }
 
-        $this->reset(['iban', 'bank_password', 'identity_number', 'tax_number']);
+        $this->reset(['iban', 'bank_password', 'identity_number', 'tax_number', 'iyzico_terms']);
         session()->flash('success_message', 'Ödeme bilgileriniz kaydedildi. Navlun ödemeleriniz bu hesaba yapılacaktır.');
     }
 
@@ -169,12 +183,20 @@ class extends Component {
         }
     }
 
+    /** Etkin ödeme kuruluşu iyzico ise ve şoför satıcı sözleşmesini henüz onaylamadıysa kutu gösterilir ve zorunludur. */
+    private function needsSellerAgreement(?DriverProfile $profile): bool
+    {
+        return app(GatewayManager::class)->active()->id() === 'iyzico' && ! $profile?->iyzico_seller_agreed_at;
+    }
+
     public function with(): array
     {
         $user = Auth::user();
 
         return [
             'profile' => $user->driverProfile,
+            'needsSellerAgreement' => $this->needsSellerAgreement($user->driverProfile),
+            'sellerAgreementUrl' => IyzicoGateway::SELLER_AGREEMENT_URL,
             'summary' => app(PayoutService::class)->walletSummary($user),
             'payouts' => Payout::query()->with('cargoLoad')->where('user_id', $user->id)->latest('id')->paginate(15),
             'bankAccount' => BankAccount::query()->where('user_id', $user->id)->where('is_default', true)->first(),
@@ -315,7 +337,7 @@ class extends Component {
                         <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
                         <div class="text-neutral-500 dark:text-neutral-400">{{ $bankAccount->account_holder }}</div>
                         @if($profile?->hasPayoutIdentity())
-                            <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->legal_type === 'company' ? 'Vergi no' : 'T.C. kimlik no' }}: <span class="font-mono">{{ $profile->maskedPayoutIdentity() }}</span></div>
+                            <div class="text-neutral-500 dark:text-neutral-400">{{ $profile->legalTypeLabel() }} · {{ $profile->legal_type === 'company' ? 'Vergi no' : 'T.C. kimlik no' }}: <span class="font-mono">{{ $profile->maskedPayoutIdentity() }}</span></div>
                         @endif
                         <div class="text-2xs text-neutral-500">{{ $profile?->payout_provider_ref ? 'Ödeme kuruluşuna kayıtlı' : ($bankAccount->is_verified ? 'Doğrulandı' : 'İlk ödemede ödeme kuruluşuna kaydedilir') }}</div>
                     </div>
@@ -331,7 +353,8 @@ class extends Component {
                         <label class="form-label">Hesap türü</label>
                         <select wire:model.live="legal_type" class="form-input">
                             <option value="individual">Bireysel (T.C. kimlik no ile)</option>
-                            <option value="company">Şirket (vergi no ile)</option>
+                            <option value="sole_proprietor">Şahıs şirketi (T.C. kimlik no + vergi dairesi)</option>
+                            <option value="company">Limited / Anonim şirket (vergi no ile)</option>
                         </select>
                     </div>
                     @if($legal_type === 'company')
@@ -340,11 +363,6 @@ class extends Component {
                             <input type="text" inputmode="numeric" wire:model="tax_number" maxlength="10" autocomplete="off" placeholder="{{ $profile?->tax_number ? 'Değiştirmek için yeni numara' : '' }}" class="form-input font-mono">
                             @error('tax_number') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
-                        <div>
-                            <label class="form-label">Vergi dairesi</label>
-                            <input type="text" wire:model="tax_office" maxlength="120" autocomplete="organization" placeholder="Örn. Başkent" class="form-input">
-                            @error('tax_office') <span class="form-error">{{ $message }}</span> @enderror
-                        </div>
                     @else
                         <div>
                             <label class="form-label">T.C. kimlik numarası{{ $profile?->identity_number ? ' · kayıtlı: '.$profile->maskedPayoutIdentity() : '' }}</label>
@@ -352,16 +370,34 @@ class extends Component {
                             @error('identity_number') <span class="form-error">{{ $message }}</span> @enderror
                         </div>
                     @endif
+                    @if($legal_type !== 'individual')
+                        <div>
+                            <label class="form-label">Vergi dairesi</label>
+                            <input type="text" wire:model="tax_office" maxlength="120" autocomplete="organization" placeholder="Örn. Başkent" class="form-input">
+                            @error('tax_office') <span class="form-error">{{ $message }}</span> @enderror
+                        </div>
+                    @endif
                     <div>
                         <label class="form-label">{{ $bankAccount ? 'Yeni IBAN' : 'IBAN' }}</label>
                         <input type="text" wire:model="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" class="form-input font-mono">
                         @error('iban') <span class="form-error">{{ $message }}</span> @enderror
+                        <p class="mt-1 text-2xs text-neutral-500">IBAN {{ $legal_type === 'individual' ? 'kendi adınıza' : 'vergi levhanızdaki unvana' }} kayıtlı olmalı; ödeme kuruluşu başkasının hesabına aktarım yapmaz.</p>
                     </div>
                     <div>
-                        <label class="form-label">Hesap sahibi</label>
+                        <label class="form-label">{{ $legal_type === 'individual' ? 'Hesap sahibi' : 'Hesap sahibi (vergi levhasındaki unvan)' }}</label>
                         <input type="text" wire:model="account_holder" class="form-input">
                         @error('account_holder') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
+                    @if($needsSellerAgreement)
+                        <label class="flex items-start gap-3 p-3 rounded-xl border {{ $errors->has('iyzico_terms') ? 'border-rose-400 bg-rose-500/5' : 'border-neutral-200 dark:border-neutral-700' }} cursor-pointer">
+                            <input type="checkbox" wire:model="iyzico_terms" class="mt-0.5 h-4 w-4 rounded border-neutral-300 text-brand-500 focus:ring-brand-500">
+                            <span class="text-2xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                                Navlun ödemelerinin lisanslı ödeme kuruluşu iyzico üzerinden hesabıma aktarılması için
+                                <a href="{{ $sellerAgreementUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-semibold hover:underline">iyzico Pazaryeri Satıcı Sözleşmesi</a>'ni okudum, kabul ediyorum.
+                            </span>
+                        </label>
+                        @error('iyzico_terms') <span class="form-error">{{ $message }}</span> @enderror
+                    @endif
                     <div>
                         <label class="form-label">Mevcut şifreniz</label>
                         <input type="password" wire:model="bank_password" autocomplete="current-password" class="form-input">

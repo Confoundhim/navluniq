@@ -43,6 +43,14 @@ final class IyzicoGateway implements PaymentGateway
 
     public const PATH_APPROVE = '/payment/iyzipos/item/approve';
 
+    /** Kalem onayını geri çekme (resmî belge "Onay Geri Çekme"); akışta kullanılmaz, yönetici aracı için hazır. */
+    public const PATH_DISAPPROVE = '/payment/iyzipos/item/disapprove';
+
+    /** iyzico pazaryeri platform sözleşmeleri: satıcı (şoför) ve alıcı (yük sahibi) bir kez dijital onay verir. */
+    public const SELLER_AGREEMENT_URL = 'https://www.iyzico.com/pazaryeri-satici-anlasma/';
+
+    public const BUYER_AGREEMENT_URL = 'https://www.iyzico.com/pazaryeri-alici-anlasma/';
+
     public function id(): string
     {
         return 'iyzico';
@@ -209,8 +217,10 @@ final class IyzicoGateway implements PaymentGateway
 
     /**
      * Şoförü alt üye işyeri olarak kaydeder; subMerchantKey döner.
-     * $data: name, surname, email, phone, iban, identity (TC) ya da tax_no (VKN) + legal_type (individual|company), address, external_id.
-     * Kimlik yoksa kayıt yapılmaz (sahte TC gönderilmez): null döner, hakediş kuyrukta kalır.
+     * $data: name, surname, email, phone, iban, identity (TC) ya da tax_no (VKN) + legal_type (individual|sole_proprietor|company),
+     * tax_office, company_title, address, external_id. Kimlik yoksa kayıt yapılmaz (sahte TC gönderilmez): null döner, hakediş kuyrukta kalır.
+     * Resmî belge (Alt Üye İşyeri → Satıcı Oluşturma): PERSONAL = contactName/Surname + identityNumber; PRIVATE_COMPANY = taxOffice +
+     * legalCompanyTitle + identityNumber; LIMITED_OR_JOINT_STOCK_COMPANY = taxOffice + taxNumber + legalCompanyTitle. IBAN ad/unvanla uyumlu olmalı.
      */
     public function registerSubMerchant(array $data): ?string
     {
@@ -219,14 +229,16 @@ final class IyzicoGateway implements PaymentGateway
         }
         $identity = preg_replace('/\D/', '', (string) ($data['identity'] ?? ''));
         $taxNo = preg_replace('/\D/', '', (string) ($data['tax_no'] ?? ''));
-        $company = ($data['legal_type'] ?? 'individual') === 'company';
+        $legalType = (string) ($data['legal_type'] ?? 'individual');
+        $company = $legalType === 'company';
+        $sole = $legalType === 'sole_proprietor';
         if ($company ? strlen($taxNo) !== 10 : strlen($identity) !== 11) {
             Log::warning('iyzico alt üye işyeri kaydı: kimlik numarası eksik, kayıt yapılmadı.', ['external_id' => $data['external_id'] ?? null]);
 
             return null;
         }
         $taxOffice = trim((string) ($data['tax_office'] ?? ''));
-        if ($company && $taxOffice === '') {
+        if (($company || $sole) && $taxOffice === '') {
             Log::warning('iyzico alt üye işyeri kaydı: şirket için vergi dairesi eksik, kayıt yapılmadı.', ['external_id' => $data['external_id'] ?? null]);
 
             return null;
@@ -234,14 +246,13 @@ final class IyzicoGateway implements PaymentGateway
         $phone = preg_replace('/\D/', '', (string) ($data['phone'] ?? ''));
         $fullName = trim(($data['name'] ?? '').' '.($data['surname'] ?? ''));
         $externalId = (string) ($data['external_id'] ?? '');
-        // iyzico alt üye işyeri türleri: PERSONAL (TC), PRIVATE_COMPANY (şahıs şirketi: TC + vergi dairesi),
-        // LIMITED_OR_JOINT_STOCK_COMPANY (VKN + vergi dairesi + unvan). Şoförde "şirket" = VKN'li şirket.
+        $title = (string) ($data['company_title'] ?: $fullName);
         $payload = [
             'locale' => 'tr',
             'conversationId' => 'SUB-'.($externalId !== '' ? $externalId : uniqid()),
             'subMerchantExternalId' => $externalId,
-            'subMerchantType' => $company ? 'LIMITED_OR_JOINT_STOCK_COMPANY' : 'PERSONAL',
-            'name' => $company ? (string) ($data['company_title'] ?: $fullName) : $fullName,
+            'subMerchantType' => $company ? 'LIMITED_OR_JOINT_STOCK_COMPANY' : ($sole ? 'PRIVATE_COMPANY' : 'PERSONAL'),
+            'name' => ($company || $sole) ? $title : $fullName,
             'contactName' => (string) ($data['name'] ?? ''),
             'contactSurname' => (string) ($data['surname'] ?? ''),
             'email' => (string) ($data['email'] ?? ''),
@@ -253,7 +264,11 @@ final class IyzicoGateway implements PaymentGateway
         if ($company) {
             $payload['taxNumber'] = $taxNo;
             $payload['taxOffice'] = $taxOffice;
-            $payload['legalCompanyTitle'] = (string) ($data['company_title'] ?: $fullName);
+            $payload['legalCompanyTitle'] = $title;
+        } elseif ($sole) {
+            $payload['identityNumber'] = $identity;
+            $payload['taxOffice'] = $taxOffice;
+            $payload['legalCompanyTitle'] = $title;
         } else {
             $payload['identityNumber'] = $identity;
         }
@@ -309,7 +324,9 @@ final class IyzicoGateway implements PaymentGateway
             $checks[] = ['label' => 'Pazaryeri (alt üye işyeri) yetkisi', 'ok' => $authOk && $notFound,
                 'detail' => ! $authOk ? 'Anahtar denetimi geçmeden sınanamaz.' : ($notFound
                     ? 'Pazaryeri uç noktası yanıt veriyor; alt üye işyeri kaydı açılabilir.'
-                    : 'iyzico pazaryeri isteğini reddetti: '.trim(($probe['errorCode'] ?? '').' '.($probe['errorMessage'] ?? 'yanıt yok')).' — pazaryeri ürünü hesapta açık değilse iyzico temsilcinizden açılmasını isteyin.')];
+                    : 'iyzico pazaryeri isteğini reddetti: '.trim(($probe['errorCode'] ?? '').' '.($probe['errorMessage'] ?? 'yanıt yok')).($this->isSandbox()
+                        ? ' — test hesabında pazaryeri, üye işyeri numaranızla entegrasyon@iyzico.com adresine yazılarak açtırılır.'
+                        : ' — pazaryeri ürünü hesapta açık değilse iyzico temsilcinizden açılmasını isteyin.'))];
         } else {
             $checks[] = ['label' => 'Pazaryeri (alt üye işyeri)', 'ok' => $this->isSandbox(), 'detail' => $this->isSandbox() ? 'Test modunda pazaryeri şartı aranmaz.' : 'Kapalı: canlıda navlun tahsilatı açılmaz. Sözleşme imzalanınca "Pazaryeri ürünü aktif" kutusunu işaretleyin.'];
         }
@@ -318,6 +335,15 @@ final class IyzicoGateway implements PaymentGateway
         $checks[] = ['label' => 'Bildirim adresi', 'ok' => str_starts_with($webhook, 'https://'), 'detail' => $webhook.' — iyzico panelinde İşyeri Bildirimleri → "İşyeri Bildirimleri Url" alanına bu adres yazılır ve bildirim gönderimi açılır.'];
 
         return $checks;
+    }
+
+    /** Verilmiş kalem onayını geri çeker (iyzico "Onay Geri Çekme"); yalnız para henüz alt üye işyerine aktarılmadıysa işler. */
+    public function withdrawApproval(string $paymentTransactionId): TransferResult
+    {
+        $data = $this->request(self::PATH_DISAPPROVE, ['locale' => 'tr', 'conversationId' => 'DISAPPROVE-'.$paymentTransactionId, 'paymentTransactionId' => $paymentTransactionId]);
+        $ok = ($data['status'] ?? '') === 'success';
+
+        return new TransferResult($ok, $ok ? 'iyzico-disapprove:'.$paymentTransactionId : null, $ok ? null : trim(($data['errorCode'] ?? '').' '.($data['errorMessage'] ?? 'Onay geri çekilemedi')));
     }
 
     /** Teslimat onayı: navlun kalemi onaylanır, iyzico tutarı alt üye işyerine (şoför) aktarır. */
