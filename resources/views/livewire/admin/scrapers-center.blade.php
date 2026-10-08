@@ -48,11 +48,54 @@ new class extends Component {
 
     public string $vehicle = '';
 
+    /** Kasa / dorse tipi (BodyTypes anahtarı; boş: hepsi). */
+    public string $body = '';
+
+    /** Yük kategorisi (GoodsCatalog etiketi; boş: hepsi). */
+    public string $goods = '';
+
+    /** Güzergah süzgeci: il kodu (string) + ilçe adı. "Ankara'dan Gebze'ye" = nereden 06, nereye 41 / Gebze (Osman, 2026-10-08). */
+    #[Url(as: 'nereden')]
+    public string $fromProvince = '';
+
+    public string $fromDistrict = '';
+
+    #[Url(as: 'nereye')]
+    public string $toProvince = '';
+
+    public string $toDistrict = '';
+
+    /** Hazır zaman penceresi (gün); özel aralık girilince dikkate alınmaz. */
     public string $period = '7';
 
-    public string $flag = '';
+    /** Özel zaman aralığı (saat dahil, "Y-m-d\TH:i"): adayın geliş zamanı bu aralıkta. */
+    public string $from = '';
+
+    public string $to = '';
+
+    public string $minPrice = '';
+
+    public string $maxPrice = '';
+
+    public string $minWeight = '';
+
+    public string $maxWeight = '';
+
+    /** Durum çipleri (birden çok seçilir, hepsi birden sağlanır): FLAGS anahtarları. */
+    public array $flags = [];
 
     public string $sort = 'newest';
+
+    /** Durum çipleri: anahtar → etiket. Sıra ekrandaki sıradır. */
+    public const FLAGS = [
+        'auto_ok' => 'Otomatik onaya uygun', 'auto_blocked' => 'Otomatik onay engelli', 'unresolved' => 'İl çözülemedi', 'no_phone' => 'Telefon yok',
+        'priced' => 'Fiyatlı', 'unpriced' => 'Fiyatsız', 'per_ton' => 'Ton başı fiyat', 'urgent' => 'Acil', 'incomplete' => 'Eksik bilgili',
+        'duplicates' => 'Birden fazla kaynakta', 'reshared' => 'Yeniden paylaşılan', 'similar' => 'Benzer ilan (farklı numara)', 'series' => 'Seri ilan',
+        'multi_vehicle' => 'Birden çok araç', 'ai' => 'Yapay zeka ile çözülen', 'ai_pending' => 'Yapay zeka bekleyen', 'conflict' => 'Kural / yapay zeka çelişen',
+        'driver_taken' => 'Şoför aldı',
+    ];
+
+    public const SORTS = ['newest' => 'En yeni gelen', 'seen' => 'En son görülen', 'oldest' => 'En eski', 'price_desc' => 'Fiyat (yüksekten)', 'weight_desc' => 'Tonaj (yüksekten)', 'route' => 'Güzergah (A→Z)'];
 
     /** @var array<int, string> seçili aday kimlikleri */
     public array $selected = [];
@@ -80,7 +123,13 @@ new class extends Component {
 
     public function updated(string $name): void
     {
-        if (in_array($name, ['activeTab', 'search', 'sourceId', 'vehicle', 'period', 'flag', 'sort', 'sourceState', 'sourceSearch'], true)) {
+        if ($name === 'fromProvince') {
+            $this->fromDistrict = '';
+        }
+        if ($name === 'toProvince') {
+            $this->toDistrict = '';
+        }
+        if (in_array($name, ['activeTab', 'search', 'sourceId', 'vehicle', 'body', 'goods', 'fromProvince', 'fromDistrict', 'toProvince', 'toDistrict', 'period', 'from', 'to', 'minPrice', 'maxPrice', 'minWeight', 'maxWeight', 'flags', 'sort', 'sourceState', 'sourceSearch'], true) || str_starts_with($name, 'flags.')) {
             $this->resetPage();
             $this->selected = [];
             $this->selectPage = false;
@@ -156,6 +205,77 @@ new class extends Component {
         return $counts;
     }
 
+    /** Özel zaman aralığının sınırları (geçersiz metin yok sayılır). @return array{0:?\Illuminate\Support\Carbon,1:?\Illuminate\Support\Carbon} */
+    private function customRange(): array
+    {
+        $parse = function (string $v): ?\Illuminate\Support\Carbon {
+            try {
+                return trim($v) === '' ? null : \Illuminate\Support\Carbon::parse($v, config('app.timezone'));
+            } catch (\Throwable) {
+                return null;
+            }
+        };
+
+        return [$parse($this->from), $parse($this->to)];
+    }
+
+    /** Zaman penceresi: özel aralık varsa o, yoksa hazır gün sayısı; "Tümü" sınırsız. */
+    private function applyTime($q): void
+    {
+        [$from, $to] = $this->customRange();
+        if ($from || $to) {
+            $from && $q->where('created_at', '>=', $from);
+            $to && $q->where('created_at', '<=', $to);
+
+            return;
+        }
+        if ($this->period !== 'all') {
+            $q->where('created_at', '>=', now()->subDays(max(1, (int) $this->period)));
+        }
+    }
+
+    /** Güzergah süzgeci: il kodu kolona, ilçe adı ilçe kolonuna (eski kayıtlarda yalnız etikette olabilir: etiket de aranır). */
+    private function applyRoute($q): void
+    {
+        foreach ([['fromProvince', 'fromDistrict', 'pickup'], ['toProvince', 'toDistrict', 'delivery']] as [$prov, $dist, $col]) {
+            if ($this->{$prov} === '') {
+                continue;
+            }
+            $q->where($col.'_province_code', (int) $this->{$prov});
+            if ($this->{$dist} !== '') {
+                $d = $this->{$dist};
+                $q->where(fn ($w) => $w->where($col.'_district', $d)->orWhere($col.'_location', 'like', '% '.$d.'%'));
+            }
+        }
+    }
+
+    /** Durum çipleri; her seçili çip ayrı koşuldur (hepsi birden). */
+    private function applyFlags($q): void
+    {
+        foreach ($this->flags as $flag) {
+            match ($flag) {
+                'unresolved' => $q->where(fn ($w) => $w->whereNull('pickup_province_code')->orWhereNull('delivery_province_code')),
+                'no_phone' => $q->whereNull('encrypted_sender_phone')->whereNull('sender_phone'),
+                'priced' => $q->where('price', '>', 0),
+                'unpriced' => $q->where(fn ($w) => $w->whereNull('price')->orWhere('price', '<=', 0)),
+                'per_ton' => $q->where('price', '>', 0)->where('price_unit', 'per_ton'),
+                'ai' => $q->where('ai_status', 'done'),
+                'ai_pending' => $q->where('ai_status', 'pending'),
+                'conflict' => $q->whereNotNull('parse_metadata->ai_conflict'),
+                'urgent' => $q->where('parse_metadata->urgent', true),
+                'duplicates' => $q->where('duplicate_count', '>', 1),
+                'reshared' => $q->whereNotNull('published_at')->whereColumn('last_seen_at', '>', 'published_at'),
+                'similar' => $q->where(fn ($w) => $w->whereNotNull('parse_metadata->similar_to')->orWhereNotNull('parse_metadata->similar_with')),
+                'series' => $q->whereNotNull('parse_metadata->series'),
+                'multi_vehicle' => $q->where('vehicle_count', '>', 1),
+                'incomplete' => $q->where('is_incomplete', true),
+                'driver_taken' => $q->has('trips'),
+                'auto_ok', 'auto_blocked' => $q->whereIn('id', $this->autoApprovalIds($flag === 'auto_ok')),
+                default => null,
+            };
+        }
+    }
+
     /** Aktif sekme ve filtrelere göre aday sorgusu (sayfalama öncesi). */
     private function currentQuery()
     {
@@ -172,30 +292,136 @@ new class extends Component {
         if ($this->vehicle !== '') {
             $this->vehicle === 'none' ? $q->whereNull('vehicle_type')->where('vehicle_any', false) : ($this->vehicle === 'any' ? $q->where('vehicle_any', true) : $q->where('vehicle_type', $this->vehicle));
         }
-        if ($this->period !== 'all') {
-            $q->where('created_at', '>=', now()->subDays((int) $this->period));
+        if ($this->body !== '') {
+            $this->body === 'none' ? $q->whereNull('body_types') : $q->where('body_types', 'like', '%"'.$this->body.'"%');
         }
-        match ($this->flag) {
-            'unresolved' => $q->where(fn ($w) => $w->whereNull('pickup_province_code')->orWhereNull('delivery_province_code')),
-            'priced' => $q->where('price', '>', 0),
-            'unpriced' => $q->where(fn ($w) => $w->whereNull('price')->orWhere('price', '<=', 0)),
-            'ai' => $q->where('ai_status', 'done'),
-            'ai_pending' => $q->where('ai_status', 'pending'),
-            'conflict' => $q->whereNotNull('parse_metadata->ai_conflict'),
-            'urgent' => $q->where('parse_metadata->urgent', true),
-            'duplicates' => $q->where('duplicate_count', '>', 1),
-            'incomplete' => $q->where('is_incomplete', true),
-            'auto_ok', 'auto_blocked' => $q->whereIn('id', $this->autoApprovalIds($this->flag === 'auto_ok')),
-            default => null,
-        };
+        if ($this->goods !== '') {
+            $this->goods === 'none' ? $q->whereNull('goods_type') : $q->where('goods_type', $this->goods);
+        }
+        $this->applyRoute($q);
+        $this->applyTime($q);
+        // Fiyat: ton başı yazılan fiyat tonajla toplam fiyata çevrilir (şoför listesiyle aynı kural)
+        $priceExpr = \App\Services\LoadFilterService::EFFECTIVE_PRICE_SQL;
+        // Tam sayı bağlanır: ondalık bağlama SQLite'ta metin sayılır ve CASE ifadesiyle karşılaştırma boş döner
+        if (is_numeric($this->minPrice)) {
+            $q->whereRaw('('.$priceExpr.') >= ?', [(int) round((float) $this->minPrice)]);
+        }
+        if (is_numeric($this->maxPrice)) {
+            $q->whereRaw('('.$priceExpr.') <= ?', [(int) round((float) $this->maxPrice)]);
+        }
+        if (is_numeric($this->minWeight)) {
+            $q->where('weight', '>=', (int) round((float) $this->minWeight * 1000));
+        }
+        if (is_numeric($this->maxWeight)) {
+            $q->where('weight', '<=', (int) round((float) $this->maxWeight * 1000));
+        }
+        $this->applyFlags($q);
         match ($this->sort) {
             'oldest' => $q->oldest('id'),
-            'price_desc' => $q->orderByDesc('price')->orderByDesc('id'),
+            'seen' => $q->orderByDesc('last_seen_at')->orderByDesc('id'),
+            'price_desc' => $q->orderByRaw('('.$priceExpr.') DESC')->orderByDesc('id'),
             'weight_desc' => $q->orderByDesc('weight')->orderByDesc('id'),
+            'route' => $q->orderBy('pickup_location')->orderBy('delivery_location')->orderByDesc('id'),
             default => $q->latest('id'),
         };
 
         return $q;
+    }
+
+    /** Durum çipi aç/kapa. */
+    public function toggleFlag(string $flag): void
+    {
+        if (! array_key_exists($flag, self::FLAGS)) {
+            return;
+        }
+        $this->flags = in_array($flag, $this->flags, true) ? array_values(array_diff($this->flags, [$flag])) : [...$this->flags, $flag];
+        $this->updated('flags');
+    }
+
+    public function setPeriod(string $period): void
+    {
+        $this->period = in_array($period, ['1', '7', '30', 'all'], true) ? $period : '7';
+        $this->from = $this->to = '';
+        $this->updated('period');
+    }
+
+    /** Nereden ⇄ nereye. */
+    public function swapRoute(): void
+    {
+        [$this->fromProvince, $this->toProvince] = [$this->toProvince, $this->fromProvince];
+        [$this->fromDistrict, $this->toDistrict] = [$this->toDistrict, $this->fromDistrict];
+        $this->updated('fromDistrict');
+    }
+
+    /** Seçili filtreler rozet olarak (× ile tek tek kalkar). @return list<array{key:string,label:string}> */
+    private function filterChips(): array
+    {
+        $chips = [];
+        $place = function (string $prov, string $dist): string {
+            $name = TurkishLocations::province((int) $prov)['name'] ?? $prov;
+
+            return $dist !== '' ? $name.' '.$dist : $name;
+        };
+        if (trim($this->search) !== '') {
+            $chips[] = ['key' => 'search', 'label' => 'Arama: '.trim($this->search)];
+        }
+        if ($this->fromProvince !== '') {
+            $chips[] = ['key' => 'from', 'label' => 'Nereden: '.$place($this->fromProvince, $this->fromDistrict)];
+        }
+        if ($this->toProvince !== '') {
+            $chips[] = ['key' => 'to', 'label' => 'Nereye: '.$place($this->toProvince, $this->toDistrict)];
+        }
+        [$from, $to] = $this->customRange();
+        if ($from || $to) {
+            $chips[] = ['key' => 'time', 'label' => 'Zaman: '.($from ? $from->format('d.m H:i') : '…').' – '.($to ? $to->format('d.m H:i') : '…')];
+        }
+        if ($this->sourceId !== '') {
+            $chips[] = ['key' => 'sourceId', 'label' => 'Kaynak: '.(Scraper::query()->whereKey((int) $this->sourceId)->value('name') ?? '#'.$this->sourceId)];
+        }
+        if ($this->vehicle !== '') {
+            $chips[] = ['key' => 'vehicle', 'label' => 'Araç: '.(['none' => 'tipi yok', 'any' => 'fark etmez'][$this->vehicle] ?? (VehicleTypes::labels()[$this->vehicle] ?? $this->vehicle))];
+        }
+        if ($this->body !== '') {
+            $chips[] = ['key' => 'body', 'label' => 'Kasa: '.($this->body === 'none' ? 'yazmıyor' : (BodyTypes::labels()[$this->body] ?? $this->body))];
+        }
+        if ($this->goods !== '') {
+            $chips[] = ['key' => 'goods', 'label' => 'Yük: '.($this->goods === 'none' ? 'yazmıyor' : $this->goods)];
+        }
+        if (is_numeric($this->minPrice) || is_numeric($this->maxPrice)) {
+            $chips[] = ['key' => 'price', 'label' => 'Fiyat: '.(is_numeric($this->minPrice) ? number_format((float) $this->minPrice, 0, ',', '.') : '…').' – '.(is_numeric($this->maxPrice) ? number_format((float) $this->maxPrice, 0, ',', '.') : '…').' ₺'];
+        }
+        if (is_numeric($this->minWeight) || is_numeric($this->maxWeight)) {
+            $chips[] = ['key' => 'weight', 'label' => 'Tonaj: '.(is_numeric($this->minWeight) ? $this->minWeight : '…').' – '.(is_numeric($this->maxWeight) ? $this->maxWeight : '…').' t'];
+        }
+        foreach ($this->flags as $flag) {
+            if (isset(self::FLAGS[$flag])) {
+                $chips[] = ['key' => 'flag:'.$flag, 'label' => self::FLAGS[$flag]];
+            }
+        }
+
+        return $chips;
+    }
+
+    public function removeFilter(string $key): void
+    {
+        match (true) {
+            $key === 'search' => $this->search = '',
+            $key === 'from' => [$this->fromProvince, $this->fromDistrict] = ['', ''],
+            $key === 'to' => [$this->toProvince, $this->toDistrict] = ['', ''],
+            $key === 'time' => [$this->from, $this->to] = ['', ''],
+            $key === 'price' => [$this->minPrice, $this->maxPrice] = ['', ''],
+            $key === 'weight' => [$this->minWeight, $this->maxWeight] = ['', ''],
+            in_array($key, ['sourceId', 'vehicle', 'body', 'goods'], true) => $this->{$key} = '',
+            str_starts_with($key, 'flag:') => $this->flags = array_values(array_diff($this->flags, [substr($key, 5)])),
+            default => null,
+        };
+        $this->updated('flags');
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset('search', 'sourceId', 'vehicle', 'body', 'goods', 'fromProvince', 'fromDistrict', 'toProvince', 'toDistrict', 'from', 'to', 'minPrice', 'maxPrice', 'minWeight', 'maxWeight', 'flags');
+        $this->updated('flags');
     }
 
     /**
@@ -868,6 +1094,10 @@ new class extends Component {
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
             'scorecard' => Cache::remember('admin:scrapers:scorecard', 60, fn () => $this->scorecard($parser)),
             'searchCounts' => in_array($this->activeTab, ['queue', 'published', 'rejected'], true) ? $this->searchCounts() : [],
+            'filterChips' => in_array($this->activeTab, ['queue', 'published', 'rejected'], true) ? $this->filterChips() : [],
+            'flagOptions' => self::FLAGS, 'sortOptions' => self::SORTS,
+            'fromDistricts' => $this->fromProvince !== '' ? TurkishLocations::districtsOf((int) $this->fromProvince) : [],
+            'toDistricts' => $this->toProvince !== '' ? TurkishLocations::districtsOf((int) $this->toProvince) : [],
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
@@ -945,30 +1175,35 @@ new class extends Component {
         </div>
     </div>
 
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün gelen istek</span><span class="text-xl font-black text-neutral-900 dark:text-white">{{ $stats['received'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $stats['created'] }} kuyruğa · {{ $stats['duplicate'] }} tekrar · {{ $stats['filtered'] }} elendi{{ $stats['screens'] > 0 ? ' · '.$stats['screens'].' Facebook paketi' : '' }}</span></div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Onay bekleyen</span><span class="text-xl font-black text-amber-600">{{ $stats['pending'] }}</span></div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Yayında</span><span class="text-xl font-black text-emerald-600">{{ $stats['published'] }}</span></div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Reddedilen</span><span class="text-xl font-black text-neutral-500">{{ $stats['rejected'] }}</span><span class="text-[11px] text-neutral-400 block">{{ $rejectedRetention }} gün sonra silinir</span></div>
-    </div>
-
-    @if($stats['reasons'] !== [])
-        <p class="text-[11px] text-neutral-400 -mt-1">Bugün en sık elenme nedenleri: @foreach($stats['reasons'] as $i => $r){{ $i > 0 ? ' · ' : '' }}{{ $r['label'] }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($r['count'], 0, ',', '.') }}</span>@endforeach</p>
-    @endif
-
-    {{-- Hat karnesi: bekleyenler neden bekliyor, yaşla ret, açılış→yayın süresi, sağlayıcı durumu --}}
-    <p class="text-[11px] text-neutral-400 -mt-1">
-        Bekleyen: @foreach(array_filter($scorecard['pending_by']) as $label => $n){{ ! $loop->first ? ' · ' : '' }}{{ $label }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($n, 0, ',', '.') }}</span>@endforeach{{ array_filter($scorecard['pending_by']) === [] ? 'yok' : '' }}
-        · Bugün yaşla reddedilen <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['age_rejected_today'] }}</span>
-        · Açılış → yayın medyan <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['median_minutes'] === null ? '—' : $scorecard['median_minutes'].' dk' }}</span>
-        @if($scorecard['providers'] !== [])
-            · Sağlayıcı: @foreach($scorecard['providers'] as $provider => $state){{ ! $loop->first ? ', ' : '' }}{{ \App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider }} <span class="font-semibold {{ $state['state'] === 'ok' ? 'text-emerald-600' : 'text-amber-600' }}">{{ match($state['state']) { 'ok' => 'çalışıyor', 'cooldown' => 'bekletiliyor'.($state['until'] ? ' ('.$state['until'].' kadar)' : ''), default => 'kota doldu'.($state['until'] ? ' ('.$state['until'].' sıfırlanır)' : '') } }}</span>@endforeach
-        @endif
-    </p>
-    {{-- Okuma katmanları karnesi: kalıcı katmanlar sayım, yönetilen katmanlar aşama + gölge uyumu + yayın sonrası sonuç (aşamayı sistem yönetir) --}}
-    @if(($scorecard['layers'] ?? []) !== [])
-        <details class="text-[11px] text-neutral-400 -mt-1">
-            <summary class="cursor-pointer select-none">Okuma katmanları (7 gün): @foreach(array_filter($scorecard['layers'], fn ($m) => $m['managed']) as $key => $m){{ ! $loop->first ? ' · ' : '' }}{{ $m['label'] }} <span class="font-semibold {{ $m['stage'] === 'active' ? 'text-emerald-600' : 'text-amber-600' }}">{{ $m['stage_label'] }}</span>@endforeach</summary>
+    {{-- Günün özeti tek şeritte: liste ve filtreler hemen altında başlar (Osman 2026-10-08: sayfa her açıdan işlevsel olsun, kartlar listeyi aşağı itmesin) --}}
+    @php $stat = 'min-w-[6.5rem] flex-1 sm:flex-none'; $statLabel = 'text-[11px] text-neutral-400 block leading-tight'; $statValue = 'text-lg font-black tabular-nums leading-tight'; @endphp
+    <div class="apple-glass rounded-2xl px-4 py-3 text-xs">
+        <div class="flex flex-wrap gap-x-6 gap-y-3">
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Bugün gelen istek</span><span class="{{ $statValue }} text-neutral-900 dark:text-white">{{ number_format($stats['received'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">{{ $stats['created'] }} kuyruğa · {{ $stats['duplicate'] }} tekrar · {{ $stats['filtered'] }} elendi{{ $stats['screens'] > 0 ? ' · '.$stats['screens'].' Facebook paketi' : '' }}</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Onay bekleyen</span><span class="{{ $statValue }} text-amber-600">{{ number_format($stats['pending'], 0, ',', '.') }}</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Yayında</span><span class="{{ $statValue }} text-emerald-600">{{ number_format($stats['published'], 0, ',', '.') }}</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Reddedilen</span><span class="{{ $statValue }} text-neutral-500">{{ number_format($stats['rejected'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">{{ $rejectedRetention }} gün sonra silinir</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Bugün yayınlanan</span><span class="{{ $statValue }} text-brand-500">{{ number_format($lifetime['external_today'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">7 gün {{ number_format($lifetime['external_7d'], 0, ',', '.') }} · 30 gün {{ number_format($lifetime['external_30d'], 0, ',', '.') }} · Facebook {{ number_format($stats['published_facebook'], 0, ',', '.') }} · WhatsApp {{ number_format(max(0, $lifetime['external_today'] - $stats['published_facebook']), 0, ',', '.') }}{{ $stats['refreshed'] > 0 ? ' · ayrıca '.number_format($stats['refreshed'], 0, ',', '.').' eski ilan bugün yeniden paylaşıldı' : '' }}</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Bugüne kadar</span><span class="{{ $statValue }} text-neutral-900 dark:text-white">{{ number_format($lifetime['external_total'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">günde {{ number_format($lifetime['external_daily_avg'], 1, ',', '.') }}{{ $lifetime['external_since'] ? ' · '.$lifetime['external_since'].'\'den beri' : '' }}</span></div>
+            <div class="{{ $stat }}"><span class="{{ $statLabel }}">Açılış → yayın</span><span class="{{ $statValue }} text-neutral-900 dark:text-white">{{ $scorecard['median_minutes'] === null ? '—' : $scorecard['median_minutes'].' dk' }}</span><span class="text-[10px] text-neutral-400 block">bugünün medyanı</span></div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-800/60 text-[11px] text-neutral-400 space-y-1">
+            <p>Bekleyen: @foreach(array_filter($scorecard['pending_by']) as $label => $n){{ ! $loop->first ? ' · ' : '' }}{{ $label }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($n, 0, ',', '.') }}</span>@endforeach{{ array_filter($scorecard['pending_by']) === [] ? 'yok' : '' }}
+                · Bugün yaşla reddedilen <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ $scorecard['age_rejected_today'] }}</span>
+                @if($scorecard['providers'] !== [])
+                    · Yapay zeka: @foreach($scorecard['providers'] as $provider => $state){{ ! $loop->first ? ', ' : '' }}{{ \App\Services\AiParserService::PROVIDERS[$provider]['label'] ?? $provider }} <span class="font-semibold {{ $state['state'] === 'ok' ? 'text-emerald-600' : 'text-amber-600' }}">{{ match($state['state']) { 'ok' => 'çalışıyor', 'cooldown' => 'bekletiliyor'.($state['until'] ? ' ('.$state['until'].' kadar)' : ''), default => 'kota doldu'.($state['until'] ? ' ('.$state['until'].' sıfırlanır)' : '') } }}</span>@endforeach
+                @endif
+            </p>
+            @if($stats['reasons'] !== [])
+                <p>Bugün en sık elenme nedenleri: @foreach($stats['reasons'] as $i => $r){{ $i > 0 ? ' · ' : '' }}{{ $r['label'] }} <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ number_format($r['count'], 0, ',', '.') }}</span>@endforeach</p>
+            @endif
+            @if($lifetime['top_provinces'] !== [])
+                <p>En çok ilan çıkan iller (30 gün): <span class="font-semibold text-neutral-600 dark:text-neutral-300">{{ implode(' · ', array_map(fn ($p) => $p['name'].' '.$p['count'], $lifetime['top_provinces'])) }}</span></p>
+            @endif
+            {{-- Okuma katmanları karnesi: kalıcı katmanlar sayım, yönetilen katmanlar aşama + gölge uyumu + yayın sonrası sonuç (aşamayı sistem yönetir) --}}
+            @if(($scorecard['layers'] ?? []) !== [])
+                <details>
+                    <summary class="cursor-pointer select-none">Okuma katmanları (7 gün): @foreach(array_filter($scorecard['layers'], fn ($m) => $m['managed']) as $key => $m){{ ! $loop->first ? ' · ' : '' }}{{ $m['label'] }} <span class="font-semibold {{ $m['stage'] === 'active' ? 'text-emerald-600' : 'text-amber-600' }}">{{ $m['stage_label'] }}</span>@endforeach</summary>
             <div class="mt-1 space-y-0.5">
                 @foreach($scorecard['layers'] as $key => $m)
                     <div>{{ $m['label'] }} <span class="text-neutral-300 dark:text-neutral-600">({{ $m['kind'] }}{{ $m['managed'] ? ' · '.$m['stage_label'] : '' }})</span>:
@@ -983,27 +1218,93 @@ new class extends Component {
                     </div>
                 @endforeach
             </div>
-        </details>
-    @endif
-    {{-- Bugüne kadar: arşivlenen ilanlar da sayılır, sayaç hiç düşmez --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugüne kadar yayınlanan</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_total'], 0, ',', '.') }}</span>@if($lifetime['external_since'])<span class="text-[10px] text-neutral-400 block">{{ $lifetime['external_since'] }}'den beri</span>@endif</div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Bugün yayınlanan</span><span class="text-xl font-black text-brand-500 tabular-nums">{{ number_format($lifetime['external_today'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">son 7 gün {{ number_format($lifetime['external_7d'], 0, ',', '.') }} · son 30 gün {{ number_format($lifetime['external_30d'], 0, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">Facebook {{ number_format($stats['published_facebook'], 0, ',', '.') }} · WhatsApp {{ number_format(max(0, $lifetime['external_today'] - $stats['published_facebook']), 0, ',', '.') }} · ayrıca {{ number_format($stats['refreshed'], 0, ',', '.') }} eski ilan bugün yeniden paylaşıldı (yeni sayılmaz)</span></div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">Günlük ortalama</span><span class="text-xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format($lifetime['external_daily_avg'], 1, ',', '.') }}</span><span class="text-[10px] text-neutral-400 block">ilan / gün</span></div>
-        <div class="apple-glass rounded-2xl p-4"><span class="text-neutral-400 block">En çok ilan çıkan iller (30 gün)</span><span class="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 block leading-relaxed">{{ $lifetime['top_provinces'] === [] ? '—' : implode(' · ', array_map(fn ($p) => $p['name'].' '.$p['count'], $lifetime['top_provinces'])) }}</span></div>
+                </details>
+            @endif
+        </div>
     </div>
 
-    <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
+    {{-- Sekmeler telefonda kaymaz: iki/üç sütunlu ızgara, masaüstünde tek satır --}}
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:flex gap-0.5 p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl">
         @foreach($tabs as $key => $label)
-            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="flex-none sm:flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold rounded-lg {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}@if($tabCount[$key] !== null) <span class="ml-1 text-[10px] text-neutral-400">{{ $tabCount[$key] }}</span>@endif</button>
+            <button type="button" wire:click="$set('activeTab', '{{ $key }}')" class="w-full lg:flex-1 px-2 sm:px-4 py-2 text-xs font-semibold rounded-lg leading-tight {{ $activeTab === $key ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-apple-sm' : 'text-neutral-500' }}">{{ $label }}@if($tabCount[$key] !== null) <span class="ml-1 text-[10px] text-neutral-400 tabular-nums">{{ number_format($tabCount[$key], 0, ',', '.') }}</span>@endif</button>
         @endforeach
     </div>
 
     @if(in_array($activeTab, ['queue', 'published', 'rejected'], true))
-        @php $filtered = $search !== '' || $sourceId !== '' || $vehicle !== '' || $flag !== ''; $what = ['queue' => 'onay bekleyen aday', 'published' => 'yayında', 'rejected' => 'reddedilen'][$activeTab]; @endphp
+        @php
+            $what = ['queue' => 'onay bekleyen aday', 'published' => 'yayında', 'rejected' => 'reddedilen'][$activeTab];
+            $chip = 'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap transition';
+            $chipOn = 'border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900';
+            $chipOff = 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500';
+            $customTime = trim($from) !== '' || trim($to) !== '';
+        @endphp
+
+        {{-- Filtre paneli: her alan düz ve görünür; kayan menü ya da açılır panel yok (Osman, 2026-10-08) --}}
+        <div class="apple-glass rounded-2xl p-3 sm:p-4 space-y-3 text-xs">
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} sm:flex-1" placeholder="Ara: rota, yük, ham mesaj, telefon, #no">
+                <select wire:model.live="sort" class="{{ $input }} sm:w-52" title="Sıralama">@foreach($sortOptions as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-2 md:items-end">
+                <div class="space-y-1">
+                    <label class="form-label">Nereden</label>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <select wire:model.live="fromProvince" class="{{ $input }}"><option value="">Tüm iller</option>@foreach(TurkishLocations::provinces() as $p)<option value="{{ $p['code'] }}">{{ $p['name'] }}</option>@endforeach</select>
+                        <select wire:model.live="fromDistrict" class="{{ $input }}" @disabled($fromProvince === '')><option value="">Tüm ilçeler</option>@foreach($fromDistricts as $d)<option value="{{ $d }}">{{ $d }}</option>@endforeach</select>
+                    </div>
+                </div>
+                <button type="button" wire:click="swapRoute" class="hidden md:inline-flex items-center justify-center md:mb-0.5 h-9 w-9 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-400 text-base leading-none" title="Nereden ile nereyeyi değiştir" aria-label="Nereden ile nereyeyi değiştir">⇄</button>
+                <div class="space-y-1">
+                    <div class="flex items-center justify-between"><label class="form-label">Nereye</label><button type="button" wire:click="swapRoute" class="md:hidden text-[11px] font-semibold text-brand-600">⇄ Yer değiştir</button></div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <select wire:model.live="toProvince" class="{{ $input }}"><option value="">Tüm iller</option>@foreach(TurkishLocations::provinces() as $p)<option value="{{ $p['code'] }}">{{ $p['name'] }}</option>@endforeach</select>
+                        <select wire:model.live="toDistrict" class="{{ $input }}" @disabled($toProvince === '')><option value="">Tüm ilçeler</option>@foreach($toDistricts as $d)<option value="{{ $d }}">{{ $d }}</option>@endforeach</select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr] gap-2 md:items-end">
+                <div class="space-y-1">
+                    <label class="form-label">Geliş zamanı</label>
+                    <div class="flex flex-wrap gap-1">
+                        @foreach(['1' => 'Bugün', '7' => '7 gün', '30' => '30 gün', 'all' => 'Tümü'] as $k => $l)
+                            <button type="button" wire:click="setPeriod('{{ $k }}')" class="{{ $chip }} {{ ! $customTime && $period === $k ? $chipOn : $chipOff }}">{{ $l }}</button>
+                        @endforeach
+                    </div>
+                </div>
+                <div class="space-y-1"><label class="form-label">Başlangıç (gün ve saat)</label><input type="datetime-local" wire:model.live="from" class="{{ $input }}"></div>
+                <div class="space-y-1"><label class="form-label">Bitiş (gün ve saat)</label><input type="datetime-local" wire:model.live="to" class="{{ $input }}"></div>
+            </div>
+
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div class="space-y-1"><label class="form-label">Kaynak</label><select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select></div>
+                <div class="space-y-1"><label class="form-label">Araç</label><select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option><option value="any">Araç fark etmez</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
+                <div class="space-y-1"><label class="form-label">Kasa / dorse</label><select wire:model.live="body" class="{{ $input }}"><option value="">Tüm kasalar</option><option value="none">Kasa yazmıyor</option>@foreach(BodyTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select></div>
+                <div class="space-y-1"><label class="form-label">Yük türü</label><select wire:model.live="goods" class="{{ $input }}"><option value="">Tüm yükler</option><option value="none">Yük yazmıyor</option>@foreach(GoodsCatalog::labels() as $l)<option value="{{ $l }}">{{ $l }}</option>@endforeach</select></div>
+            </div>
+
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div class="space-y-1"><label class="form-label">Fiyat en az (₺)</label><input type="number" inputmode="numeric" min="0" wire:model.live.debounce.500ms="minPrice" class="{{ $input }}" placeholder="0"></div>
+                <div class="space-y-1"><label class="form-label">Fiyat en çok (₺)</label><input type="number" inputmode="numeric" min="0" wire:model.live.debounce.500ms="maxPrice" class="{{ $input }}" placeholder="∞"></div>
+                <div class="space-y-1"><label class="form-label">Tonaj en az (ton)</label><input type="number" inputmode="decimal" min="0" step="0.5" wire:model.live.debounce.500ms="minWeight" class="{{ $input }}" placeholder="0"></div>
+                <div class="space-y-1"><label class="form-label">Tonaj en çok (ton)</label><input type="number" inputmode="decimal" min="0" step="0.5" wire:model.live.debounce.500ms="maxWeight" class="{{ $input }}" placeholder="∞"></div>
+            </div>
+
+            <div class="space-y-1">
+                <label class="form-label">Durum (birden çok seçilebilir)</label>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($flagOptions as $k => $l)
+                        <button type="button" wire:click="toggleFlag('{{ $k }}')" class="{{ $chip }} {{ in_array($k, $flags, true) ? $chipOn : $chipOff }}">{{ $l }}</button>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+
+        {{-- Sonuç sayısı ve seçili filtre rozetleri (× ile tek tek kalkar) --}}
         <div class="flex flex-wrap items-center gap-2 text-xs">
             <span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1 font-bold tabular-nums">{{ number_format($queue?->total() ?? 0, 0, ',', '.') }} ilan</span>
-            <span class="text-neutral-500">{{ $filtered ? 'filtreye uyan' : $what }}{{ $period !== 'all' ? ' · son '.$period.' gün' : ' · tüm zamanlar' }}</span>
+            <span class="text-neutral-500">{{ $filterChips !== [] ? 'filtreye uyan' : $what }}{{ $customTime ? '' : ($period !== 'all' ? ' · son '.$period.' gün' : ' · tüm zamanlar') }}</span>
             @if($searchCounts !== [])
                 <span class="text-neutral-500">· bu arama:
                     @foreach(['queue' => 'onay bekleyen', 'published' => 'yayında', 'rejected' => 'reddedilen'] as $tabKey => $tabLabel)
@@ -1011,16 +1312,10 @@ new class extends Component {
                     @endforeach
                 </span>
             @endif
-        </div>
-        <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 lg:grid-cols-6 gap-2 text-xs">
-            <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">
-            <select wire:model.live="sourceId" class="{{ $input }}"><option value="">Tüm kaynaklar</option>@foreach($sourcesList as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select>
-            <select wire:model.live="vehicle" class="{{ $input }}"><option value="">Tüm araçlar</option><option value="none">Araç tipi yok</option><option value="any">Araç fark etmez</option>@foreach(VehicleTypes::labels() as $k => $l)<option value="{{ $k }}">{{ $l }}</option>@endforeach</select>
-            <select wire:model.live="flag" class="{{ $input }}"><option value="">Tüm adaylar</option><option value="auto_ok">Otomatik onay: uygun</option><option value="auto_blocked">Otomatik onay: engelli</option><option value="unresolved">İl çözülemeyenler</option><option value="priced">Fiyatlı</option><option value="unpriced">Fiyatsız</option><option value="urgent">Acil</option><option value="duplicates">Birden fazla kaynakta</option><option value="incomplete">Eksik bilgili yayın</option><option value="ai">Yapay zeka ile çözülen</option><option value="ai_pending">Yapay zeka bekleyen</option><option value="conflict">Kural / yapay zeka çelişen</option></select>
-            <div class="flex gap-2">
-                <select wire:model.live="period" class="{{ $input }}"><option value="1">Bugün</option><option value="7">7 gün</option><option value="30">30 gün</option><option value="all">Tümü</option></select>
-                <select wire:model.live="sort" class="{{ $input }}"><option value="newest">Yeni</option><option value="oldest">Eski</option><option value="price_desc">Fiyat</option><option value="weight_desc">Tonaj</option></select>
-            </div>
+            @foreach($filterChips as $c)
+                <button type="button" wire:click="removeFilter('{{ $c['key'] }}')" class="inline-flex items-center gap-1 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 px-2.5 py-1 text-[11px] font-semibold" title="Bu filtreyi kaldır">{{ $c['label'] }} <span aria-hidden="true" class="text-brand-500">×</span></button>
+            @endforeach
+            @if($filterChips !== [])<button type="button" wire:click="clearFilters" class="text-[11px] font-semibold text-neutral-500 hover:underline">Tümünü temizle</button>@endif
         </div>
 
         @if($selected !== [])

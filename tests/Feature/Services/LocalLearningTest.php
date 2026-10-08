@@ -287,7 +287,7 @@ class LocalLearningTest extends TestCase
         $admin->syncRoles(['super_admin']);
         $this->actingAs($admin->fresh());
         Volt::test('admin.scrapers-center')->set('activeTab', 'queue')->assertSee('Eksik bilgili yayına gidecek')
-            ->set('activeTab', 'published')->set('flag', 'incomplete')->assertSee('Eksik bilgili')->assertSee('#'.$mid->id)->assertDontSee('#'.$noRoute->id)
+            ->set('activeTab', 'published')->set('flags', ['incomplete'])->assertSee('Eksik bilgili')->assertSee('#'.$mid->id)->assertDontSee('#'.$noRoute->id)
             ->call('startEdit', $mid->id)->set('edit.vehicle_type', 'tir')->call('saveEdit')->assertHasNoErrors();
         $this->assertSame([false, 'admin', 'tir'], [$mid->fresh()->is_incomplete, $mid->fresh()->completed_by, $mid->fresh()->vehicle_type]);
     }

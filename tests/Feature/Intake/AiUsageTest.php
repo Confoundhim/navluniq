@@ -138,6 +138,9 @@ class AiUsageTest extends TestCase
         Settings::set('ai_cerebras_key', 'csk-test');
         Settings::set('ai_cerebras_model', 'llama-3.3-70b');
         $parser = app(AiParserService::class);
+        // Gizli sağlayıcı (Cerebras) anahtarı kalmış olsa da zincire girmez; yalnız AI_EXTRA_PROVIDERS ile açılır
+        $this->assertSame(['groq', 'gemini'], $parser->chain());
+        config(['services.ai.extra_providers' => ['cerebras']]);
         $this->assertSame(['groq', 'gemini', 'cerebras'], $parser->chain());
         Http::fake([
             'api.groq.com/*' => Http::response(['error' => ['message' => 'bad gateway']], 502),

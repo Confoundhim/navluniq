@@ -164,8 +164,8 @@ class ScrapedLoadAutomationTest extends TestCase
         $this->actingAs($admin->fresh());
 
         $c = Volt::test('admin.scrapers-center')->set('activeTab', 'queue');
-        $c->set('flag', 'auto_ok')->assertSee('UYGUN-ILAN')->assertDontSee('ENGELLI-ILAN');
-        $c->set('flag', 'auto_blocked')->assertSee('ENGELLI-ILAN')->assertDontSee('UYGUN-ILAN')->assertSee('Fiyat yok');
+        $c->set('flags', ['auto_ok'])->assertSee('UYGUN-ILAN')->assertDontSee('ENGELLI-ILAN');
+        $c->set('flags', ['auto_blocked'])->assertSee('ENGELLI-ILAN')->assertDontSee('UYGUN-ILAN')->assertSee('Fiyat yok');
     }
 
     public function test_duplicates_from_other_groups_increase_counter_instead_of_creating_rows(): void
