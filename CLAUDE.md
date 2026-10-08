@@ -581,6 +581,22 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `withdrawApproval` (disapprove) hazır, akışta yok. Cüzdan formu profili taze sorguyla okur (önbellekli ilişki aynı istekte
   yazılan `payout_provider_ref`'i görmüyordu). Hata kodu **9000** = hesap iyzico tarafında dondurulmuş/canlıya açılmamış; kod değil,
   iyzico destek çözer. Testler `IyzicoGatewayTest` (+3), `MarketplaceOnlyTest`. Ayrıntı `docs/ODEME_ALTYAPISI.md`.
+- **Lojistik firması liste mesajları (2026-10-08, Engin Abi: "bu şablondaki ilanların çoğu yok", "aradaki yerleri almamış"):** üç gerçek
+  biçim uydurma adlarla yeniden yazılıp hattan geçirildi; kural katmanı 72 ilanlık listede 40'ta kesiyor ve 15 satırı eksik okuyordu.
+  Düzeltmeler: `MAX_ADS_PER_MESSAGE` 40 → 100; **rota satırının altındaki kalkışsız varış satırı** ("kemalpaşa'dan diyarbakır hani bir tır ⏎
+  diyarbakır merkez 4 tır", "Malkardan Adana damper ⏎ Çukurova 2.100+kdv ⏎ Pozantı 2.100+kdv") aynı kalkıştan ayrı ilan
+  (`isDestinationContinuation`; yalnız il yazan fiyatsız rota satırı başlıktır, notu alt satırlara taşınır); **tek satırda fiyatlı iki varış**
+  ("çan'dan muş 3400 artı kdv malatya 2700 + kdv" → `expandMultiDestinationLines`); **aynı mesajda aynı il çiftinin farklı ilçeleri**
+  (`district_level` → rota anahtarı ilçe düzeyinde; eskiden Konya Bozkır, Konya Karapınar'ın "tekrar"ı sayılıp reddediliyordu);
+  fiyat "art" kısaltması bitişik/virgüllü ("2450art", "2330artkdv", "2450,art", "yüklenir2450art", "2300 + Bir tır", "1500 almaz vermez",
+  liste satırında çıplak "KARAPINAR 1.750"); adet/araç yazım hataları ("bırtır", "dörttir", "iki tr", "dört Tur"); **ton başı fiyat kuralı**
+  (`LoadStandardizer`: ağır araç + ≥150 km + <6.000 ₺ "+kdv/artı" fiyat = ton başı; "komple/araç başı" yazılmadıkça); **mesaj bağlamı aracı**
+  (`dominantVehicle`: araç yazan satırların ≥%80'i aynı ağır araçsa araç yazmayan satır onu `ai_guess` ile alır; `applyVehicleContext`);
+  tek harf hatalı ablatif kalkış (`TurkishLocations::fuzzyDistrict`, yalnız rota bağlacında: "Malkardan" → Tekirdağ Malkara); "Fax: 0272…"
+  numarası alınmaz (`phonesIn`). Firma "DİNAR / TİRE 700+ KDV" listesi ve "📍 ADANADAN ➡️ BATMAN - KISA DORSE -" serisi kuralda zaten
+  doğruydu; Engin Abi'nin "aradaki yerler yok" gözlemi canlıda muhtemelen tekrar/görünürlük (aynı gönderen aynı rotayı her gün paylaşıyor,
+  eski kayıt tazeleniyor) — canlı veritabanı görülemediğinden yönetici panelinden numarayla aranması istendi. Testler `ListMessagesTest`,
+  altın sette 10 yeni örnek (`engin-*`), `SegmentationShapesTest` sınır testi 135 satır. Geçici inceleme betikleri depoda değil.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

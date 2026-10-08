@@ -1632,5 +1632,241 @@
       "goods": "Tarım ürünü",
       "each": true
     }
+  },
+  {
+    "id": "engin-liste-art-fiyat",
+    "note": "'art' = artı; bitişik/virgüllü yazım, ton başı (Engin Abi, 2026-10-08)",
+    "message": "💥Sındırgı'dan Urfa Damper 10 tır Hemen yüklenir2450art\n0533 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Balıkesir Sındırgı",
+          "Şanlıurfa"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "damperli"
+      ],
+      "count": 10,
+      "price": 2450,
+      "phone": "5331112233"
+    }
+  },
+  {
+    "id": "engin-liste-artkdv-bitisik",
+    "note": "'2330artkdv' bitişik fiyat",
+    "message": "💥Manisa Turgutlu'dan Viranşehir 2 tır yüklenir parası peşin 2330artkdv\n0533 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Manisa Turgutlu",
+          "Şanlıurfa Viranşehir"
+        ]
+      ],
+      "vehicle": "tir",
+      "count": 2,
+      "price": 2330
+    }
+  },
+  {
+    "id": "engin-liste-adet-yazim-hatasi",
+    "note": "'bırtır', 'dörttir', 'iki tr', 'dört Tur' = adet + tır",
+    "message": "‼️Çankırı kurşunlu'dan şerefli koçhısar bırtır\n\n‼️Aydın Çine'den Diyarbakır dörttir Damper 2550art nakıt odeme\n\n‼️aydın çine'den Van 2550 + kdv iki tr damper\n\n‼️ İzmir Kemalpaşa'dan\n💥Diyarbakır dört Tur\n\n0533 111 22 33",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Çankırı Kurşunlu",
+          "Ankara Şereflikoçhisar"
+        ],
+        [
+          "Aydın Çine",
+          "Diyarbakır"
+        ],
+        [
+          "Aydın Çine",
+          "Van"
+        ],
+        [
+          "İzmir Kemalpaşa",
+          "Diyarbakır"
+        ]
+      ],
+      "vehicle": "tir",
+      "each": true
+    }
+  },
+  {
+    "id": "engin-liste-devam-satiri",
+    "note": "Rota satırının altındaki kalkışsız varış satırı aynı kalkıştan ayrı ilan",
+    "message": "‼️izmir kemalpaşa'dan diyarbakır hani bir tır\n‼️diyarbakır merkez 4 tır\n\n0533 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "İzmir Kemalpaşa",
+          "Diyarbakır Hani"
+        ],
+        [
+          "İzmir Kemalpaşa",
+          "Diyarbakır"
+        ]
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "engin-liste-baslik-ilceler",
+    "note": "'Malkardan Adana damper' başlığı (yazım hatalı kalkış) + ilçe/fiyat satırları: başlık ilan olmaz, notu alt satırlara geçer",
+    "message": "‼️Malkardan Adana danper\nÇukurova 2.100+kdv günlük 7-8 araç\nPozantı 2.100+kdv\n\n0533 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Tekirdağ Malkara",
+          "Adana Çukurova"
+        ],
+        [
+          "Tekirdağ Malkara",
+          "Adana Pozantı"
+        ]
+      ],
+      "body": [
+        "damperli"
+      ],
+      "price": 2100,
+      "count": 8
+    }
+  },
+  {
+    "id": "engin-liste-tek-satir-iki-varis",
+    "note": "Tek satırda kalkış + fiyatlı iki varış",
+    "message": "‼️çan'dan muş 3400 artı kdv malatya 2700 + kdv\n\n0533 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Çanakkale Çan",
+          "Muş"
+        ],
+        [
+          "Çanakkale Çan",
+          "Malatya"
+        ]
+      ],
+      "price": 3400
+    }
+  },
+  {
+    "id": "engin-liste-yer-ciplak-fiyat",
+    "note": "Başlık + varış satırında çıplak sayı (ton başı navlun), 'almaz vermez'",
+    "message": "‼️Malkara'dan yüklemeler kısa uzun fark etmez Torbalı kömür ödeme 15 gün\n\nKARAPINAR  1.750\nBOZKIR           1.850\n\n‼️Malkara'dan Ankara Çeltikçi 1500 almaz vermez Torbalı kömür\n\n0533 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Tekirdağ Malkara",
+          "Konya Karapınar"
+        ],
+        [
+          "Tekirdağ Malkara",
+          "Konya Bozkır"
+        ],
+        [
+          "Tekirdağ Malkara",
+          "Ankara"
+        ]
+      ],
+      "price": 1750,
+      "goods": "Kömür"
+    }
+  },
+  {
+    "id": "engin-firma-liste-slash",
+    "note": "Firma listesi: 'İLÇE / İLÇE 700+ KDV' satırları, tarih satırı, damperli tır, faks numarası alınmaz",
+    "message": "DENEME / NAKLİYAT\n______________________\n7 / 10 / ÇARŞAMBA\n\nDİNAR / TİRE 700+ KDV\n\nSANDIKLI / KORKUTELİ 700+ KDV\n\nDAMPERLİ TIR\n\n- 📱 Cep: 05321112233\n☎️ İş : 02721112233\n📠 Fax. : 02721112244",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Afyonkarahisar Dinar",
+          "İzmir Tire"
+        ],
+        [
+          "Afyonkarahisar Sandıklı",
+          "Antalya Korkuteli"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "damperli"
+      ],
+      "price": 700,
+      "phone": "5321112233",
+      "each": true
+    }
+  },
+  {
+    "id": "engin-emoji-ok-seri",
+    "note": "'📍 ADANADAN ➡️ BATMAN - KISA DORSE -' seri biçimi; aradaki satırlar düşmez",
+    "message": "👑 DENEME NAKLİYAT 👑\n\n📍 ADANADAN ➡️ BATMAN\n        - KISA DORSE -\n\n📍 ADANADAN ➡️ TEKİRDAĞ (28 TON)\n        - KISA DORSE  - 13.60 -\n\n📍 ADANADAN ➡️ SİVAS\n        - KISA DORSE  - 13.60 -\n\n📍 CEYHANDAN ➡️ ÇUMRA\n        - KISA DORSE -\n\n📞 0532 111 22 33",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Adana",
+          "Batman"
+        ],
+        [
+          "Adana",
+          "Tekirdağ"
+        ],
+        [
+          "Adana",
+          "Sivas"
+        ],
+        [
+          "Adana Ceyhan",
+          "Konya Çumra"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "kisa_dorse"
+      ],
+      "phone": "5321112233",
+      "each": true
+    }
+  },
+  {
+    "id": "engin-liste-arac-baglami",
+    "note": "Listedeki ilanların çoğu tır yazıyor: 'bir araç' satırı tır tahmini alır",
+    "message": "‼️Söke'den Van 2 tır\n\n‼️Turgutlu'dan Antep 2000 artı KDV Bir tır\n\n‼️Söke'den Diyarbakır Bir tır\n\n‼️Akhisar'dan Kızıltepe bir arac ödeme nakit\n\n0533 111 22 33",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Aydın Söke",
+          "Van"
+        ],
+        [
+          "Manisa Turgutlu",
+          "Gaziantep"
+        ],
+        [
+          "Aydın Söke",
+          "Diyarbakır"
+        ],
+        [
+          "Manisa Akhisar",
+          "Mardin Kızıltepe"
+        ]
+      ],
+      "vehicle": "tir",
+      "each": true
+    }
   }
 ]

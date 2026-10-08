@@ -99,21 +99,25 @@ class SegmentationShapesTest extends TestCase
         $this->assertSame(['Ankara', 'Konya', 'Adana'], array_column(array_column($segments, 'series'), 'delivery'));
         $this->assertSame(LoadIntakeService::routeKey('5321112233', 'Kocaeli Gebze', 'Ankara', true), LoadIntakeService::routeKey('5321112233', 'Kocaeli Gebze', $segments[0]['series']['delivery'], true));
 
-        // 45 rotalı liste: 40 açılır, 5'i sınırda kalır ve sonuç bunu söyler.
+        // Sınırı aşan liste (3 kalkış × 45 varış = 135 rota): MAX_ADS_PER_MESSAGE kadarı açılır, kalanı sınırda kalır ve sonuç bunu söyler.
         $lines = [];
         $provinces = ['Adana', 'Ankara', 'Antalya', 'Aydın', 'Balıkesir', 'Bolu', 'Bursa', 'Çorum', 'Denizli', 'Düzce', 'Edirne', 'Erzurum', 'Eskişehir', 'Gaziantep', 'Hatay',
             'Isparta', 'Mersin', 'İzmir', 'Kayseri', 'Kırklareli', 'Kocaeli', 'Konya', 'Kütahya', 'Malatya', 'Manisa', 'Muğla', 'Nevşehir', 'Niğde', 'Ordu', 'Rize',
             'Sakarya', 'Samsun', 'Sivas', 'Tekirdağ', 'Tokat', 'Trabzon', 'Uşak', 'Van', 'Yozgat', 'Zonguldak', 'Aksaray', 'Karaman', 'Kırıkkale', 'Bartın', 'Yalova'];
-        foreach ($provinces as $p) {
-            $lines[] = "İstanbul - {$p} 24 ton tenteli";
+        foreach (['İstanbul', 'Bursa Gemlik', 'Kocaeli Gebze'] as $from) {
+            foreach ($provinces as $p) {
+                $lines[] = "{$from} - {$p} 24 ton tenteli";
+            }
         }
+        $over = count($lines) - LoadIntakeService::MAX_ADS_PER_MESSAGE;
+        $this->assertGreaterThan(0, $over);
         $segments = LoadIntakeService::splitSegments(implode("\n", $lines)."\n0532 111 22 33");
         $this->assertCount(LoadIntakeService::MAX_ADS_PER_MESSAGE, $segments);
-        $this->assertSame(5, LoadIntakeService::$lastTruncated);
+        $this->assertSame($over, LoadIntakeService::$lastTruncated);
         $this->source();
         $r = $this->intake(implode("\n", $lines)."\n0532 111 22 33", 'big');
-        $this->assertSame(5, $r['truncated_ads']);
-        $this->assertStringContainsString('5 ilan daha vardı', $r['message']);
+        $this->assertSame($over, $r['truncated_ads']);
+        $this->assertStringContainsString("{$over} ilan daha vardı", $r['message']);
     }
 
     public function test_shipper_phrases_pass_and_carrier_phrases_are_filtered(): void

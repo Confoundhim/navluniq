@@ -129,6 +129,16 @@ class LoadStandardizer
             $stops = array_values(array_filter(array_map(fn ($v) => is_string($v) ? $this->location($v)['label'] : null, $parsed['delivery_stops'])));
         }
 
+        // Ton başı fiyat: ağır araçla 150 km'yi aşan rotada 6.000 ₺'nin altındaki "+kdv / artı" fiyatı araç başı olamaz (mazot bile çıkmaz);
+        // nakliyeci ton fiyatı yazmıştır ("Söke'den Van 3.600 artı KDV", "KARAPINAR 1.750"). Açıkça "komple/araç başı" yazılmışsa dokunulmaz.
+        if ($price !== null && $priceUnit === 'total' && $price < 6000 && $price >= 300 && ($parsed['price_unit'] ?? null) !== 'per_ton'
+            && in_array($vehicleType, ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon'], true)
+            && $pickup['lat'] !== null && $delivery['lat'] !== null
+            && TurkishLocations::distanceKm((float) $pickup['lat'], (float) $pickup['lng'], (float) $delivery['lat'], (float) $delivery['lng']) >= 150
+            && preg_match('/\b(?:komple|arac basi|araç başı|tirlik|tir basi)\b/', $norm) !== 1) {
+            $priceUnit = 'per_ton';
+        }
+
         $urgent = (bool) preg_match('/\b(?:acil|acilen|hemen|ivedi|bugun|simdi|derhal)\b/', $norm);
         $pickupNote = $this->pickupNote($norm);
 

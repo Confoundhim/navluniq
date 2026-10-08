@@ -471,6 +471,34 @@ final class TurkishLocations
         return null;
     }
 
+    /**
+     * Tek sözcüklü yazım hatalı ilçe (tek harf farkı, 6+ harf, tüm iller arasında tek aday): "Malkar" → Tekirdağ Malkara.
+     * Yalnız rota bağlacındaki uç için çağrılır (resolve'un genel yolu değil: "kapalı" ↔ Kapaklı gibi yanlış eşleşmeler olmasın).
+     */
+    public static function fuzzyDistrict(string $word): ?array
+    {
+        self::load();
+        $a = TurkishCities::ascii(trim($word));
+        if (strlen($a) < 6 || str_contains($a, ' ') || in_array($a, TurkishCities::STOP_WORDS, true) || GoodsCatalog::detect(' '.$a.' ') !== null) {
+            return null;
+        }
+        $hits = [];
+        foreach (self::$districtIndex as $pCode => $districts) {
+            foreach ($districts as $ascii => $d) {
+                if (empty($d['alias']) && abs(strlen($ascii) - strlen($a)) <= 1 && levenshtein($a, $ascii) === 1) {
+                    $hits[$pCode.'|'.$d['n']] = [$pCode, $d];
+                }
+            }
+        }
+        if (count($hits) !== 1) {
+            return null;
+        }
+        [$pCode, $d] = array_values($hits)[0];
+        $p = self::province($pCode);
+
+        return ['province_code' => $pCode, 'province' => $p['name'], 'district' => $d['n'], 'lat' => $d['lat'], 'lng' => $d['lng']];
+    }
+
     /** İki nokta arası kuş uçuşu mesafe (km). */
     public static function distanceKm(float $lat1, float $lng1, float $lat2, float $lng2): float
     {

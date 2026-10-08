@@ -896,6 +896,8 @@ class AiParserService
     public static function phonesIn(string $text): array
     {
         $text = TextPrep::stripInvisible($text);
+        // "Fax: 0272…" faks hattıdır, aranmaz; ilan numarası sayılmaz (firma imza bloklarında Cep / İş / Fax alt alta yazılır).
+        $text = preg_replace('/(?<!\p{L})fa(?:x|ks)\.?\s*[:\-]?\s*(?:\+?\d[\d\s().\-]{8,}\d)/iu', ' ', $text) ?? $text;
         preg_match_all(self::PHONE_PATTERN, preg_replace(self::IBAN_PATTERN, ' ', $text) ?? $text, $matches);
         $out = [];
         foreach ($matches[0] as $match) {
@@ -1380,9 +1382,23 @@ TXT;
         preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{1,3}(?: \d{3})+|\d{3,9}(?:[.,]\d{1,2})?)\s*(?:TL|₺|lira)(?!\p{L})/iu', $message, $price);
         if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv", "950+BASAR", "900+TONAJLI", "40.000 Peşin": KDV/basar tonaj hariç tutar
             // "artı" = "+": "1500 artı kdv", "1500 artı" (Engin Abi, 2026-10-05: Mersin yem ilanı fiyatsız kalıyordu)
-            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*(?:(?:\+|artı|arti|ARTI|ARTİ|Artı)\s*(?:KDV|kdv|Kdv|BASAR|basar|TONAJLI|TONAJLİ|tonajlı|KDV\s*HARİÇ|kdv\s*hariç)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+            // "art" = "artı" kısaltması; virgül ya da bitişik yazım da olur: "2450art", "2330artkdv", "2450,art", "yüklenir2450art" (Engin Abi, 2026-10-08)
+            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*,?\s*(?:(?:\+|artı|arti|art|ARTI|ARTİ|ART|Artı)\s*(?:KDV|kdv|Kdv|BASAR|basar|TONAJLI|TONAJLİ|tonajlı|KDV\s*HARİÇ|kdv\s*hariç)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+        }
+        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,5})\s*,?\s*(?:artı|arti|art)(?!\p{L})/iu', $message, $m)) { // "3350art 1360", "2750 art", "2450,art"
+            $price = [1 => $m[1]];
+        }
+        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,5})\s*(?:TL|₺)?\s*(?:almaz\s*vermez|net|sabit)(?!\p{L})/iu', $message, $m)) { // "1500 almaz vermez": pazarlıksız fiyat
+            $price = [1 => $m[1]];
+        }
+        if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,5})\s*\+(?=\s+(?:bir|iki|üç|uc|dört|dort|beş|bes|\d{1,2}|tır|tir|araç|arac|hemen|nakit|peşin|pesin)\b)/iu', $message, $m)) { // "2300 + Bir tır", "2900+ nakit"
+            $price = [1 => $m[1]];
         }
         if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{3,5})\s*(?:\+|artı|arti|ARTI|ARTİ|Artı)\s*$/mu', $message, $m)) { // "BOLU 1600+", "ORDU 1 TIR 2300+", "1500 artı": satır sonunda "+" = KDV hariç fiyat
+            $price = [1 => $m[1]];
+        }
+        if (empty($price[1]) && preg_match('/^[^\d\n]{3,}?\s(\d{1,2}\.\d{3}|[1-9]\d{3})[ \t]*$/mu', $message, $m) && (int) str_replace('.', '', $m[1]) !== 1360) {
+            // Varış listesinde yer adının yanında çıplak sayı: "KARAPINAR 1.750", "BOZKIR 1850" (ton başı navlun; 13.60 dorse ölçüsü değil)
             $price = [1 => $m[1]];
         }
         if (empty($price[1])) { // "28+kdv" = 28 bin (nakliyecinin "bin" düşürme alışkanlığı): 10-299 arası +kdv → ×1000
@@ -1442,7 +1458,7 @@ TXT;
         if (preg_match('/\+\s*(?:basar|tonajl[ıi])\b/u', $lower)) {
             return 'per_ton';
         }
-        if ($price < 5000 && preg_match('/\d\s*(?:tl|₺)?\s*(?:\+|artı|arti)\s*(?:kdv|$)/mu', $lower) && preg_match(self::BULK_GOODS_PATTERN, $lower)) {
+        if ($price < 5000 && preg_match('/\d\s*(?:tl|₺)?\s*,?\s*(?:\+|artı|arti|art)\s*(?:kdv|$|\s)/mu', $lower) && preg_match(self::BULK_GOODS_PATTERN, $lower)) {
             return 'per_ton';
         }
 
@@ -1883,6 +1899,10 @@ TXT;
             if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && ($p = TurkishCities::fromText($v, fuzzy: true)) !== null) {
                 $r = TurkishLocations::resolve($p, false);
             }
+            // Bağlaçlı rotanın tek sözcüklü ucu yazım hatalı ilçe olabilir ("Malkardan Adana" → Tekirdağ Malkara); araç/yük sözcükleri hariç
+            if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && VehicleClassifier::analyze($v)['type'] === null) {
+                $r = TurkishLocations::fuzzyDistrict($v);
+            }
             if ($r !== null) {
                 return $r['province'].(($r['district'] ?? null) ? '|'.$r['district'] : '');
             }
@@ -1900,6 +1920,9 @@ TXT;
             $r = TurkishLocations::resolve($v, false);
             if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && ($p = TurkishCities::fromText($v, fuzzy: true)) !== null) {
                 $r = TurkishLocations::resolve($p, false);
+            }
+            if ($r === null && mb_strlen($v) >= 6 && ! str_contains(trim($v), ' ') && VehicleClassifier::analyze($v)['type'] === null) {
+                $r = TurkishLocations::fuzzyDistrict($v); // "Malkardan Adana" → Tekirdağ Malkara (tek harf hatası)
             }
             if ($r !== null) {
                 return $r['province'].(($r['district'] ?? null) ? '|'.$r['district'] : '');
