@@ -58,10 +58,16 @@ class AiParserService
 
     public const DEFAULT_ORDER = ['ollama', 'gemini', 'groq', 'cerebras', 'openrouter', 'mistral', 'kimi', 'openai', 'xai', 'claude'];
 
-    /** Panelde gösterilen sağlayıcılar: yalnız gerçekten ücretsiz çalışanlar (Gemini, Groq). Gizliler anahtarı girilmişse zincirde yine çalışır. */
+    /**
+     * Panelde gösterilen ve zincirde çalışan sağlayıcılar: yalnız gerçekten ücretsiz olanlar (Gemini, Groq) ve açıksa yerel model.
+     * Gizli sağlayıcı yalnız `services.ai.extra_providers` (AI_EXTRA_PROVIDERS) ile adı yazılırsa gelir; eski bir anahtar veritabanında
+     * kalsa bile zincire girmez (Osman 2026-10-08: "sadece Google ile Groq var, olmayan yapay zekalar aktif görünüyor").
+     */
     public static function visibleProviders(): array
     {
-        return array_filter(self::PROVIDERS, fn (array $p) => empty($p['hidden']) && (empty($p['local']) || config('services.ai.allow_local_models')));
+        $extra = (array) config('services.ai.extra_providers', []);
+
+        return array_filter(self::PROVIDERS, fn (array $p, string $key) => (empty($p['hidden']) || in_array($key, $extra, true)) && (empty($p['local']) || config('services.ai.allow_local_models')), ARRAY_FILTER_USE_BOTH);
     }
 
     /** Sağlayıcı bu hatada bir günlük kotasını mı bitirdi (model değiştirerek devam edilebilir)? */
@@ -171,7 +177,9 @@ class AiParserService
         $local = array_keys(array_filter(self::PROVIDERS, fn (array $p) => ! empty($p['local'])));
         $order = array_values(array_unique(array_merge($local, $order)));
 
-        return array_values(array_filter($order, fn (string $p) => $this->apiKey($p) !== ''));
+        $visible = array_keys(self::visibleProviders());
+
+        return array_values(array_filter($order, fn (string $p) => in_array($p, $visible, true) && $this->apiKey($p) !== ''));
     }
 
     /** Etiketler için ilk kullanılabilir sağlayıcı. */

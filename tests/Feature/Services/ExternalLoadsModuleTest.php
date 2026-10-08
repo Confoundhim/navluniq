@@ -167,6 +167,7 @@ class ExternalLoadsModuleTest extends TestCase
     public function test_claude_structured_output_enriches_a_candidate(): void
     {
         Settings::set('ai_parse_mode', 'fill_gaps');
+        config(['services.ai.extra_providers' => ['claude']]); // gizli sağlayıcı yalnız açıkça izin verilince zincire girer
         Settings::set('ai_provider', 'claude');
         Settings::set('ai_claude_model', 'claude-opus-5');
         Settings::set('ai_claude_key', 'sk-test');
@@ -223,6 +224,7 @@ class ExternalLoadsModuleTest extends TestCase
         $this->assertFalse(app(ScrapedLoadService::class)->reparseWithAi($load));
         $this->assertSame('failed', $load->fresh()->ai_status);
 
+        config(['services.ai.extra_providers' => ['claude']]);
         Settings::set('ai_claude_key', 'sk-test');
         Settings::set('ai_provider', 'claude');
         Settings::set('ai_claude_model', 'claude-opus-5'); // sabit model: liste çağrısı sıralı sahte yanıtı tüketmesin

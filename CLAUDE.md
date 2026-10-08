@@ -615,6 +615,18 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   komple/parça, kısa/uzun dorse, kasa), kayıtlı filtre çipleri, × ile kaldırılan rozetler (`removeChip`), telefonda alttan açılan panel /
   masaüstünde sağ çekmece (`advancedOpen`), panelin altında "N ilanı göster"; liste başlığında sayı + sıralama. Şoför ekranı kuralı:
   `text-2xs/3xs`, `.no-scrollbar` (app.css). Test `LoadFilterBarTest`; `PlacePickerTest` "(N ilçe)" etiketini bekler.
+- **Yönetici Dış kaynak ilanları: düz filtre paneli ve kompakt üst şerit (2026-10-08, Osman: "Ankara'dan Gebze'yi seçince görmeliyim, saat
+  aralığı seçebilmeliyim, kayan menüler kullanışsız, ilanlar düzenli listelensin, olmayan yapay zekalar aktif görünüyor"):** `admin/scrapers-center`
+  sekmeleri telefonda kaymaz (2-3 sütunlu ızgara); sayaç kartları tek şeride indi (liste hemen altında). Filtre paneli düz ve hep görünür: arama +
+  sıralama (`SORTS`: yeni / son görülen / eski / fiyat / tonaj / güzergah), **Nereden / Nereye il + ilçe** (`fromProvince/fromDistrict/toProvince/
+  toDistrict`, URL `nereden/nereye`; `applyRoute` il koduna, ilçe adı `*_district` ya da etikete), ⇄ `swapRoute`, **geliş zamanı** hazır pencere
+  (`setPeriod`) ya da `from/to` datetime-local (saat dahil; `customRange/applyTime`, özel aralık hazır pencereyi geçersiz kılar), kaynak, araç, kasa
+  (`body`; `none` = yazmıyor), yük türü (`goods`), fiyat/tonaj aralığı (ton başı fiyat `EFFECTIVE_PRICE_SQL` ile toplam; **tam sayı bağlanır**: SQLite
+  ondalık bağlamayı metin sayar, CASE ifadesiyle karşılaştırma boş döner), **durum çipleri birden çok** (`FLAGS`, `flags[]`, `toggleFlag`; eski tek
+  `flag` kalktı), seçili filtreler × rozetleri (`filterChips/removeFilter/clearFilters`). Test `ExternalModuleFiltersTest`. **Yapay zeka zinciri
+  yalnız panelde görünen sağlayıcılar** (Gemini, Groq, açıksa yerel): gizli sağlayıcının (Cerebras, OpenRouter, Mistral, ücretliler) anahtarı
+  veritabanında kalsa bile zincire girmez; gerekirse `AI_EXTRA_PROVIDERS=cerebras,...` (`services.ai.extra_providers`) ile açılır; testler bunu
+  `config()` ile açar.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

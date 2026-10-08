@@ -48,6 +48,9 @@ return [
         'active_provider' => env('ACTIVE_AI_PROVIDER', 'gemini'),
         // Sunucuda çalışan yerel model (Ollama) yalnız bu bayrakla açılabilir; küçük sunucularda işlemciyi kilitler.
         'allow_local_models' => (bool) env('AI_ALLOW_LOCAL_MODELS', false),
+        // Panelde gizli sağlayıcılar (Cerebras, OpenRouter, Mistral, ücretliler) ancak burada adı yazılırsa zincire girer;
+        // eski bir anahtar veritabanında kalsa bile "olmayan yapay zeka aktif" görünmez (Osman, 2026-10-08).
+        'extra_providers' => array_values(array_filter(array_map('trim', explode(',', (string) env('AI_EXTRA_PROVIDERS', ''))))),
         'gemini_key' => env('GEMINI_API_KEY'),
         'gemini_model' => env('GEMINI_MODEL', ''),
         'groq_key' => env('GROQ_API_KEY'),
