@@ -602,6 +602,19 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   (boşluk/tire fark etmez, ham mesajda), "#123" kayıt no; arama varken üç sekmenin eşleşme sayısı "bu arama: onay bekleyen N · yayında N ·
   reddedilen N" (kayıt tekrar diye reddedilmiş olabilir). Günün sayaçları ve hat karnesi 60 sn önbellekte (`admin:scrapers:stats/scorecard`;
   her 15 sn'lik yenilemede 20'ye yakın sayım koşuyordu), arama yazılıyken süreli yenileme durur. Test `SourcesSearchTest`.
+- **Dış kaynak modülü: mantık düzeltmeleri ve yeni filtre tasarımı (2026-10-08, Osman: "baştan sona inceleyip mantık hatalarını bul,
+  her türlü filtreye hazır on numara kullanıcı dostu tasarım"):** `LoadFilterService` mantık düzeltmeleri: ton başı fiyatlı ilan
+  "en az fiyat" süzgecinden düşüyor ve fiyat sıralamasında en dibe iniyordu → `EFFECTIVE_PRICE_SQL` (ton başı × tonaj, tonaj yoksa 24 t)
+  hem süzgeçte hem sıralamada; fiyatı boş ilan süzgeçte kalır. Dış kaynakta "yükleme tarihi" sıralaması tazeliğe (`last_seen_at`) bakar.
+  Kaydedilenler sekmesi yayından kalkmış dış kaynak ilanını (ve numarasını) göstermez (`visibility=public` + `parsed_success`). Liste araması
+  sözcük sözcük (`applySearch`: kalkış/varış/yük). Yeni süzgeçler: `max_price`, `urgent` (parse_metadata.urgent, yalnız dış kaynak),
+  `trailer_length` (`TRAILER_LENGTHS`; diğer boy dışarıda, boş kalır), `seen_within_hours` (`SEEN_WITHIN_HOURS`; dış kaynak last_seen_at,
+  sistem published_at), `goods_categories` (GoodsCatalog etiketleri), hazır tonaj aralıkları `WEIGHT_PRESETS`. `chipItems()` anahtarlı
+  rozetler, `without($f, $key)` tek rozet kaldırma. Arayüz `driver/loads/partials/filter-bar.blade.php` (+ `place-filter`): arama kutusu +
+  "Filtreler (N)" düğmesi, çıkış ⇄ varış takası (`swapSides`), hızlı çipler (`toggleQuick`: araçlarıma uygun, fiyatlı, bugün, acil,
+  komple/parça, kısa/uzun dorse, kasa), kayıtlı filtre çipleri, × ile kaldırılan rozetler (`removeChip`), telefonda alttan açılan panel /
+  masaüstünde sağ çekmece (`advancedOpen`), panelin altında "N ilanı göster"; liste başlığında sayı + sıralama. Şoför ekranı kuralı:
+  `text-2xs/3xs`, `.no-scrollbar` (app.css). Test `LoadFilterBarTest`; `PlacePickerTest` "(N ilçe)" etiketini bekler.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
