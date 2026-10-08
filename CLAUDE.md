@@ -597,6 +597,11 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   doğruydu; Engin Abi'nin "aradaki yerler yok" gözlemi canlıda muhtemelen tekrar/görünürlük (aynı gönderen aynı rotayı her gün paylaşıyor,
   eski kayıt tazeleniyor) — canlı veritabanı görülemediğinden yönetici panelinden numarayla aranması istendi. Testler `ListMessagesTest`,
   altın sette 10 yeni örnek (`engin-*`), `SegmentationShapesTest` sınır testi 135 satır. Geçici inceleme betikleri depoda değil.
+  **Kaynaklar sayfası (aynı gün, Osman: "adana tekirdağ ilanını bulamadım, sayfa çok yavaş"):** arama sözcükleri ayrı ayrı aranır ve hepsi
+  bulunmalıdır (`applySearch`; eskiden "adana tekirdağ" tek parça aranıyordu, "ADANADAN ➡️ TEKİRDAĞ" eşleşmiyordu), 7+ rakam telefon araması
+  (boşluk/tire fark etmez, ham mesajda), "#123" kayıt no; arama varken üç sekmenin eşleşme sayısı "bu arama: onay bekleyen N · yayında N ·
+  reddedilen N" (kayıt tekrar diye reddedilmiş olabilir). Günün sayaçları ve hat karnesi 60 sn önbellekte (`admin:scrapers:stats/scorecard`;
+  her 15 sn'lik yenilemede 20'ye yakın sayım koşuyordu), arama yazılıyken süreli yenileme durur. Test `SourcesSearchTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
