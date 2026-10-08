@@ -223,7 +223,9 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
     /* İlan kartı: sistem ve dış kaynak ilanları aynı ızgarayı kullanır. Masaüstünde sağda sabit genişlikte (11rem)
        fiyat + eylem sütunu vardır ve kart yüksekliğinden bağımsız olarak başlıkla aynı hizada başlar; her satırın
        yeri sabittir (başlık, ayrıntı, bilgi, rozetler). Mobilde fiyat ve eylem alt satırda karşılıklı durur. */
-    .load-card { @apply grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4 text-xs transition-colors hover:border-brand-500/40 sm:grid-cols-[minmax(0,1fr)_11rem] sm:gap-5 sm:items-start; }
+    .load-card { @apply grid grid-cols-1 gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 p-4 text-xs transition-colors hover:border-brand-500/40 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,max-content)] sm:gap-5 sm:items-start; }
+    /* Sağ sütun içeriğe göre genişler (en az 11rem): grid öğesi min-width:auto ile sabit 11rem'lik sütundan taşıp fiyatı ve düğmeleri
+       kartın dışına kaydırıyordu (2026-10-08, Osman'ın masaüstü ekran görüntüsü). */
     .load-card-main { @apply min-w-0 space-y-1.5; }
     .load-card-title { @apply text-sm font-bold leading-6 text-neutral-900 dark:text-white break-words; }
     .load-card-line { @apply leading-5 text-neutral-500 dark:text-neutral-400 break-words sm:truncate; }
