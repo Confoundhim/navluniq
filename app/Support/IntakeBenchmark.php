@@ -199,6 +199,7 @@ final class IntakeBenchmark
         $ads = [];
         foreach ($segments as $segment) {
             $parsed = $parser->parseCheap($segment['text']);
+            LoadIntakeService::applyVehicleContext($segment, $parsed);
             if (isset($segment['series'])) {
                 $parsed['pickup_location'] = $segment['series']['pickup'];
                 $parsed['delivery_location'] = $segment['series']['delivery'];

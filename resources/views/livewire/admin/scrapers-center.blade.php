@@ -12,6 +12,7 @@ use App\Support\BodyTypes;
 use App\Support\GoodsCatalog;
 use App\Support\Lexicon;
 use App\Support\Settings;
+use Illuminate\Support\Facades\Cache;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Validation\Rule;
@@ -104,6 +105,57 @@ new class extends Component {
         return false;
     }
 
+    /**
+     * Arama: sözcükler ayrı ayrı aranır ve hepsi bulunmalıdır ("adana tekirdağ" → ham mesajda "ADANADAN ➡️ TEKİRDAĞ" da eşleşir; eskiden
+     * bütün ifade tek parça aranıyor ve bulunamıyordu, Osman 2026-10-08). "#123" kayıt numarası; 7+ rakam telefon (boşluk/tire fark etmez).
+     */
+    private function applySearch($q): void
+    {
+        $term = trim($this->search);
+        if ($term === '') {
+            return;
+        }
+        if (preg_match('/^#?\d{1,9}$/', $term) && str_starts_with($term, '#')) {
+            $q->where('id', (int) ltrim($term, '#'));
+
+            return;
+        }
+        $digits = preg_replace('/\D+/', '', $term) ?? '';
+        if (strlen($digits) >= 7 && strlen($digits) >= mb_strlen($term) - 6) {
+            $q->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(raw_message, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?", ['%'.$digits.'%']);
+
+            return;
+        }
+        foreach (preg_split('/\s+/u', $term) ?: [] as $word) {
+            if (mb_strlen($word) < 2) {
+                continue;
+            }
+            $like = '%'.$word.'%';
+            $q->where(fn ($w) => $w->where('raw_message', 'like', $like)->orWhere('pickup_location', 'like', $like)->orWhere('delivery_location', 'like', $like)->orWhere('goods_type', 'like', $like));
+        }
+    }
+
+    /**
+     * Arama varken üç sekmede kaç kayıt eşleştiği (Osman "kaynaklarda bulamadım": kayıt başka sekmede, örneğin tekrar diye reddedilmiş olabilir).
+     *
+     * @return array<string,int>
+     */
+    private function searchCounts(): array
+    {
+        if (trim($this->search) === '') {
+            return [];
+        }
+        $base = fn () => ScrapedLoad::query()->when($this->period !== 'all', fn ($q) => $q->where('created_at', '>=', now()->subDays((int) $this->period)));
+        $counts = [];
+        foreach (['queue' => fn ($q) => $q->where('visibility', 'private')->where('status', '!=', 'rejected'), 'published' => fn ($q) => $q->where('visibility', 'public'), 'rejected' => fn ($q) => $q->where('status', 'rejected')] as $tab => $scope) {
+            $q = $scope($base());
+            $this->applySearch($q);
+            $counts[$tab] = $q->count();
+        }
+
+        return $counts;
+    }
+
     /** Aktif sekme ve filtrelere göre aday sorgusu (sayfalama öncesi). */
     private function currentQuery()
     {
@@ -113,10 +165,7 @@ new class extends Component {
             'rejected' => $q->where('status', 'rejected'),
             default => $q->where('visibility', 'private')->where('status', '!=', 'rejected'),
         };
-        if ($this->search !== '') {
-            $term = '%'.trim($this->search).'%';
-            $q->where(fn ($w) => $w->where('raw_message', 'like', $term)->orWhere('pickup_location', 'like', $term)->orWhere('delivery_location', 'like', $term)->orWhere('goods_type', 'like', $term)->orWhere('id', (int) trim($this->search, '# ')));
-        }
+        $this->applySearch($q);
         if ($this->sourceId !== '') {
             $q->where('scraper_id', (int) $this->sourceId);
         }
@@ -799,7 +848,8 @@ new class extends Component {
             'queueAge' => $queueAge,
             'queueOk' => \App\Jobs\QueueHeartbeat::alive(),
             'ai' => ['enabled' => $parser->isEnabled(), 'configured' => $parser->isConfigured(), 'mode' => AiParserService::MODES[$parser->mode()] ?? $parser->mode(), 'provider' => $parser->provider(), 'model' => $parser->model()],
-            'stats' => [
+            // Günün sayaçları ve hat karnesi 60 sn önbellekte: her 15 sn'lik yenilemede 20'ye yakın sayım sorgusu koşuyordu (sayfa yavaştı, Osman 2026-10-08)
+            'stats' => Cache::remember('admin:scrapers:stats', 60, fn () => [
                 'received' => (clone $todayEvents)->count(),
                 'created' => (clone $todayEvents)->where('status', 'created')->count(),
                 'filtered' => (clone $todayEvents)->whereIn('status', ['filtered', 'skipped'])->count(),
@@ -814,9 +864,10 @@ new class extends Component {
                 'pending' => ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')->count(),
                 'published' => ScrapedLoad::query()->where('visibility', 'public')->count(),
                 'rejected' => ScrapedLoad::query()->where('status', 'rejected')->count(),
-            ],
+            ]),
             'rejectedRetention' => max(0, Settings::int('scraper_rejected_retention_days')),
-            'scorecard' => $this->scorecard($parser),
+            'scorecard' => Cache::remember('admin:scrapers:scorecard', 60, fn () => $this->scorecard($parser)),
+            'searchCounts' => in_array($this->activeTab, ['queue', 'published', 'rejected'], true) ? $this->searchCounts() : [],
             'lifetime' => app(\App\Services\LoadStatsService::class)->summary(),
             'sourcesList' => Scraper::query()->orderBy('name')->get(['id', 'name']),
             'queue' => null, 'events' => null, 'sources' => null, 'blockers' => [], 'decisions' => [], 'incompleteEligible' => [],
@@ -864,7 +915,7 @@ new class extends Component {
     }
 }; ?>
 
-<div @if(! $editingId && $selected === [] && $selectedSources === []) wire:poll.15s="tick" @endif class="max-w-7xl mx-auto space-y-5">
+<div @if(! $editingId && $selected === [] && $selectedSources === [] && trim($search) === '') wire:poll.15s="tick" @endif class="max-w-7xl mx-auto space-y-5">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];
@@ -953,6 +1004,13 @@ new class extends Component {
         <div class="flex flex-wrap items-center gap-2 text-xs">
             <span class="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 px-3 py-1 font-bold tabular-nums">{{ number_format($queue?->total() ?? 0, 0, ',', '.') }} ilan</span>
             <span class="text-neutral-500">{{ $filtered ? 'filtreye uyan' : $what }}{{ $period !== 'all' ? ' · son '.$period.' gün' : ' · tüm zamanlar' }}</span>
+            @if($searchCounts !== [])
+                <span class="text-neutral-500">· bu arama:
+                    @foreach(['queue' => 'onay bekleyen', 'published' => 'yayında', 'rejected' => 'reddedilen'] as $tabKey => $tabLabel)
+                        <button type="button" wire:click="$set('activeTab', '{{ $tabKey }}')" class="{{ $activeTab === $tabKey ? 'font-bold text-neutral-900 dark:text-white' : 'text-brand-500 hover:underline' }} tabular-nums">{{ $tabLabel }} {{ $searchCounts[$tabKey] }}</button>@if(! $loop->last) · @endif
+                    @endforeach
+                </span>
+            @endif
         </div>
         <div class="apple-glass p-3 rounded-2xl grid grid-cols-2 lg:grid-cols-6 gap-2 text-xs">
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} col-span-2" placeholder="Ara: rota, yük, ham mesaj, #no">

@@ -23,6 +23,8 @@ final class VehicleClassifier
     private const NOUNS = [
         // TIR ailesi
         '/\btir(?:lar|lari|lik|la|i|a|e|in|im|dan|da|imiz|iniz|lara|larla|lardan|larda)?\b/' => ['tir', 10],
+        // Adetle bitişik ya da yazım hatalı tır: "bırtır", "dörttir", "iki tr", "dört tur", "2 tr" (Engin Abi listeleri, 2026-10-08)
+        '/\b(?:bir|iki|uc|dort|bes|alti|yedi|sekiz|dokuz|on)(?:tir|tirr|tr|tur)\b|\b(?:\d{1,2}|bir|iki|uc|dort|bes|alti|yedi|sekiz|dokuz|on)\s+(?:tr|tur|tirr)\b/' => ['tir', 9],
         // "13.60", "1360", "13-60", "13/60": dorse uzunluğu = tır; "kısa dorse" (10-11 m), "sal dorse", "2 kapak", "40 ayak konteyner", "uzun araç"
         '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])/' => ['tir', 10],
         '/\bkisa\s+dorse\b|\bsal\s+dorse\b|\bsal\b(?=\s+(?:dorse|8\.60|860|damper))|\b\d\s*kapak\b|\b40\s*ayak\b|\b20\s*ayak\b|\bkonteyn[ie]r\b|\buzun\s+arac\b|\btirlik\b/' => ['tir', 9],

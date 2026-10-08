@@ -6,6 +6,7 @@ use App\Models\DriverProfile;
 use App\Models\Load;
 use App\Support\BodyTypes;
 use App\Support\Geo;
+use App\Support\GoodsCatalog;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +23,21 @@ class LoadFilterService
 
     public const WITHIN_DAYS = ['' => 'Fark etmez', '0' => 'Bugün', '1' => 'Yarına kadar', '3' => '3 gün içinde', '7' => 'Bu hafta'];
 
+    /** Paylaşım tazeliği (dış kaynak: son görülme; NavlunIQ ilanı: yayın anı). */
+    public const SEEN_WITHIN_HOURS = ['' => 'Fark etmez', '1' => 'Son 1 saat', '6' => 'Son 6 saat', '24' => 'Bugün (24 saat)', '72' => 'Son 3 gün'];
+
+    /** Dorse boyu süzgeci: ilan boy yazmıyorsa gizlenmez. */
+    public const TRAILER_LENGTHS = ['' => 'Fark etmez', 'kisa' => 'Kısa dorse', 'uzun' => 'Uzun dorse (13.60)'];
+
+    /** Hızlı tonaj aralıkları (kg). */
+    public const WEIGHT_PRESETS = ['0-3500' => '≤ 3,5 ton', '3500-10000' => '3,5–10 ton', '10000-18000' => '10–18 ton', '18000-' => '18 ton ve üstü'];
+
+    /**
+     * Ton başı fiyatlı ilanın araç başı karşılığı (SQL): fiyat × tonaj; tonaj yazmıyorsa 24 ton sayılır. Süzgeç ve sıralama bu değere bakar
+     * ki "2.450 ₺/ton" yazan dökme ilanı "en az 20.000 ₺" süzgecinde kaybolmasın ve fiyat sıralamasında dibe batmasın.
+     */
+    public const EFFECTIVE_PRICE_SQL = "CASE WHEN price_unit = 'per_ton' THEN price * COALESCE(weight, 24000) / 1000 ELSE price END";
+
     public static function defaults(): array
     {
         return [
@@ -37,7 +53,12 @@ class LoadFilterService
             'min_weight' => null,
             'max_weight' => null,
             'min_price' => null,
+            'max_price' => null,
             'only_priced' => false,
+            'urgent' => false,               // yalnız "acil" yazan ilanlar
+            'trailer_length' => '',          // '' fark etmez · kisa · uzun (boy yazmayan ilan gizlenmez)
+            'seen_within_hours' => '',       // paylaşım tazeliği
+            'goods_categories' => [],        // yük kataloğu etiketleri ("Kömür", "Paletli yük"); goods_type birebir
             'pickup_within_days' => '',
             'near_radius_km' => null,        // null: kapalı
             'near_lat' => null,
@@ -74,11 +95,21 @@ class LoadFilterService
             $out[$side.'_districts'] = $districts;
         }
         $out['goods_keywords'] = mb_substr(trim((string) ($input['goods_keywords'] ?? '')), 0, 120);
-        foreach (['min_weight', 'max_weight', 'min_price'] as $key) {
+        foreach (['min_weight', 'max_weight', 'min_price', 'max_price'] as $key) {
             $v = $input[$key] ?? null;
-            $out[$key] = ($v === null || $v === '') ? null : max(0, (int) $v);
+            $out[$key] = ($v === null || $v === '' || ! is_numeric($v)) ? null : max(0, (int) $v);
         }
-        $out['only_priced'] = (bool) ($input['only_priced'] ?? false);
+        if ($out['min_price'] !== null && $out['max_price'] !== null && $out['max_price'] < $out['min_price']) {
+            $out['max_price'] = null;
+        }
+        $out['only_priced'] = filter_var($input['only_priced'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $out['urgent'] = filter_var($input['urgent'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $length = (string) ($input['trailer_length'] ?? '');
+        $out['trailer_length'] = array_key_exists($length, self::TRAILER_LENGTHS) ? $length : '';
+        $seen = (string) ($input['seen_within_hours'] ?? '');
+        $out['seen_within_hours'] = array_key_exists($seen, self::SEEN_WITHIN_HOURS) ? $seen : '';
+        $labels = GoodsCatalog::labels();
+        $out['goods_categories'] = array_values(array_unique(array_filter(array_map(fn ($v) => is_string($v) ? trim($v) : '', (array) ($input['goods_categories'] ?? [])), fn ($v) => $v !== '' && in_array($v, $labels, true))));
         $within = (string) ($input['pickup_within_days'] ?? '');
         $out['pickup_within_days'] = array_key_exists($within, self::WITHIN_DAYS) ? $within : '';
         $radius = (int) ($input['near_radius_km'] ?? 0);
@@ -111,53 +142,101 @@ class LoadFilterService
         $n += $f['delivery_provinces'] !== [] ? 1 : 0;
         $n += $f['goods_keywords'] !== '' ? 1 : 0;
         $n += ($f['min_weight'] !== null || $f['max_weight'] !== null) ? 1 : 0;
-        $n += ($f['min_price'] !== null || $f['only_priced']) ? 1 : 0;
+        $n += ($f['min_price'] !== null || $f['max_price'] !== null || $f['only_priced']) ? 1 : 0;
         $n += $f['pickup_within_days'] !== '' ? 1 : 0;
         $n += $f['near_radius_km'] !== null ? 1 : 0;
+        $n += $f['urgent'] ? 1 : 0;
+        $n += $f['trailer_length'] !== '' ? 1 : 0;
+        $n += $f['seen_within_hours'] !== '' ? 1 : 0;
+        $n += $f['goods_categories'] !== [] ? 1 : 0;
 
         return $n;
     }
 
-    /** Ekranda gösterilecek kısa özet rozetleri. */
+    /** Ekranda gösterilecek kısa özet rozetleri (metin listesi; kaldırılabilir biçim için chipItems). */
     public static function chips(array $f): array
     {
+        return array_column(self::chipItems($f), 'label');
+    }
+
+    /**
+     * Rozetler anahtarıyla: ekranda "×" ile tek dokunuşta kaldırılır (without). İlk rozet her zaman araç kipidir.
+     *
+     * @return list<array{key:string,label:string}>
+     */
+    public static function chipItems(array $f): array
+    {
         $chips = [];
-        $chips[] = match ($f['vehicle_mode']) {
+        $chips[] = ['key' => 'vehicle', 'label' => match ($f['vehicle_mode']) {
             'any' => 'Tüm araç tipleri',
             'custom' => implode(', ', array_map(fn ($t) => VehicleTypes::label($t), $f['vehicle_types'])) ?: 'Araç tipi seçilmedi',
             default => 'Aracıma uygun',
-        };
+        }];
         if ($f['body_types'] !== []) {
-            $chips[] = 'Kasa: '.implode(' / ', array_map(fn ($b) => BodyTypes::short($b), $f['body_types']));
+            $chips[] = ['key' => 'body_types', 'label' => 'Kasa: '.implode(' / ', array_map(fn ($b) => BodyTypes::short($b), $f['body_types']))];
+        }
+        if ($f['trailer_length'] !== '') {
+            $chips[] = ['key' => 'trailer_length', 'label' => self::TRAILER_LENGTHS[$f['trailer_length']]];
         }
         if ($f['load_kind'] !== '') {
-            $chips[] = BodyTypes::LOAD_KINDS[$f['load_kind']];
+            $chips[] = ['key' => 'load_kind', 'label' => BodyTypes::LOAD_KINDS[$f['load_kind']]];
         }
         if ($f['pickup_provinces'] !== []) {
-            $chips[] = 'Çıkış: '.self::placesLabel($f['pickup_provinces'], $f['pickup_districts']);
+            $chips[] = ['key' => 'pickup', 'label' => 'Çıkış: '.self::placesLabel($f['pickup_provinces'], $f['pickup_districts'])];
         }
         if ($f['delivery_provinces'] !== []) {
-            $chips[] = 'Varış: '.self::placesLabel($f['delivery_provinces'], $f['delivery_districts']);
+            $chips[] = ['key' => 'delivery', 'label' => 'Varış: '.self::placesLabel($f['delivery_provinces'], $f['delivery_districts'])];
         }
         if ($f['near_radius_km'] !== null) {
-            $chips[] = ($f['near_label'] !== '' ? $f['near_label'] : 'Konumum').' çevresi '.$f['near_radius_km'].' km';
+            $chips[] = ['key' => 'near', 'label' => ($f['near_label'] !== '' ? $f['near_label'] : 'Konumum').' çevresi '.$f['near_radius_km'].' km'];
         }
         if ($f['min_weight'] !== null || $f['max_weight'] !== null) {
-            $chips[] = 'Tonaj '.($f['min_weight'] !== null ? number_format($f['min_weight'] / 1000, 1, ',', '.') : '0').'–'.($f['max_weight'] !== null ? number_format($f['max_weight'] / 1000, 1, ',', '.') : '∞').' ton';
+            $chips[] = ['key' => 'weight', 'label' => 'Tonaj '.($f['min_weight'] !== null ? number_format($f['min_weight'] / 1000, 1, ',', '.') : '0').'–'.($f['max_weight'] !== null ? number_format($f['max_weight'] / 1000, 1, ',', '.') : '∞').' ton'];
         }
-        if ($f['min_price'] !== null) {
-            $chips[] = 'En az '.number_format($f['min_price'], 0, ',', '.').' ₺';
+        if ($f['min_price'] !== null || $f['max_price'] !== null) {
+            $chips[] = ['key' => 'price', 'label' => ($f['min_price'] !== null ? 'En az '.number_format($f['min_price'], 0, ',', '.').' ₺' : '').($f['min_price'] !== null && $f['max_price'] !== null ? ' · ' : '').($f['max_price'] !== null ? 'En çok '.number_format($f['max_price'], 0, ',', '.').' ₺' : '')];
         } elseif ($f['only_priced']) {
-            $chips[] = 'Yalnız fiyatlı';
+            $chips[] = ['key' => 'price', 'label' => 'Yalnız fiyatlı'];
+        }
+        if ($f['urgent']) {
+            $chips[] = ['key' => 'urgent', 'label' => 'Acil'];
+        }
+        if ($f['seen_within_hours'] !== '') {
+            $chips[] = ['key' => 'seen', 'label' => 'Paylaşım: '.self::SEEN_WITHIN_HOURS[$f['seen_within_hours']]];
         }
         if ($f['pickup_within_days'] !== '') {
-            $chips[] = self::WITHIN_DAYS[$f['pickup_within_days']];
+            $chips[] = ['key' => 'within', 'label' => 'Yükleme: '.self::WITHIN_DAYS[$f['pickup_within_days']]];
+        }
+        if ($f['goods_categories'] !== []) {
+            $chips[] = ['key' => 'goods_categories', 'label' => 'Yük: '.implode(', ', $f['goods_categories'])];
         }
         if ($f['goods_keywords'] !== '') {
-            $chips[] = 'Yük: '.$f['goods_keywords'];
+            $chips[] = ['key' => 'goods_keywords', 'label' => 'Yük sözcüğü: '.$f['goods_keywords']];
         }
 
         return $chips;
+    }
+
+    /** Rozetteki "×": o süzgeci varsayılana döndürür. */
+    public static function without(array $f, string $key): array
+    {
+        $d = self::defaults();
+        $reset = match ($key) {
+            'vehicle' => ['vehicle_mode', 'vehicle_types'],
+            'pickup' => ['pickup_provinces', 'pickup_districts'],
+            'delivery' => ['delivery_provinces', 'delivery_districts'],
+            'near' => ['near_radius_km', 'near_lat', 'near_lng', 'near_label'],
+            'weight' => ['min_weight', 'max_weight'],
+            'price' => ['min_price', 'max_price', 'only_priced'],
+            'seen' => ['seen_within_hours'],
+            'within' => ['pickup_within_days'],
+            default => array_key_exists($key, $d) ? [$key] : [],
+        };
+        foreach ($reset as $k) {
+            $f[$k] = $d[$k];
+        }
+
+        return self::normalize($f);
     }
 
     /** "Adana (Ceyhan, Kozan), Aydın" gibi il + seçili ilçe etiketi; hiç il yoksa "Her yer". */
@@ -307,6 +386,22 @@ class LoadFilterService
                 }
             });
         }
+        // Dorse boyu: yalnız öbür boyu açıkça yazan ilan elenir ("13.60" yazan ilan kısa dorseye, "kısa dorse" yazan uzuna kapalı); boy yazmayan görünür
+        if ($f['trailer_length'] !== '') {
+            $other = $f['trailer_length'] === 'kisa' ? 'uzun_dorse' : 'kisa_dorse';
+            $mine = $f['trailer_length'] === 'kisa' ? 'kisa_dorse' : 'uzun_dorse';
+            $q->where(fn (Builder $w) => $w->whereNull('body_types')->orWhere('body_types', 'not like', '%"'.$other.'"%')->orWhere('body_types', 'like', '%"'.$mine.'"%'));
+        }
+        if ($isScraped && $f['urgent']) {
+            $q->where('parse_metadata->urgent', true);
+        }
+        if ($f['seen_within_hours'] !== '') {
+            $since = now()->subHours((int) $f['seen_within_hours']);
+            $isScraped ? $q->where('last_seen_at', '>=', $since) : $q->where('published_at', '>=', $since);
+        }
+        if ($f['goods_categories'] !== []) {
+            $q->whereIn('goods_type', $f['goods_categories']);
+        }
         if ($f['goods_keywords'] !== '') {
             $words = array_filter(array_map('trim', preg_split('/[,\s]+/u', $f['goods_keywords']) ?: []));
             $searchRaw = $q->getModel()->getTable() === 'scraped_loads';
@@ -369,18 +464,25 @@ class LoadFilterService
         if ($f['max_weight'] !== null) {
             $q->where(fn (Builder $w) => $w->where('weight', '<=', $f['max_weight'])->orWhereNull('weight'));
         }
+        // Dış kaynakta ton başı fiyat araç başı karşılığıyla karşılaştırılır (EFFECTIVE_PRICE_SQL); NavlunIQ ilanı hep araç başı
+        $priceExpr = $priceNullable ? self::EFFECTIVE_PRICE_SQL : 'price';
         if ($f['min_price'] !== null) {
-            $q->where('price', '>=', $f['min_price']);
+            $q->whereRaw($priceExpr.' >= ?', [$f['min_price']]);
         } elseif ($f['only_priced'] && $priceNullable) {
             $q->whereNotNull('price')->where('price', '>', 0);
+        }
+        if ($f['max_price'] !== null) {
+            $q->where(fn (Builder $w) => $w->whereRaw($priceExpr.' <= ?', [$f['max_price']])->orWhereNull('price')); // fiyatsız ilan "en çok" ile elenmez
         }
     }
 
     private function applySort(Builder $q, array $f, string $newestColumn): Builder
     {
+        $scraped = $q->getModel()->getTable() === 'scraped_loads';
+
         return match ($f['sort']) {
-            'price_desc' => $q->orderByDesc('price')->latest('id'),
-            'pickup_date' => $q->getModel()->getTable() === 'loads' ? $q->orderBy('pickup_date')->latest('id') : $q->latest('id'),
+            'price_desc' => $scraped ? $q->orderByRaw(self::EFFECTIVE_PRICE_SQL.' desc')->latest('id') : $q->orderByDesc('price')->latest('id'),
+            'pickup_date' => ! $scraped ? $q->orderBy('pickup_date')->latest('id') : $q->latest($newestColumn)->latest('id'),
             'distance' => $f['near_radius_km'] !== null
                 ? (self::supportsTrig($q)
                     ? $q->orderByRaw(self::distanceSql('pickup_lat', 'pickup_lng').' asc', [$f['near_lat'], $f['near_lat'], $f['near_lng']])->latest('id')

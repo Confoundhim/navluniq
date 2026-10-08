@@ -43,7 +43,8 @@ class LoadIntakeService
     public const SIMILAR_HOURS = 48;
 
     /** Bir mesajdan en fazla bu kadar ilan adayı açılır (kötü niyetli/uzun listelere karşı); 15 iken 20-30 rotalı firma listeleri kesiliyordu. */
-    public const MAX_ADS_PER_MESSAGE = 40;
+    /** Bir mesajdan en çok kaç ilan açılır. 40 iken 70 ilanlık lojistik listeleri yarım kalıyordu (Engin Abi, 2026-10-08). */
+    public const MAX_ADS_PER_MESSAGE = 100;
 
     /** Son splitSegments çağrısında sınır yüzünden düşen ilan sayısı (canlı akış satırına yazılır). */
     public static int $lastTruncated = 0;
@@ -225,9 +226,11 @@ class LoadIntakeService
                 if (($parsed['sender_phone'] ?? null) === null && $segment['phones'] !== []) {
                     $parsed['sender_phone'] = $segment['phones'][0];
                 }
+                self::applyVehicleContext($segment, $parsed);
                 // Seri ilan (tek yükleme, çok boşaltma): rota başlıktan ve satırdan kesin bilinir; yapay zeka çağrılmaz,
                 // rota tekrarı ilçe düzeyinde bakılır (aynı ilin her ilçesi ayrı iş).
                 $isSeries = isset($segment['series']);
+                $districtLevel = $isSeries || ! empty($segment['district_level']); // aynı mesajda aynı il çiftinin ilçeleri ayrı ilan
                 if ($isSeries) {
                     $parsed['pickup_location'] = $segment['series']['pickup'];
                     $parsed['delivery_location'] = $segment['series']['delivery'];
@@ -241,7 +244,7 @@ class LoadIntakeService
                 // kuralın yakın eşlemeyle/sözlükle bulduğu rota yanlışsa parça yanlış bir ilanın tekrarı sayılıp kaybolmasın
                 // (asıl tekrar denetimi yapay zeka birleştirmesinden sonra, processSegment içinde).
                 $strongEnds = $isSeries || ! $aiFirst || (TurkishLocations::resolveCatalog($parsed['pickup_location'] ?? null) !== null && TurkishLocations::resolveCatalog($parsed['delivery_location'] ?? null) !== null);
-                if (! $mayHoldSeveral && $strongEnds && ($sameRoute = $this->recentSameRoute($parsed, null, $isSeries)) && ! $this->materiallyDifferent($sameRoute, $segment['text'], $parsed)) {
+                if (! $mayHoldSeveral && $strongEnds && ($sameRoute = $this->recentSameRoute($parsed, null, $districtLevel)) && ! $this->materiallyDifferent($sameRoute, $segment['text'], $parsed)) {
                     $this->noteSighting($sameRoute, $groupName);
                     $results[$i] = $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $segment['text']];
 
@@ -442,9 +445,10 @@ class LoadIntakeService
         // 6) Aynı numara aynı rotayı kısa aralıkla farklı sözcüklerle paylaşmışsa tek ilan kalır. Fiyat / tonaj / araç / yük / tarih
         // değişmişse bu yeni bir ilandır: kayıt açılır ve eskisinin yerine geçer (yayındaysa onay anında arşivlenir).
         $isSeries = isset($segment['series']);
-        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $isSeries);
+        $districtLevel = $isSeries || ! empty($segment['district_level']);
+        $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $districtLevel);
         $supersedes = null;
-        if (! $partialPending && ($sameRoute = $this->recentSameRoute($parsed, $phone, $isSeries))) {
+        if (! $partialPending && ($sameRoute = $this->recentSameRoute($parsed, $phone, $districtLevel))) {
             if (! $this->materiallyDifferent($sameRoute, $text, $parsed)) {
                 $this->noteSighting($sameRoute, $groupName);
 
@@ -772,7 +776,8 @@ class LoadIntakeService
             $header = null; // "X yükler / yüklemeli / Xden" başlık satırı: sonraki her varış satırı ayrı ilan
             $headerPlace = null;
             $destInCurrent = false;
-            $blockLines = preg_split('/\n/u', $block) ?: [];
+            $continuationNote = null; // rota başlığının ("Malkara'dan Adana damper") notu, altındaki varış satırlarına taşınır
+            $blockLines = self::expandMultiDestinationLines(preg_split('/\n/u', $block) ?: []);
             $blockHasPairLine = array_filter($blockLines, fn ($l) => (self::isPlusChain($l) ? AiParserService::connectorPair($l) : AiParserService::routePair($l)) !== null) !== [];
             // Kalkış satırı + alt alta yalnız yer adı taşıyan satırlar ("İstanbul Kartal 13.60 açık ⏎ Sivas ⏎ Aydın ⏎ Bursa"):
             // sektör dilinde her satır ayrı araçlık yüktür; ilk satır başlık sayılır.
@@ -828,6 +833,27 @@ class LoadIntakeService
                         $hasPhone = false;
                     }
                     $destInCurrent = true;
+                }
+                // Rota satırının altında kalkışsız varış satırı ("izmir kemalpaşa'dan diyarbakır hani bir tır ⏎ diyarbakır merkez 4 tır",
+                // "Malkara'dan Adana damper ⏎ Çukurova 2.100+kdv ⏎ Pozantı 2.100+kdv"): aynı kalkıştan ayrı ilandır; eskiden önceki ilana
+                // yapışıp kayboluyordu (Engin Abi, 2026-10-08). Satır "kalkış -> satır" biçimine çevrilir. Rota satırı yalnız il yazıp
+                // fiyat/adet taşımıyorsa ("Malkara'dan Adana damper") başlıktır: kendi başına ilan olmaz, notları alt satırlara geçer.
+                if ($current !== [] && $pair !== null && $linePair === null && ! $isHeader && $header === null && self::isDestinationContinuation($line, $lower, $linePlaces, $pair)) {
+                    $pickupLabel = $pair[0];
+                    $headOnly = count($current) === 1 && ! self::hasPhone($current[0]) && ! self::hasPriceOrCount($current[0]);
+                    $sameProvince = strtok($linePlaces[0]['label'], ' ') === strtok($pair[1], ' ');
+                    if ($headOnly && $sameProvince) {
+                        $continuationNote = $current[0]; // "Malkara'dan Adana damper": araç/kasa notu her alt satıra taşınır
+                    } else {
+                        $units[] = self::unit(implode("\n", $current));
+                    }
+                    $current = [];
+                    $pair = null;
+                    $provinces = [];
+                    $hasPhone = false;
+                    $line = $pickupLabel.' -> '.trim($line).($continuationNote !== null ? "\n".$continuationNote : '');
+                    $linePair = AiParserService::routePair($line);
+                    $lineProvinces = AiParserService::provincesIn($line, 2);
                 }
                 if ($current !== [] && $pair !== null) {
                     // Parça zaten bir rota taşıyor: farklı rotalı satır ("Bursa-Konya 10 ton") yeni ilan;
@@ -958,6 +984,13 @@ class LoadIntakeService
         }
         $sharedText = implode("\n", array_unique($shared));
 
+        // Mesaj bağlamı aracı: listedeki ilanların çoğu açıkça aynı aracı yazıyorsa ("… 2 tır", "… bir tır"), araç yazmayan satırlar
+        // ("Akhisar'dan Kızıltepe bir araç") da o araçla **tahmin** olarak işaretlenir (kaynak ai_guess: yumuşak filtre, kesin değil).
+        $vehicleContext = self::dominantVehicle($final);
+        // Aynı il çiftine farklı ilçelerle giden parçalar ("Malkara → Konya Karapınar", "Malkara → Konya Bozkır") ayrı ilandır: rota anahtarı
+        // ilçe düzeyinde tutulur ki ikincisi ilkinin tekrarı sayılıp reddedilmesin (seri ilanlardaki kuralın aynısı).
+        $routePairs = array_map(fn ($u) => AiParserService::routePair($u['text']), $final);
+
         // Numarasız rota parçaları en yakın numaralı parçanın numaralarını devralır (ortak irtibat).
         $count = count($final);
         $out = [];
@@ -988,11 +1021,158 @@ class LoadIntakeService
             if ($inherited && $phones !== []) {
                 $text .= "\n☎️ ".implode(', ', array_map(fn (string $p) => Phone::format($p), $phones));
             }
-            $out[] = ['text' => $text, 'phones' => $phones, 'index' => $i, 'count' => $count];
+            $segment = ['text' => $text, 'phones' => $phones, 'index' => $i, 'count' => $count];
+            if ($vehicleContext !== null && VehicleClassifier::analyze($text)['source'] !== 'keyword') {
+                $segment['vehicle_context'] = $vehicleContext;
+            }
+            if (self::sharesProvincePairWithOtherDistrict($routePairs, $i)) {
+                $segment['district_level'] = true;
+            }
+            $out[] = $segment;
         }
         self::$lastTruncated = max(0, count($out) - self::MAX_ADS_PER_MESSAGE);
 
         return array_slice($out, 0, self::MAX_ADS_PER_MESSAGE);
+    }
+
+    /** Aynı mesajda aynı il çiftine başka bir ilçeyle giden parça var mı (varış ilçesi farklı ya da biri il geneli). */
+    private static function sharesProvincePairWithOtherDistrict(array $pairs, int $i): bool
+    {
+        $p = $pairs[$i] ?? null;
+        if ($p === null) {
+            return false;
+        }
+        foreach ($pairs as $j => $q) {
+            if ($j !== $i && $q !== null && strtok($q[0], ' ') === strtok($p[0], ' ') && strtok($q[1], ' ') === strtok($p[1], ' ') && $q[1] !== $p[1]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Mesaj bağlamı aracı (splitSegments) kuralın okuyamadığı parçaya tahmin olarak yazılır; açık araç sözcüğü ve ipucu dışı kaynaklar ezilmez. */
+    public static function applyVehicleContext(array $segment, array &$parsed): void
+    {
+        if (empty($segment['vehicle_context'])) {
+            return;
+        }
+        if (empty($parsed['vehicle_type']) || in_array($parsed['vehicle_type_source'] ?? null, ['hint', 'goods', null], true)) {
+            $parsed['vehicle_type'] = $segment['vehicle_context'];
+            $parsed['vehicle_type_source'] = 'ai_guess';
+        }
+    }
+
+    /**
+     * Araç yazan parçalar en az 3 ve tüm parçaların %40'ı, bunların %80'i aynı araçsa o araç mesaj bağlamıdır (yalnız ağır araçlar).
+     *
+     * @param  list<array{text:string}>  $units
+     */
+    private static function dominantVehicle(array $units): ?string
+    {
+        if (count($units) < 3) {
+            return null;
+        }
+        $counts = [];
+        foreach ($units as $unit) {
+            $v = VehicleClassifier::analyze($unit['text']);
+            if ($v['source'] === 'keyword' && $v['type'] !== null) {
+                $counts[$v['type']] = ($counts[$v['type']] ?? 0) + 1;
+            }
+        }
+        $explicit = array_sum($counts);
+        if ($explicit < 3 || $explicit / count($units) < 0.4) {
+            return null; // araç yazan satır azsa bağlam yok
+        }
+        arsort($counts);
+        $type = (string) array_key_first($counts);
+
+        return $counts[$type] / $explicit >= 0.8 && in_array($type, ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], true) ? $type : null;
+    }
+
+    /**
+     * Rota satırının altındaki kalkışsız varış satırı mı: satır bir yer adıyla başlar, kalkış eki/fiili yoktur, adet / araç / fiyat
+     * taşır ("diyarbakır merkez 4 tır", "Çukurova 2.100+kdv günlük 7-8 araç", "Pozantı 2.100+kdv") ve yer, rotanın iki ucundan da farklıdır.
+     */
+    private static function isDestinationContinuation(string $line, string $lower, array $linePlaces, array $pair): bool
+    {
+        if ($linePlaces === [] || self::hasPhone($line) || str_word_count($lower) > 12) {
+            return false;
+        }
+        if (AiParserService::hasTrueAblative($lower) || preg_match(AiParserService::PICKUP_VERBS, $lower) === 1) {
+            return false;
+        }
+        $head = implode(' ', array_slice(preg_split('/\s+/u', trim($lower)) ?: [], 0, 2));
+        if (AiParserService::placesIn($head, 1) === []) {
+            return false;
+        }
+        $label = $linePlaces[0]['label'];
+        if ($label === $pair[0] || $label === $pair[1]) {
+            return false;
+        }
+
+        return self::hasPriceOrCount($lower);
+    }
+
+    /** Satırda araç adedi, araç sözcüğü ya da fiyat var mı ("4 tır", "bir araç", "2.100+kdv", "1750 art"). */
+    private static function hasPriceOrCount(string $text): bool
+    {
+        $lower = TurkishCities::lower($text);
+
+        return preg_match('/\d{3,}|(?<!\p{L})(?:\d{1,2}|bir|iki|üç|uc|dört|dort|beş|bes|altı|alti|yedi|sekiz|dokuz|on)\s*(?:tır|tir|tr|tur|araç|arac|kamyon|adet)(?!\p{L})|(?<!\p{L})(?:tır|tir|araç|arac|kamyon|damper|kdv|artı|art|peşin|pesin|nakit)(?!\p{L})/u', $lower) === 1;
+    }
+
+    /**
+     * Tek satırda kalkış + fiyatlı birden çok varış ("çan'dan muş 3400 artı kdv malatya 2700 + kdv"): her varış kendi fiyatıyla ayrı satır olur.
+     *
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    private static function expandMultiDestinationLines(array $lines): array
+    {
+        $out = [];
+        foreach ($lines as $line) {
+            $lower = preg_replace("/[’'‘`]/u", '', TurkishCities::lower($line)) ?? TurkishCities::lower($line); // "çan'dan" → "çandan"
+            if (! preg_match('/^\W*((?:\p{L}+\s+){0,2}\p{L}{3,}(?:dan|den|tan|ten))(?!\p{L})/u', $lower, $head) || ! AiParserService::hasTrueAblative($lower)) {
+                $out[] = $line;
+
+                continue;
+            }
+            $pricePattern = '/(\d{1,3}(?:\.\d{3})+|\d{3,5})\s*,?\s*(?:\+|artı|arti|art)\s*(?:kdv)?(?!\p{L})/u';
+            if (preg_match_all($pricePattern, $lower, $m, PREG_OFFSET_CAPTURE) < 2) {
+                $out[] = $line;
+
+                continue;
+            }
+            $chunks = [];
+            $pos = 0;
+            foreach ($m[0] as [$match, $offset]) {
+                $end = $offset + strlen($match);
+                $chunks[] = trim(substr($lower, $pos, $end - $pos));
+                $pos = $end;
+            }
+            $tail = trim(substr($lower, $pos));
+            if ($tail !== '') {
+                $chunks[count($chunks) - 1] .= ' '.$tail;
+            }
+            // Kalkış gövdesi ("çan", "çanakkale çan") yer olmalı; ilk parçada ondan sonra bir varış, sonraki her parçada bir yer olmalı
+            $stem = preg_replace('/(?:dan|den|tan|ten)$/u', '', $head[1]) ?? $head[1];
+            $ok = TurkishLocations::resolve($stem) !== null && AiParserService::placesIn(mb_substr($chunks[0], mb_strlen($head[0])), 1) !== [];
+            foreach (array_slice($chunks, 1) as $chunk) {
+                $ok = $ok && AiParserService::placesIn($chunk, 1) !== [];
+            }
+            if (! $ok) {
+                $out[] = $line;
+
+                continue;
+            }
+            $out[] = $chunks[0];
+            foreach (array_slice($chunks, 1) as $chunk) {
+                $out[] = $head[1].' '.$chunk;
+            }
+        }
+
+        return $out;
     }
 
     /** Parçalara hangi katmanın ürettiğini yazar (kayıtta parse_metadata.layer; panelde katman sayımı). */
