@@ -1334,6 +1334,12 @@ TXT;
         [$pickup, $delivery] = [null, null];
         foreach (self::connectorMatches($routeText) as $m) {
             if ($resolvable($m['pickup']) && $resolvable($m['delivery'])) {
+                // "KIRŞEHİR-Kaman": il ile kendi ilçesi arasındaki tire rota değil yazımdır (2026-10-09 yayın dökümü: "Kırşehir → Karaman" çıkıyordu)
+                $ra = TurkishLocations::resolve($m['pickup'], false);
+                $rb = TurkishLocations::resolve($m['delivery'], false);
+                if ($ra !== null && $rb !== null && $ra['province_code'] === $rb['province_code'] && ($ra['district'] === null || $rb['district'] === null)) {
+                    continue;
+                }
                 [$pickup, $delivery] = [$m['pickup'], $m['delivery']];
                 break;
             }
@@ -1354,8 +1360,18 @@ TXT;
                     $places = $strongOnes;
                 }
                 $pair = null;
+                // Kalkış fiilli satırda ("ADANA YÜZBAŞI & ADANA CEYHAN YÜKLER") aynı ilin iki yeri birlikte yazılmışsa ikisi de kalkıştır;
+                // varış sonraki satırdan gelir (2026-10-09 yayın dökümü: "Adana → Adana Ceyhan" çıkıyordu, varış Konya Yunak'tı).
+                $pickupLines = array_values(array_filter(array_map(fn ($l) => TurkishCities::lower(preg_replace(self::PHONE_PATTERN, ' ', $l) ?? $l), preg_split('/\R/u', $routeText) ?: []), fn ($l) => preg_match(self::PICKUP_VERBS, $l) === 1));
+                $onPickupLine = fn (array $place) => array_filter($pickupLines, fn ($l) => mb_strpos($l, TurkishCities::lower($place['text'])) !== false) !== [];
+                $chained = fn (array $p, array $q) => array_filter($pickupLines, fn ($l) => preg_match('/'.preg_quote(TurkishCities::lower($p['text']), '/').'(?:\s+\p{L}+){0,2}\s*[+&\/]\s*'.preg_quote(TurkishCities::lower($q['text']), '/').'/u', $l) === 1) !== [];
                 foreach ($places as $i => $p) {
                     foreach (array_slice($places, $i + 1) as $q) {
+                        // İkisi de kalkış satırında ve aynı il ya da "+ / &" ile bağlı ("Yükleme Yeri: SAKARYA+BAŞİSKELE+DİLOVASI"): ikinci yer varış değil, kalkış seçeneği
+                        if ($q['label'] !== $p['label'] && $pickupLines !== [] && $onPickupLine($p) && $onPickupLine($q)
+                            && (($q['province_code'] ?? null) !== null && $q['province_code'] === ($p['province_code'] ?? null) || $chained($p, $q))) {
+                            continue;
+                        }
                         if ($q['label'] !== $p['label']) {
                             // Hal eki yönü belirler: "İzmire gidecek Bursadan" → Bursa → İzmir
                             $pCase = $p['case'] ?? null;
@@ -1391,7 +1407,11 @@ TXT;
         if (empty($price[1])) { // "1200+KDV", "1.200 + kdv", "1200 tl+kdv", "950+BASAR", "900+TONAJLI", "40.000 Peşin": KDV/basar tonaj hariç tutar
             // "artı" = "+": "1500 artı kdv", "1500 artı" (Engin Abi, 2026-10-05: Mersin yem ilanı fiyatsız kalıyordu)
             // "art" = "artı" kısaltması; virgül ya da bitişik yazım da olur: "2450art", "2330artkdv", "2450,art", "yüklenir2450art" (Engin Abi, 2026-10-08)
-            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*,?\s*(?:(?:\+|artı|arti|art|ARTI|ARTİ|ART|Artı)\s*(?:KDV|kdv|Kdv|BASAR|basar|TONAJLI|TONAJLİ|tonajlı|KDV\s*HARİÇ|kdv\s*hariç)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+            // Binlik ayracı nokta, virgül ya da boşluk olabilir: "15,000+KDV", "73 000+kdv", "11,000+ KDV" (2026-10-09 yayın dökümü: 77 ilanda fiyat boş kalmıştı)
+            preg_match('/(?<!\d)(\d{1,3}(?:\.\d{3})+|\d{1,3}(?:[, ]\d{3})+|\d{3,9})\s*(?:TL|₺)?\s*,?\s*(?:(?:\+|artı|arti|art|ARTI|ARTİ|ART|Artı)\s*(?:KDV|kdv|Kdv|BASAR|basar|TONAJLI|TONAJLİ|tonajlı|KDV\s*HARİÇ|kdv\s*hariç)|(?=\s*(?:PEŞİN|PESİN|PESIN|NAKİT|NAKIT)))/iu', $message, $price);
+            if (! empty($price[1]) && preg_match('/^\d{1,3}(?:[, ]\d{3})+$/', $price[1])) {
+                $price[1] = str_replace([',', ' '], '', $price[1]);
+            }
         }
         if (empty($price[1]) && preg_match('/(?<![\d.,])(\d{1,2}\.\d{3}|\d{3,5})\s*,?\s*(?:artı|arti|art)(?!\p{L})/iu', $message, $m)) { // "3350art 1360", "2750 art", "2450,art"
             $price = [1 => $m[1]];

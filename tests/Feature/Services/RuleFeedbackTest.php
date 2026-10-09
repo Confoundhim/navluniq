@@ -93,15 +93,17 @@ class RuleFeedbackTest extends TestCase
         $this->assertNull(TurkishLocations::resolve('Büsan'), 'öneri onaylanmadan sözlüğe girmez');
         $this->assertSame(2, AiLexicon::query()->where('status', 'suggested')->count(), 'iki öneri, ikisi de bekliyor');
 
-        // 2) Eşik 2: aynı öneri ikinci bir ilanda görülünce kendiliğinden onaylanır; kural artık kendisi çözer.
+        // 2) Eşik 2: yük sözcüğü ikinci ilanda kendiliğinden onaylanır; konum önerisi sayacı artar ama yönetici onayını bekler
+        // (2026-10-09 yayın dökümü: kendiliğinden onaylanan konum takma adları 1.500 ilana hayali il yazmıştı).
         Settings::set('ai_suggest_auto_approve_hits', 2);
         $r = $this->intake('Büsan sanayi - İzmir 12 ton pekmez 0533 111 22 33', 'm2');
         $this->assertSame('created', $r['status'], json_encode($r, JSON_UNESCAPED_UNICODE));
         $busan->refresh();
-        $this->assertSame(['active', 2], [$busan->status, $busan->hits]);
-        $this->assertStringStartsWith('kendiliğinden onaylandı', (string) $busan->note);
-        $this->assertSame(42, TurkishLocations::resolve('Büsan sanayi')['province_code']);
+        $this->assertSame(['suggested', 2], [$busan->status, $busan->hits]);
+        $this->assertNull(TurkishLocations::resolve('Büsan sanayi'), 'konum önerisi onaysız sözlüğe girmez');
         $this->assertSame('active', $salca->fresh()->status);
+        $this->assertTrue(app(RuleFeedbackService::class)->approve($busan));
+        $this->assertSame(42, TurkishLocations::resolve('Büsan sanayi')['province_code']);
         Http::assertSentCount(2);
 
         // 3) Üçüncü mesaj: kural sözlükle çözer, yapay zeka çağrılmaz.

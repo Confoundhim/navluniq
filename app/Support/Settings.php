@@ -62,7 +62,7 @@ final class Settings
         'intake_event_days' => 7,               // Canlı akış kayıtları (telefondan gelen her isteğin sonucu, alıntı maskeli) bu kadar gün sonra silinir (KVKK)
 
         // Yapay zeka ile ilan çözümleme
-        'ai_suggest_auto_approve_hits' => 0,    // öğrenme çemberi: aynı öneri bu kadar ayrı ilanda görülürse kendiliğinden sözlüğe girer (0: yalnız elle onay)
+        'ai_suggest_auto_approve_hits' => 0,    // öğrenme çemberi: yük/araç önerisi bu kadar ayrı ilanda görülürse kendiliğinden sözlüğe girer (0: yalnız elle onay); konum önerisi hiç kendiliğinden onaylanmaz
         'ai_audit_daily_count' => 5,            // öğrenme çemberi: günde bu kadar kuralla çözülmüş ilan yapay zekaya denetletilir (0: kapalı)
         'ai_parse_mode' => 'always',            // off | fill_gaps (kural eksik bırakınca) | always (her ilanda; yapay zeka öncelikli)
         'ai_provider' => '',                    // tercih edilen sağlayıcı; boş: ücretsizden başlayan varsayılan sıra

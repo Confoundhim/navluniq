@@ -429,7 +429,8 @@ final class SeriesAd
         }
         $a = preg_quote(TurkishCities::lower($places[0]['text']), '/');
         $b = preg_quote(TurkishCities::lower($places[1]['text']), '/');
-        $joined = preg_match('/'.$a.'\s*(?:\+|\/|veya|ve|ya da)\s*'.$b.'/u', TurkishCities::lower($line)) === 1;
+        // "&" ve "ile" de seçenek bağlacıdır; yer adından sonra en çok iki sözcük olabilir ("ADANA YÜZBAŞI & ADANA CEYHAN YÜKLER") (2026-10-09)
+        $joined = preg_match('/'.$a.'(?:\s+\p{L}+){0,2}\s*(?:\+|\/|&|veya|ve|ile|ya da)\s*'.$b.'/u', TurkishCities::lower($line)) === 1;
 
         return $joined ? array_slice($labels, 0, 2) : [$places[0]['label']];
     }

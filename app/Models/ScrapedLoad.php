@@ -289,6 +289,34 @@ class ScrapedLoad extends Model
         return array_values(array_filter((array) ($this->delivery_stops ?? []), 'is_string'));
     }
 
+    /**
+     * Eksik bilgili ilanda şoförün arayınca soracağı alanlar (araç tipi, tonaj, fiyat, ilçe). Rota ve telefon her zaman vardır;
+     * kart bunları "Arayınca sorun:" rozetleriyle gösterir (Osman, 2026-10-09).
+     *
+     * @return list<string>
+     */
+    public function missingFields(): array
+    {
+        $out = [];
+        if (! VehicleTypes::isValid($this->vehicle_type) && ! $this->vehicle_any) {
+            $out[] = 'araç tipi';
+        }
+        if ((int) $this->weight <= 0) {
+            $out[] = 'tonaj';
+        }
+        if ($this->price === null || (float) $this->price <= 0) {
+            $out[] = 'fiyat';
+        }
+        if ($this->pickup_province_code !== null && $this->pickup_district === null) {
+            $out[] = 'yükleme ilçesi';
+        }
+        if ($this->delivery_province_code !== null && $this->delivery_district === null) {
+            $out[] = 'teslim ilçesi';
+        }
+
+        return $out;
+    }
+
     /** Kart satırı: "TIR · Tenteli · Komple · 2 araç · 3 teslim noktası" gibi tek satır. */
     public function vehicleSummary(): string
     {

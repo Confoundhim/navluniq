@@ -785,6 +785,14 @@ class LoadIntakeService
             $destInCurrent = false;
             $continuationNote = null; // rota başlığının ("Malkara'dan Adana damper") notu, altındaki varış satırlarına taşınır
             $blockLines = self::expandMultiDestinationLines(preg_split('/\n/u', $block) ?: []);
+            // "ÇORLU - ÇERKEZKÖY YÜKLEMELİ İŞLERİMİZ ⏎ MALATYA 18 TON TIR": kalkış fiilli başlıkta aynı ilin iki ilçesi arasındaki tire rota değil
+            // kalkış seçeneğidir; "+" yapılır ki başlık "Çorlu → Çerkezköy" ilanı olmasın (2026-10-09 yayın dökümü).
+            foreach ($blockLines as $bi => $bl) {
+                $blLower = TurkishCities::lower(trim($bl));
+                if (preg_match(AiParserService::PICKUP_VERBS, $blLower) === 1 && ($bp = AiParserService::routePair($bl)) !== null && strtok($bp[0], ' ') === strtok($bp[1], ' ')) {
+                    $blockLines[$bi] = preg_replace('/(?<=\p{L})\s*[-–—]\s*(?=\p{L})/u', ' + ', $bl, 1) ?? $bl;
+                }
+            }
             $blockHasPairLine = array_filter($blockLines, fn ($l) => (self::isPlusChain($l) ? AiParserService::connectorPair($l) : AiParserService::routePair($l)) !== null) !== [];
             // Kalkış satırı + alt alta yalnız yer adı taşıyan satırlar ("İstanbul Kartal 13.60 açık ⏎ Sivas ⏎ Aydın ⏎ Bursa"):
             // sektör dilinde her satır ayrı araçlık yüktür; ilk satır başlık sayılır.
@@ -861,6 +869,16 @@ class LoadIntakeService
                     $line = $pickupLabel.' -> '.trim($line).($continuationNote !== null ? "\n".$continuationNote : '');
                     $linePair = AiParserService::routePair($line);
                     $lineProvinces = AiParserService::provincesIn($line, 2);
+                }
+                if ($current !== [] && $pair === null && $header === null && $linePair !== null && count($provinces) >= 2 && self::pairDiffers([$provinces[0], $provinces[1]], $linePair)) {
+                    // Uygulama gönderisi: iki satırlık ilan ("Sakarya Adapazarı ⏎ Malatya 0,3ton") + altında "A -> B …" rota satırları.
+                    // Rota satırı yeni ilandır; üstteki iki satır kendi ilanı olarak kapanır (2026-10-09 yayın dökümü: 131 kayıt tek ilan sayılmıştı).
+                    $twoLine = self::unit(implode("\n", $current));
+                    $twoLine['route'] = true;
+                    $units[] = $twoLine;
+                    $current = [];
+                    $provinces = [];
+                    $hasPhone = false;
                 }
                 if ($current !== [] && $pair !== null) {
                     // Parça zaten bir rota taşıyor: farklı rotalı satır ("Bursa-Konya 10 ton") yeni ilan;
@@ -1532,9 +1550,9 @@ class LoadIntakeService
      * İlan olmayan ama telefonlu ve rota içerebilen mesajlar: boş araç ilanı (şoför yük arıyor), şoför/eleman ilanı,
      * fatura/fiş reklamı, satılık/kiralık araç. Yük gruplarındaki 9.000 mesajdan derlendi.
      */
-    public const NOT_LOAD_PATTERN = '/(?<!\p{L})(?:e-?fatura|e-?arşiv|e-?arsiv|gider fişi|gider fisi|utts|sgk yapılır|sgk yapilir|kdv açığ|kdv acig|beyanname|iş ilanı|is ilani|eleman aran|arkadaşlar aran|arkadaslar aran|şoför aran|sofor aran|şoför arıyor|sofor ariyor|şoför lazım|sofor lazim|şoförüm|soforum|iş arıyorum|is ariyorum|iş bakıyorum|boştayım|bostayim|boşum\b|bosum\b'
+    public const NOT_LOAD_PATTERN = '/(?<!\p{L})(?:e-?fatura|e-?arşiv|e-?arsiv|gider fişi|gider fisi|utts|sgk yapılır|sgk yapilir|kdv açığ|kdv acig|beyanname|iş ilanı|is ilani|eleman aran|arkadaşlar aran|arkadaslar aran|şoför aran|şöför aran|sofor aran|şoför arıyor|şöför arıyor|sofor ariyor|şoför arayan|şöför arayan|sofor arayan|şoför lazım|şöför lazım|sofor lazim|çalışacak şoför|çalışacak şöför|calisacak sofor|şoförüm|şöförüm|soforum|sigorta (?:ihtiya[cç]|acente|teklif|poliçe|police|hizmet)\p{L}*|iş arıyorum|is ariyorum|iş bakıyorum|boştayım|bostayim|boşum\b|bosum\b'
         // Yük sahibi dili elenmez: "boş araç arıyorum / var mı / lazım / girecek" aracı arayan yük sahibidir.
-        .'|boş\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse|\d+\s*teker)(?!\s*(?:girecek|gerek|lazım|lazim|ihtiyaç|ihtiyac|aranıyor|araniyor|arıyoruz|ariyoruz|arıyorum|ariyorum|arıyor|ariyor|arayan|olan|varsa|var\s*mı|varmı|var\s*mi|varmi|arayabilir|arasın|arasin|bulun|ara))'
+        .'|bo[sş]\s+(?:araç|arac|tır|tir|kamyon|kamyonet|dorse|\d+\s*teker)(?!\s*(?:girecek|gerek|lazım|lazim|ihtiyaç|ihtiyac|aranıyor|araniyor|arıyoruz|ariyoruz|arıyorum|ariyorum|arıyor|ariyor|arayan|olan|varsa|var\s*mı|varmı|var\s*mi|varmi|arayabilir|arasın|arasin|bulun|ara))'
         .'|boşta\b(?!\s*(?:olan|varsa|var\s*mı|varmı|arkadaş|arkadas|araç|arac|tır|tir|kamyon|kamyonet|dorse|çekici|cekici))|bosta\b(?!\s*(?:olan|varsa|var\s*mi|varmi|arac|tir|kamyon|kamyonet|dorse))'
         // Nakliyeci dili elenir: "kamyonum boş", "tırım boş(ta)", "aracım yük bekliyor", "müsait araç" (yük sahibinin "müsait araç arıyorum"u hariç)
         .'|(?:kamyonum|tırım|tirim|aracım|aracim|arabam|dorsem|çekicim|cekicim|kamyonetim|panelvanım|panelvanim|kırkayağım|kirkayagim)\s+(?:boş|bos|boşta|bosta|müsait|musait|yük\s+bekl\p{L}*|yuk\s+bekl\p{L}*|yük\s+arıyor|yuk\s+ariyor|hazır|hazir)'

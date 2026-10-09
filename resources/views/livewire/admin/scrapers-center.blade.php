@@ -30,6 +30,11 @@ new class extends Component {
     #[Url(as: 'sekme')]
     public string $activeTab = 'queue';
 
+    /** İnceleme kuyruğu görünümü: all = tümü · incomplete = eksik bilgili yayına geçenler · waiting = kuyrukta bekleyenler (Osman, 2026-10-09) */
+    public string $queueView = 'all';
+
+    public const QUEUE_VIEWS = ['all' => 'Tümü', 'incomplete' => 'Eksik bilgili yayına geçenler', 'waiting' => 'Kuyrukta bekleyenler'];
+
     /** Kaynaklar sekmesi alt listesi: active | pending | deleted */
     #[Url(as: 'kaynak')]
     public string $sourceState = 'active';
@@ -129,7 +134,7 @@ new class extends Component {
         if ($name === 'toProvince') {
             $this->toDistrict = '';
         }
-        if (in_array($name, ['activeTab', 'search', 'sourceId', 'vehicle', 'body', 'goods', 'fromProvince', 'fromDistrict', 'toProvince', 'toDistrict', 'period', 'from', 'to', 'minPrice', 'maxPrice', 'minWeight', 'maxWeight', 'flags', 'sort', 'sourceState', 'sourceSearch'], true) || str_starts_with($name, 'flags.')) {
+        if (in_array($name, ['activeTab', 'queueView', 'search', 'sourceId', 'vehicle', 'body', 'goods', 'fromProvince', 'fromDistrict', 'toProvince', 'toDistrict', 'period', 'from', 'to', 'minPrice', 'maxPrice', 'minWeight', 'maxWeight', 'flags', 'sort', 'sourceState', 'sourceSearch'], true) || str_starts_with($name, 'flags.')) {
             $this->resetPage();
             $this->selected = [];
             $this->selectPage = false;
@@ -196,7 +201,7 @@ new class extends Component {
         }
         $base = fn () => ScrapedLoad::query()->when($this->period !== 'all', fn ($q) => $q->where('created_at', '>=', now()->subDays((int) $this->period)));
         $counts = [];
-        foreach (['queue' => fn ($q) => $q->where('visibility', 'private')->where('status', '!=', 'rejected'), 'published' => fn ($q) => $q->where('visibility', 'public'), 'rejected' => fn ($q) => $q->where('status', 'rejected')] as $tab => $scope) {
+        foreach (['queue' => fn ($q) => $this->applyQueueView($q, 'all'), 'published' => fn ($q) => $q->where('visibility', 'public'), 'rejected' => fn ($q) => $q->where('status', 'rejected')] as $tab => $scope) {
             $q = $scope($base());
             $this->applySearch($q);
             $counts[$tab] = $q->count();
@@ -276,6 +281,26 @@ new class extends Component {
         }
     }
 
+    /**
+     * İnceleme kuyruğu kapsamı: kuyrukta bekleyen (özel, reddedilmemiş) + eksik bilgili yayına geçmiş (herkese açık, is_incomplete) adaylar.
+     * Osman (2026-10-09): "toplam onay kuyruğu, eksik ilan kısmına girenler ve kalanlar ayrı görünsün".
+     */
+    private function applyQueueView($q, string $view)
+    {
+        return match ($view) {
+            'incomplete' => $q->where('visibility', 'public')->where('is_incomplete', true),
+            'waiting' => $q->where('visibility', 'private')->where('status', '!=', 'rejected'),
+            default => $q->where(fn ($w) => $w->where(fn ($a) => $a->where('visibility', 'private')->where('status', '!=', 'rejected'))
+                ->orWhere(fn ($b) => $b->where('visibility', 'public')->where('is_incomplete', true))),
+        };
+    }
+
+    public function setQueueView(string $view): void
+    {
+        $this->queueView = array_key_exists($view, self::QUEUE_VIEWS) ? $view : 'all';
+        $this->resetPage();
+    }
+
     /** Aktif sekme ve filtrelere göre aday sorgusu (sayfalama öncesi). */
     private function currentQuery()
     {
@@ -283,7 +308,7 @@ new class extends Component {
         match ($this->activeTab) {
             'published' => $q->where('visibility', 'public'),
             'rejected' => $q->where('status', 'rejected'),
-            default => $q->where('visibility', 'private')->where('status', '!=', 'rejected'),
+            default => $this->applyQueueView($q, array_key_exists($this->queueView, self::QUEUE_VIEWS) ? $this->queueView : 'all'),
         };
         $this->applySearch($q);
         if ($this->sourceId !== '') {
@@ -995,6 +1020,7 @@ new class extends Component {
             default => [
                 ScrapedLoad::withTrashed()->max('id'),
                 ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')->count(),
+                ScrapedLoad::query()->where('visibility', 'public')->where('is_incomplete', true)->count(),
                 ScrapedLoad::query()->where('visibility', 'public')->count(),
                 ScrapedLoad::query()->where('status', 'rejected')->count(),
                 ScrapedLoad::query()->where('ai_status', 'pending')->count(),
@@ -1088,6 +1114,7 @@ new class extends Component {
                     ->map(fn ($r) => ['label' => IntakeEvent::reasonLabel($r->reason), 'count' => (int) $r->c])->all(),
                 'published_facebook' => ScrapedLoad::withTrashed()->where('published_at', '>=', now()->startOfDay())->whereIn('scraper_id', fn ($q) => $q->select('id')->from('scrapers')->where('type', 'facebook'))->count(),
                 'pending' => ScrapedLoad::query()->where('visibility', 'private')->where('status', '!=', 'rejected')->count(),
+                'incomplete' => ScrapedLoad::query()->where('visibility', 'public')->where('is_incomplete', true)->count(),
                 'published' => ScrapedLoad::query()->where('visibility', 'public')->count(),
                 'rejected' => ScrapedLoad::query()->where('status', 'rejected')->count(),
             ]),
@@ -1149,7 +1176,7 @@ new class extends Component {
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
         $tabs = ['queue' => 'İnceleme kuyruğu', 'published' => 'Yayında', 'rejected' => 'Reddedilenler', 'events' => 'Canlı akış', 'sources' => 'Kaynaklar ve telefon', 'lexicon' => 'Sözlük ve öğrenme'];
-        $tabCount = ['queue' => $stats['pending'], 'published' => $stats['published'], 'rejected' => $stats['rejected'], 'events' => $stats['received'], 'sources' => null, 'lexicon' => null];
+        $tabCount = ['queue' => $stats['pending'] + $stats['incomplete'], 'published' => $stats['published'], 'rejected' => $stats['rejected'], 'events' => $stats['received'], 'sources' => null, 'lexicon' => null];
         $blockerLabels = ['durum' => 'Durum uygun değil', 'kaynak pasif' => 'Kaynak pasif', 'rota eksik' => 'Rota eksik', 'il çözülemedi' => 'İl çözülemedi', 'araç tipi yok' => 'Araç tipi yok', 'telefon yok' => 'Telefon yok', 'fiyat yok' => 'Fiyat yok', 'tonaj yok' => 'Tonaj yok', 'eski aday' => \App\Services\ScrapedLoadService::AUTO_APPROVE_MAX_AGE_DAYS.' günden eski; elle karar verin'];
     @endphp
 
@@ -1238,6 +1265,15 @@ new class extends Component {
             $chipOff = 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-500';
             $customTime = trim($from) !== '' || trim($to) !== '';
         @endphp
+        @if($activeTab === 'queue')
+            {{-- Toplam onay kuyruğu iki parça: eksik bilgili yayına geçenler (şoför arayıp tamamlar) ve kuyrukta bekleyenler (karar bekler) --}}
+            @php $queueCounts = ['all' => $stats['pending'] + $stats['incomplete'], 'incomplete' => $stats['incomplete'], 'waiting' => $stats['pending']]; @endphp
+            <div class="flex flex-wrap items-center gap-1.5">
+                @foreach(['all' => 'Tümü', 'incomplete' => 'Eksik bilgili yayına geçenler', 'waiting' => 'Kuyrukta bekleyenler'] as $vk => $vl)
+                    <button type="button" wire:click="setQueueView('{{ $vk }}')" class="{{ $chip }} {{ $queueView === $vk ? $chipOn : $chipOff }}">{{ $vl }} <span class="tabular-nums opacity-70">{{ number_format($queueCounts[$vk], 0, ',', '.') }}</span></button>
+                @endforeach
+            </div>
+        @endif
 
         {{-- Filtre paneli: her alan düz ve görünür; kayan menü ya da açılır panel yok (Osman, 2026-10-08) --}}
         <div class="apple-glass rounded-2xl p-3 sm:p-4 space-y-3 text-xs">

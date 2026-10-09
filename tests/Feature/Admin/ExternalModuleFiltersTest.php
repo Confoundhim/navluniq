@@ -102,6 +102,23 @@ class ExternalModuleFiltersTest extends TestCase
         $c->call('toggleFlag', 'per_ton')->assertSee('1 ilan')->call('removeFilter', 'flag:per_ton')->assertSee('3 ilan');
     }
 
+    public function test_queue_tab_splits_incomplete_published_from_waiting_candidates(): void
+    {
+        // Osman (2026-10-09): toplam onay kuyruğu, eksik bilgili yayına geçenler ve kuyrukta bekleyenler ayrı görünsün
+        $this->actingAs($this->admin());
+        $this->load(['raw_message' => 'BEKLEYEN-ADAY', 'status' => 'parsed_success', 'visibility' => 'private', 'published_at' => null]);
+        $this->load(['raw_message' => 'EKSIK-YAYINDA', 'is_incomplete' => true, 'vehicle_type' => null]);
+        $this->load(['raw_message' => 'TAM-YAYINDA']);
+
+        $c = Volt::test('admin.scrapers-center')->set('activeTab', 'queue')->set('period', 'all');
+        $c->assertSee('BEKLEYEN-ADAY')->assertSee('EKSIK-YAYINDA')->assertDontSee('TAM-YAYINDA')->assertSee('Eksik bilgili yayına geçenler');
+        $c->call('setQueueView', 'incomplete')->assertSee('EKSIK-YAYINDA')->assertDontSee('BEKLEYEN-ADAY');
+        $c->call('setQueueView', 'waiting')->assertSee('BEKLEYEN-ADAY')->assertDontSee('EKSIK-YAYINDA');
+        $c->call('setQueueView', 'all')->assertSee('BEKLEYEN-ADAY')->assertSee('EKSIK-YAYINDA');
+        // Yayında sekmesi eksik bilgili ilanı da gösterir (rozetiyle)
+        $c->set('activeTab', 'published')->assertSee('TAM-YAYINDA')->assertSee('EKSIK-YAYINDA')->assertDontSee('BEKLEYEN-ADAY');
+    }
+
     public function test_hidden_ai_providers_with_leftover_keys_are_not_in_the_chain(): void
     {
         Settings::set('ai_gemini_key', 'AIza-test');

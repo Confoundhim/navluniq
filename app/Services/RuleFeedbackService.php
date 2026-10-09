@@ -121,8 +121,10 @@ class RuleFeedbackService
             $row->last_load_id = $loadId ?? $row->last_load_id;
         }
         // Kendiliğinden onay: konum katalog korumalıdır (bilinen ad asla başka yere bağlanmaz), yük sözcüğü genel/kısa olamaz (fromAi süzer).
+        // Konum önerisi hiç kendiliğinden onaylanmaz: 2026-10-09 yayın dökümünde "yüklemeli → Torbalı", "açık → Tavas", "teker → Araç" gibi
+        // kendiliğinden onaylanmış takma adlar 1.500 yayındaki ilana hayali il yazmıştı; konum yalnız yönetici onayıyla sözlüğe girer.
         $threshold = Settings::int('ai_suggest_auto_approve_hits');
-        if ($threshold > 0 && (int) $row->hits >= $threshold) {
+        if ($threshold > 0 && $kind !== 'location' && (int) $row->hits >= $threshold) {
             $row->status = 'active';
             $row->note = mb_substr('kendiliğinden onaylandı ('.$row->hits.' ilan) · '.($note ?? ''), 0, 200);
         }

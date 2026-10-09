@@ -47,6 +47,8 @@ final class VehicleClassifier
         '/(?<![\d.,])(?:6[.,][2-9]\d?|7(?:[.,]\d\d?)?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['8_teker_kamyon', 7],
         '/(?<![\d.,])(?:4[.,][2-9]\d?|5(?:[.,]\d\d?)?|6(?:[.,]0\d?)?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['6_teker_kamyon', 7],
         '/(?<![\d.,])(?:2[.,]\d\d?|3[.,]?\d?\d?|4[.,]?[01]?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['kamyonet', 7],
+        '/\b(?:acik|kapali|tenteli|frigo|damperli|damper)\s+tr\b/' => ['tir', 8], // "ACIK TR LAZIM"
+        '/\bisuzu\b|\bisizu\b|\bizusu\b/' => ['6_teker_kamyon', 6], // marka adı: kamyon ailesi, tonajsız 6 teker tahmini
         '/\bcekici(?:ler|li|yle|si|ye|den|de|m|miz)?\b/' => ['tir', 9],
         '/\bdorse(?:ler|li|yle|si|ye|den|de|m|miz|lik)?\b/' => ['tir', 9],
         '/\bkirk\s?ayak(?:lar|la|li|i|a|in)?\b/' => ['kirkayak', 10],
@@ -321,6 +323,9 @@ final class VehicleClassifier
         }
         if (preg_match('/(?<![\d.])'.$num.'\s*(ton|tn|tonluk|tonu|tonlarda|tonla)(?!\p{L})/', $norm, $m)) {
             $v = self::toNumber($m[1]);
+            if ($v > 60 && $v <= 60000 && str_contains($m[1], '.') && fmod($v, 1000) == 0.0) {
+                $v /= 1000; // "25.000 TON": kilogramı ton diye yazmış (2026-10-09 yayın dökümü)
+            }
 
             return $v > 0 && $v <= 60 ? (int) round($v * 1000) : null;
         }
