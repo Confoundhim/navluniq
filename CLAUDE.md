@@ -644,6 +644,29 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   Gönderen adı zaten saklanmaz. Akış: Osman dosyayı sohbete yükler → bu ortamda hattan geçirilip engel nedenine göre kümelenir → kural
   düzeltmesi + altın sete **uydurma** örnek; dosya ve ham mesajlar depoya girmez. gzip çıktı `deflate_init/deflate_add` ile yazılır
   (`gzopen('php://output')` testte "could not make seekable" verir). Test `ScrapedLoadExportTest`.
+- **Kuyruk dökümü teşhisi (2026-10-09; Osman 7 günlük bekleyen 5.217 + reddedilen 2.065 adayı "Analiz dökümü" ile yükledi; analiz
+  betikleri ve dosyalar scratchpad'de, depoda değil):** (1) **Bekleyenlerin %99,5'i "araç tipi yok"** engelindeydi; canlıda
+  `scraper_auto_approve_require_vehicle=1` ve adayların puanı %70-100 olduğundan eksik bilgili yayın bandına (ret sınırı–yayın eşiği) da
+  girmiyor, süresi dolana kadar bekliyordu → `incompleteEligible`: "araç tipi yok" engelinde puan bandına bakılmaz, ret sınırının üstündeki
+  her aday eksik bilgili yayınlanır (fiyat/tonaj zorunluluğu eski bantta kalır). (2) **Reddedilenlerin tamamı tekrar reddi**, yarısında iki
+  tarafta da ilçe yazılıydı ve farklıydı ("Malkara → Afyon Emirdağ" / "Sandıklı"): `ScrapedLoadService::districtsDiffer` ile alımda
+  (`recentSameRoute` sonrası, mesaj düzeyi kısayol dahil) ve onayda (`publishedDuplicateOf`) ilçesi farklı kayıt ikiz sayılmaz; aynı metin
+  yine ikizdir. "Afyon Merkez" ilçesiz etiketlendiğinden "Merkez / Emirdağ" çifti hâlâ tekrar sayılır (bilinen sınır). (3) **Sözlük zehirlenmesi
+  yeniden:** canlı konum sözlüğünde "yüklemeli → İzmir Torbalı", "açık/kapalı → Denizli Tavas", "sabah/tenteli → Kocaeli Kartepe",
+  "sarar → Aydın Didim" girdileri ~1.000 adaya hayali il yazmıştı → `Lexicon::LOCATION_NOISE` + `isLocationNoise` (sözlük yüklenirken konum
+  girdisi süzülür; `LearningService::isNoiseTerm` de kullanır), migration `0001_01_62` genel sözcüklü konum girdilerini siler ve
+  `scraped-loads:relocate-force` ile son 14 günü yeniden konumlar. (4) **Seri ilanda kalkış öneki:** "MERSİN … YÜKLER ⏎ MERSİN-SİVAS",
+  "KIZILTEPE DEN … YÜKLEMEM VAR ⏎ KIZILTEPE KARAMAN MERKEZ" satırlarında kalkış öneki atılıp ikinci yer varış olur (`SeriesAd::samePlace`,
+  `$prefixed`); yalnız kalkışın tekrarı olan satır atlanır; `VEHICLE_FILLER` nokta/anadolu/avrupa; `LoadStandardizer` kalkış=varış çıkarsa
+  metindeki ilk farklı ildeki yeri varış yapar (`otherPlaceInText`), gerçek şehir içi ("İSTANBUL → İSTANBUL 120.000 ₺") olduğu gibi kalır.
+  (5) **Araç yazımı:** `VehicleClassifier::splitCompounds` (TIRkapalı, FRIGOTIR, DAMPERDORSE, TIR2, KAMYONONET, kırkayakk, 1O/l10 teker,
+  10TKR/10 tk) ve "tekerde/tekere" ekleri. (6) **Facebook grup listesi artıkları** ("Grubu sabitle", "N yeni gönderi", "N B üye", "Group
+  Cover Photo", "…'da Ara", art arda tekrarlanan grup adı satırı) `NotificationIntakeParser::FEED_CHROME/stripFeedChrome` ile hem ekran
+  gövdesinden hem alımın başında (`LoadIntakeService::intake`) atılır; eskiden grup adındaki iller rota oluyordu. (7) **Boş araç duyurusu**
+  ("kamyonetimiz boşa çıkacak", "boş 10 tk mevcut") `NOT_LOAD_PATTERN`. Test `QueueAuditTest`, altın sette 7 `kuyruk-*` örneği (277).
+  Dökümde görülen ama kodla çözülmeyen: "traktör" yük (araç değil, lowbed/açık ipucu yok), "Haramidere → Kastamonu Araç" gibi tekil
+  sözlük girdileri (Osman panelden Sözlük → konum listesini gözden geçirmeli). Yapay zeka 5.199 adayda "skipped": kural iki ili çözünce
+  araç eksik olsa da sorulmuyor (kota); eksik bilgili yayın bunu telafi eder.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

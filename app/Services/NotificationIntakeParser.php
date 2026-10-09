@@ -98,6 +98,39 @@ final class NotificationIntakeParser
     /** Gövdeye girmeyen ek satırlar: fotoğraf/video/bağlantı kutuları, "diğer" düğmesi, sayfa başlığı. */
     private const A11Y_BODY_NOISE = '/^(?:fotoğraf(?:\s+\d+\s*\/\s*\d+.*)?|.*fotoğrafı genişlet|reels videosu|mevcut reels videosunu oynat|sesini aç|\+\d+|paylaşılan bağlantı:.*|bağlantı görseli paylaşıldı|bu içerik hakkında|.*arka plan(?: görseli)?|diğer|daha fazla|geri|facebook logosu|oluştur,.*|.+, \\d+ \\/ \\d+|.+, tab \\d+ of \\d+|üyelik araçları için daha fazla seçenek|grup gönderileri|grupların|senin için|senin hareketlerin|keşfet|grup ara|tümünü gör|grup kur|ayarlar|yöneticinin onaylaması bekleniyor.*|öne çıkanlar|sen|rehberler|fotoğraflar)$/iu';
 
+    /**
+     * Grup listesi / bildirim ekranı artıkları: gönderi gövdesine karışınca grup adlarındaki il adları rota sanılıyordu
+     * (2026-10-09 dökümü: "ÇORLU TEKİRDAĞ TRAKYA EDİRNE NAKLİYECİLER SİTESİ ⏎ 1 yeni gönderi ⏎ Grubu sabitle" → Çorlu → Edirne).
+     */
+    public const FEED_CHROME = '/^(?:grubu sabitle|grubun sabitlemesini kaldır|sabitlenenler.*|\d+\+?\s*yeni gönderi|.*\b\d[\d.,]*\s*(?:b\s*)?üye\b.*|.*\bve \d+ arkadaşın üye.*|.*beğenen arkadaşlar.*|okunmadı|.*için bildirim ayarlarını yönet.*|sıralama:.*|en sık ziyaret ettiklerin|group cover photo|grup kapak fotoğrafı|.*günde \d+\+?\s*gönderi.*|bildirimler, tab.*|\d+ veya daha fazla yeni|şimdi .{1,80}[\'’]d[ae]:.*|.+[\'’](?:da|de|ta|te|nda|nde) ara|beğen düğmesi\..*|paylaş düğmesi\..*|yorum düğmesi\..*|.*çift dokun ve basılı tut.*|gönderi .*düğmesi.*)$/iu';
+
+    /** Grup adı sözcükleri (ek almış biçimler dahil: "nakliyeciler sitesi", "tırcıları topluluk"). */
+    public const FEED_GROUP_WORDS = '/(?:nakliyeci|nakliye|nakliyat|lojistik|yük|yuk|tırcı|tirci|kamyoncu|kamyon|borsa|portal|platform|topluluk|dernek|grubu|grup|sitesi|şoför|sofor)/iu';
+
+    /** Satır satır: arayüz artığı satırlar ve art arda tekrarlanan grup adı satırları atılır (gövde metninden ya da bildirim metninden). */
+    public static function stripFeedChrome(string $text): string
+    {
+        $lines = preg_split('/\R/u', $text) ?: [];
+        $out = [];
+        $n = count($lines);
+        for ($i = 0; $i < $n; $i++) {
+            $line = trim($lines[$i]);
+            $lower = TurkishText::lower($line);
+            if ($line !== '' && preg_match(self::FEED_CHROME, $lower) === 1) {
+                continue;
+            }
+            // Grup listesi her adı iki kez yazar: "X NAKLİYECİLER SİTESİ ⏎ X NAKLİYECİLER SİTESİ"; grup/nakliye sözcüklü tekrar satırı grup adıdır
+            if ($line !== '' && isset($lines[$i + 1]) && trim($lines[$i + 1]) === $line && preg_match(self::FEED_GROUP_WORDS, $lower) === 1 && ! LoadIntakeService::hasPhone($line)) {
+                $i++;
+
+                continue;
+            }
+            $out[] = $lines[$i];
+        }
+
+        return implode("\n", $out);
+    }
+
     /** Facebook'ta ilan olmayan bildirimler (yorum, beğeni, arkadaşlık, etkinlik…). */
     private const FACEBOOK_SKIP = '/(?<!\p{L})(?:yorum\s+yaptı|yorumladı|beğendi|tepki\s+verdi|arkadaşlık|etiketledi|bahsetti|commented|reacted|liked|friend\s+request|tagged|mentioned)(?!\p{L})/iu';
 
@@ -472,7 +505,8 @@ final class NotificationIntakeParser
                     $line = trim(preg_replace('/\\s*(?:…|\\.\\.\\.)\\s*diğer\\s*$/u', '', $lines[$i], -1, $cut) ?? $lines[$i]);
                     $truncated = $truncated || $cut > 0;
                     $lower = TurkishText::lower($line); // /i bayrağı İ/I dönüşümünü bilmez
-                    if ($line === '' || $line === $pageGroup || self::isAuthorLine($line, $anchor['author']) || preg_match(self::A11Y_BODY_NOISE, $lower) || preg_match(self::A11Y_HEADER_UI, $lower) || self::isScreenNoise($lower)) {
+                    if ($line === '' || $line === $pageGroup || self::isAuthorLine($line, $anchor['author']) || preg_match(self::A11Y_BODY_NOISE, $lower) || preg_match(self::A11Y_HEADER_UI, $lower) || self::isScreenNoise($lower)
+                        || preg_match(self::FEED_CHROME, $lower) || preg_match(self::A11Y_GROUP_PAGE, $line)) {
                         continue;
                     }
                     if ($body !== [] && mb_stripos(end($body), $line) !== false) {
@@ -480,7 +514,7 @@ final class NotificationIntakeParser
                     }
                     $body[] = $line;
                 }
-                $text = trim(implode("\n", $body));
+                $text = trim(self::stripFeedChrome(implode("\n", $body)));
                 if (mb_strlen(preg_replace('/[^\p{L}\p{N}]/u', '', $text) ?? '') < 12) {
                     continue;
                 }

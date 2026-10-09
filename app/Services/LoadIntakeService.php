@@ -68,7 +68,7 @@ class LoadIntakeService
         // Aynı metin iki gruptan aynı saniyede gelince (bildirim iletici her grubu ayrı yollar) iki istek yan yana
         // işlenir ve tekrar denetimi henüz yazılmamış kaydı göremezdi. Mesaj başına kilit: ikinci istek ilkinin
         // bitmesini bekler, sonra kaydı bulur ve "tekrar" der. Kilit alınamazsa (aşırı bekleme) kilitsiz devam edilir.
-        $raw = trim(TextPrep::foldFonts(TextPrep::stripInvisible((string) $payload['raw_message'])));
+        $raw = trim(NotificationIntakeParser::stripFeedChrome(TextPrep::foldFonts(TextPrep::stripInvisible((string) $payload['raw_message']))));
         $lock = Cache::lock('intake:lock:'.hash('sha256', self::normalizeText($raw)), self::LOCK_TTL_SECONDS);
         try {
             return $lock->block(self::LOCK_WAIT_SECONDS, fn () => $this->intakeUnlocked($payload, $raw));
@@ -244,7 +244,9 @@ class LoadIntakeService
                 // kuralın yakın eşlemeyle/sözlükle bulduğu rota yanlışsa parça yanlış bir ilanın tekrarı sayılıp kaybolmasın
                 // (asıl tekrar denetimi yapay zeka birleştirmesinden sonra, processSegment içinde).
                 $strongEnds = $isSeries || ! $aiFirst || (TurkishLocations::resolveCatalog($parsed['pickup_location'] ?? null) !== null && TurkishLocations::resolveCatalog($parsed['delivery_location'] ?? null) !== null);
-                if (! $mayHoldSeveral && $strongEnds && ($sameRoute = $this->recentSameRoute($parsed, null, $districtLevel)) && ! $this->materiallyDifferent($sameRoute, $segment['text'], $parsed)) {
+                if (! $mayHoldSeveral && $strongEnds && ($sameRoute = $this->recentSameRoute($parsed, null, $districtLevel))
+                    && ! ScrapedLoadService::districtsDiffer($sameRoute, $this->standardizer->standardize($segment['text'], $parsed)) // ilçesi farklı yük tekrar değil
+                    && ! $this->materiallyDifferent($sameRoute, $segment['text'], $parsed)) {
                     $this->noteSighting($sameRoute, $groupName);
                     $results[$i] = $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $segment['text']];
 
@@ -448,17 +450,21 @@ class LoadIntakeService
         $districtLevel = $isSeries || ! empty($segment['district_level']);
         $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $districtLevel);
         $supersedes = null;
+        // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
+        $std = $this->standardizer->standardize($text, $parsed);
         if (! $partialPending && ($sameRoute = $this->recentSameRoute($parsed, $phone, $districtLevel))) {
-            if (! $this->materiallyDifferent($sameRoute, $text, $parsed)) {
+            // İki kayıtta da ilçe yazılı ve farklı: aynı il çiftinde ayrı yük (Malkara → Afyon Merkez / Emirdağ); ne tekrar ne yerine geçme.
+            if (ScrapedLoadService::districtsDiffer($sameRoute, $std)) {
+                $sameRoute = null;
+            } elseif (! $this->materiallyDifferent($sameRoute, $text, $parsed)) {
                 $this->noteSighting($sameRoute, $groupName);
 
                 return $this->result(200, true, 'duplicate', 'Aynı numara ve rota yakın zamanda kaydedildi.', $sameRoute->id) + ['excerpt' => $text];
+            } else {
+                $supersedes = $sameRoute;
             }
-            $supersedes = $sameRoute;
         }
 
-        // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
-        $std = $this->standardizer->standardize($text, $parsed);
         $extraPhones = array_values(array_slice($phones, 1));
         // Aynı yük başka numarayla (komisyoncu): ayrı ilan olarak yayınlanır, iki kart da "Benzer ilan" rozeti taşır (Osman, 2026-10-05).
         $similar = $this->similarWithOtherPhone($std, $text, $phones);
@@ -1535,6 +1541,9 @@ class LoadIntakeService
         .'|yük arıyor\p{L}*|yuk ariyor\p{L}*|yük bakıyor\p{L}*|yuk bakiyor\p{L}*|yük lazım|yuk lazim|yük varsa|yuk varsa|yük olan|yuk olan|dönüş yükü arıyor\p{L}*'
         // "boş tırım var", "boş kamyonum var": nakliyeci (iyelik ekli araç) — "boş tır var mı" yük sahibi kalır (yukarıdaki kuralla)
         .'|boş\s+(?:tırım|tirim|kamyonum|kamyonetim|aracım|aracim|arabam|dorsem|çekicim|cekicim|kırkayağım|kirkayagim)'
+        // "kamyonetimiz boşa çıkacak", "boş 10 tk mevcut", "araçlarımız müsait": nakliyeci boş araç duyurusu (2026-10-09 dökümü)
+        .'|boşa\s+çık\p{L}*|bosa\s+cik\p{L}*|boş\s+\d+\s*(?:tk|tkr|teker|tır|tir|araç|arac|kamyon|kamyonet|dorse|çekici|cekici)\p{L}*\s+(?:mevcut|hazır|hazir|müsait|musait|var\b(?!\s*m[iı]))'
+        .'|(?:kamyonetimiz|tırımız|tirimiz|aracımız|aracimiz|araçlarımız|araclarimiz|arabamız|arabamiz|dorsemiz|çekicimiz|cekicimiz)\s+(?:boş|bos|boşta|bosta|müsait|musait|hazır|hazir|yük|yuk)'
         .'|satılık|satilik|kiralık|kiralik|dolandırıcı|dolandirici|epd kayıt|epd kayit|sanal market)(?!\p{L})/iu';
 
     /** Muhasebe/fatura reklamı sözcükleri: ilan rotası (iki il) varsa yalnız nottur ("e-fatura kesilir"), elenmez. */

@@ -40,9 +40,9 @@ final class VehicleClassifier
         '/\bkirk\s?ayak(?:lar|la|li|i|a|in)?\b/' => ['kirkayak', 10],
         '/\b(?:4|dort)\s?dingil(?:li)?\b/' => ['kirkayak', 8],
         // Kamyon alt tipleri
-        '/\b(?:10|on)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['10_teker_kamyon', 10],
-        '/\b(?:8|sekiz)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['8_teker_kamyon', 10],
-        '/\b(?:6|alti)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['6_teker_kamyon', 10],
+        '/\b(?:10|on)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['10_teker_kamyon', 10],
+        '/\b(?:8|sekiz)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['8_teker_kamyon', 10],
+        '/\b(?:6|alti)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['6_teker_kamyon', 10],
         '/\b(?:3|uc)\s?dingil(?:li)?\b/' => ['10_teker_kamyon', 7],
         // Hafif ticari
         '/\bkamyonet(?:ler|le|i|e|in|im|ten|te|lik|ler[ei])?\b/' => ['kamyonet', 10],
@@ -203,9 +203,27 @@ final class VehicleClassifier
         $t = str_replace(['m³'], ['m3'], $t);
         $t = preg_replace('/[^\p{L}\p{N}.,\/\-\s]+/u', ' ', $t) ?? $t;
         $t = preg_replace('/(?<=\p{L})[.,\/\-]+|[.,\/\-]+(?=\p{L})/u', ' ', $t) ?? $t; // "tır." "tenteli/kapalı" → boşluk
+        $t = self::splitCompounds($t);
         $t = preg_replace('/\s+/u', ' ', $t) ?? $t;
 
         return ' '.trim($t).' ';
+    }
+
+    /**
+     * Bitişik ve yazım hatalı araç/kasa yazımları ayrılır (2026-10-09 canlı dökümü: "TIRkapalı", "FRIGOTIR", "DAMPERDORSE", "TIR2",
+     * "KAMYONONET", "kırkayakk", "1O TEKER", "l10 teker", "10TKR", "10 tk"): ASCII küçük harfli metinde çalışır.
+     */
+    public static function splitCompounds(string $t): string
+    {
+        $t = strtolower($t);
+        $t = preg_replace('/\b(tir)(?=(?:kapali|acik|tenteli|tente|frigo|damper|lar|\d))/u', '$1 ', $t) ?? $t; // tirkapali, tir2
+        $t = preg_replace('/\b(frigo|damper|tenteli|tente|kapali|acik|mega|sal)(?=tir\b|dorse)/u', '$1 ', $t) ?? $t; // frigotir, damperdorse, kapalitir
+        $t = preg_replace('/\b(kapali|acik|tenteli|frigo)(?=(?:kasa|kamyon|kamyonet|kirkayak)\b)/u', '$1 ', $t) ?? $t; // kapalikasa, acikkamyon
+        $t = str_replace(['kamyononet', 'kamyonett', 'kirkayakk', 'kirk ayak'], ['kamyonet', 'kamyonet', 'kirkayak', 'kirkayak'], $t);
+        $t = preg_replace('/\b(?:1o|l10|lo)\b(?=\s*(?:teker|tekerlek|tkr|tk))/u', '10', $t) ?? $t; // harf O / l yazım hatası
+        $t = preg_replace('/\b(10|8|6)\s*(?:tkr|tk)\b/u', '$1 teker', $t) ?? $t; // 10tkr, 10 tk
+
+        return $t;
     }
 
     /**

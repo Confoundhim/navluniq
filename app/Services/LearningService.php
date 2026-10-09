@@ -178,6 +178,9 @@ class LearningService
     /** Takma ad olamayacak sözcük: gündelik/rol sözcüğü, firma eki, kişi hitabı ("çok", "acil", "lojistik", "bey"). */
     public static function isNoiseTerm(string $normalizedTerm): bool
     {
+        if (Lexicon::isLocationNoise($normalizedTerm)) {
+            return true; // genel sözcük (yüklemeli, açık, sabah, tenteli…) yer takma adı olamaz
+        }
         $words = preg_split('/\s+/', $normalizedTerm) ?: [];
         $noise = array_merge(TurkishCities::STOP_WORDS, AiParserService::PLACE_NOISE, AiParserService::COMPANY_WORDS, AiParserService::PERSON_TITLES,
             ['cok', 'acil', 'acill', 'ivedi', 'var', 'yok', 'yuk', 'yukler', 'bos', 'dolu', 'araba', 'arac', 'tir', 'kamyon', 'kamyonet', 'ton', 'adet', 'fiyat', 'ucret', 'navlun', 'kdv']);

@@ -32,6 +32,21 @@ class LoadStandardizer
      * @param  array<string, mixed>  $parsed  AiParserService çıktısı
      * @return array<string, mixed> scraped_loads kolonları + warnings + metadata
      */
+    /** Metindeki ilk farklı ildeki yer (kalkışla aynı ildeki satırlar atlanır); yoksa null. */
+    private function otherPlaceInText(string $raw, int $pickupProvince): ?array
+    {
+        foreach (AiParserService::placesIn($raw, 8) as $place) {
+            if (($place['province_code'] ?? null) !== null && (int) $place['province_code'] !== $pickupProvince) {
+                $resolved = $this->location($place['label']);
+                if ($resolved['province_code'] !== null) {
+                    return $resolved;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function standardize(string $raw, array $parsed): array
     {
         // Telefon rakamları kasa/adet/fiyat kalıplarına sızmasın ("… 0532 000 13 60" 13.60 dorse, "0532 … / TIR LAZIM" 2 tır sayılıyordu)
@@ -53,7 +68,14 @@ class LoadStandardizer
         }
         $international = array_filter(['pickup' => ! empty($pickup['foreign']), 'delivery' => ! empty($delivery['foreign'])]);
         if ($pickup['province_code'] !== null && $pickup['province_code'] === $delivery['province_code'] && $pickup['district'] === $delivery['district']) {
-            $warnings[] = 'same_route_ends';
+            // Kalkış ve varış aynı çıktıysa metinde başka bir yer var mı: "SAMSUN YÜKLER ⏎ SAMSUN ⏎ ARNAVUTKÖY", "MERSİN ... ⏎ MERSİN-SİVAS"
+            // (2026-10-09 dökümünde 91 aday böyle "Mersin → Mersin" kalmıştı). Gerçek şehir içi taşıma (başka yer yok) olduğu gibi kalır.
+            $other = $this->otherPlaceInText($raw, $pickup['province_code']);
+            if ($other !== null) {
+                $delivery = $other;
+            } else {
+                $warnings[] = 'same_route_ends';
+            }
         }
 
         // Yük: çözülen yer adlarının sözcükleri çıkarılmış metinde aranır ("Yumurtalık" yumurta, "Odunpazarı" kereste, "Elmadağ" meyve değildir)
