@@ -627,6 +627,23 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   yalnız panelde görünen sağlayıcılar** (Gemini, Groq, açıksa yerel): gizli sağlayıcının (Cerebras, OpenRouter, Mistral, ücretliler) anahtarı
   veritabanında kalsa bile zincire girmez; gerekirse `AI_EXTRA_PROVIDERS=cerebras,...` (`services.ai.extra_providers`) ile açılır; testler bunu
   `config()` ile açar.
+- **iyzico pazaryeri reddi (2026-10-08 gece):** iyzico destek "mevcut iş modeliniz kapsamında pazaryeri alt yapımız ile aracılık hizmeti
+  sunamıyoruz" dedi (hesap sanal POS olarak duruyor; "ilgili ekibe ilettik" beklet cevabı geldi). Navlun ödemesi kodda tek canlı yol
+  pazaryeri olduğundan canlıda tahsilat yok; premium üyelik sanal POS ile etkilenmez. **Osman'ın kararı (2026-10-09): şimdilik bekle, Param
+  (ve istenirse PayTR/Sipay) pazaryeri ürününe başvur.** Reddedilen seçenek: para platformdan geçmeden doğrudan ödeme ("işi düzgün teslim
+  etmeyenin peşinden koşarız"). Hedef model adayı B: NavlunIQ taşımayı kendi adına satar, sanal POS ile tahsil eder, teslimat onayında şoföre
+  havale (organizatör yetki belgesi + fatura düzeni; mali müşavir görüşü bekleniyor). Kod başlatılmadı; "Pazaryeri ürünü aktif" kutusu kapalı kalır.
+  **Param elendi (2026-10-09): TURK Elektronik Para A.Ş. TMSF kayyımında**, üye işyeri ödemeleri sınırlı; kalan adaylar PayTR ve Sipay pazaryeri.
+- **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
+  hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
+  `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL
+  (`navluniq-analiz-<kapsam>-<gün>gun-<tarih>.jsonl.gz`; ilk satır `_meta`): her adayda kaynak, zamanlar, durum, `rule` (kuralın okuduğu il/ilçe/
+  araç/kasa/yük/tonaj/fiyat, maskeli telefon ve türü), `parse` (yapay zeka durumu/notu/çelişki, yerel güven, uyarılar, katman, rota yorumu, seri,
+  şablon), `decision` (puan parçaları), `blocker` (otomatik onay engeli), `incomplete_eligible`, ret gerekçesi, tekrar/benzer bilgisi ve
+  **telefonları maskelenmiş** ham mesaj (`maskText`: cep/sabit/0850 "0532 *** ** 33", 444'lü "444 * ** **"; fiyat/tonaj/saat dokunulmaz).
+  Gönderen adı zaten saklanmaz. Akış: Osman dosyayı sohbete yükler → bu ortamda hattan geçirilip engel nedenine göre kümelenir → kural
+  düzeltmesi + altın sete **uydurma** örnek; dosya ve ham mesajlar depoya girmez. gzip çıktı `deflate_init/deflate_add` ile yazılır
+  (`gzopen('php://output')` testte "could not make seekable" verir). Test `ScrapedLoadExportTest`.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
