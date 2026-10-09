@@ -1316,6 +1316,8 @@ new class extends Component {
                 <button type="button" wire:click="removeFilter('{{ $c['key'] }}')" class="inline-flex items-center gap-1 rounded-full bg-brand-500/10 text-brand-700 dark:text-brand-300 px-2.5 py-1 text-[11px] font-semibold" title="Bu filtreyi kaldır">{{ $c['label'] }} <span aria-hidden="true" class="text-brand-500">×</span></button>
             @endforeach
             @if($filterChips !== [])<button type="button" wire:click="clearFilters" class="text-[11px] font-semibold text-neutral-500 hover:underline">Tümünü temizle</button>@endif
+            {{-- Analiz dökümü: bu sekmedeki adaylar (son N gün) satır başına JSON olarak iner; telefonlar maskeli --}}
+            <a href="{{ route('admin.scrapers.export', ['kapsam' => $activeTab, 'gun' => $period === 'all' ? 60 : (int) $period]) }}" class="ml-auto text-[11px] font-semibold text-brand-600 hover:underline whitespace-nowrap" title="Bu sekmedeki adayları (son {{ $period === 'all' ? 60 : (int) $period }} gün, en çok 20.000) kuralın okuduğu alanlar, karar puanı ve bekletme nedeniyle birlikte indirir; telefonlar maskelidir">Analiz dökümü indir</a>
         </div>
 
         @if($selected !== [])
