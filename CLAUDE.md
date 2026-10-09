@@ -633,6 +633,7 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   (ve istenirse PayTR/Sipay) pazaryeri ürününe başvur.** Reddedilen seçenek: para platformdan geçmeden doğrudan ödeme ("işi düzgün teslim
   etmeyenin peşinden koşarız"). Hedef model adayı B: NavlunIQ taşımayı kendi adına satar, sanal POS ile tahsil eder, teslimat onayında şoföre
   havale (organizatör yetki belgesi + fatura düzeni; mali müşavir görüşü bekleniyor). Kod başlatılmadı; "Pazaryeri ürünü aktif" kutusu kapalı kalır.
+  **Param elendi (2026-10-09): TURK Elektronik Para A.Ş. TMSF kayyımında**, üye işyeri ödemeleri sınırlı; kalan adaylar PayTR ve Sipay pazaryeri.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
