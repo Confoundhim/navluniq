@@ -627,6 +627,12 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   yalnız panelde görünen sağlayıcılar** (Gemini, Groq, açıksa yerel): gizli sağlayıcının (Cerebras, OpenRouter, Mistral, ücretliler) anahtarı
   veritabanında kalsa bile zincire girmez; gerekirse `AI_EXTRA_PROVIDERS=cerebras,...` (`services.ai.extra_providers`) ile açılır; testler bunu
   `config()` ile açar.
+- **iyzico pazaryeri reddi (2026-10-08 gece):** iyzico destek "mevcut iş modeliniz kapsamında pazaryeri alt yapımız ile aracılık hizmeti
+  sunamıyoruz" dedi (hesap sanal POS olarak duruyor; "ilgili ekibe ilettik" beklet cevabı geldi). Navlun ödemesi kodda tek canlı yol
+  pazaryeri olduğundan canlıda tahsilat yok; premium üyelik sanal POS ile etkilenmez. **Osman'ın kararı (2026-10-09): şimdilik bekle, Param
+  (ve istenirse PayTR/Sipay) pazaryeri ürününe başvur.** Reddedilen seçenek: para platformdan geçmeden doğrudan ödeme ("işi düzgün teslim
+  etmeyenin peşinden koşarız"). Hedef model adayı B: NavlunIQ taşımayı kendi adına satar, sanal POS ile tahsil eder, teslimat onayında şoföre
+  havale (organizatör yetki belgesi + fatura düzeni; mali müşavir görüşü bekleniyor). Kod başlatılmadı; "Pazaryeri ürünü aktif" kutusu kapalı kalır.
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
