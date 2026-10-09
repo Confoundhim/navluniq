@@ -115,9 +115,9 @@ class PublishedAuditTest extends TestCase
     {
         Settings::set('ai_suggest_auto_approve_hits', 2);
         $svc = app(RuleFeedbackService::class);
-        $svc->suggest('location', 'demirciler', 'Kocaeli|Dilovası', 'örnek', 1);
-        $svc->suggest('location', 'demirciler', 'Kocaeli|Dilovası', 'örnek', 2);
-        $this->assertSame('suggested', AiLexicon::query()->where('kind', 'location')->where('term', 'demirciler')->value('status'), 'konum takma adı yalnız yönetici onayıyla sözlüğe girer');
+        $svc->suggest('location', 'sanayikent', 'Kocaeli|Dilovası', 'örnek', 1);
+        $svc->suggest('location', 'sanayikent', 'Kocaeli|Dilovası', 'örnek', 2);
+        $this->assertSame('suggested', AiLexicon::query()->where('kind', 'location')->where('term', 'sanayikent')->value('status'), 'konum takma adı yalnız yönetici onayıyla sözlüğe girer');
         $svc->suggest('goods', 'xyzmalzeme', 'insaat', 'örnek', 1);
         $svc->suggest('goods', 'xyzmalzeme', 'insaat', 'örnek', 2);
         $this->assertSame('active', AiLexicon::query()->where('kind', 'goods')->where('term', 'xyzmalzeme')->value('status'));

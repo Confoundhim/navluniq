@@ -424,8 +424,8 @@ final class TurkishLocations
             if (isset($districts[$a])) {
                 return $districts[$a];
             }
-            // Ek atma: "aliagaya" → "aliaga", "gebzeden" → "gebze"
-            foreach (['indan', 'inden', 'undan', 'unden', 'ndan', 'nden', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'i', 'u'] as $suffix) {
+            // Ek atma: "aliagaya" → "aliaga", "gebzeden" → "gebze"; çoğul "Ayrancılar" → Ayrancı (Engin Abi, 2026-10-09)
+            foreach (['indan', 'inden', 'undan', 'unden', 'ndan', 'nden', 'lar', 'ler', 'dan', 'den', 'tan', 'ten', 'da', 'de', 'ta', 'te', 'ya', 'ye', 'na', 'ne', 'a', 'e', 'i', 'u'] as $suffix) {
                 if (str_ends_with($a, $suffix)) {
                     $stem = substr($a, 0, -strlen($suffix));
                     if (strlen($stem) >= 4 && isset($districts[$stem])) {

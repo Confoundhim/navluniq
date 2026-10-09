@@ -702,6 +702,20 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   eksik bilgili yayına geçen; üstte "Tümü / Eksik bilgili yayına geçenler / Kuyrukta bekleyenler" hapları (`queueView`, `applyQueueView`;
   Yayında sekmesi eksik bilgili ilanı rozetle göstermeye devam eder). Bilinen sınır: "Antalya Muratpaşa ⏎ Antalya Muratpaşa Kamyonet" (uygulama
   şehir içi gönderisi) yalnız iki satır yorumu katmanı etkinse çözülür (canlıda etkin). Testler `PublishedAuditTest` (9), altın set 292.
+- **Engin Abi'nin ekran görüntüleri (2026-10-09 öğleden sonra):** (1) **Filtre çubuğu telefonda taşıyordu** (çıkış/varış kutusundaki il rozetleri
+  sarıp ⇄ düğmesiyle ve komşu kutuyla üst üste biniyordu): telefonda çıkış ve varış kutuları **alt alta** (`grid-cols-[minmax(0,1fr)_2.25rem]`,
+  ⇄ ilk satırın sağında, varış `col-span-2`), kutuda tek satır özet metin "Çorum, Karaman (Ayrancı)" (`truncate`, rozet yok); geniş ekranda
+  (`sm:`) kutular yan yana ve rozetler ("·2 ilçe"). `PlacePickerTest` "·2 ilçe" bekler. **Ekran görüntüsü Playwright'sız alındı:** Volt bileşeni
+  geçici bir testle `->html()` olarak dosyaya yazıldı, `public/build` CSS'i bağlanıp 390 px iframe'li sayfa Chromium `--screenshot` ile çekildi
+  (`npm run build` bu ortamda çalışıyor); 2026-10-09 görüntüsü temiz.
+  (2) **Yayınlanmayan üç mesaj biçimi** (`LoadIntakeService`, splitSegments'in başında): `splitDottedList` — "...." (3+ nokta) ayırıcılı ilan listesi
+  (en az iki parça iki farklı il taşıyorsa satırlara bölünür; ".." rota bağlacı kalır); `hoistLateHeader` — varış satırlarının ORTASINDA kalkış
+  başlığı ("➡️KOCAELİ KAPALI TIR ⏎ 🟢BAYRAMPAŞA YÜKLEME ⏎ ➡️ANTALYA KAPALI TIR": önceki satırlar yalnız yer + araçsa başlık öne alınır, seri olur);
+  `markImplicitRouteLines` — bağlaçsız yan yana iki il taşıyan satırlar ("ANKARA ZİLE 2 METRE PARÇA") mesajda en az iki tane ise "A -> B" yazımına
+  çevrilir; `TurkishLocations::matchDistrict` çoğul ek ("Ayrancılar" → Karaman Ayrancı; ilçe süzgeci bu ilanı görür). "Çorum - Osmaniye TIR (Açık) ⏎
+  Karaman Ayrancılar - Kars Sarıkamış 10 TEKER" ve "Lüleburgaz ➡️ Ankara Frigo Tır ⏎ Lüleburgaz ➡️ İst. Avrupa …" (0 507 … numara) zaten doğru
+  okunuyordu; canlıda görünmeme nedeni kural değil (şoför "Aracıma uygun" süzgeci: kasa Açık / 10 teker, ya da 2 dk içinde kuyruk). Test
+  `EnginShapesTest`, altın sette 3 `engin-*` örneği (295).
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve

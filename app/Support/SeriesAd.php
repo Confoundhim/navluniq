@@ -387,6 +387,12 @@ final class SeriesAd
         return $a === $b || (empty($place['district']) && str_starts_with($b, $a.' ')) || (str_starts_with($a, $b.' ') && ! str_contains($b, ' '));
     }
 
+    /** Dışarıdan (LoadIntakeService::hoistLateHeader) kullanım: satır yalnız yer + araç/kasa/adet sözcükleri mi? */
+    public static function placeOnlyLine(string $line, array $places): bool
+    {
+        return self::isPlaceOnly($line, $places);
+    }
+
     private static function isPlaceOnly(string $line, array $places): bool
     {
         $words = array_values(array_filter(preg_split('/[^\p{L}]+/u', TurkishCities::ascii($line)) ?: [], fn ($w) => $w !== ''));

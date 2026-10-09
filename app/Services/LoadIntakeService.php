@@ -740,7 +740,10 @@ class LoadIntakeService
         if ($raw === '') {
             return [];
         }
+        $raw = self::splitDottedList($raw); // "ANKARA ZİLE 2 METRE PARÇA....KONYA ZİLE 6 TON....ELAZIĞ ZİLE …": noktalı ayırıcı ilanları böler
         $prepared = TextPrep::prepare($raw); // biçim işaretleri, emoji oklar ve süs satırları (blok ayırıcı) temizlenir
+        $prepared = self::hoistLateHeader($prepared); // "➡️KOCAELİ … ⏎ 🟢BAYRAMPAŞA YÜKLEME ⏎ ➡️ANTALYA …": başlık ortadaysa öne alınır
+        $prepared = self::markImplicitRouteLines($prepared); // "ANKARA ZİLE 2 METRE PARÇA" satırları: yan yana iki il, bağlaç yok → "Ankara -> Zile"
         self::$lastTruncated = 0;
         // "Tek yükleme, çok boşaltma noktası" serisi: her "X boşaltır" satırı ayrı araçlık ilan (bkz. SeriesAd).
         if (IntakeLayers::enabled('series') && ($series = SeriesAd::segments($prepared, $fallbackPhone)) !== null) {
@@ -1113,6 +1116,111 @@ class LoadIntakeService
         $type = (string) array_key_first($counts);
 
         return $counts[$type] / $explicit >= 0.8 && in_array($type, ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], true) ? $type : null;
+    }
+
+    /**
+     * Üç ve daha çok nokta ("....") ilan ayırıcısıdır: en az iki parça iki farklı il taşıyorsa her parça ayrı satır olur
+     * (Engin Abi, 2026-10-09: "ANKARA ZİLE 2 METRE PARÇA....KONYA ZİLE 6 METRE 6 TON....ELAZIĞ ZİLE …" tek ilan sayılıyordu).
+     * İki nokta ("Ankara..İzmir") rota bağlacı olarak kalır (TextPrep::prepare).
+     */
+    public static function splitDottedList(string $raw): string
+    {
+        if (preg_match_all('/\.{3,}/u', $raw) < 2) {
+            return $raw;
+        }
+        $chunks = preg_split('/\.{3,}/u', $raw) ?: [];
+        $routeChunks = 0;
+        foreach ($chunks as $chunk) {
+            $codes = array_unique(array_filter(array_map(fn ($p) => $p['province_code'] ?? null, AiParserService::placesIn($chunk, 3))));
+            if (count($codes) >= 2) {
+                $routeChunks++; // parçada iki farklı il var ("ANKARA ZİLE 2 METRE PARÇA")
+            }
+        }
+
+        return $routeChunks >= 2 ? implode("\n", array_map('trim', $chunks)) : $raw;
+    }
+
+    /**
+     * Varış satırlarından SONRA gelen kalkış başlığı ("➡️KOCAELİ KAPALI TIR ⏎ 🟢BAYRAMPAŞA YÜKLEME ⏎ ➡️ANTALYA KAPALI TIR") öne alınır:
+     * önceki satırların hepsi yalnız yer + araç taşıyorsa (fiil, bağlaç, numara yok) başlık hepsinin kalkışıdır (Engin Abi, 2026-10-09).
+     */
+    public static function hoistLateHeader(string $prepared): string
+    {
+        $lines = preg_split('/\n/u', $prepared) ?: [];
+        $headerAt = null;
+        $before = 0;
+        foreach ($lines as $i => $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (self::hasPhone($line)) {
+                return $prepared; // numaradan önce başlık bulunmadı
+            }
+            $lower = TurkishCities::lower($line);
+            $places = AiParserService::placesIn($line, 2);
+            if ($places === []) {
+                continue;
+            }
+            $isHeader = count($places) === 1 && preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 && AiParserService::routePair($line) === null;
+            if ($isHeader) {
+                $headerAt = $i;
+                break;
+            }
+            // Başlıktan önceki yer satırı: fiil, bağlaç yok; yalnız yer + araç/kasa/adet
+            if (preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1 || AiParserService::routePair($line) !== null || AiParserService::hasTrueAblative($lower) || ! SeriesAd::placeOnlyLine($line, $places)) {
+                return $prepared;
+            }
+            $before++;
+        }
+        if ($headerAt === null || $before === 0) {
+            return $prepared;
+        }
+        $header = $lines[$headerAt];
+        unset($lines[$headerAt]);
+
+        return trim($header)."\n\n".trim(implode("\n", $lines));
+    }
+
+    /**
+     * Bağlaçsız örtük rota satırları: satır bir yerle başlar, hemen ardından (araya en çok bir sözcük: ilçe) farklı ilden ikinci yer gelir
+     * ("ANKARA ZİLE 2 METRE PARÇA", "KONYA CİHANBEYLİ ERZURUM PASİNLER 4 TON"). Mesajda böyle en az iki satır varsa her biri "A -> B …"
+     * yazımına çevrilir ki ayrı ilan olsunlar (eski sürüm hepsini tek parçada tutup ilk ikisini rota sayıyordu).
+     */
+    public static function markImplicitRouteLines(string $prepared): string
+    {
+        $lines = preg_split('/\n/u', $prepared) ?: [];
+        $rewritten = [];
+        foreach ($lines as $i => $line) {
+            $t = trim($line);
+            if ($t === '' || self::hasPhone($t) || AiParserService::routePair($t) !== null || AiParserService::connectorMatches($t) !== []) {
+                continue;
+            }
+            $lower = TurkishCities::lower($t);
+            if (preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1 || AiParserService::hasTrueAblative($lower)) {
+                continue;
+            }
+            $places = AiParserService::placesIn($t, 3);
+            if (count($places) < 2 || ($places[0]['province_code'] ?? null) === null || ($places[1]['province_code'] ?? null) === null || $places[0]['province_code'] === $places[1]['province_code']) {
+                continue;
+            }
+            $a = TurkishCities::lower($places[0]['text']);
+            $b = TurkishCities::lower($places[1]['text']);
+            // Satır ilk yerle başlar; ikinci yer en çok bir ara sözcükle (ilçe adı) hemen ardından gelir
+            if (preg_match('/^\W*'.preg_quote($a, '/').'(?:\s+\p{L}+)?\s+'.preg_quote($b, '/').'(?!\p{L})(.*)$/su', $lower, $m) !== 1) {
+                continue;
+            }
+            $rest = trim(mb_substr($t, mb_strlen($t) - mb_strlen($m[1])));
+            $rewritten[$i] = $places[0]['label'].' -> '.$places[1]['label'].($rest !== '' ? ' '.$rest : '');
+        }
+        if (count($rewritten) < 2) {
+            return $prepared;
+        }
+        foreach ($rewritten as $i => $line) {
+            $lines[$i] = $line;
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
