@@ -634,6 +634,14 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   etmeyenin peşinden koşarız"). Hedef model adayı B: NavlunIQ taşımayı kendi adına satar, sanal POS ile tahsil eder, teslimat onayında şoföre
   havale (organizatör yetki belgesi + fatura düzeni; mali müşavir görüşü bekleniyor). Kod başlatılmadı; "Pazaryeri ürünü aktif" kutusu kapalı kalır.
   **Param elendi (2026-10-09): TURK Elektronik Para A.Ş. TMSF kayyımında**, üye işyeri ödemeleri sınırlı; kalan adaylar PayTR ve Sipay pazaryeri.
+  **2026-10-09 akşam durumu:** iyzico yazılı ret: "pazaryeri olarak aracılık hizmeti sunulan iş modellerine destek sağlayamıyoruz; sanal POS
+  yalnız yazılım ve SaaS satışı için" → premium abonelik iyzico'da kalabilir (kart saklama + abonelik ürünü sorulacak), navlun tahsilatı olmaz.
+  Sipay görüşmesi: pazaryeri altyapısı henüz yok, abonelik ve sanal POS için "inceleyip karar vereceğiz". PayTR başvurusu yarım. Osman'ın
+  2026-10-09 kararları: Sipay beklenmez. Yol haritası: (a) premium iyzico sanal POS'ta, otomatik yenileme iyzico abonelik ürünüyle (Osman:
+  "bir kere kayıt olsun, her ay otomatik devam etsin; ileride sadık üyeye hediye"); (b) navlun için Craftgate ve Paratika pazaryeri başvurusu
+  (dil: "kargo gibi aracılık", "emanet/escrow/havuz" sözcükleri kullanılmaz); (c) orta vade Model B: taşıma işleri organizatörü belgesi
+  (2025 değişikliğiyle 1.000.000 TL sermaye) + banka sanal POS, Qmove'un yaptığı gibi taşımayı kendi adına satmak; (d) karar gelene kadar
+  navlun ödemesi platform dışında, "Pazaryeri ürünü aktif" kapalı. "Bakiye/cüzdan" fikri olmaz: platformda para tutmak e-para lisansı ister.
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL
