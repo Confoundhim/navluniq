@@ -102,7 +102,7 @@ final class NotificationIntakeParser
      * Grup listesi / bildirim ekranı artıkları: gönderi gövdesine karışınca grup adlarındaki il adları rota sanılıyordu
      * (2026-10-09 dökümü: "ÇORLU TEKİRDAĞ TRAKYA EDİRNE NAKLİYECİLER SİTESİ ⏎ 1 yeni gönderi ⏎ Grubu sabitle" → Çorlu → Edirne).
      */
-    public const FEED_CHROME = '/^(?:grubu sabitle|grubun sabitlemesini kaldır|sabitlenenler.*|\d+\+?\s*yeni gönderi|.*\b\d[\d.,]*\s*(?:b\s*)?üye\b.*|.*\bve \d+ arkadaşın üye.*|.*beğenen arkadaşlar.*|okunmadı|.*için bildirim ayarlarını yönet.*|sıralama:.*|en sık ziyaret ettiklerin|group cover photo|grup kapak fotoğrafı|.*günde \d+\+?\s*gönderi.*|bildirimler, tab.*|\d+ veya daha fazla yeni|şimdi .{1,80}[\'’]d[ae]:.*|.+[\'’](?:da|de|ta|te|nda|nde) ara|beğen düğmesi\..*|paylaş düğmesi\..*|yorum düğmesi\..*|.*çift dokun ve basılı tut.*|gönderi .*düğmesi.*)$/iu';
+    public const FEED_CHROME = '/^(?:grubu sabitle|grubun sabitlemesini kaldır|sabitlenenler.*|\d+\+?\s*yeni gönderi|.*\b\d[\d.,]*\s*(?:b\s*)?üye\b.*|.*\bve \d+ arkadaşın üye.*|.*beğenen arkadaşlar.*|okunmadı|.*için bildirim ayarlarını yönet.*|sıralama:.*|en sık ziyaret ettiklerin|group cover photo|grup kapak fotoğrafı|.*günde \d+\+?\s*gönderi.*|bildirimler, tab.*|\d+ veya daha fazla yeni|şimdi .{1,80}[\'’]d[ae]:.*|.+[\'’](?:da|de|ta|te|nda|nde) ara|beğen düğmesi\..*|paylaş düğmesi\..*|yorum düğmesi\..*|.*çift dokun.*|.*ifade bırakmak.*|gönderi .*düğmesi.*)$/iu';
 
     /** Grup adı sözcükleri (ek almış biçimler dahil: "nakliyeciler sitesi", "tırcıları topluluk"). */
     public const FEED_GROUP_WORDS = '/(?:nakliyeci|nakliye|nakliyat|lojistik|yük|yuk|tırcı|tirci|kamyoncu|kamyon|borsa|portal|platform|topluluk|dernek|grubu|grup|sitesi|şoför|sofor)/iu';

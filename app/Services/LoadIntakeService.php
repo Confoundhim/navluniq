@@ -450,7 +450,8 @@ class LoadIntakeService
         $districtLevel = $isSeries || ! empty($segment['district_level']);
         $routeKey = self::routeKey($phone, $parsed['pickup_location'] ?? null, $parsed['delivery_location'] ?? null, $districtLevel);
         $supersedes = null;
-        // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet.
+        // Standartlaştırma: konum kataloğu (yazım hatası toleranslı), yük kategorisi, araç tipi, tonaj, fiyat, aciliyet; grup adı araç/kasa varsayımı.
+        $parsed['group_name'] = $groupName;
         $std = $this->standardizer->standardize($text, $parsed);
         if (! $partialPending && ($sameRoute = $this->recentSameRoute($parsed, $phone, $districtLevel))) {
             // İki kayıtta da ilçe yazılı ve farklı: aynı il çiftinde ayrı yük (Malkara → Afyon Merkez / Emirdağ); ne tekrar ne yerine geçme.

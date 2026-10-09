@@ -667,6 +667,20 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   Dökümde görülen ama kodla çözülmeyen: "traktör" yük (araç değil, lowbed/açık ipucu yok), "Haramidere → Kastamonu Araç" gibi tekil
   sözlük girdileri (Osman panelden Sözlük → konum listesini gözden geçirmeli). Yapay zeka 5.199 adayda "skipped": kural iki ili çözünce
   araç eksik olsa da sorulmuyor (kota); eksik bilgili yayın bunu telafi eder.
+- **Grup adı ve araç yorumu (2026-10-09, Osman: "gerçekten araç mı yok, grup adında araç var mı, 'fark etmez' mi, ham mesajda biz mi anlamıyoruz;
+  haksız reddedilenleri grup adlarıyla karşılaştır"):** araçsız bekleyen 5.192 adayın 362'si adında araç/kasa geçen gruptandı (damper 114, tır/dorse/
+  13.60 139, frigo 40, panelvan 15…), 60'ında "kapalı/açık", "fark etmez", "her araca uyar" kalıbı, 150'sinde tek başına "uzun/kısa" (dorse boyu),
+  25'inde "basar", 40'ında "yük üstü" vardı; gerisi (~4.450, çoğu 5-10 sözcük) gerçekten araç yazmıyor → eksik bilgili yayın (önceki madde).
+  Kod: `VehicleClassifier::fromGroupName` (grup adı → araç tahmini `ai_guess` + kasa `body_type_source=group` + yük biçimi parça; ilanda yazan
+  araç/"fark etmez"/yükten çıkan araç ezilmez, kasa yalnız araç sınıfıyla uyumluysa; `parse_metadata.vehicle_from_group`), `standardize()`
+  `$parsed['group_name']` ile (alım ve `restandardize` verir); `LENGTH_WORD` tek başına uzun/kısa → TIR + `kisa_dorse/uzun_dorse` ("uzun yol",
+  "kısa mesafe", "en kısa sürede" hariç); "kapalı/açık" (normalize eğik çizgiyi boşluk yapar, eski kalıp hiç eşleşmiyordu), kasa listesi +
+  "fark etmez/olur/uyar" → TIR ailesi; `anyVehicle` "her araca uyar/olur", "tüm araçlara açık"; "basar" (firma adı hariç) ve "yük üstü" (kasa açık)
+  ağır araç; tam sayı metre ("7 metre" 8 teker, "8 metre" 10 teker), "2 metre yer / 1 metre parsiyel" araç değil yük biçimi parça; "on tkr";
+  **"tire" TIR değil** (İzmir Tire; eski kalıp "tir+e" ekiyle eşleşiyordu). Facebook "… için çift dokun" satırları da artık atılır. Döküm sonucu
+  kuralla araç bulunan aday 25 → 629. **Reddedilenler:** 2.047/2.065 tekrar reddi; 1.195'inin ikizi 20 kayıt içinde (aynı mesaj/aynı dakika) ve
+  dökümde yok → ikizler yayında; haksız ret sayısı yayın dökümü gelince ölçülür (Osman "yayında" dökümünü gönderecek). Test `QueueAuditTest`
+  (+2), altın sette 7 `kuyruk-*` örneği daha (284).
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
