@@ -19,10 +19,20 @@ use App\Services\AiParserService;
  */
 final class VehicleClassifier
 {
+    /** "2 metre yer", "1 metre parsiyel", "3 metre boşluk": metre araç boyu değil parça yükün yeridir. */
+    private const NOT_SPACE_METRE = '(?!\s*(?:yer|yeri|yerlik|parsiyel|parca|bosluk|yuk|yukumuz|alir|alinir))';
+
+    /**
+     * Tek başına "uzun" / "kısa" nakliye dilinde dorse boyudur ("Erbaa uzun", "Çorlu kısa", "uzun kısa 1.400 TL" = iki boy da olur) → TIR.
+     * "uzun yol", "kısa mesafe", "en kısa sürede", "uzun vade", "7 metre uzunluğunda" boy değildir.
+     */
+    public const LENGTH_WORD = '(?<!en )(?<!cok )\b(?:uzun|kisa)\b(?!\s*(?:yol|yola|yolu|yollar|yollu|mesafe|mesafeli|vade|vadeli|sure|surede|sureli|surec|surecte|zaman|zamanda|zamanli|donem|donemli|metre|mt|m\b|kol|kollu|boylu|boy|soz|sozlu|not|film|sac|sacli|kenar|kenarli|tarif|omur|omurlu|sasi|sase|panelvan|panel|dorse|arac|tir|kasa|yillar|yillik|yildir|bir\s+sure))';
+
     /** Araç adları: düzenli ifade (ASCII'ye indirgenmiş, sözcük sınırlı) → [tip, puan]. */
     private const NOUNS = [
         // TIR ailesi
-        '/\btir(?:lar|lari|lik|la|i|a|e|in|im|dan|da|imiz|iniz|lara|larla|lardan|larda)?\b/' => ['tir', 10],
+        // "e" eki yok: "tire" İzmir'in ilçesidir (TIR'ın yönelme hali "tıra"); canlı dökümde "Tire → …" ilanları tır sayılıyordu
+        '/\btir(?:lar|lari|lik|la|i|a|in|im|dan|da|imiz|iniz|lara|larla|lardan|larda)?\b/' => ['tir', 10],
         // Adetle bitişik ya da yazım hatalı tır: "bırtır", "dörttir", "iki tr", "dört tur", "2 tr" (Engin Abi listeleri, 2026-10-08)
         '/\b(?:bir|iki|uc|dort|bes|alti|yedi|sekiz|dokuz|on)(?:tir|tirr|tr|tur)\b|\b(?:\d{1,2}|bir|iki|uc|dort|bes|alti|yedi|sekiz|dokuz|on)\s+(?:tr|tur|tirr)\b/' => ['tir', 9],
         // "13.60", "1360", "13-60", "13/60": dorse uzunluğu = tır; "kısa dorse" (10-11 m), "sal dorse", "2 kapak", "40 ayak konteyner", "uzun araç"
@@ -31,18 +41,20 @@ final class VehicleClassifier
         '/\btente(?:li|n|si|le|siz)?\b|\btnt\b|\btentli\b/' => ['tir', 7],
         '/\bfr[iı]?[iı]?go(?:rifik|lu|dur|su|lar)?\b|\bfirgo\b|\bfirigo\b|\btermo\s?k[iı]ng?\b|\bthermo\s?king\b|\btermokin\b/' => ['tir', 6],
         // "8.60 damperli", "8.60 kasa": 8.60 m kasa = 10 teker kamyon; "6.20/6.50 metre" = 6-8 teker; "3-4.5 metre" = kamyonet/panelvan
+        // Tam sayı metre de kasa boyudur ("7 metre kapalı", "8 metre araç"); "2 metre yer / 1 metre parsiyel" ise parça yükün yeri, araç değil
         '/(?<![\d.,])(?:8[.,]60|860)(?![\d])/' => ['10_teker_kamyon', 9],
-        '/(?<![\d.,])(?:6[.,][2-5]\d?|7[.,]\d\d?)\s*(?:m|mt|metre|mtre)\b/' => ['8_teker_kamyon', 7],
-        '/(?<![\d.,])(?:4[.,][2-9]\d?|5[.,]\d\d?|6[.,]0\d?|[56])\s*(?:m|mt|metre|mtre)\b/' => ['6_teker_kamyon', 7],
-        '/(?<![\d.,])(?:2[.,]\d\d?|3[.,]?\d?\d?|4[.,]?[01]?)\s*(?:m|mt|metre|mtre)\b/' => ['kamyonet', 7],
+        '/(?<![\d.,])(?:8(?:[.,]\d\d?)?|9(?:[.,]\d\d?)?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['10_teker_kamyon', 7],
+        '/(?<![\d.,])(?:6[.,][2-9]\d?|7(?:[.,]\d\d?)?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['8_teker_kamyon', 7],
+        '/(?<![\d.,])(?:4[.,][2-9]\d?|5(?:[.,]\d\d?)?|6(?:[.,]0\d?)?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['6_teker_kamyon', 7],
+        '/(?<![\d.,])(?:2[.,]\d\d?|3[.,]?\d?\d?|4[.,]?[01]?)\s*(?:m|mt|metre|mtre)\b'.self::NOT_SPACE_METRE.'/' => ['kamyonet', 7],
         '/\bcekici(?:ler|li|yle|si|ye|den|de|m|miz)?\b/' => ['tir', 9],
         '/\bdorse(?:ler|li|yle|si|ye|den|de|m|miz|lik)?\b/' => ['tir', 9],
         '/\bkirk\s?ayak(?:lar|la|li|i|a|in)?\b/' => ['kirkayak', 10],
         '/\b(?:4|dort)\s?dingil(?:li)?\b/' => ['kirkayak', 8],
         // Kamyon alt tipleri
-        '/\b(?:10|on)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['10_teker_kamyon', 10],
-        '/\b(?:8|sekiz)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['8_teker_kamyon', 10],
-        '/\b(?:6|alti)\s?(?:teker|tekerlek|tekerli|tekerlekli)\b/' => ['6_teker_kamyon', 10],
+        '/\b(?:10|on)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['10_teker_kamyon', 10],
+        '/\b(?:8|sekiz)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['8_teker_kamyon', 10],
+        '/\b(?:6|alti)\s?(?:teker(?:lek|li|lekli|de|e|den|le|ler|lere|lerde|lerle|lik)?)\b/' => ['6_teker_kamyon', 10],
         '/\b(?:3|uc)\s?dingil(?:li)?\b/' => ['10_teker_kamyon', 7],
         // Hafif ticari
         '/\bkamyonet(?:ler|le|i|e|in|im|ten|te|lik|ler[ei])?\b/' => ['kamyonet', 10],
@@ -69,7 +81,14 @@ final class VehicleClassifier
         // Dökme kömür/klinker/maden yükleri damperli tır ya da kırkayakla taşınır; "sınırsız damperli araç", "basar tonaj" → tır
         '/\b(?:dokme|basar\s+tonaj|sinirsiz\s+damper\w*|tonajini\s+alir|serbest\s+tonaj)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
         '/\byuksek\s+yan\b/' => ['family' => ['10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => '10_teker_kamyon', 'score' => 3],
-        '/\bkapali\s+(?:tir|arac|araclar|dorse)\b|\bacik\s+(?:tir|arac|araclar|dorse)\b|\bkapali\s*\/\s*acik\b|\bacik\s*\/\s*kapali\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 5],
+        // "kapalı/açık", "kapalı veya açık" (normalize "/" işaretini boşluğa çevirir; eski kalıp hiç eşleşmiyordu), "açık kapalı fark etmez",
+        // "tente frigo olur", "kısa uzun olur": kasa seçeneği sayan ilan dorse ister → TIR (tonaj yazılıysa ağır sınıf içinde tonaj seçer)
+        '/\bkapali\s+(?:tir|arac|araclar|dorse)\b|\bacik\s+(?:tir|arac|araclar|dorse)\b|\bkapali\s+(?:veya\s+|yada\s+|ya\s+da\s+)?acik\b|\bacik\s+(?:veya\s+|yada\s+|ya\s+da\s+)?kapali\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 5],
+        '/\b(?:acik|kapali|tenteli|tente|tentenli|frigo|damper|damperli|uzun|kisa)(?:\s+(?:acik|kapali|tenteli|tente|tentenli|frigo|damper|damperli|uzun|kisa|veya|yada|ya\s+da|ve|olsun|arac|araca))*\s+(?:fark\s?etmez|farketmez|farkemez|olur|olabilir|uyar|uygun)\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => 'tir', 'score' => 5],
+        '/'.self::LENGTH_WORD.'/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 4],
+        // "Gaziantep basar" (tonajını basar = dolu tır/damper), "yük üstü" (açık dorse/kasa üstü yük) ağır araç ister
+        '/\bbasar\b(?!\s+(?:nakliyat|nakliye|nak|lojistik|loj|bey|usta|abi|kardes|trans|tasimacilik|ve|ile))/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon'], 'default' => 'tir', 'score' => 2],
+        '/\byuk\s?ustu(?:ne|nde|dur)?\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon'], 'default' => 'tir', 'score' => 3],
         '/\bats\s?li\b|\bustten\s+yukleme\b|\bmega\s+tente\w*\b|\btekstil\s+dorse\w*\b/' => ['family' => ['tir'], 'default' => 'tir', 'score' => 4],
         '/\bkapali\s+kasa\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet', 'panelvan'], 'default' => 'kamyonet', 'score' => 3],
         '/\bacik\s+kasa\b/' => ['family' => ['tir', 'kirkayak', '10_teker_kamyon', '8_teker_kamyon', '6_teker_kamyon', 'kamyonet'], 'default' => 'kamyonet', 'score' => 3],
@@ -192,9 +211,67 @@ final class VehicleClassifier
      * "Araç fark etmez", "her türlü araç olur", "araç tipi önemli değil": ilan her araca açık.
      * Kasa için söylenen "tente frigo fark etmez" bu kalıba girmez (araç sözcüğü şarttır).
      */
+    /**
+     * Grup adından araç/kasa varsayımı (Osman, 2026-10-09: "13.60 ilanları diye grup var, burada araç belirtmesine gerek yok"): "13.60 TÜRKİYE
+     * GENELİ", "KONYA KISA DORSE 13-60", "TÜRKİYE DAMPER", "İstanbul Minivan ve Panelvan", "Tavas Kamyoncular" gruplarında ilan araç yazmaz,
+     * grubun kendisi söyler. Canlı dökümde araçsız bekleyen 5.192 adayın 362'si böyle gruplardandı. Sonuç tahmindir (ai_guess: filtre yumuşak
+     * uygular), ilanda açıkça yazılan araç/kasa ezilmez. "Tire" gibi ilçe adları araç sayılmaz (ek listesi sınırlı).
+     *
+     * @return array{vehicle:?string, body:list<string>, load_kind:?string}
+     */
+    public static function fromGroupName(?string $groupName): array
+    {
+        $none = ['vehicle' => null, 'body' => [], 'load_kind' => null];
+        if ($groupName === null || trim($groupName) === '') {
+            return $none;
+        }
+        $n = self::normalize(preg_replace('/\d+\s*\/\s*\d+|\(\d+\)/u', ' ', $groupName) ?? $groupName); // "7/24", "(5)"
+        $none['load_kind'] = preg_match('/\bpar[cs]a\b|\bparsiyel\b|\bgrupaj\b/', $n) ? 'parca' : null; // "PARÇA YÜKLER" grubu: araç yazmasa da yük biçimi parça
+        $vehicle = null;
+        foreach ([
+            '/\bkamyonet(?:ler|ci|ciler|cileri|leri)?\b/' => 'kamyonet',
+            '/\bpanel\s?van(?:lar|ci|cilar)?\b|\bminivan(?:lar|ci|cilar)?\b|\bhafif\s+ticari\b/' => 'panelvan',
+            '/\bkirk\s?ayak(?:lar|ci|cilar|cilari)?\b/' => 'kirkayak',
+            '/\b(?:10|on)\s?teker\w*|(?<![\d.,])(?:8[.,]60|860)(?![\d])/' => '10_teker_kamyon',
+            '/\b(?:8|sekiz)\s?teker\w*/' => '8_teker_kamyon',
+            '/\b(?:6|alti)\s?teker\w*/' => '6_teker_kamyon',
+            '/\bkamyon(?:lar|cu|cular|culari|lari|lar\w*)?\b/' => '6_teker_kamyon', // tonajsız kamyon = sınıfın en küçüğü (tahmin)
+            '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])|\btir(?:lar|lari|ci|cilar|cilari|lik)?\b|\bcekici(?:ler|ci)?\b|\bdorse(?:ler|ci|ciler|cileri)?\b|\blow\s?bed\w*|\bsilobas\w*|\bkonteyn[ie]r\w*/' => 'tir',
+            '/\bdamper(?:li|ci|ciler|cileri|lar)?\b|\bfr?i?r?igo(?:cu|cular|culari|lar|lu)?\b|\bfirgo\w*|\btente(?:li|n|ci|ciler|cileri)?\b/' => 'tir', // kasa adlı grup: ağır araç, varsayılan TIR
+        ] as $pattern => $type) {
+            if (preg_match($pattern, $n)) {
+                $vehicle = $type;
+                break;
+            }
+        }
+        if ($vehicle === null) {
+            return $none;
+        }
+        $body = [];
+        foreach ([
+            'damperli' => '/\bdamper\w*/', 'frigo' => '/\bfr?i?r?igo\w*|\bfirgo\w*/', 'tenteli' => '/\btente\w*/',
+            'kapali' => '/\bkapali\b/', 'acik' => '/\bacik\b/',
+        ] as $kind => $pattern) {
+            if (preg_match($pattern, $n)) {
+                $body[] = $kind;
+            }
+        }
+        if ($vehicle === 'tir') {
+            if (preg_match('/\bkisa\b/', $n)) {
+                $body[] = 'kisa_dorse';
+            }
+            if (preg_match('/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])|\buzun\b/', $n)) {
+                $body[] = 'uzun_dorse';
+            }
+        }
+
+        return ['vehicle' => $vehicle, 'body' => $body, 'load_kind' => $none['load_kind']];
+    }
+
     public static function anyVehicle(string $norm): bool
     {
-        return (bool) preg_match('/\b(?:arac(?:lar|i|lari)?\s*(?:tipi|cinsi)?\s*(?:fark ?etmez|farketmez|onemli degil|onemsiz|serbest)|her\s*(?:turlu|tur|cins)\s*arac|fark ?etmez\s*arac|hangi arac olursa|arac(?:lar)?\s*hepsi olur|tum arac(?:lar|lara)?(?:\s*uygun|\s*acik)?)\b/u', $norm);
+        // "her araca uyar / olur / uygun", "tüm araçlara açık", "araç olur ne olursa": her araç (2026-10-09 canlı dökümü)
+        return (bool) preg_match('/\b(?:arac(?:lar|i|lari)?\s*(?:tipi|cinsi)?\s*(?:fark ?etmez|farketmez|farkemez|onemli degil|onemsiz|serbest|ne olursa)|her\s*(?:turlu|tur|cins)\s*arac|her\s+araca?\s+(?:uyar|olur|uygun|acik|olabilir)|fark ?etmez\s*arac|hangi arac olursa|arac(?:lar)?\s*hepsi olur|tum arac(?:lar|lara)?(?:\s*uygun|\s*acik|\s*olur)?)\b/u', $norm);
     }
 
     public static function normalize(string $text): string
@@ -203,9 +280,28 @@ final class VehicleClassifier
         $t = str_replace(['m³'], ['m3'], $t);
         $t = preg_replace('/[^\p{L}\p{N}.,\/\-\s]+/u', ' ', $t) ?? $t;
         $t = preg_replace('/(?<=\p{L})[.,\/\-]+|[.,\/\-]+(?=\p{L})/u', ' ', $t) ?? $t; // "tır." "tenteli/kapalı" → boşluk
+        $t = self::splitCompounds($t);
         $t = preg_replace('/\s+/u', ' ', $t) ?? $t;
 
         return ' '.trim($t).' ';
+    }
+
+    /**
+     * Bitişik ve yazım hatalı araç/kasa yazımları ayrılır (2026-10-09 canlı dökümü: "TIRkapalı", "FRIGOTIR", "DAMPERDORSE", "TIR2",
+     * "KAMYONONET", "kırkayakk", "1O TEKER", "l10 teker", "10TKR", "10 tk"): ASCII küçük harfli metinde çalışır.
+     */
+    public static function splitCompounds(string $t): string
+    {
+        $t = strtolower($t);
+        $t = preg_replace('/\b(tir)(?=(?:kapali|acik|tenteli|tente|frigo|damper|lar|\d))/u', '$1 ', $t) ?? $t; // tirkapali, tir2
+        $t = preg_replace('/\b(frigo|damper|tenteli|tente|kapali|acik|mega|sal)(?=tir\b|dorse)/u', '$1 ', $t) ?? $t; // frigotir, damperdorse, kapalitir
+        $t = preg_replace('/\b(kapali|acik|tenteli|frigo)(?=(?:kasa|kamyon|kamyonet|kirkayak)\b)/u', '$1 ', $t) ?? $t; // kapalikasa, acikkamyon
+        $t = str_replace(['kamyononet', 'kamyonett', 'kirkayakk', 'kirk ayak'], ['kamyonet', 'kamyonet', 'kirkayak', 'kirkayak'], $t);
+        $t = preg_replace('/\b(?:1o|l10|lo)\b(?=\s*(?:teker|tekerlek|tkr|tk))/u', '10', $t) ?? $t; // harf O / l yazım hatası
+        $t = preg_replace('/\b(10|8|6)\s*(?:tkr|tk)\b/u', '$1 teker', $t) ?? $t; // 10tkr, 10 tk
+        $t = preg_replace('/\b(on|sekiz|alti)\s*(?:tkr|tk)\b/u', '$1 teker', $t) ?? $t; // "on tkr"
+
+        return $t;
     }
 
     /**

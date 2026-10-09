@@ -9,6 +9,7 @@ use App\Models\ScrapedLoad;
 use App\Models\Scraper;
 use App\Support\SenderPickupMemory;
 use App\Support\Settings;
+use App\Support\TurkishCities;
 use App\Support\TurkishLocations;
 use App\Support\VehicleTypes;
 use Illuminate\Support\Carbon;
@@ -347,7 +348,7 @@ class ScrapedLoadService
     {
         $query = ScrapedLoad::query()->where('visibility', 'public')->whereKeyNot($load->id);
 
-        return $query->where(function ($q) use ($load): void {
+        $twins = $query->where(function ($q) use ($load): void {
             $q->whereRaw('1 = 0');
             if ($load->normalized_hash) {
                 $q->orWhere(fn ($w) => $w->where('normalized_hash', $load->normalized_hash)
@@ -356,7 +357,35 @@ class ScrapedLoadService
             if ($load->route_key) {
                 $q->orWhere('route_key', $load->route_key); // yayındaki ikiz yaşı ne olursa olsun bulunur; kim kalacağına çağıran karar verir
             }
-        })->orderBy('id')->first();
+        })->orderBy('id')->limit(20)->get();
+
+        foreach ($twins as $twin) {
+            // Aynı numara + aynı il çifti ama iki kayıtta da ilçe yazılı ve farklı ("Malkara → Afyon Merkez" / "Malkara → Afyon Emirdağ"):
+            // ayrı yükler, ikiz değil. Eski sürüm il düzeyinde eşleştirip ikinciyi "tekrar" diye reddediyordu (Engin Abi: "aradaki yerler yok";
+            // 2026-10-09 dökümünde reddedilenlerin yarısında iki tarafta da ilçe vardı). Metni birebir aynı olan kayıt yine ikizdir.
+            $sameText = $twin->normalized_hash !== null && $twin->normalized_hash === $load->normalized_hash;
+            if (! $sameText && self::districtsDiffer($twin, $load)) {
+                continue;
+            }
+
+            return $twin;
+        }
+
+        return null;
+    }
+
+    /** İki kayıtta da ilçe yazılı ve farklı mı (kalkış ya da varış tarafında)? Bir tarafta ilçe yoksa fark sayılmaz. */
+    public static function districtsDiffer(ScrapedLoad $a, ScrapedLoad|array $b): bool
+    {
+        foreach (['pickup_district', 'delivery_district'] as $col) {
+            $x = $a->{$col};
+            $y = is_array($b) ? ($b[$col] ?? null) : $b->{$col};
+            if ($x !== null && $x !== '' && $y !== null && $y !== '' && TurkishCities::ascii((string) $x) !== TurkishCities::ascii((string) $y)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -607,17 +636,25 @@ class ScrapedLoadService
         if ($blocker === self::INFERRED_ROUTE_BLOCKER) {
             return $this->decision($load)['score'] > self::pct('scraper_auto_reject_max_score'); // yorumla çözülen rota: puan bandına bakılmaz, hep eksik bilgili
         }
-        $soft = in_array($blocker, ['araç tipi yok', 'fiyat yok', 'tonaj yok'], true) || str_starts_with($blocker, 'karar puanı %');
+        $missingField = in_array($blocker, ['araç tipi yok', 'fiyat yok', 'tonaj yok'], true);
+        $soft = $missingField || str_starts_with($blocker, 'karar puanı %');
         if (! $soft) {
             return false; // durum, kaynak, rota, il, telefon, çelişki, bekleme: bunlar eksik bilgiyle kapatılamaz
         }
         $d = $this->decision($load);
+        if ($d['wait'] || $d['score'] <= self::pct('scraper_auto_reject_max_score')) {
+            return false;
+        }
+        // Araç tipi zorunlu ayarı açıkken araç yazmayan aday: puan ne kadar yüksek olursa olsun "eksik bilgili" yayınlanır; şoför arayıp
+        // "Aradım, araç:" ile tamamlar. Eski sürüm puan bandına da bakıyordu: rotası ve telefonu kesin, puanı %90-100 olan 5.000 ilan ne
+        // yayınlanıyor ne eksik bilgiliye düşüyordu, kuyrukta süresi dolana kadar bekliyordu (2026-10-09 canlı dökümü: bekleyenlerin %99'u
+        // "araç tipi yok"). Fiyat/tonaj zorunluluğu eskisi gibi puan bandına bağlı kalır (şoför kartta tamamlayamaz).
+        if ($blocker === 'araç tipi yok') {
+            return true;
+        }
         $upper = max(self::pct('scraper_incomplete_max_score'), self::pct('scraper_auto_approve_min_confidence'));
 
-        return ! $d['wait']
-            && $d['score'] > self::pct('scraper_auto_reject_max_score')
-            && $d['score'] <= $upper
-            && $d['score'] < self::pct('scraper_auto_approve_min_confidence');
+        return $d['score'] <= $upper && $d['score'] < self::pct('scraper_auto_approve_min_confidence');
     }
 
     /** Şoför ilan sahibini arayıp öğrendi: araç tipi (ya da "fark etmez") girilince ilan tamamlanır. */

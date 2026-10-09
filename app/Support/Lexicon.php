@@ -27,6 +27,36 @@ final class Lexicon
 
     private static float $versionCheckedAt = 0.0;
 
+    /**
+     * Yer takma adı olamayacak genel sözcükler: araç/kasa, yükleme-boşaltma fiilleri, zaman, nicelik ve gündelik sözcükler. Canlı dökümde
+     * (2026-10-09) "yüklemeli → İzmir Torbalı", "açık/kapalı → Denizli Tavas", "sabah/tenteli → Kocaeli Kartepe", "sarar → Aydın Didim"
+     * girdileri binlerce ilana hayali il yazmıştı. Hem sözlük yüklenirken hem öğrenirken bakılır (ASCII küçük harf).
+     */
+    public const LOCATION_NOISE = ['yukler', 'yukleme', 'yuklemeli', 'yuklemesi', 'yuklemeleri', 'yuklenir', 'yuklenecek', 'yuklenecektir', 'yuklesin', 'yukle', 'yuk', 'yuku', 'yukleri',
+        'iner', 'indirir', 'indirme', 'indirmeli', 'bosaltir', 'bosaltma', 'bosaltmali', 'bosalir', 'teslim', 'teslimat', 'teslimli', 'cikisli', 'cikis', 'kalkis', 'varis', 'sarar', 'sarilir',
+        'sabah', 'aksam', 'ogle', 'ogleden', 'gece', 'bugun', 'yarin', 'hemen', 'acil', 'acill', 'simdi', 'hazir', 'lazim', 'gerek', 'mevcut', 'var', 'yok', 'olur', 'olacak', 'olacaktir', 'gun', 'gunu', 'hafta',
+        'acik', 'kapali', 'tenteli', 'tente', 'frigo', 'frigolu', 'damper', 'damperli', 'dorse', 'dorseli', 'kasa', 'kasali', 'lowbed', 'silobas', 'tanker', 'konteyner', 'mega', 'jumbo', 'liftli', 'lift',
+        'tir', 'tirlar', 'kamyon', 'kamyonet', 'panelvan', 'kirkayak', 'cekici', 'teker', 'arac', 'araclar', 'araba', 'tonaj', 'ton', 'kg', 'adet', 'nokta', 'yer', 'parca', 'komple', 'parsiyel',
+        'fiyat', 'ucret', 'navlun', 'kdv', 'pesin', 'nakit', 'fatura', 'odeme', 'tl', 'buyuk', 'kucuk', 'hafif', 'agir', 'uzun', 'kisa', 'bos', 'dolu', 'tam', 'cok', 'az',
+        'pazartesi', 'sali', 'carsamba', 'persembe', 'cuma', 'cumartesi', 'pazar', 'merkez', 'ilce', 'il', 'koy', 'osb', 'depo', 'fabrika', 'liman', 'sanayi', 'hal', 'hali',
+        'firma', 'lojistik', 'nakliyat', 'nakliye', 'tasimacilik', 'grup', 'grubu', 'ltd', 'sti', 'san', 'tic', 'bey', 'hanim', 'abi', 'usta', 'hoca'];
+
+    /** Terim (ASCII küçük harf, boşlukla ayrık) yalnız genel sözcüklerden mi oluşuyor ya da genel bir sözcük içeriyor mu? */
+    public static function isLocationNoise(string $normalizedTerm): bool
+    {
+        $words = array_values(array_filter(explode(' ', TurkishCities::ascii($normalizedTerm)), fn ($w) => $w !== ''));
+        if ($words === []) {
+            return true;
+        }
+        foreach ($words as $w) {
+            if (in_array($w, self::LOCATION_NOISE, true) || strlen($w) <= 2) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function normalize(string $text): string
     {
         $t = TurkishCities::ascii($text);
@@ -58,9 +88,10 @@ final class Lexicon
                 $out = [];
                 foreach (AiLexicon::query()->where('status', 'active')->whereNotNull('term')->get(['kind', 'term', 'canonical']) as $row) {
                     $term = self::normalize((string) $row->term);
-                    if ($term !== '') {
-                        $out[$row->kind][$term] = (string) ($row->canonical ?? '');
+                    if ($term === '' || ($row->kind === 'location' && self::isLocationNoise($term))) {
+                        continue; // "yüklemeli → İzmir Torbalı", "açık → Denizli Tavas" gibi yanlış öğrenilmiş genel sözcükler uygulanmaz (2026-10-09 dökümü)
                     }
+                    $out[$row->kind][$term] = (string) ($row->canonical ?? '');
                 }
 
                 return $out;

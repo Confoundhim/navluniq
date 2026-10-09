@@ -40,7 +40,8 @@ final class SeriesAd
      */
     private const VEHICLE_FILLER = ['yer', 'arac', 'araclar', 'adet', 'tir', 'tirlar', 'kamyon', 'kamyonet', 'panelvan', 'kirkayak', 'cekici', 'dorse', 'dorseli',
         'kapali', 'tenteli', 'tente', 'tenten', 'tentelı', 'acik', 'frigo', 'frigorifik', 'damperli', 'damper', 'lowbed', 'silobas', 'kisa', 'uzun', 'liftli', 'lift', 'ton', 'tonluk',
-        'parsiyel', 'komple', 'yuk', 'yukler', 'var', 'lazim', 'aranan', 'araniyor', 'olur', 'uygun', 'm', 'mt', 'metre', 'teker', 'tekerli', 'dingil'];
+        'parsiyel', 'komple', 'yuk', 'yukler', 'var', 'lazim', 'aranan', 'araniyor', 'olur', 'uygun', 'm', 'mt', 'metre', 'teker', 'tekerli', 'dingil',
+        'nokta', 'noktali', 'tek', 'anadolu', 'avrupa', 'yakasi', 'yaka', 'hafif', 'agir', 'bos', 'dolu'];
 
     /** Mesajda kalkış bulunduğunu gösteren işaretler yoksa ve satırlar "yer + araç" biçimindeyse: kalkışsız varış listesi. */
     public static function isDestinationListWithoutPickup(string $prepared): bool
@@ -129,9 +130,23 @@ final class SeriesAd
             }
             $suffixHeader = preg_match(self::PICKUP_SUFFIX, $lower) === 1 && AiParserService::hasTrueAblative($lower); // "ANKARA TENTEN", "K.MARAŞ ELBİSTAN" başlık değil
             $hasPickupVerb = preg_match(AiParserService::PICKUP_VERBS, $lower) === 1 || $suffixHeader;
+            // Başlık görüldükten sonra kalkışla başlayan satır: "MERSİN-SİVAS", "KIZILTEPE KARAMAN MERKEZ" → varış satırdaki ikinci yerdir;
+            // yalnız kalkışın tekrarı olan satır ("SAMSUN YÜKLER ⏎ SAMSUN ⏎ ARNAVUTKÖY") atlanır. Eski sürüm ilk yeri alıp "Mersin → Mersin" yazıyordu.
+            $prefixed = false;
+            if ($headerCount > 0 && $current['pickup'] !== null && $places !== [] && ! $hasPickupVerb && self::samePlace($places[0], $current['pickup'])) {
+                if (count($places) < 2) {
+                    $placeLines--;
+
+                    continue;
+                }
+                $places = array_slice($places, 1);
+                $line = trim(preg_replace('/^.*?(?<!\p{L})'.preg_quote($places[0]['text'], '/').'/u', $places[0]['text'], $line, 1) ?? $line);
+                $lower = TurkishCities::lower($line);
+                $prefixed = true; // "KIZILTEPE İSTANBUL HABİPLER": kalkış öneki açıkça yazılı, kalan sözcük bilinmese de varış satırıdır
+            }
             // Varış satırı: "X boşaltır / iner" ya da (başlık görüldükten sonra) yalnız yer adı taşıyan satır ("Amasya / MERZİFON")
             $isDest = $places !== [] && ! $hasPickupVerb
-                && (preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1 || ($headerCount > 0 && self::isPlaceOnly($line, $places)));
+                && ($prefixed || preg_match(AiParserService::DELIVERY_VERBS, $lower) === 1 || ($headerCount > 0 && self::isPlaceOnly($line, $places)));
             $isHeader = ! $isDest && $places !== [] && $hasPickupVerb;
             if ($isHeader) {
                 if ($current['dests'] !== []) {
@@ -363,6 +378,15 @@ final class SeriesAd
      *
      * @param  list<array{label:string, province:string, district:?string, text:string}>  $places
      */
+    /** Satırdaki yer, bloğun kalkışıyla aynı mı (il + ilçe etiketi ya da aynı il ve ilçesiz yazım)? */
+    private static function samePlace(array $place, string $pickupLabel): bool
+    {
+        $a = TurkishCities::ascii($place['label']);
+        $b = TurkishCities::ascii($pickupLabel);
+
+        return $a === $b || (empty($place['district']) && str_starts_with($b, $a.' ')) || (str_starts_with($a, $b.' ') && ! str_contains($b, ' '));
+    }
+
     private static function isPlaceOnly(string $line, array $places): bool
     {
         $words = array_values(array_filter(preg_split('/[^\p{L}]+/u', TurkishCities::ascii($line)) ?: [], fn ($w) => $w !== ''));

@@ -71,14 +71,15 @@ final class BodyTypes
         'tenteli' => '/\btent(?:e|eli|elidir|eliler|elik|en|ene|eneli|enli|ali)?\b|\btnt\b|\btentli\b|\bmega\s+tente\w*/',
         'kapali' => '/\bkapali\b/',
         // "açık adres", "fiyat açık", "açık hesap" kasa değildir; "açık kasa/sal/dorse/tır/araç", "kapalı/açık", tek başına "açık(tır)" kasa
-        'acik' => '/\bacik\s+(?:kasa|sal|dorse|tir|arac|araclar|kamyon|kamyonet|tenteli|kapali)\b|\b(?:kasa|sal|dorse)\s+acik\b|\bacik\s*\/|\/\s*acik\b|(?<!adres\s)(?<!fiyat\s)(?<!hesap\s)\bacik(?:ta|tir|dir)?\b(?!\s+(?:adres|fiyat|hesap|artirma|arttirma|kart|ogretim|ucak|hava))|\bsal\b|\btentesiz\b|\bplatform\b/',
+        'acik' => '/\bacik\s+(?:kasa|sal|dorse|tir|arac|araclar|kamyon|kamyonet|tenteli|kapali)\b|\b(?:kasa|sal|dorse)\s+acik\b|\bacik\s*\/|\/\s*acik\b|(?<!adres\s)(?<!fiyat\s)(?<!hesap\s)\bacik(?:ta|tir|dir)?\b(?!\s+(?:adres|fiyat|hesap|artirma|arttirma|kart|ogretim|ucak|hava))|\bsal\b|\btentesiz\b|\bplatform\b|\byuk\s?ustu\w*/',
         'frigo' => '/\bfr[iı]?[iı]?go\w*|\bfirgo\w*|\bfirigo\w*|\btermo\s?k[iı]ng?\w*|\bthermo\s?king\w*|\btermokin\w*|\bsogutucu\w*|\bsogutmali\b|\bsoguk\s+hava\w*|\bfrigolu\b/',
         'damperli' => '/\bdamper\w*|\bdanper\w*/',
         'silobas' => '/\bsilobas\w*|\bsilo\s?bas\w*/',
         'lowbed' => '/\blow\s?bed\w*|\blowbet\w*|\blobed\w*|\blovbed\w*|\blovbet\w*|\blowboy\w*/',
         'liftli' => '/\blift(?:li|i)?\b|\bkuyruk\s+lift\w*|\bhidrolik\s+lift\w*/',
-        'kisa_dorse' => '/\bkisa\s+(?:dorse|tir|arac|kasa)\b/',
-        'uzun_dorse' => '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])|\buzun\s+(?:dorse|arac|tir)\b|\bmega\b/',
+        // Tek başına "kısa" / "uzun" da dorse boyudur ("Çorlu kısa", "Erbaa uzun"; VehicleClassifier::LENGTH_WORD dışlamaları: "uzun yol", "en kısa sürede")
+        'kisa_dorse' => '/\bkisa\s+(?:dorse|tir|arac|kasa)\b|(?<!en )(?<!cok )\bkisa\b(?!\s*(?:yol|yola|yolu|yollar|mesafe|mesafeli|vade|vadeli|sure|surede|sureli|surec|zaman|zamanda|donem|donemli|metre|mt|m\b|kol|boylu|boy|soz|sozlu|not|film|sac|kenar|tarif|omur|sasi|sase|panelvan|panel|yillar|bir\s+sure))/',
+        'uzun_dorse' => '/(?<![\d.,])(?:13[.,\/\- ]?60|1360)(?![\d])|\buzun\s+(?:dorse|arac|tir)\b|\bmega\b|\buzun\b(?!\s*(?:yol|yola|yolu|yollar|yollu|mesafe|mesafeli|vade|vadeli|sure|surede|sureli|surec|zaman|zamanda|zamanli|donem|donemli|metre|mt|m\b|kol|kollu|boylu|boy|soz|sozlu|sac|sacli|kenar|kenarli|omur|omurlu|sasi|sase|panelvan|panel|yillar|yillik|yildir|bir\s+sure))/',
     ];
 
     private const ANY_PATTERN = '/\bher\s+turlu\s+(?:dorse|arac|kasa)\w*|\bfark\s?etmez\b|\bfarketmez\b|\bhepsi\s+olur\b|\bher\s+dorse\w*|\bne\s+olursa\b|\bdorse\s+farketmez\b/';
@@ -307,7 +308,8 @@ final class BodyTypes
      */
     public static function detectLoadKind(string $norm, ?int $weightKg = null, ?int $vehicleCount = null): ?string
     {
-        if (preg_match('/\b(?:parca\s+yuk\w*|parsiyel|parsiyal|parsiyl|kismi\s+yuk\w*|grupaj|yanina\s+(?:yuk|alinir|alir)|bosluk\w*\s+(?:olan|var)|ek\s+yuk\w*|(?<!yedek\s)(?<!oto\s)parca\b)/', $norm)) { // "yedek parça" yük adıdır, yük biçimi değil
+        // "2 metre yer", "1 metre parsiyel yükümüz", "1.20 mt yer alır": metreyle söylenen yer parça yüktür (araç boyu değil)
+        if (preg_match('/\b(?:parca\s+yuk\w*|parsiyel|parsiyal|parsiyl|kismi\s+yuk\w*|grupaj|yanina\s+(?:yuk|alinir|alir)|bosluk\w*\s+(?:olan|var)|ek\s+yuk\w*|(?<!yedek\s)(?<!oto\s)parca\b|\d{1,2}(?:[.,]\d\d?)?\s*(?:m|mt|metre)\s+(?:yer|yeri|yerlik|bosluk|yuk|yukumuz|alir|alinir)\w*)/', $norm)) { // "yedek parça" yük adıdır, yük biçimi değil
             return 'parca';
         }
         if (preg_match('/\b(?:komple|tirlik|araclik|full\s+(?:tir|arac|yuk)|ftl|tam\s+arac|komple\s+yuk\w*)\b/', $norm)) {

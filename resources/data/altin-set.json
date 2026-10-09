@@ -1868,5 +1868,240 @@
       "vehicle": "tir",
       "each": true
     }
+  },
+  {
+    "id": "kuyruk-seri-kalkis-onekli",
+    "note": "Başlık kalkışı her varış satırının önünde tekrarlanır: MERSİN-SİVAS (2026-10-09 canlı döküm; 'Mersin → Mersin' çıkıyordu)",
+    "message": "MERSİN HAYAT KİMYADAN YÜKLER\nMERSİN-SİVAS\nMERSİN-BURSA 3 NOKTA\nMERSİN-K.MARAŞ\n0505 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Mersin",
+          "Sivas"
+        ],
+        [
+          "Mersin",
+          "Bursa"
+        ],
+        [
+          "Mersin",
+          "Kahramanmaraş"
+        ]
+      ],
+      "phone": "5051112233"
+    }
+  },
+  {
+    "id": "kuyruk-seri-kiziltepe-onekli",
+    "note": "'X DEN ... YÜKLEMEM VAR' başlığı + 'X VARIŞ MERKEZ' satırları (2026-10-09 döküm)",
+    "message": "KIZILTEPE DEN PRES SAMAN YÜKLEMEM VAR\nKIZILTEPE KARAMAN MERKEZ\nKIZILTEPE NİĞDE MERKEZ\nKIZILTEPE ANKARA MERKEZ\n0544 111 22 33",
+    "expect": {
+      "ads": 3,
+      "routes": [
+        [
+          "Mardin Kızıltepe",
+          "Karaman"
+        ],
+        [
+          "Mardin Kızıltepe",
+          "Niğde"
+        ],
+        [
+          "Mardin Kızıltepe",
+          "Ankara"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-kalkis-tekrari",
+    "note": "Kalkış satırdan sonra tek başına tekrar yazılmış; varış sonraki satır (2026-10-09 döküm: 'Samsun → Samsun')",
+    "message": "SAMSUN YÜKLER\nSAMSUN\nARNAVUTKÖY+AVRUPA\n0533 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Samsun",
+          "İstanbul Arnavutköy"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-bitisik-arac-yazimi",
+    "note": "'TIRkapalı' bitişik yazım araç ve kasa verir (2026-10-09 döküm)",
+    "message": "İZMİR\nAYDIN TIRkapalı\n0539 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir",
+          "Aydın"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "kapali"
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-frigotir-bitisik",
+    "note": "'FRIGOTIR' ve 'DAMPERDORSE' bitişik yazımlar (2026-10-09 döküm)",
+    "message": "ALİAĞA-BOZDOĞAN\nARAÇLAR DAMPERDORSE OLACAKTIR.\n0530 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Aliağa",
+          "Aydın Bozdoğan"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "damperli"
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-bos-arac-mevcut-elenir",
+    "note": "Nakliyecinin boş araç duyurusu ilan değildir (2026-10-09 döküm)",
+    "message": "Sabah istanbul AVRUPA da boş 10 tk mevcut Denizli çevresi uyar 0542 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "kuyruk-bosa-cikacak-elenir",
+    "note": "'kamyonetimiz boşa çıkacak' nakliyeci dili (2026-10-09 döküm)",
+    "message": "Yarın Çorluda sabah 09:00'da kamyonetimiz boşa çıkacak yön Avrupa\n0530 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "kuyruk-uzun-dorse-boyu",
+    "note": "Tek başına 'uzun' dorse boyu = TIR (2026-10-09 döküm: 94 ilan)",
+    "message": "Sivas Gemerek -> Giresun Tirebolu uzun\n0549 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Sivas Gemerek",
+          "Giresun Tirebolu"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "uzun_dorse"
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-kisa-uzun-fiyat",
+    "note": "'uzun kısa' = iki boy da olur; fiyatlı liste satırı",
+    "message": "Gemerek -> Erbaa uzun kısa 2.100tl\n0549 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Sivas Gemerek",
+          "Tokat Erbaa"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "kisa_dorse",
+        "uzun_dorse"
+      ],
+      "price": 2100
+    }
+  },
+  {
+    "id": "kuyruk-kapali-acik",
+    "note": "'Kapalı/Açık' kasa seçeneği dorse ister (eğik çizgi normalize'da boşluk olur)",
+    "message": "Adana - Antalya Kapalı/Açık 24 ton\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Adana",
+          "Antalya"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "kapali",
+        "acik"
+      ],
+      "weight": 24000
+    }
+  },
+  {
+    "id": "kuyruk-yuk-ustu",
+    "note": "'yük üstü' = açık kasa üstü yük, ağır araç",
+    "message": "Aydın Söke'den Van yük üstü\n0552 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Aydın Söke",
+          "Van"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "acik"
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-basar",
+    "note": "'basar' = tonajını basar, dolu tır",
+    "message": "Elazığ'dan Gaziantep basar\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Elazığ",
+          "Gaziantep"
+        ]
+      ],
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "kuyruk-tam-metre",
+    "note": "Tam sayı metre kasa boyu: 7 metre = 8 teker",
+    "message": "Ankara Beypazarı - Eskişehir 7 metre açık\n0533 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Ankara Beypazarı",
+          "Eskişehir"
+        ]
+      ],
+      "vehicle": "8_teker_kamyon",
+      "body": [
+        "acik"
+      ]
+    }
+  },
+  {
+    "id": "kuyruk-tire-ilcesi",
+    "note": "'Tire' İzmir ilçesidir, TIR değil (eski kalıp 'tir+e' ekiyle eşleşiyordu)",
+    "message": "Tire'den Ödemiş'e 2 ton kuru gıda\n0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İzmir Tire",
+          "İzmir Ödemiş"
+        ]
+      ],
+      "weight": 2000
+    }
   }
 ]

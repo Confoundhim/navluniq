@@ -32,6 +32,21 @@ class LoadStandardizer
      * @param  array<string, mixed>  $parsed  AiParserService çıktısı
      * @return array<string, mixed> scraped_loads kolonları + warnings + metadata
      */
+    /** Metindeki ilk farklı ildeki yer (kalkışla aynı ildeki satırlar atlanır); yoksa null. */
+    private function otherPlaceInText(string $raw, int $pickupProvince): ?array
+    {
+        foreach (AiParserService::placesIn($raw, 8) as $place) {
+            if (($place['province_code'] ?? null) !== null && (int) $place['province_code'] !== $pickupProvince) {
+                $resolved = $this->location($place['label']);
+                if ($resolved['province_code'] !== null) {
+                    return $resolved;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function standardize(string $raw, array $parsed): array
     {
         // Telefon rakamları kasa/adet/fiyat kalıplarına sızmasın ("… 0532 000 13 60" 13.60 dorse, "0532 … / TIR LAZIM" 2 tır sayılıyordu)
@@ -53,7 +68,14 @@ class LoadStandardizer
         }
         $international = array_filter(['pickup' => ! empty($pickup['foreign']), 'delivery' => ! empty($delivery['foreign'])]);
         if ($pickup['province_code'] !== null && $pickup['province_code'] === $delivery['province_code'] && $pickup['district'] === $delivery['district']) {
-            $warnings[] = 'same_route_ends';
+            // Kalkış ve varış aynı çıktıysa metinde başka bir yer var mı: "SAMSUN YÜKLER ⏎ SAMSUN ⏎ ARNAVUTKÖY", "MERSİN ... ⏎ MERSİN-SİVAS"
+            // (2026-10-09 dökümünde 91 aday böyle "Mersin → Mersin" kalmıştı). Gerçek şehir içi taşıma (başka yer yok) olduğu gibi kalır.
+            $other = $this->otherPlaceInText($raw, $pickup['province_code']);
+            if ($other !== null) {
+                $delivery = $other;
+            } else {
+                $warnings[] = 'same_route_ends';
+            }
         }
 
         // Yük: çözülen yer adlarının sözcükleri çıkarılmış metinde aranır ("Yumurtalık" yumurta, "Odunpazarı" kereste, "Elmadağ" meyve değildir)
@@ -139,6 +161,30 @@ class LoadStandardizer
             $priceUnit = 'per_ton';
         }
 
+        // Grup adı aracı söylüyorsa ("13.60 TÜRKİYE GENELİ", "TÜRKİYE DAMPER", "İstanbul Minivan ve Panelvan") ilan araç yazmasa da araç/kasa
+        // tahmin olarak yazılır (Osman, 2026-10-09); ilanda yazan araç, "fark etmez" ve yükten çıkan araç ezilmez (yük çıkarımı da tahmindir:
+        // grup daha somut). Yük biçimi (parça grubu) yalnız boşsa dolar.
+        $group = VehicleClassifier::fromGroupName($parsed['group_name'] ?? null);
+        $vehicleFromGroup = false;
+        if ($group['vehicle'] !== null && ! $vehicleAny && ($vehicleType === null || $vehicleSource === 'goods')) {
+            $vehicleType = $group['vehicle'];
+            $vehicleSource = 'ai_guess';
+            $vehicleFromGroup = true;
+            $warnings = array_values(array_diff($warnings, ['vehicle_unresolved']));
+            $warnings[] = 'vehicle_inferred';
+        }
+        // Grup kasası yalnız ilandaki araçla uyumluysa ("13.60" grubunda "kamyonet" yazan ilana dorse boyu yazılmaz)
+        $bodyFromGroup = false;
+        if ($group['body'] !== [] && $bodyTypes === [] && ! $body['any']) {
+            $allowed = BodyTypes::forClass($vehicleType !== null ? VehicleTypes::classOf($vehicleType) : null);
+            $bodyTypes = BodyTypes::clean(array_values(array_intersect($group['body'], $allowed)));
+            $bodySource = 'group';
+            $bodyFromGroup = $bodyTypes !== [];
+        }
+        if ($loadKind === null && $group['load_kind'] !== null) {
+            $loadKind = $group['load_kind'];
+        }
+
         $urgent = (bool) preg_match('/\b(?:acil|acilen|hemen|ivedi|bugun|simdi|derhal)\b/', $norm);
         $pickupNote = $this->pickupNote($norm);
 
@@ -175,6 +221,8 @@ class LoadStandardizer
                 'vehicle_evidence' => $vehicle['evidence'],
                 'body_evidence' => $body['evidence'],
                 'body_any' => $body['any'],
+                'vehicle_from_group' => $vehicleFromGroup ? $group['vehicle'] : null,
+                'body_from_group' => $bodyFromGroup,
                 'urgent' => $urgent,
                 'pickup_note' => $pickupNote,
                 'warnings' => $warnings,
@@ -206,6 +254,7 @@ class LoadStandardizer
             'load_kind' => $load->load_kind,
             'vehicle_count' => $load->vehicle_count,
             'delivery_stops' => $load->delivery_stops,
+            'group_name' => $load->scraper?->name,
         ]);
         $changes = [];
         foreach (['pickup_location', 'pickup_province_code', 'pickup_district', 'pickup_lat', 'pickup_lng', 'delivery_location', 'delivery_province_code',
