@@ -47,12 +47,13 @@
         </div>
 
         {{-- Rota: çıkış ⇄ varış --}}
-        <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+        {{-- Telefonda kutular alt alta (yer adları sığar), ⇄ ilk satırın sağında; geniş ekranda yan yana --}}
+        <div class="grid grid-cols-[minmax(0,1fr)_2.25rem] sm:grid-cols-[minmax(0,1fr)_2.25rem_minmax(0,1fr)] items-center gap-1.5 sm:gap-2 min-w-0">
             @include('livewire.driver.loads.partials.place-filter', ['side' => 'pickup', 'sideLabel' => 'Çıkış'])
-            <button type="button" wire:click="swapSides" class="w-9 h-9 rounded-full border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-brand-500 hover:border-brand-500/60 flex items-center justify-center" title="Çıkış ve varışı yer değiştir" aria-label="Çıkış ve varışı yer değiştir">
+            <button type="button" wire:click="swapSides" class="w-9 h-9 shrink-0 rounded-full border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-brand-500 hover:border-brand-500/60 flex items-center justify-center" title="Çıkış ve varışı yer değiştir" aria-label="Çıkış ve varışı yer değiştir">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
             </button>
-            @include('livewire.driver.loads.partials.place-filter', ['side' => 'delivery', 'sideLabel' => 'Varış'])
+            <div class="col-span-2 sm:col-span-1 min-w-0">@include('livewire.driver.loads.partials.place-filter', ['side' => 'delivery', 'sideLabel' => 'Varış'])</div>
         </div>
 
         {{-- Hızlı çipler: telefonda yatay kayar, taşmaz --}}

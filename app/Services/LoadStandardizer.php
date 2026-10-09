@@ -66,6 +66,17 @@ class LoadStandardizer
         if ($delivery['province_code'] === null && empty($delivery['foreign'])) {
             $warnings[] = 'delivery_unresolved';
         }
+        // Aynı ilin iki ilçesi ve varış metinde kalkıştan ÖNCE yazılmış ("İSKENDERUN PAYASTAN ⏎ KAYSERİ"): ilk ilçe kalkışın niteleyicisidir,
+        // gerçek varış metindeki başka ildir (2026-10-09 yayın dökümü: küspe ilanları "Payas → İskenderun" çıkıyordu).
+        if ($pickup['province_code'] !== null && $pickup['province_code'] === $delivery['province_code'] && $pickup['district'] !== null
+            && $delivery['district'] !== null && $pickup['district'] !== $delivery['district']) {
+            $asciiRaw = TurkishCities::ascii(TurkishText::lower($raw));
+            $pPos = mb_strpos($asciiRaw, TurkishCities::ascii(TurkishText::lower($pickup['district'])));
+            $dPos = mb_strpos($asciiRaw, TurkishCities::ascii(TurkishText::lower($delivery['district'])));
+            if ($pPos !== false && $dPos !== false && $dPos < $pPos && ($other = $this->otherPlaceInText($raw, $pickup['province_code'])) !== null) {
+                $delivery = $other;
+            }
+        }
         $international = array_filter(['pickup' => ! empty($pickup['foreign']), 'delivery' => ! empty($delivery['foreign'])]);
         if ($pickup['province_code'] !== null && $pickup['province_code'] === $delivery['province_code'] && $pickup['district'] === $delivery['district']) {
             // Kalkış ve varış aynı çıktıysa metinde başka bir yer var mı: "SAMSUN YÜKLER ⏎ SAMSUN ⏎ ARNAVUTKÖY", "MERSİN ... ⏎ MERSİN-SİVAS"

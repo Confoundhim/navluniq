@@ -136,8 +136,9 @@ final class TurkishCities
                 }
             }
         }
-        // 4) Noktasız kısaltma: "GANTEP", "KKALE", "KMARAS" (ilk harf + il adının sonu, tek eşleşme)
-        if (($abbr = self::abbreviation($token, 4)) !== null) {
+        // 4) Noktasız kısaltma: "GANTEP", "KKALE", "KMARAS" (ilk harf + il adının sonu, tek eşleşme). Katalogdaki bir ilçe adı
+        // kısaltma sayılmaz: "Kaman" (Kırşehir) "K+aman" diye Karaman olmaz (2026-10-09 yayın dökümü: "KIRŞEHİR-Kaman" → Karaman çıkıyordu).
+        if (! TurkishLocations::isCatalogName($first) && ($abbr = self::abbreviation($token, 4)) !== null) {
             return ['name' => $abbr, 'tokens' => 1];
         }
 

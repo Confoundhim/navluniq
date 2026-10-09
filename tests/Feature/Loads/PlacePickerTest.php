@@ -27,7 +27,7 @@ class PlacePickerTest extends TestCase
         $c = Volt::test('driver.loads.index')->assertSee('Her yer')
             ->call('toggleProvince', 'pickup', 1)->assertSee('Adana ilçeleri (tümü)')->assertSee('Ceyhan')
             ->call('toggleDistrict', 'pickup', 1, 'Ceyhan')->call('toggleDistrict', 'pickup', 1, 'Kozan')
-            ->assertSee('Adana ilçeleri: Ceyhan, Kozan')->assertSee('(2 ilçe)')
+            ->assertSee('Adana ilçeleri: Ceyhan, Kozan')->assertSee('·2 ilçe')
             ->call('toggleProvince', 'delivery', 9)->assertSee('Varış: Aydın');
         $this->assertSame([1 => ['Ceyhan', 'Kozan']], $c->get('filters')['pickup_districts']);
 

@@ -74,7 +74,10 @@ class LocationPoisonTest extends TestCase
         $this->assertSame(0, AiLexicon::query()->where('kind', 'location')->count());
         $this->assertTrue($feedback->suggest('location', 'Yükkent', 'Kocaeli Gebze', 'Yükkent - Bursa 0532 111 22 33'), 'katalogda olmayan jargon önerilir');
         $row = AiLexicon::query()->where('kind', 'location')->where('term', 'yukkent')->firstOrFail();
-        $this->assertSame('active', $row->status, 'eşik 1: kendiliğinden onaylandı');
+        // Konum önerisi eşikle kendiliğinden onaylanmaz (2026-10-09 yayın dökümü: kendiliğinden onaylanan takma adlar 1.500 ilana hayali il yazmıştı); yönetici onaylar
+        $this->assertSame('suggested', $row->status, 'konum önerisi eşik dolsa da bekler');
+        $this->assertTrue($feedback->approve($row));
+        $this->assertSame('active', $row->fresh()->status);
         // Elle onay da katalog adını sözlüğe sokamaz
         $bad = AiLexicon::create(['kind' => 'location', 'term' => 'adana', 'canonical' => 'İzmir', 'status' => 'suggested', 'source' => 'ai']);
         $this->assertFalse($feedback->approve($bad));

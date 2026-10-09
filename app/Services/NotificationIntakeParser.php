@@ -102,7 +102,7 @@ final class NotificationIntakeParser
      * Grup listesi / bildirim ekranı artıkları: gönderi gövdesine karışınca grup adlarındaki il adları rota sanılıyordu
      * (2026-10-09 dökümü: "ÇORLU TEKİRDAĞ TRAKYA EDİRNE NAKLİYECİLER SİTESİ ⏎ 1 yeni gönderi ⏎ Grubu sabitle" → Çorlu → Edirne).
      */
-    public const FEED_CHROME = '/^(?:grubu sabitle|grubun sabitlemesini kaldır|sabitlenenler.*|\d+\+?\s*yeni gönderi|.*\b\d[\d.,]*\s*(?:b\s*)?üye\b.*|.*\bve \d+ arkadaşın üye.*|.*beğenen arkadaşlar.*|okunmadı|.*için bildirim ayarlarını yönet.*|sıralama:.*|en sık ziyaret ettiklerin|group cover photo|grup kapak fotoğrafı|.*günde \d+\+?\s*gönderi.*|bildirimler, tab.*|\d+ veya daha fazla yeni|şimdi .{1,80}[\'’]d[ae]:.*|.+[\'’](?:da|de|ta|te|nda|nde) ara|beğen düğmesi\..*|paylaş düğmesi\..*|yorum düğmesi\..*|.*çift dokun.*|.*ifade bırakmak.*|gönderi .*düğmesi.*)$/iu';
+    public const FEED_CHROME = '/^(?:grubu sabitle|grubun sabitlemesini kaldır|sabitlenenler.*|\d+\+?\s*yeni gönderi|.*\b\d[\d.,]*\s*(?:b\s*)?üye\b.*|.*\bve \d+ arkadaşın üye.*|.*beğenen arkadaşlar.*|okunmadı|.*için bildirim ayarlarını yönet.*|sıralama:.*|en sık ziyaret ettiklerin|group cover photo|grup kapak fotoğrafı|.*günde \d+\+?\s*gönderi.*|bildirimler, tab.*|\d+ veya daha fazla yeni|şimdi .{1,80}[\'’]d[ae]:.*|.+[\'’](?:da|de|ta|te|nda|nde) ara|beğen düğmesi\..*|paylaş düğmesi\..*|yorum düğmesi\..*|.*çift dokun.*|.*ifade bırakmak.*|gönderi .*düğmesi.*|facebook[\'’]ta arkadaş değilsiniz|\d+ ortak arkadaş.*|arkadaşlık isteği gönderildi|profili gör|mesajlar ve aramalar uçtan uca.*|.+[\'’]d[ae] (?:okudu|çalışıyor|yaşıyor|çalıştı|okuyor)|.*kanalını takip edin.*|https?:\/\/\S+)$/iu';
 
     /** Grup adı sözcükleri (ek almış biçimler dahil: "nakliyeciler sitesi", "tırcıları topluluk"). */
     public const FEED_GROUP_WORDS = '/(?:nakliyeci|nakliye|nakliyat|lojistik|yük|yuk|tırcı|tirci|kamyoncu|kamyon|borsa|portal|platform|topluluk|dernek|grubu|grup|sitesi|şoför|sofor)/iu';
@@ -117,6 +117,10 @@ final class NotificationIntakeParser
             $line = trim($lines[$i]);
             $lower = TurkishText::lower($line);
             if ($line !== '' && preg_match(self::FEED_CHROME, $lower) === 1) {
+                continue;
+            }
+            // Bildirim başlığından taşan kesik grup adı ("MERSİN NAKLİYECİLE…"): ilk satır, "…" ile biter, rakam yok → ilan metni değil
+            if ($i === 0 && $line !== '' && str_ends_with($line, '…') && preg_match('/\d/', $line) !== 1 && str_word_count($line) <= 5) {
                 continue;
             }
             // Grup listesi her adı iki kez yazar: "X NAKLİYECİLER SİTESİ ⏎ X NAKLİYECİLER SİTESİ"; grup/nakliye sözcüklü tekrar satırı grup adıdır

@@ -387,6 +387,12 @@ final class SeriesAd
         return $a === $b || (empty($place['district']) && str_starts_with($b, $a.' ')) || (str_starts_with($a, $b.' ') && ! str_contains($b, ' '));
     }
 
+    /** Dışarıdan (LoadIntakeService::hoistLateHeader) kullanım: satır yalnız yer + araç/kasa/adet sözcükleri mi? */
+    public static function placeOnlyLine(string $line, array $places): bool
+    {
+        return self::isPlaceOnly($line, $places);
+    }
+
     private static function isPlaceOnly(string $line, array $places): bool
     {
         $words = array_values(array_filter(preg_split('/[^\p{L}]+/u', TurkishCities::ascii($line)) ?: [], fn ($w) => $w !== ''));
@@ -429,7 +435,8 @@ final class SeriesAd
         }
         $a = preg_quote(TurkishCities::lower($places[0]['text']), '/');
         $b = preg_quote(TurkishCities::lower($places[1]['text']), '/');
-        $joined = preg_match('/'.$a.'\s*(?:\+|\/|veya|ve|ya da)\s*'.$b.'/u', TurkishCities::lower($line)) === 1;
+        // "&" ve "ile" de seçenek bağlacıdır; yer adından sonra en çok iki sözcük olabilir ("ADANA YÜZBAŞI & ADANA CEYHAN YÜKLER") (2026-10-09)
+        $joined = preg_match('/'.$a.'(?:\s+\p{L}+){0,2}\s*(?:\+|\/|&|veya|ve|ile|ya da)\s*'.$b.'/u', TurkishCities::lower($line)) === 1;
 
         return $joined ? array_slice($labels, 0, 2) : [$places[0]['label']];
     }

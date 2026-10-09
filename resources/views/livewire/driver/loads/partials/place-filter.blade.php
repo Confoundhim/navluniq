@@ -2,16 +2,21 @@
      Değişkenler: $side (pickup|delivery), $sideLabel; dış bileşenden $normalizedFilters, $provinces, $openDistricts gelir. --}}
 @php $selCodes = array_map('intval', $normalizedFilters[$side.'_provinces']); $selDistricts = $normalizedFilters[$side.'_districts']; @endphp
 <div x-data="{ open: false, q: '' }" @click.outside="open = false" class="relative min-w-0">
-    <button type="button" @click="open = !open" class="w-full rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-left min-h-[44px] flex items-center gap-2" :aria-expanded="open" aria-label="{{ $sideLabel }} yeri seç">
+    {{-- Telefonda rozetler tek satırda yatay kayar (bölünmez, üst üste binmez; kutu 44 px kalır); geniş ekranda sarar --}}
+    <button type="button" @click="open = !open" class="w-full min-w-0 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-left min-h-[44px] flex items-center gap-2" :aria-expanded="open" aria-label="{{ $sideLabel }} yeri seç">
         <span class="text-3xs font-bold uppercase tracking-wider {{ $side === 'pickup' ? 'text-brand-500' : 'text-emerald-600 dark:text-emerald-400' }} shrink-0">{{ $sideLabel }}</span>
-        <span class="flex flex-wrap items-center gap-1 min-w-0 flex-1">
+        {{-- Telefonda tek satır özet (kırpılmaz, taşmaz): "Çorum, Karaman ·1 ilçe"; rozetler geniş ekranda --}}
+        @if($selCodes !== [])
+            <span class="sm:hidden min-w-0 flex-1 truncate text-xs font-semibold {{ $side === 'pickup' ? 'text-brand-600 dark:text-brand-400' : 'text-emerald-700 dark:text-emerald-400' }}">{{ implode(', ', array_map(fn ($code) => (\App\Support\TurkishLocations::province($code)['name'] ?? $code).((($selDistricts[$code] ?? []) !== []) ? ' ('.implode(', ', $selDistricts[$code]).')' : ''), $selCodes)) }}</span>
+        @endif
+        <span class="{{ $selCodes !== [] ? 'hidden sm:flex' : 'flex' }} flex-wrap items-center gap-1 min-w-0 flex-1">
             @forelse($selCodes as $code)
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-2xs font-semibold {{ $side === 'pickup' ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }}">
-                    {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }}@if(($selDistricts[$code] ?? []) !== []) <span class="font-normal opacity-80">({{ count($selDistricts[$code]) }} ilçe)</span>@endif
+                <span class="inline-flex shrink-0 items-center gap-1 px-2 py-0.5 rounded-lg text-2xs font-semibold whitespace-nowrap {{ $side === 'pickup' ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' }}">
+                    {{ \App\Support\TurkishLocations::province($code)['name'] ?? $code }}@if(($selDistricts[$code] ?? []) !== []) <span class="font-normal opacity-80">·{{ count($selDistricts[$code]) }} ilçe</span>@endif
                     <span role="button" wire:click.stop="removeProvince('{{ $side }}', {{ $code }})" class="ml-0.5 hover:text-rose-500" aria-label="Kaldır">×</span>
                 </span>
             @empty
-                <span class="text-xs font-semibold text-neutral-700 dark:text-neutral-200">Her yer</span>
+                <span class="text-xs font-semibold text-neutral-700 dark:text-neutral-200 whitespace-nowrap">Her yer</span>
             @endforelse
         </span>
         <svg class="w-4 h-4 text-neutral-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>

@@ -37,7 +37,15 @@
             </div>
         @endif
         @if($item->is_incomplete)
-            {{-- Aradı, öğrendi: tek seçimle ilan tamamlanır; pencere yok, kaydet düğmesi yok --}}
+            {{-- Eksik bilgili ilan: neyin eksik olduğu açıkça yazılır (Osman, 2026-10-09: "aranarak öğrenilebilecek ilanlar"); arayıp öğrenen şoför
+                 tek seçimle tamamlar; pencere yok, kaydet düğmesi yok --}}
+            @php $missing = $item->missingFields(); @endphp
+            @if($missing !== [])
+                <div class="flex flex-wrap items-center gap-1 text-2xs text-neutral-500 dark:text-neutral-400">
+                    <span>Arayınca sorun:</span>
+                    @foreach($missing as $m)<span class="badge bg-amber-500/10 text-amber-700 dark:text-amber-300">{{ $m }}</span>@endforeach
+                </div>
+            @endif
             <label class="flex flex-wrap items-center gap-2 pt-1 text-2xs text-neutral-600 dark:text-neutral-300">
                 <span class="font-semibold">Aradım, araç:</span>
                 <select wire:change="completeExternal({{ $item->id }}, $event.target.value)" class="form-input !w-auto !py-1.5 !text-xs">

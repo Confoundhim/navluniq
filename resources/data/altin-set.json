@@ -2103,5 +2103,196 @@
       ],
       "weight": 2000
     }
+  },
+  {
+    "id": "yayin-fiyat-virgul-binlik",
+    "note": "Binlik ayracı virgül ('15,000+KDV'); 2026-10-09 yayın dökümü",
+    "message": "ÇERKEZKÖY\nADAPAZARI\n10 TKR 15 TON 15,000+KDV\n☎️ 0532 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Tekirdağ Çerkezköy",
+          "Sakarya"
+        ]
+      ],
+      "vehicle": "10_teker_kamyon",
+      "weight": 15000,
+      "price": 15000
+    }
+  },
+  {
+    "id": "yayin-kg-ton-yazimi",
+    "note": "'25.000 TON' = 25 ton",
+    "message": "KAYSERİ MERKEZ — ARDAHAN\n1 ADET 13.60 KAPALI TİR — 25.000 TON\n0505 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Kayseri",
+          "Ardahan"
+        ]
+      ],
+      "vehicle": "tir",
+      "body": [
+        "kapali"
+      ],
+      "weight": 25000
+    }
+  },
+  {
+    "id": "yayin-ayni-il-ters-sira",
+    "note": "'İSKENDERUN PAYASTAN': ilk ilçe niteleyici, varış sonraki satır",
+    "message": "İSKENDERUN PAYASTAN\nKAYSERİ\nYÜK KÜSPE\n2 ARAÇ LAZIM KISA DORSE OLACAK\n☎️ 0552 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Hatay Payas",
+          "Kayseri"
+        ]
+      ],
+      "vehicle": "tir",
+      "count": 2
+    }
+  },
+  {
+    "id": "yayin-ve-isareti-iki-kalkis",
+    "note": "'&' ile bağlı iki kalkış seçeneği; varış sonraki satır",
+    "message": "ADANA YÜZBAŞI & ADANA CEYHAN YÜKLER\nKONYA YUNAK\n☎️ 0506 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Adana",
+          "Konya Yunak"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "yayin-tireli-iki-kalkis-basligi",
+    "note": "'ÇORLU - ÇERKEZKÖY YÜKLEMELİ' tire rota değil, kalkış seçeneği",
+    "message": "ÇORLU - ÇERKEZKÖY YÜKLEMELİ İŞLERİMİZ ‼\nMALATYA 18 TON TIR\n☎️ 0537 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "Tekirdağ",
+          "Malatya"
+        ]
+      ],
+      "vehicle": "tir",
+      "weight": 18000
+    }
+  },
+  {
+    "id": "yayin-isuzu",
+    "note": "Marka adı kamyon ailesi",
+    "message": "BAĞCILAR DAN MARAŞ A KAPALI İSUZU\n☎️ 0536 111 22 33",
+    "expect": {
+      "ads": 1,
+      "routes": [
+        [
+          "İstanbul Bağcılar",
+          "Kahramanmaraş"
+        ]
+      ],
+      "vehicle": "6_teker_kamyon",
+      "body": [
+        "kapali"
+      ]
+    }
+  },
+  {
+    "id": "yayin-uygulama-cok-ilan",
+    "note": "Uygulama gönderisi: iki satırlık ilan + ok satırı = iki ilan",
+    "message": "Erzurum\nArdahan  TIR 25ton\nEskişehir Odunpazarı -> Balıkesir Altıeylül Kapalı/Tenteli 6 teker 250kg 9m³\n☎️ 0501 111 22 33",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Erzurum",
+          "Ardahan"
+        ],
+        [
+          "Eskişehir Odunpazarı",
+          "Balıkesir Altıeylül"
+        ]
+      ],
+      "each": false
+    }
+  },
+  {
+    "id": "yayin-sofor-arayan-elenir",
+    "note": "Şoför arayan nakliyeci ilan değil ('şöför' yazımı)",
+    "message": "Denizli burdur acıpayam şöför arayan 0543 111 22 33",
+    "expect": {
+      "filtered": "not_load"
+    }
+  },
+  {
+    "id": "engin-gec-baslik",
+    "note": "Varış satırlarının ortasında kalkış başlığı (ok ve nokta emojili liste)",
+    "message": "➡️KOCAELİ KAPALI TENTELİ TIR\n\n🟢BAYRAMPAŞA YÜKLEME\n\n➡️ANTALYA KAPALI TIR\n\n☎️ ERKİN 0(533) 111 22 33\n☎️ ÜMİT 0533 111 22 34",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "İstanbul Bayrampaşa",
+          "Kocaeli"
+        ],
+        [
+          "İstanbul Bayrampaşa",
+          "Antalya"
+        ]
+      ],
+      "each": true,
+      "vehicle": "tir"
+    }
+  },
+  {
+    "id": "engin-noktali-liste",
+    "note": "'....' ile ayrılmış ilanlar; yan yana iki il bağlaçsız",
+    "message": "ANKARA ZİLE 2 METRE PARÇA....KONYA ZİLE 6 METRE 6 TON AÇIK TIRA PARÇA....ELAZIĞ ZİLE 2 TON 7 METRE KAPALI TIR OLACAK....KONYA CİHANBEYLİ ERZURUM PASİNLER 4 TON 6 METRE AÇIK TIRA PARÇA...0532 111 22 33....0532 111 22 34",
+    "expect": {
+      "ads": 4,
+      "routes": [
+        [
+          "Ankara",
+          "Tokat Zile"
+        ],
+        [
+          "Konya",
+          "Tokat Zile"
+        ],
+        [
+          "Elazığ",
+          "Tokat Zile"
+        ],
+        [
+          "Konya Cihanbeyli",
+          "Erzurum Pasinler"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "engin-cogul-ilce",
+    "note": "'Ayrancılar' = Karaman Ayrancı; iki ilan tek numara",
+    "message": "Çorum - Osmaniye TIR (Açık)\n\n\nKaraman Ayrancılar - Kars Sarıkamış 10 TEKER\n\n\n0552 111 2233\nÖRNEK LOJİSTİK",
+    "expect": {
+      "ads": 2,
+      "routes": [
+        [
+          "Çorum",
+          "Osmaniye"
+        ],
+        [
+          "Karaman Ayrancı",
+          "Kars Sarıkamış"
+        ]
+      ]
+    }
   }
 ]

@@ -71,7 +71,7 @@ new class extends Component {
         'telegram_channel_id' => 'Telegram kanal kimliği (@kanal veya -100...)',
         'scraper_rejected_retention_days' => 'Reddedilen adayların silinme süresi (gün)',
         'ai_parse_mode' => 'Yapay zeka çözümleme',
-        'ai_suggest_auto_approve_hits' => 'Öneri kendiliğinden onaylansın: aynı öneri kaç ayrı ilanda görülürse (0: yalnız elle onay)',
+        'ai_suggest_auto_approve_hits' => 'Yük/araç sözcüğü önerisi kendiliğinden onaylansın: aynı öneri kaç ayrı ilanda görülürse (0: yalnız elle onay; il/ilçe takma adı her zaman elle onaylanır)',
         'ai_audit_daily_count' => 'Günlük denetim: kuralla çözülen kaç ilan yapay zekaya sorulsun (0: kapalı)',
         'ai_provider' => 'Öncelikli sağlayıcı',
         'ai_ollama_enabled' => 'Yerel model (Ollama)',

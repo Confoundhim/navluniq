@@ -681,6 +681,41 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   kuralla araç bulunan aday 25 → 629. **Reddedilenler:** 2.047/2.065 tekrar reddi; 1.195'inin ikizi 20 kayıt içinde (aynı mesaj/aynı dakika) ve
   dökümde yok → ikizler yayında; haksız ret sayısı yayın dökümü gelince ölçülür (Osman "yayında" dökümünü gönderecek). Test `QueueAuditTest`
   (+2), altın sette 7 `kuyruk-*` örneği daha (284).
+- **Yayın dökümü incelemesi (2026-10-09, Osman 7 günlük "yayında" dökümünü (20.000 ilan, üst sınır) yükledi; "neleri doğru/yanlış yapıyoruz"):**
+  doğru: rota ve telefon %100 dolu, araç %91, kasa %72; yanlış: (1) **sözlük zehiri yayında da vardı** — ~1.500 ilanın kalkış/varış etiketi metinde
+  geçmiyordu ("yüklemeli → İzmir Torbalı" 518, "açık → Denizli Tavas" 509, "tenteli/sabah/tır → Kocaeli Kartepe" 245, "teker/kapalı → Kastamonu Araç"
+  138, "sarar → Aydın Didim", Facebook "yorum/paylaş" satırları → Çorum); kaynağı yapay zeka önerilerinin `ai_suggest_auto_approve_hits` ile
+  kendiliğinden onaylanmasıydı → **konum önerisi artık hiç kendiliğinden onaylanmaz** (`RuleFeedbackService::suggest`, yalnız yönetici), zehir
+  temizliği/yeniden konumlama önceki maddede; ~1.100 yayındaki ilanın "varışı" aslında metinde yoktu (tek yerli metin + hayali il), kural artık
+  bunları çözmez (eksik uç → kuyruk/kalkış hafızası). (2) **Uygulama gönderileri** ("Erzurum ⏎ Ardahan TIR 25ton ⏎ A -> B … ⏎ A -> B …", 131 kayıt)
+  tek ilan sayılıp alanları karışıyordu → `splitSegments`: rota taşımayan iki yer satırından sonra gelen ok satırı yeni ilan, üstteki iki satır
+  kendi ilanı (`route=true`). (3) **Fiyat** binlik ayracı virgül/boşluk ("15,000+KDV", "73 000+kdv") okunmuyordu (77 ilan); "25.000 TON" = 25 ton.
+  (4) **İlan dışı yayında:** "şöför arayan/lazım" (ö'lü yazım), "bos arac var … yükü olan" (ASCII), sigorta acentesi reklamı → `NOT_LOAD_PATTERN`;
+  Facebook profil artığı ("Facebook'ta arkadaş değilsiniz", "ortak arkadaş", "profili gör", "…'de okudu"), "kanalını takip edin", çıplak URL
+  satırı ve bildirim başlığından taşan kesik grup adı ("MERSİN NAKLİYECİLE…", ilk satır + "…") `FEED_CHROME/stripFeedChrome` ile atılır.
+  (5) **Aynı ilin iki ilçesi ters sırada** ("İSKENDERUN PAYASTAN ⏎ KAYSERİ" → Payas → İskenderun çıkıyordu): varış metinde kalkıştan önceyse
+  niteleyicidir, varış metindeki başka ildir (`LoadStandardizer`, `otherPlaceInText`). (6) **Başlıkta iki kalkış:** "ÇORLU - ÇERKEZKÖY YÜKLEMELİ"
+  (tire aynı ilin iki ilçesi arasında + kalkış fiili → "+" yapılır, başlık kendi başına ilan olmaz), "ADANA YÜZBAŞI & ADANA CEYHAN YÜKLER" ("&"/"ile"
+  bağlaç, arada ≤2 sözcük; `SeriesAd::alternativePickups`), "Yükleme Yeri: SAKARYA+BAŞİSKELE+DİLOVASI" (kalkış satırındaki "+"lı yerler kalkış
+  seçeneğidir, varış değil; `parseWithRegex`). (7) "KAPALI İSUZU" → 6 teker (marka), "ACIK TR" → TIR. **Eksik bilgili ilan kartı** "Arayınca
+  sorun: araç tipi · tonaj · fiyat · ilçe" rozetleri (`ScrapedLoad::missingFields`). **Yönetici İnceleme kuyruğu** artık toplam = bekleyen +
+  eksik bilgili yayına geçen; üstte "Tümü / Eksik bilgili yayına geçenler / Kuyrukta bekleyenler" hapları (`queueView`, `applyQueueView`;
+  Yayında sekmesi eksik bilgili ilanı rozetle göstermeye devam eder). Bilinen sınır: "Antalya Muratpaşa ⏎ Antalya Muratpaşa Kamyonet" (uygulama
+  şehir içi gönderisi) yalnız iki satır yorumu katmanı etkinse çözülür (canlıda etkin). Testler `PublishedAuditTest` (9), altın set 292.
+- **Engin Abi'nin ekran görüntüleri (2026-10-09 öğleden sonra):** (1) **Filtre çubuğu telefonda taşıyordu** (çıkış/varış kutusundaki il rozetleri
+  sarıp ⇄ düğmesiyle ve komşu kutuyla üst üste biniyordu): telefonda çıkış ve varış kutuları **alt alta** (`grid-cols-[minmax(0,1fr)_2.25rem]`,
+  ⇄ ilk satırın sağında, varış `col-span-2`), kutuda tek satır özet metin "Çorum, Karaman (Ayrancı)" (`truncate`, rozet yok); geniş ekranda
+  (`sm:`) kutular yan yana ve rozetler ("·2 ilçe"). `PlacePickerTest` "·2 ilçe" bekler. **Ekran görüntüsü Playwright'sız alındı:** Volt bileşeni
+  geçici bir testle `->html()` olarak dosyaya yazıldı, `public/build` CSS'i bağlanıp 390 px iframe'li sayfa Chromium `--screenshot` ile çekildi
+  (`npm run build` bu ortamda çalışıyor); 2026-10-09 görüntüsü temiz.
+  (2) **Yayınlanmayan üç mesaj biçimi** (`LoadIntakeService`, splitSegments'in başında): `splitDottedList` — "...." (3+ nokta) ayırıcılı ilan listesi
+  (en az iki parça iki farklı il taşıyorsa satırlara bölünür; ".." rota bağlacı kalır); `hoistLateHeader` — varış satırlarının ORTASINDA kalkış
+  başlığı ("➡️KOCAELİ KAPALI TIR ⏎ 🟢BAYRAMPAŞA YÜKLEME ⏎ ➡️ANTALYA KAPALI TIR": önceki satırlar yalnız yer + araçsa başlık öne alınır, seri olur);
+  `markImplicitRouteLines` — bağlaçsız yan yana iki il taşıyan satırlar ("ANKARA ZİLE 2 METRE PARÇA") mesajda en az iki tane ise "A -> B" yazımına
+  çevrilir; `TurkishLocations::matchDistrict` çoğul ek ("Ayrancılar" → Karaman Ayrancı; ilçe süzgeci bu ilanı görür). "Çorum - Osmaniye TIR (Açık) ⏎
+  Karaman Ayrancılar - Kars Sarıkamış 10 TEKER" ve "Lüleburgaz ➡️ Ankara Frigo Tır ⏎ Lüleburgaz ➡️ İst. Avrupa …" (0 507 … numara) zaten doğru
+  okunuyordu; canlıda görünmeme nedeni kural değil (şoför "Aracıma uygun" süzgeci: kasa Açık / 10 teker, ya da 2 dk içinde kuyruk). Test
+  `EnginShapesTest`, altın sette 3 `engin-*` örneği (295).
 - **Şoför paneli paketi (2026-10-06, Paket 4):** NavlunIQ ilanı için tek kart bileşeni `components/system-load-card` (genel bakış,
   ilan havuzu, kaydedilenler, dönüş yükü listesi; `offer="modal|link"`, `offerable`; kullanan bileşen `HandlesExternalLoadActions`
   taşır). Mesafe ve ₺/km: `App\Support\Geo` (haversine × 1,25, `label()`), `App\Models\Concerns\HasRouteDistance` (Load ve
