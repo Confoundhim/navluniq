@@ -637,9 +637,9 @@ new class extends Component {
     <section class="max-w-7xl mx-auto px-6 md:px-12">
         <div class="apple-glass rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 border border-neutral-200/50 shadow-apple-sm">
             <div class="space-y-1 text-center md:text-left">
-                <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
-                <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
-                <p class="text-xs text-neutral-400 max-w-2xl">{{ $directPay ? 'Premium üyelik ödemeleri' : 'Ödemeler' }} BDDK lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz NavlunIQ sunucularına ulaşmaz{{ $directPay ? '. Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ tahsilat yapmaz, komisyon almaz.' : '; navlun ödemesi teslimat onayıyla şoföre tamamlanır.' }}</p>
+                <span class="text-xs font-black text-brand-500 uppercase tracking-wider">{{ $directPay ? 'ÖDEME GÜVENLİĞİ' : 'FİNANSAL GÜVENCE' }}</span>
+                <h3 class="text-lg font-black text-neutral-950 dark:text-white">{{ $directPay ? 'Premium ödemeleri güvende, navlun aranızda' : 'Güvenli Ödeme Altyapısı' }}</h3>
+                <p class="text-xs text-neutral-400 max-w-2xl">{{ $directPay ? 'Premium üyelik ödemeleri' : 'Ödemeler' }} TCMB lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz NavlunIQ sunucularına ulaşmaz{{ $directPay ? '. Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ tahsilat yapmaz, komisyon almaz.' : '; navlun ödemesi teslimat onayıyla şoföre tamamlanır.' }}</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 shrink-0">
                 <a href="https://www.iyzico.com" target="_blank" rel="noopener" title="iyzico ile Öde" class="opacity-90 hover:opacity-100 transition-opacity">
