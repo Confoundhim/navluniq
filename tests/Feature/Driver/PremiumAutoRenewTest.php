@@ -161,6 +161,22 @@ class PremiumAutoRenewTest extends TestCase
         $this->assertCount(3, $this->gateway->charges);
     }
 
+    public function test_renew_now_command_charges_one_user_without_waiting_for_period_end(): void
+    {
+        $driver = $this->driver();
+        [$subscription, $card] = $this->renewingSubscription($driver, 1, now()->addDays(20));
+
+        $this->artisan('subscriptions:renew', ['--user' => $driver->id])->expectsOutputToContain('Çekim başarılı: Visa •••• 4242')->assertExitCode(0);
+        $this->assertCount(1, $this->gateway->charges);
+        $this->assertEqualsWithDelta(now()->addDays(20)->addMonthsNoOverflow(1)->timestamp, $subscription->fresh()->current_period_ends_at->timestamp, 5);
+
+        $this->gateway->chargeSucceeds = false;
+        $this->artisan('subscriptions:renew', ['--user' => $driver->id])->expectsOutputToContain('Çekim başarısız: 10051 Yetersiz bakiye');
+        $this->artisan('subscriptions:renew', ['--user' => 999999])->expectsOutputToContain('bulunamadı');
+        $other = $this->driver();
+        $this->artisan('subscriptions:renew', ['--user' => $other->id])->expectsOutputToContain('ücretli premium abonelik yok');
+    }
+
     public function test_invalid_card_stops_renewal_immediately(): void
     {
         $driver = $this->driver();

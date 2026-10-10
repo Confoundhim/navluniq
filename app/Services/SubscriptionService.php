@@ -507,6 +507,32 @@ class SubscriptionService
     }
 
     /**
+     * Dönem bitimini beklemeden tek kullanıcının yenileme çekimini hemen dener (kurulum sınaması: iyzico'nun 3D Secure eşiği
+     * kayıtlı kartla sunucudan çekimi engelliyor mu?). Yalnız yenilemesi açık ve kartı kayıtlı ücretli abonelikte çalışır;
+     * başarıda süre eklenir, başarısızlıkta olağan deneme sayacı işler. Sonuç metni döner.
+     */
+    public function renewNow(User $user): string
+    {
+        $subscription = $this->activePaidSubscription($user);
+        if (! $subscription) {
+            return 'Sürmekte olan ücretli premium abonelik yok.';
+        }
+        if (! $subscription->auto_renew || ! $subscription->storedCard) {
+            return 'Otomatik yenileme kapalı ya da kayıtlı kart yok (abonelik #'.$subscription->id.').';
+        }
+        if (! $this->autoRenewAvailable()) {
+            return 'Ödeme kuruluşunda kart saklama açık değil (panel kutusu işaretli mi?).';
+        }
+        $before = $subscription->current_period_ends_at?->copy();
+        $ok = $this->renewOne($subscription->fresh(['user.driverProfile', 'storedCard']), $this->payments->gateway()->id());
+        $subscription->refresh();
+
+        return $ok
+            ? 'Çekim başarılı: '.$subscription->storedCard?->label().' · dönem '.$before?->format('d.m.Y').' → '.$subscription->current_period_ends_at?->format('d.m.Y')
+            : 'Çekim başarısız: '.($subscription->last_renewal_error ?: 'bilinmeyen hata').' (deneme '.$subscription->renewal_failures.'/'.self::RENEWAL_MAX_ATTEMPTS.', yenileme '.($subscription->auto_renew ? 'açık' : 'kapatıldı').')';
+    }
+
+    /**
      * Şoför Premium sayfasından otomatik yenilemeyi açar/kapatır (tek dokunuş). Açmak için kayıtlı kart ve kuruluşta kart saklama
      * gerekir; yoksa false döner (ekran "yeni ödeme yapın" der). Kapatma dönem sonuna kadar hakları etkilemez.
      */
