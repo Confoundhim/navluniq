@@ -208,7 +208,7 @@ class extends Component {
             @if($autoRenewAvailable)
                 {{-- Otomatik yenileme: kart ödeme kuruluşunda saklanır (NavlunIQ'da değil); dönem bitiminden 3 gün önce aynı süre güncel fiyattan çekilir. --}}
                 <label class="flex items-start gap-3 cursor-pointer rounded-xl border {{ $autoRenew ? 'border-brand-500/40 bg-brand-500/5' : 'border-neutral-200 dark:border-neutral-700' }} p-3">
-                    <input type="checkbox" wire:model.live="autoRenew" class="mt-0.5 rounded">
+                    <input type="checkbox" wire:model.live="autoRenew" @checked($autoRenew) class="mt-0.5 rounded">
                     <span class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
                         <span class="font-bold text-neutral-900 dark:text-white">Otomatik yenile</span> · dönem bitiminden 3 gün önce {{ $months }} aylık ücret kayıtlı kartınızdan çekilir, üyelik kesintisiz sürer; bedel çekimden önce bildirilir. İstediğiniz zaman Premium sayfasından tek dokunuşla kapatırsınız.
                         {{ $storedCard ? 'Kayıtlı kartınız: '.$storedCard->label().'. ' : 'Ödeme sayfasında "kartımı sakla" kutusunu işaretleyin; kart NavlunIQ\'da değil iyzico\'da saklanır. ' }}
