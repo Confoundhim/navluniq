@@ -1,7 +1,7 @@
 @php
-    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: tanıtımda navlun ödemesi/komisyon anlatılmaz
 @endphp
-<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi" :description="'NavlunIQ nasıl çalışır: ilan, teklif, kabul, '.($directPay ? 'doğrudan ödeme' : 'güvenli ödeme').', teslimat kanıtı ve onay adım adım.'">
+<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi" :description="'NavlunIQ nasıl çalışır: ilan, teklif, kabul, '.($directPay ? 'canlı takip' : 'güvenli ödeme').', teslimat kanıtı ve onay adım adım.'">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in text-xs">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">
@@ -40,7 +40,7 @@
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">{{ $directPay ? 'Teklif Verin, Taşıyın, Teslim Edin' : 'Teklif Verin, Taşıyın, Ödemenizi Alın' }}</h3>
                     <p class="text-neutral-500 leading-relaxed">
                         @if($directPay)
-                            Uygun yüke teklif verin; yük sahibi kabul edince iletişim bilgilerini hemen görürsünüz, navlunu yük sahibiyle doğrudan anlaşıp alırsınız; NavlunIQ komisyon kesmez. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında sevkiyat kapanır.
+                            Uygun yüke teklif verin; yük sahibi kabul edince iletişim bilgilerini ve yükleme adresini hemen görürsünüz. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında sevkiyat kapanır.
                         @else
                             Uygun yüke teklif verin; yük sahibi kabul edip ödemeyi yaptığında yola çıkın. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında navlun ödemesi banka hesabınıza geçer.
                         @endif
@@ -70,7 +70,7 @@
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklifleri Karşılaştırın, Şoförü Seçin</h3>
                     <p class="text-neutral-500 leading-relaxed">
                         @if($directPay)
-                            Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; şoförün iletişim bilgisi açılır, navlun bedelini şoföre doğrudan ödersiniz. NavlunIQ tahsilat yapmaz, komisyon almaz.
+                            Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; şoförün iletişim bilgisi açılır, yükleme ayrıntılarını şoförle konuşursunuz.
                         @else
                             Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödeyin, şoför yola çıksın.
                         @endif

@@ -26,7 +26,7 @@ class FaqSeeder extends Seeder
         $lead = app(LoadReleaseService::class)->delayMinutes();
         $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
         $trialDays = app(SubscriptionService::class)->trialDays();
-        // Navlun ödeme kipi: doğrudan kipte navlun taraflar arasında ödenir, NavlunIQ tahsilat yapmaz, komisyon almaz (FreightPayment);
+        // Navlun ödeme kipi: doğrudan kipte SSS navlun ödemesinden ve komisyondan söz etmez, iyzico yalnız premium üyelik için (FreightPayment);
         // platform kipinde ödeme kuruluşu + teslimat onayı + hizmet bedeli.
         $direct = FreightPayment::direct();
 
@@ -37,9 +37,9 @@ class FaqSeeder extends Seeder
         $faqs = [
             [
                 'order_num' => 1,
-                'question' => $direct ? 'Navlun bedeli nasıl ödenir, NavlunIQ araya girer mi?' : 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
+                'question' => $direct ? 'Teklif kabul edilince süreç nasıl işler?' : 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
                 'answer' => $direct
-                    ? 'Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ tahsilat yapmaz, para tutmaz, komisyon almaz ve ödemeye taraf olmaz. Yük sahibi teklifi kabul ettiği anda şoför yük sahibinin iletişim bilgisini görür; ödeme biçimini (nakit, havale) ve zamanını taraflar kendi aralarında kararlaştırır. Şoför yükü teslim edip teslim kanıtını yüklediğinde yük sahibi teslimatı onaylar; '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar ve sevkiyat kapanır.'
+                    ? 'Yük sahibi teklifi kabul ettiği anda şoför yük sahibinin iletişim bilgisini ve yükleme adresini görür; yükleme ve taşıma ayrıntılarını taraflar kendi aralarında kararlaştırır. Şoför yükü teslim edip teslim kanıtını yüklediğinde yük sahibi teslimatı onaylar; '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar ve sevkiyat kapanır.'
                     : 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla öder; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki Ödemelerim ekranından izlenir.',
             ],
             [
@@ -70,7 +70,7 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 7,
                 'question' => 'NavlunIQ bir nakliye firması mıdır?',
-                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, '.($direct ? 'süreci (teklif, canlı konum, teslim kanıtı) kayıt altına alan bir aracı teknoloji platformudur. Navlun bedeli taraflar arasında doğrudan ödenir; NavlunIQ ödemeye taraf olmaz, komisyon almaz.' : 'ödemeyi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlayan ve süreci kayıt altına alan bir aracı teknoloji platformudur.').' Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
+                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, '.($direct ? 'süreci (teklif, canlı konum, teslim kanıtı) kayıt altına alan bir aracı teknoloji platformudur.' : 'ödemeyi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlayan ve süreci kayıt altına alan bir aracı teknoloji platformudur.').' Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
             ],
             [
                 'order_num' => 8,
@@ -96,9 +96,9 @@ class FaqSeeder extends Seeder
             ],
             [
                 'order_num' => 12,
-                'question' => $direct ? 'Komisyon var mı, faturalar nasıl işler?' : 'Komisyonlar ve faturalar nasıl işler?',
+                'question' => $direct ? 'Ücretler ve faturalar nasıl işler?' : 'Komisyonlar ve faturalar nasıl işler?',
                 'answer' => $direct
-                    ? 'Gizli maliyet yoktur. NavlunIQ navlun bedelinden komisyon ya da hizmet bedeli almaz; ilan vermek ve teklif vermek ücretsizdir. Tek ücretli hizmet isteğe bağlı premium şoför üyeliğidir; her premium ödemesi için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Navlun bedelinin faturası taşımanın tarafları (yük sahibi ile şoför) arasında düzenlenir.'
+                    ? 'Gizli maliyet yoktur. İlan vermek ve teklif vermek ücretsizdir. Tek ücretli hizmet isteğe bağlı premium şoför üyeliğidir; her premium ödemesi için KDV dahil fatura düzenlenir ve panelinizden görüntülenir.'
                     : 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve Ödemelerim sayfasında açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
             ],
             [

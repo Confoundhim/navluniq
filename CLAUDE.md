@@ -679,7 +679,11 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   açıkken" nitelemeleri, MSS 2.2/2.3/3.2, İade giriş/1/2.x/3.1/4; yürürlükteki kip `{{FREIGHT_PAYMENT_STATUS}}` (`Company::fillTokens`,
   kip değişince seed gerekmez). Tanıtım sayfaları/SSS/plan kartı/panel ekranları `FreightPayment::direct()` ya da `$load->isDirectPayment()`
   ile koşullu; premium (iyzico) metinleri ve logoları kalır. **Testler platform kipinde koşar** (`tests/TestCase` `freight_payment_mode=platform`);
-  doğrudan kip `DirectFreightPaymentTest` (6). SSS kipe göre seed edilir; `RefreshFaqCommand::DIRECT/PLATFORM_STALE_PATTERN` eski kipin cümlelerini yakalar, Ödeme altyapısı formunda kip değişince `faq:refresh --if-stale` çağrılır. Ana sayfa CMS metinleri (`slider_owner_title/desc`, `hakkimizda_ozet`) canlıda kayıtlıysa eski kalır, Osman CMS'den günceller. Pazaryeri gelince panelden "Platform" seçilir; açık sevkiyatlar kendi kipinde biter.
+  doğrudan kip `DirectFreightPaymentTest` (6). SSS kipe göre seed edilir; `RefreshFaqCommand::DIRECT/PLATFORM_STALE_PATTERN` eski kipin cümlelerini yakalar, Ödeme altyapısı formunda kip değişince `faq:refresh --if-stale` çağrılır. Ana sayfa CMS metinleri (`slider_owner_title/desc`, `hakkimizda_ozet`) canlıda kayıtlıysa eski kalır, Osman CMS'den günceller. Pazaryeri gelince panelden "Platform" seçilir; açık sevkiyatlar kendi kipinde biter. **Osman'ın kuralı (2026-10-10 gece): tanıtım sayfaları,
+  SSS, plan kartları ve altbilgi doğrudan kipte navlun ödemesinden ve komisyondan hiç söz etmez** ("bilgi kirliliğine gerek yok; pazaryeri gelirse
+  ekleriz"); yalnız "premium üyelik ödemeleri iyzico ile" kalır, ana sayfa "FİNANSAL GÜVENCE" kutusu da öyle. Doğrudan kip anlatımı yalnız
+  sözleşmelerde (5.0) ve panel içindeki işlem ekranlarında (teklif kabulü, sevkiyat, Ödemelerim) durur. `DIRECT_STALE_PATTERN` eski
+  "komisyon almaz" SSS metnini de eski sayar.
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL
