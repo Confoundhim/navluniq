@@ -130,9 +130,10 @@ Schedule::command('loads:expire')->hourly()->withoutOverlapping(180);
 Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlapping(60);
 Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('trips:auto-close')->dailyAt('04:10');
-Schedule::command('subscriptions:expire')->hourly();
+Schedule::command('subscriptions:expire')->hourly()->withoutOverlapping(10);
 Schedule::command('subscriptions:renew')->hourly()->withoutOverlapping(60);
-Schedule::command('subscriptions:remind')->dailyAt('09:00');
+Schedule::command('subscriptions:reconcile')->hourly()->withoutOverlapping(10); // ödenmiş ama etkinleşmemiş abonelik emri (H2)
+Schedule::command('subscriptions:remind')->dailyAt('09:00')->withoutOverlapping(10);
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('scraped-loads:purge-expired')->daily();
 Schedule::command('scraped-loads:ai-enrich')->everyFiveMinutes()->withoutOverlapping(10);

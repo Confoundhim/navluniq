@@ -3,8 +3,6 @@
 use App\Models\ActivityLog;
 use App\Models\Load;
 use App\Models\Shipment;
-use App\Services\NotificationService;
-use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Locked;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -49,7 +47,7 @@ new class extends Component {
         $this->suspendReason = '';
     }
 
-    /** Ödemesi alınmamış bir ilanı yönetici kararıyla iptal eder; havuz bakiyesine dokunmaz. */
+    /** Ödemesi alınmamış bir ilanı yönetici kararıyla iptal eder; havuz bakiyesine dokunmaz. Şoförün açık işi kapanır, taraflar bilgilendirilir (LoadService::cancelByAdmin). */
     public function suspend(): void
     {
         if (! auth()->user()->can('manage operations')) {
@@ -63,37 +61,15 @@ new class extends Component {
             'suspendReason.min' => 'Gerekçe en az 5 karakter olmalıdır.',
         ]);
 
+        $load = Load::query()->find($this->selectedId);
+        if (! $load) {
+            session()->flash('error_message', 'İlan bulunamadı.');
+
+            return;
+        }
+
         try {
-            $load = DB::transaction(function (): Load {
-                $locked = Load::query()->lockForUpdate()->find($this->selectedId);
-                if (! $locked) {
-                    throw new RuntimeException('İlan bulunamadı.');
-                }
-                // Doğrudan ödeme kipindeki ilan (para platformda değil) yola çıkılana kadar aynı yoldan askıya alınır.
-                if (! in_array($locked->escrow_status, [Load::ESCROW_PENDING, Load::ESCROW_DIRECT], true) || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
-                    throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
-                }
-                \App\Services\LoadService::closeOpenOrders($locked); // ödeme ekranı yeni açılmışsa iptal reddedilir, eski açık emirler kapanır
-
-                $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
-                $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
-                $locked->update([
-                    'status' => Load::STATUS_CANCELLED,
-                    'rejection_reason' => 'Yönetici kararı: '.mb_substr($this->suspendReason, 0, 900),
-                    'cancelled_at' => now(),
-                    'visibility' => 'private',
-                ]);
-
-                ActivityLog::record('load.suspended', "İlan #{$locked->id} yönetici tarafından iptal edildi: {$this->suspendReason}", auth()->id(), $locked);
-
-                return $locked;
-            });
-
-            if ($owner = $load->cargoOwnerProfile?->user) {
-                app(NotificationService::class)->notify($owner, 'İlanınız yönetici tarafından kaldırıldı',
-                    ["#{$load->id} numaralı ilanınız platform kuralları gereği yayından kaldırıldı.", 'Gerekçe: '.$this->suspendReason],
-                    route('cargo-owner.loads.index'), 'İlanlarımı gör', 'load');
-            }
+            app(\App\Services\LoadService::class)->cancelByAdmin($load, auth()->user(), $this->suspendReason);
 
             $this->suspendReason = '';
             session()->flash('success_message', 'İlan iptal edildi, bekleyen teklifler reddedildi.');
@@ -219,7 +195,7 @@ new class extends Component {
     <section class="apple-glass rounded-3xl p-6 space-y-4">
         <div class="flex items-center justify-between">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Yoldaki sevkiyatlar</h2>
-            <span class="text-[11px] text-neutral-400">{{ count($mapPoints) }} araç · 30 saniyede bir yenilenir</span>
+            <span class="text-[11px] text-neutral-400">{{ count($mapPoints) }} araç · 8 saniyede bir yenilenir</span>
         </div>
         @if($mapPoints === [])
             <p class="text-xs text-neutral-500">Şu anda konum bildiren yolda sevkiyat yok.</p>
@@ -338,7 +314,7 @@ new class extends Component {
                     @if($selected->shipment)
                         @php $s = $selected->shipment; @endphp
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div><span class="text-neutral-400 block">Durum</span>{{ $s->status }}</div>
+                            <div><span class="text-neutral-400 block">Durum</span>{{ $s->statusLabel() }}</div>
                             <div><span class="text-neutral-400 block">Araç</span>{{ $s->vehicle?->plate ?? '—' }}</div>
                             <div><span class="text-neutral-400 block">Yola çıkış</span>{{ $s->in_transit_at?->format('d.m.Y H:i') ?? '—' }}</div>
                             <div><span class="text-neutral-400 block">Teslim</span>{{ $s->delivered_at?->format('d.m.Y H:i') ?? '—' }}</div>
@@ -354,7 +330,7 @@ new class extends Component {
                     @forelse($selected->paymentOrders->sortByDesc('id') as $order)
                         <div class="flex flex-col sm:flex-row sm:justify-between gap-1 border-b border-neutral-100 dark:border-neutral-800/60 py-2">
                             <span class="font-mono">{{ $order->merchant_oid }}</span>
-                            <span class="text-neutral-400">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺ · {{ $order->status }} · {{ $order->paid_at?->format('d.m.Y H:i') ?? $order->created_at?->format('d.m.Y H:i') }}</span>
+                            <span class="text-neutral-400">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺ · {{ $order->purposeLabel() }} · {{ $order->statusLabel() }} · {{ $order->paid_at?->format('d.m.Y H:i') ?? $order->created_at?->format('d.m.Y H:i') }}</span>
                         </div>
                     @empty
                         <p class="text-neutral-500">Ödeme emri yok.</p>
@@ -390,7 +366,7 @@ new class extends Component {
                                 <button type="button" wire:click="cancelPaid" wire:confirm="Sevkiyat iptal edilecek, navlun bedeli yük sahibine iade edilecek ve şoförün işi kapanacak. Devam edilsin mi?" wire:loading.attr="disabled" class="py-2 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-[11px] font-semibold">İptal et ve iade et</button>
                             </div>
                         @else
-                            <p class="text-[11px] text-neutral-400">Yola çıkmış sevkiyatlar buradan iptal edilemez; havuz bakiyesi yalnız uyuşmazlık kararıyla değişir.</p>
+                            <p class="text-[11px] text-neutral-400">Yola çıkmış sevkiyatlar buradan iptal edilemez; @if($selected->isDirectPayment() || \App\Support\FreightPayment::direct())sorun varsa uyuşmazlık süreci sevkiyatın sonucunu belirler (navlun taraflar arasında ödenir).@else havuz bakiyesi yalnız uyuşmazlık kararıyla değişir.@endif</p>
                         @endif
                     </div>
                 @endif

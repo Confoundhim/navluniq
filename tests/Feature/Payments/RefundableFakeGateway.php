@@ -70,8 +70,10 @@ final class RefundableFakeGateway implements PaymentGateway
     {
         $oid = (string) $request->input('merchant_oid');
         $status = (string) $request->input('status', 'success');
+        // "ref" verilirse kuruluşun farklı bir ödeme kimliği bildirdiği (ikinci çekim) canlandırılır; olay kimliği de değişir.
+        $ref = (string) $request->input('ref', 'fake-ref');
 
-        return new WebhookResult($request->input('sig') === 'ok', $oid, $status, $request->input('amount') !== null ? (float) $request->input('amount') : null, $oid.':'.$status, $request->all(), 'fake-ref');
+        return new WebhookResult($request->input('sig') === 'ok', $oid, $status, $request->input('amount') !== null ? (float) $request->input('amount') : null, $oid.':'.$status.($ref !== 'fake-ref' ? ':'.$ref : ''), $request->all(), $ref);
     }
 
     public function refund(PaymentOrder $order, float $amount): RefundResult

@@ -231,7 +231,7 @@ new class extends Component {
                                     <td class="p-4 font-mono">{{ $ban->ip_address }}</td>
                                     <td class="p-4" data-label="Gerekçe">{{ $ban->reason }}</td>
                                     <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Bitti">{{ $ban->banned_until?->format('d.m.Y H:i') }}</td>
-                                    <td class="p-4 tc-actions"><button type="button" wire:click="unban({{ $ban->id }})" class="text-neutral-500 font-semibold">Kaydı sil</button></td>
+                                    <td class="p-4 tc-actions">@if($canSystem)<button type="button" wire:click="unban({{ $ban->id }})" wire:confirm="Süresi dolmuş yasak kaydı silinecek. Devam edilsin mi?" class="text-neutral-500 font-semibold">Kaydı sil</button>@endif</td>
                                 </tr>
                             @empty
                                 <tr><td colspan="4" class="p-10 text-center text-neutral-500">Süresi dolmuş yasak yok.</td></tr>

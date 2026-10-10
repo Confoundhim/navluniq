@@ -164,7 +164,7 @@ class extends Component {
 
                 @forelse($disputes as $dispute)
                     @php $dLoad = $dispute->cargoLoad; @endphp
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs">
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl space-y-3 text-xs" wire:key="dispute-{{ $dispute->id }}">
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div class="text-sm font-bold text-neutral-900 dark:text-white">
                                 @if($dLoad)
@@ -263,7 +263,7 @@ class extends Component {
                 @endif
 
                 @forelse($tickets as $ticket)
-                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1" wire:key="ticket-{{ $ticket->id }}">
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-neutral-900 dark:text-white font-semibold">{{ $ticket->subject ?: ($categories[$ticket->category] ?? $ticket->category) }}</span>
                             <span class="px-2 py-0.5 rounded-full text-2xs font-bold border

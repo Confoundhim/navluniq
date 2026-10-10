@@ -161,9 +161,9 @@ new class extends Component {
         $profile->update(['gib_verified' => $verified, 'gib_verified_at' => $verified ? now() : null, 'gib_verified_by' => $verified ? auth()->id() : null]);
         ActivityLog::record($verified ? 'kyc.company_verified' : 'kyc.company_unverified', ($verified ? 'Şirket doğrulandı' : 'Şirket doğrulaması kaldırıldı')." (kullanıcı #{$user->id})", auth()->id(), $profile);
         if ($verified) {
-            app(\App\Services\NotificationService::class)->notify($user, 'Şirketiniz doğrulandı', ['Vergi bilgileriniz teyit edildi; artık teklif kabul edebilirsiniz ve ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür.'], route('cargo-owner.loads.index'), 'İlanlarım', 'kyc');
+            app(\App\Services\NotificationService::class)->notify($user, 'Şirketiniz doğrulandı', ['Vergi bilgileriniz teyit edildi; ilanlarınızda "Doğrulanmış yük sahibi" rozeti görünür.'], route('cargo-owner.loads.index'), 'İlanlarım', 'kyc');
         }
-        session()->flash('success_message', $verified ? 'Şirket doğrulandı; kullanıcıya haber verildi.' : 'Şirket doğrulaması kaldırıldı.');
+        session()->flash('success_message', $verified ? 'Şirket doğrulandı, rozet verildi; kullanıcıya haber verildi.' : 'Şirket doğrulaması kaldırıldı; rozet kalktı.');
     }
 
     public function verifyGib(): void
@@ -397,10 +397,10 @@ new class extends Component {
                                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-neutral-50 dark:bg-neutral-900 p-3.5 rounded-2xl border border-neutral-200/40 dark:border-neutral-700/40">
                                     <div class="text-xs">
                                         <span class="font-semibold block">Şirket doğrulaması: {{ $profile->gib_verified ? 'doğrulandı'.($profile->gib_verified_at ? ' · '.$profile->gib_verified_at->format('d.m.Y') : '') : 'bekliyor' }}</span>
-                                        <span class="text-[11px] text-neutral-400">Unvan, VKN ve vergi dairesini (varsa vergi levhasıyla) teyit edince işaretleyin; kullanıcı teklif kabul edebilir ve kartında rozet çıkar.</span>
+                                        <span class="text-[11px] text-neutral-400">Unvan, VKN ve vergi dairesini (varsa vergi levhasıyla) teyit edince işaretleyin; yalnız "Doğrulanmış yük sahibi" rozetini verir. 10 haneli VKN ve unvanı olan kurumsal hesap zaten teklif kabul edebilir.</span>
                                     </div>
                                     @if($profile->gib_verified)
-                                        <button type="button" wire:click="setCompanyVerified(false)" wire:confirm="Şirket doğrulaması kaldırılacak; kullanıcı teklif kabul edemez." @disabled(! $canVerify) class="btn-apple-secondary py-1.5 px-3 text-[11px] disabled:opacity-40">Doğrulamayı kaldır</button>
+                                        <button type="button" wire:click="setCompanyVerified(false)" wire:confirm="Şirket doğrulaması kaldırılacak; yalnız rozeti kaldırır, kullanıcı teklif kabul etmeye devam eder." @disabled(! $canVerify) class="btn-apple-secondary py-1.5 px-3 text-[11px] disabled:opacity-40">Doğrulamayı kaldır</button>
                                     @else
                                         <button type="button" wire:click="setCompanyVerified(true)" wire:loading.attr="disabled" @disabled(! $canVerify) class="btn-apple-brand py-1.5 px-3 text-[11px] disabled:opacity-40">Şirketi doğrula</button>
                                     @endif

@@ -229,6 +229,7 @@ new class extends Component {
             return;
         }
         $user->update(['banned_at' => now(), 'banned_by' => auth()->id(), 'ban_reason' => mb_substr(trim($this->banReason) ?: 'Yönetici kararı', 0, 255)]);
+        self::endSessions($user); // açık oturumlar hemen düşer, "beni hatırla" çerezi geçersiz olur
         \App\Models\ActivityLog::record('user.banned', "Kullanıcı engellendi #{$user->id}: {$user->ban_reason}", auth()->id(), $user, ['open_items' => $openItems, 'closed' => $closed]);
         app(\App\Services\NotificationService::class)->notify($user, 'Hesabınız engellendi',
             ['NavlunIQ hesabınız yönetici kararıyla engellendi; giriş yapamazsınız. Gerekçe: '.$user->ban_reason, 'Bir yanlışlık olduğunu düşünüyorsanız destek hattından bize ulaşın.'],
@@ -249,10 +250,22 @@ new class extends Component {
         session()->flash('success_message', $user->full_name.' için engel kaldırıldı.');
     }
 
+    /** Engellenen kullanıcının tüm cihazlardaki oturumlarını kapatır ve "beni hatırla" anahtarını yeniler (ManagesAccountSecurity::endOtherSessions ile aynı). */
+    public static function endSessions(User $user): void
+    {
+        $user->forceFill(['remember_token' => \Illuminate\Support\Str::random(60)])->save();
+        $table = (string) config('session.table', 'sessions');
+        if (\Illuminate\Support\Facades\Schema::hasTable($table)) {
+            \Illuminate\Support\Facades\DB::table($table)->where('user_id', $user->id)->delete();
+        }
+    }
+
     private function query(): Builder
     {
         $q = User::query()->with(['driverProfile', 'cargoOwnerProfile', 'roles'])
-            ->where(fn (Builder $w) => $w->whereHas('driverProfile')->orWhereHas('cargoOwnerProfile'));
+            // Yönetici görünümü profilleri (is_staff_view) gerçek kullanıcı değildir; sayaçlarla aynı kural.
+            ->where(fn (Builder $w) => $w->whereHas('driverProfile', fn ($p) => $p->where('is_staff_view', false))
+                ->orWhereHas('cargoOwnerProfile', fn ($p) => $p->where('is_staff_view', false)));
 
         if (trim($this->search) !== '') {
             $term = '%'.trim($this->search).'%';
@@ -391,7 +404,7 @@ new class extends Component {
                                             @if($canManage && $dp)
                                                 <div class="flex flex-wrap gap-2">
                                                     @foreach([7 => '+1 hafta', 30 => '+1 ay', 90 => '+3 ay', 365 => '+1 yıl'] as $d => $l)
-                                                        <button type="button" wire:click="grantPremium({{ $user->id }}, {{ $d }})" class="btn-secondary py-2 px-3 text-xs">{{ $l }}</button>
+                                                        <button type="button" wire:click="grantPremium({{ $user->id }}, {{ $d }})" wire:confirm="{{ $l }} premium hediye edilecek; ödeme kaydı oluşmaz. Devam edilsin mi?" class="btn-secondary py-2 px-3 text-xs">{{ $l }}</button>
                                                     @endforeach
                                                 </div>
                                                 <p class="text-[11px] text-neutral-400">Mevcut sürenin üzerine eklenir; kullanıcıya bildirim gider, ödeme kaydı oluşmaz.</p>

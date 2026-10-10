@@ -145,6 +145,14 @@ new class extends Component {
         }
 
         $user->update(['is_active' => ! $user->is_active]);
+        if (! $user->is_active) {
+            // Pasife alınan personelin açık oturumları hemen düşer, "beni hatırla" çerezi geçersiz olur.
+            $user->forceFill(['remember_token' => \Illuminate\Support\Str::random(60)])->save();
+            $table = (string) config('session.table', 'sessions');
+            if (\Illuminate\Support\Facades\Schema::hasTable($table)) {
+                \Illuminate\Support\Facades\DB::table($table)->where('user_id', $user->id)->delete();
+            }
+        }
         ActivityLog::record('staff.toggled', "Personel {$user->full_name} ".($user->is_active ? 'aktif edildi' : 'pasife alındı'), auth()->id(), $user);
         session()->flash('success_message', 'Hesap durumu güncellendi.');
     }

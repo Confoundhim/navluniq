@@ -687,6 +687,33 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   sistemin iç işleyişini anlatmaz (yapay zeka ile ayrıştırma, izinli gruplar, WhatsApp/Facebook adı, operasyon ekibinin onayı, tekrar ayıklama);
   yalnız sonuç yazılır: "gruplardan ve web mecralarından derlenen ilanlar, şoförün kendi belirlediği filtrelere göre paneline düşer". "NavlunIQ Nedir?"
   özeti Osman'ın metnidir (`hakkimizda_ozet` varsayılanı). KVKK metnindeki yapay zeka aktarım maddesi hukuken kalır.
+- **Canlıya geçiş denetimi (2026-10-11 gece, Osman: "A'dan Z'ye her şeyi kontrol et, güvenlik açıklarını kapat"):** altı paralel inceleme
+  (güvenlik, tanıtım metinleri, yönetici / şoför / yük sahibi panelleri, ödeme-abonelik-zamanlayıcı) ~130 bulgu verdi; hepsi aynı gece kapatıldı
+  (PR). Kalıcı kurallar ve yeni parçalar: **Livewire kalıcı ara katman** (`AppServiceProvider`: AdminMiddleware/EnsureDriver/EnsureCargoOwner
+  her Livewire isteğinde yeniden çalışır; engellenen/pasif hesap açık sekmeden işlem yapamaz; `users-center::ban` ve `staff-center::toggleActive`
+  oturumları siler + remember_token yeniler); `Settings::isRollbackable` REAUTH anahtarlarını geri almaz; yönetici girişi IP sınırı
+  (`admin-login-ip` 20/dk); `User::switchRole` yönetici rolünde çalışmaz (kendini kilitleme); teslim/uyuşmazlık fotoğrafı yalnız
+  `manage operations`/`manage disputes` yetkili yönetici; `Load::canSeePrivateDetails` `isAdminPanelUser()`; `SecurityHeaders` X-Frame/nosniff/
+  Referrer/HSTS başlıklarını uygulamadan da basar; ödeme geri çağrısı emrin sağlayıcısıyla eşleşmeli (`handleWebhook`), PayTR yapılandırılmadan
+  geçersiz, `throttle:payment-webhook`. **Ödeme sağlamlaştırma:** `afterPaidSafely` (etkinleştirme hatası webhook'u düşürmez, yönetici
+  bildirimi), `subscriptions:reconcile` (saatlik; ödenmiş ama döngüsü olmayan abonelik emrini etkinleştirir), yenilemede ödenmiş-ama-işlenmemiş
+  emir tekrar çekilmez, iyzico ulaşım hatası `ChargeResult.transportError` → deneme sayılmaz, 2 sa sonra `/payment/detail` ile sorgulanır
+  (`PaymentEvent status=unknown`); aynı emre ikinci tahsilat "çift tahsilat şüphesi" + iade denemesi (`duplicate_refund`); `renewDue` abonelik
+  başına try/catch; bitişten sonra 24 sa yenileme payı (`RENEWAL_GRACE_HOURS`); hesap silme kartı iyzico'dan siler ve aboneliği kapatır;
+  `request_snapshot` alıcı bilgisi gizlenir; `stored_cards.card_user_key` şifreli (text, `0001_01_64`); bildirim e-postası `failed()` +
+  15 dk'dan eski `pending` yeniden denenir; duyuru işi `type` parametresi (CRM pazarlama → 'marketing'). **Premium satın alırken TC** (`checkout`
+  kimlik yoksa bir kez sorar; iyzico alıcı kimliği ister). **Şoför:** `DriverTrip::canStart/displayStatusLabel` doğrudan kipte "Yüklemeye hazır"
+  + "Yola çıktım"; `openOffer` ve havuz `offerableBy` kapsamı; standart üyeye dönüş yükü bildirim kutusu yok; jobs/show 30 sn imzalı poll.
+  **Yönetici:** `LoadService::cancelByAdmin` (askıya alma şoförün işini kapatır ve bildirir), "Sayfadakileri seç" yalnız sayfa, toplu yapay zeka
+  çözümü 100/istek, `purgeRejected` parça parça, otomatik onay çipi 60 sn önbellek, Ayarlar → **İşletim ve uyarılar** sekmesi
+  (`alert_telegram_chat_id`, csp/tls, bekçi süreleri; yalnız `manage system`), `PaymentOrder/Shipment::STATUS_LABELS`, doğrudan kipte
+  hakediş/havuz kartları ve metinleri gizli, canlı akış `simplePaginate` (vendor `simple-tailwind` görünümü yeniden yazıldı).
+  **Yük sahibi:** ödeme sayfası doğrudan kipte özet göstermez, "Tekrar yayınla" yalnız geçmiş ilanda (`LoadService::repeat` denetler),
+  düzenleme sırasında teklif gelirse uyarı, teklif kartı şoför başına 2 yorum. **Metin kuralları:** bildirim/SSS metinleri `delayMinutes()`
+  0 ise "yayınlandığı anda"; "uygulama" değil "site"; KYC/OTP/bilet/dış kaynak jargonu kullanıcıya yazılmaz ("Gruplardan derlenen ilanlar").
+  Bilinçli bırakılanlar: `admin.panel-switch` GET (yalnız yöneticinin kendi görünüm profili), ping ucunda sorgu parametresiyle anahtar
+  (panel sınama bağlantısı), `User::$fillable` geniş (kod `request()->all()` kullanmıyor), review hesabı sabit kodu (`review_login_until`).
+  Test: `PreLaunchAdminFixesTest` (8), `PaymentHardeningTest` (17), `PremiumPlansTest` (+1), `DirectFreightPaymentTest` (İşlerim kartı).
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL

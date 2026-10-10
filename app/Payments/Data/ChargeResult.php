@@ -16,5 +16,6 @@ final class ChargeResult
         public readonly ?string $providerReference = null,
         public readonly ?string $failureMessage = null,
         public readonly bool $cardInvalid = false, // kart silinmiş/süresi dolmuş: tekrar denemenin anlamı yok
+        public readonly bool $transportError = false, // kuruluşa ulaşılamadı (zaman aşımı, ağ): çekim YAPILMIŞ olabilir, sonuç belirsiz
     ) {}
 }

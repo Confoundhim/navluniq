@@ -61,7 +61,7 @@ class LoadStatsServiceTest extends TestCase
     public function test_home_live_counters_refresh_on_tick_after_a_publish(): void
     {
         Scraper::create(['name' => 'Grup', 'type' => 'notification', 'source_identifier' => 'notif:grup', 'is_active' => true]);
-        $c = Volt::test('frontend.live-stats')->assertSeeHtml('data-value="0"')->assertSee('Dış Kaynak İlanları');
+        $c = Volt::test('frontend.live-stats')->assertSeeHtml('data-value="0"')->assertSee('Gruplardan Derlenen İlanlar');
         app(ScrapedLoadService::class)->approve($this->scraped(), null);
         // Sayfa yenilenmeden, süreli tick ile yeni değer gelir; tarayıcıdaki sayaç data-value değişince akarak sayar
         $c->call('tick')->assertSeeHtml('data-value="1"');

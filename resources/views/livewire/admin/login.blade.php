@@ -32,8 +32,11 @@ new class extends Component {
 
         $identifier = trim($this->identifier);
         $key = 'admin-login:'.hash('sha256', Str::lower($identifier).'|'.request()->ip());
-        if (RateLimiter::tooManyAttempts($key, 5)) {
-            $this->addError('identifier', 'Çok fazla giriş denemesi yapıldı. Lütfen bir dakika bekleyin.');
+        // Aynı IP'den çok sayıda farklı hesaba deneme (şifre serpme) için ikinci sayaç.
+        $ipKey = 'admin-login-ip:'.hash('sha256', (string) request()->ip());
+        if (RateLimiter::tooManyAttempts($key, 5) || RateLimiter::tooManyAttempts($ipKey, 20)) {
+            $seconds = max(RateLimiter::availableIn($key), RateLimiter::availableIn($ipKey), 1);
+            $this->addError('identifier', 'Çok fazla giriş denemesi yapıldı. Lütfen '.$seconds.' saniye bekleyin.');
 
             return;
         }
@@ -50,12 +53,14 @@ new class extends Component {
 
         if (! $user || ! Hash::check($this->password, $user->password) || ! $user->isAdminPanelUser()) {
             RateLimiter::hit($key, 60);
+            RateLimiter::hit($ipKey, 60);
             $this->addError('identifier', 'Giriş bilgileri hatalı veya bu alana erişim yetkiniz yok.');
 
             return;
         }
 
         RateLimiter::clear($key);
+        RateLimiter::clear($ipKey);
 
         $error = app(OtpService::class)->send($user, 'Yönetim paneline giriş yapmak', 'admin-login');
         if ($error) {

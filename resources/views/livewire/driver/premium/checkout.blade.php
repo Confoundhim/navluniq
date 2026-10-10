@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\DriverProfile;
 use App\Models\PaymentOrder;
+use App\Services\KycService;
 use App\Services\PaymentService;
 use App\Services\SubscriptionService;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +50,18 @@ class extends Component {
     #[Locked]
     public bool $autoRenewAvailable = false;
 
+    /**
+     * Ödeme kuruluşu fatura için alıcı kimliği ister (bireysel/şahıs: TC, şirket: VKN). Profilde yoksa ödeme kuruluşu
+     * "kimlik bilgisi eksik" diye reddediyordu; özet adımında bir kez istenir ve profile yazılır.
+     */
+    #[Locked]
+    public bool $needsIdentity = false;
+
+    #[Locked]
+    public bool $identityIsTaxNo = false;
+
+    public string $identityNumber = '';
+
     public function mount(PaymentService $payments, SubscriptionService $subscriptions, ?int $sure = null): void
     {
         $requested = (int) ($sure ?? request()->query('sure', 1));
@@ -56,6 +70,38 @@ class extends Component {
         $this->sandbox = $payments->isSandbox();
         $this->autoRenewAvailable = $subscriptions->autoRenewAvailable();
         $this->autoRenew = $this->autoRenewAvailable;
+        $profile = Auth::user()->driverProfile;
+        $this->needsIdentity = $profile !== null && ! $profile->hasPayoutIdentity();
+        $this->identityIsTaxNo = $profile?->legal_type === DriverProfile::LEGAL_COMPANY;
+    }
+
+    /** Eksik kimliği doğrular ve profile yazar; hata varsa false döner (hata `identityNumber` alanında). */
+    private function saveIdentityIfNeeded(): bool
+    {
+        if (! $this->needsIdentity) {
+            return true;
+        }
+        $profile = Auth::user()->driverProfile;
+        $value = preg_replace('/\D+/', '', $this->identityNumber) ?? '';
+        $this->resetErrorBag('identityNumber');
+        if ($this->identityIsTaxNo) {
+            if (! preg_match('/^\d{10}$/', $value)) {
+                $this->addError('identityNumber', 'Vergi kimlik numarası 10 haneli olmalıdır.');
+
+                return false;
+            }
+            $profile->update(['tax_number' => $value]);
+        } else {
+            if (! KycService::isValidTcNo($value)) {
+                $this->addError('identityNumber', 'Geçerli bir T.C. kimlik numarası girin (11 hane).');
+
+                return false;
+            }
+            $profile->update(['identity_number' => $value]);
+        }
+        $this->needsIdentity = false;
+
+        return true;
     }
 
     /**
@@ -71,6 +117,9 @@ class extends Component {
         if (! $this->accepted) {
             $this->addError('accepted', 'Devam etmek için mesafeli satış sözleşmesini ve cayma hakkı bilgisini onaylayın.');
 
+            return;
+        }
+        if (! $this->saveIdentityIfNeeded()) {
             return;
         }
         $this->error = null;
@@ -205,6 +254,14 @@ class extends Component {
                 </span>
             </label>
             @error('accepted') <p class="text-rose-500 font-semibold">{{ $message }}</p> @enderror
+            @if($needsIdentity)
+                <div class="space-y-1.5">
+                    <label class="form-label" for="checkout-identity">{{ $identityIsTaxNo ? 'Vergi kimlik numarası' : 'T.C. kimlik numarası' }}</label>
+                    <input id="checkout-identity" type="text" inputmode="numeric" autocomplete="off" maxlength="{{ $identityIsTaxNo ? 10 : 11 }}" wire:model="identityNumber" class="form-input tabular-nums max-w-xs" placeholder="{{ $identityIsTaxNo ? '10 hane' : '11 hane' }}">
+                    @error('identityNumber') <p class="text-rose-500 font-semibold">{{ $message }}</p> @enderror
+                    <p class="text-2xs text-neutral-500 leading-relaxed">Ödeme kuruluşu fatura için ister; şoföre ya da yük sahibine gösterilmez.</p>
+                </div>
+            @endif
             @if($autoRenewAvailable)
                 {{-- Otomatik yenileme: kart ödeme kuruluşunda saklanır (NavlunIQ'da değil); dönem bitiminden 3 gün önce aynı süre güncel fiyattan çekilir. --}}
                 <label class="flex items-start gap-3 cursor-pointer rounded-xl border {{ $autoRenew ? 'border-brand-500/40 bg-brand-500/5' : 'border-neutral-200 dark:border-neutral-700' }} p-3">

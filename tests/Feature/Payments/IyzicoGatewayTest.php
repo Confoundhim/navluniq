@@ -26,9 +26,11 @@ use App\Support\RuntimeMailConfig;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Volt\Volt;
@@ -477,6 +479,65 @@ class IyzicoGatewayTest extends TestCase
         $this->assertStringContainsString('10054', (string) $subscription->last_renewal_error);
         $this->assertSame('failed', PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->value('status'));
         $this->assertSame(1, PaymentEvent::query()->where('event_type', 'renewal')->where('status', 'failed')->count());
+    }
+
+    public function test_request_snapshot_hides_buyer_and_address_blocks(): void
+    {
+        Http::fake(['sandbox-api.iyzipay.com/payment/iyzipos/checkoutform/initialize/auth/ecom' => Http::response(['status' => 'success', 'token' => 'tok-snap', 'tokenExpireTime' => 1800, 'paymentPageUrl' => 'https://sandbox-cpp.iyzipay.com?token=tok-snap'])]);
+        $driver = $this->driver();
+        $driver->driverProfile->update(['identity_number' => '10000000146']);
+        $order = app(SubscriptionService::class)->startCheckout($driver->fresh(), 1);
+        app(PaymentService::class)->checkout($order, request());
+
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'initialize') && ($r->data()['buyer']['identityNumber'] ?? null) === '10000000146');
+        $snapshot = $order->fresh()->request_snapshot;
+        $this->assertSame(['[gizlendi]', '[gizlendi]', '[gizlendi]'], [$snapshot['buyer'], $snapshot['shippingAddress'], $snapshot['billingAddress']]);
+        $this->assertSame($order->merchant_oid, $snapshot['conversationId']);
+        $this->assertStringNotContainsString('10000000146', json_encode($snapshot));
+        $this->assertStringNotContainsString($driver->email, json_encode($snapshot));
+    }
+
+    public function test_server_webhook_without_checkout_token_is_acknowledged_quietly(): void
+    {
+        Http::fake();
+        Log::shouldReceive('warning')->never();
+        Log::shouldReceive('error')->never();
+
+        // iyzico API_AUTH (kayıtlı kart çekimi) olayı: token yok, sonuç zaten çekim anında işlendi
+        $this->post('/odeme/bildirim/iyzico', ['iyziEventType' => 'API_AUTH', 'paymentConversationId' => 'NQS1T2601', 'paymentId' => '12345', 'status' => 'SUCCESS'])->assertOk()->assertSee('OK');
+        Http::assertNothingSent();
+    }
+
+    public function test_transport_failure_during_stored_card_charge_is_flagged_and_payment_detail_settles_it_later(): void
+    {
+        Settings::set('iyzico_card_storage', '1');
+        Settings::set('premium_monthly_price', '900');
+        Http::fake(['sandbox-api.iyzipay.com/payment/auth' => fn () => throw new ConnectionException('cURL error 28: Operation timed out')]);
+        $driver = $this->driver();
+        $driver->driverProfile->update(['identity_number' => '10000000146', 'premium_until' => now()->addHours(48)]);
+        $card = StoredCard::create(['user_id' => $driver->id, 'provider' => 'iyzico', 'card_user_key' => 'CUK-T', 'card_token' => 'CTK-T', 'last_four' => '0003']);
+        $subscription = Subscription::create(['user_id' => $driver->id, 'plan_code' => 'premium_monthly', 'provider' => 'iyzico', 'status' => 'active', 'amount' => 900, 'currency' => 'TRY', 'interval' => 'monthly',
+            'auto_renew' => true, 'renew_months' => 1, 'stored_card_id' => $card->id, 'current_period_starts_at' => now()->subMonth(), 'current_period_ends_at' => now()->addHours(48)]);
+
+        $this->assertSame(0, app(SubscriptionService::class)->renewDue());
+        $subscription->refresh();
+        $this->assertSame(0, $subscription->renewal_failures, 'Ağ hatası deneme sayılmaz');
+        $this->assertTrue($subscription->auto_renew);
+        $order = PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->firstOrFail();
+        $this->assertSame('pending', $order->status);
+        $this->assertSame(1, PaymentEvent::query()->where('payment_order_id', $order->id)->where('status', 'unknown')->count());
+
+        // Sonraki deneme: önce /payment/detail ile akıbet sorulur; iyzico "başarılı" diyorsa /payment/auth bir daha çağrılmaz
+        $this->travel(3)->hours();
+        Http::fake([
+            'sandbox-api.iyzipay.com/payment/detail' => Http::response(['status' => 'success', 'paymentStatus' => 'SUCCESS', 'paymentId' => '990077', 'paidPrice' => '900.00', 'itemTransactions' => [['paymentTransactionId' => '770077']]]),
+            'sandbox-api.iyzipay.com/payment/auth' => Http::response(['status' => 'success', 'paymentId' => 'OLMAMALI']),
+        ]);
+        $this->assertSame(1, app(SubscriptionService::class)->renewDue());
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/payment/detail') && $r->data()['paymentConversationId'] === $order->merchant_oid);
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/payment/auth'));
+        $this->assertSame(['paid', '990077:770077'], [$order->fresh()->status, $order->fresh()->provider_reference]);
+        $this->assertEqualsWithDelta(now()->subHours(3)->addHours(48)->addMonthsNoOverflow(1)->timestamp, $driver->driverProfile->fresh()->premium_until->timestamp, 5);
     }
 
     public function test_diagnose_reports_card_storage_when_enabled(): void

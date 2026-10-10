@@ -20,11 +20,11 @@ new class extends Component {
     ];
 
     public const LIMIT_LABELS = [
-        'commission_standard_driver' => 'Standart şoför komisyonu (%)',
-        'commission_cargo_owner' => 'Yük sahibi hizmet bedeli (%)',
+        'commission_standard_driver' => 'Standart şoför komisyonu (%; yalnız platform kipinde)',
+        'commission_cargo_owner' => 'Yük sahibi hizmet bedeli (%; yalnız platform kipinde)',
         'delivery_auto_approval_hours' => 'Teslimat sonrası otomatik onay süresi (saat)',
         'offer_validity_days' => 'Teklif geçerlilik süresi (gün)',
-        'offer_payment_hours' => 'Teklif kabulünden sonra ödeme süresi (saat)',
+        'offer_payment_hours' => 'Teklif kabulünden sonra ödeme süresi (saat; yalnız platform kipinde)',
         'load_expiry_grace_days' => 'Yükleme tarihi geçen ilanın kapanma süresi (gün)',
         'premium_monthly_price' => 'Premium abonelik aylık ücreti (₺)',
         'premium_trial_days' => 'Ücretsiz premium deneme süresi (gün; belgeleri onaylanan her şoföre bir kez, 0 kapalı)',
@@ -32,16 +32,48 @@ new class extends Component {
         'premium_discount_6m' => '6 aylık premium indirimi (%)',
         'premium_discount_12m' => '12 aylık premium indirimi (%)',
         'min_load_price' => 'Asgari navlun bedeli (₺)',
-        'cargo_owner_verification_required' => 'Yük sahibi doğrulaması zorunlu (1 açık · 0 kapalı)',
+        'cargo_owner_verification_required' => 'Yük sahibi doğrulaması zorunlu',
         'return_load_radius_km' => 'Dönüş yükü arama yarıçapı (km)',
         'return_load_mail_hours' => 'Dönüş yükü e-postası aralığı (saat)',
         'trip_auto_close_days' => 'Seferin teslimden sonra kapanma süresi (gün)',
     ];
 
+    /** İşletim ve uyarılar: bekçi, güvenlik başlıkları, SMTP sertifikası, sevkiyat/ödeme bekçilerinin süreleri. Yalnız "manage system" izni düzenler. */
+    public const OPS_LABELS = [
+        'alert_telegram_chat_id' => 'Telegram uyarı sohbet kimliği',
+        'csp_enforce' => 'İçerik güvenliği politikası (CSP) zorunlu',
+        'mail_verify_tls' => 'SMTP sertifikası doğrulansın',
+        'intake_silence_alert_hours' => 'Telefon sessizlik uyarısı (saat)',
+        'transit_overdue_grace_days' => 'Yolda gecikme uyarısı (gün)',
+        'no_show_grace_days' => 'Şoför gelmedi uyarısı (gün)',
+        'bank_change_hold_hours' => 'IBAN değişikliği bekleme süresi (saat)',
+        'payment_order_stale_hours' => 'Açık ödeme emrinin süresi (saat)',
+        'payout_processing_stale_minutes' => 'Takılı hakediş süresi (dakika)',
+        'payout_retry_max_attempts' => 'Hakediş aktarımı en çok deneme',
+    ];
+
+    public const OPS_HELP = [
+        'alert_telegram_chat_id' => 'Bekçi (system:watchdog) uyarılarının gideceği sohbet kimliği (sayı, örn. 123456789 ya da -100…); boşsa yalnız panel bildirimi gider. Bot anahtarı Dış kaynak ve Telegram sekmesindedir.',
+        'csp_enforce' => 'Kapalıyken tarayıcı yalnız rapor eder; açıkken politikaya uymayan betik ve resimler engellenir. Bir süre kapalı izleyip hata yoksa açın.',
+        'mail_verify_tls' => 'Kapatılırsa SMTP sunucusunun sertifikası denetlenmez; yalnız sertifika bozukken geçici olarak kapatın.',
+        'intake_silence_alert_hours' => '07:00-23:00 arasında telefondan bu kadar saat hiç istek gelmezse "telefon sessiz" uyarısı gider.',
+        'transit_overdue_grace_days' => 'Yoldaki sevkiyatta teslim (yoksa yükleme) tarihi bu kadar gün geçip teslim bildirilmediyse taraflara bir kez uyarı gider.',
+        'no_show_grace_days' => 'Yükleme tarihi bu kadar gün geçip yola çıkılmadıysa yük sahibine ve operasyona "şoför gelmedi" uyarısı gider.',
+        'bank_change_hold_hours' => 'IBAN değişikliğinden sonra otomatik hakediş aktarımı bu kadar saat bekler (yalnız platform kipinde).',
+        'payment_order_stale_hours' => 'Oluşturulmuş ama ödenmemiş ödeme emri bu kadar saat sonra "süresi doldu" olur.',
+        'payout_processing_stale_minutes' => '"İşlemde" takılı kalan hakediş bu kadar dakika sonra "bekliyor"a döner ve finans uyarılır (yalnız platform kipinde).',
+        'payout_retry_max_attempts' => 'Ödeme kuruluşuna hakediş aktarımı en çok bu kadar kez denenir (yalnız platform kipinde).',
+    ];
+
+    public const OPS_TOGGLES = ['csp_enforce', 'mail_verify_tls'];
+
     public string $activeTab = 'general';
 
     /** @var array<string, string> */
     public array $general = [];
+
+    /** @var array<string, string> */
+    public array $ops = [];
 
     /** @var array<string, string> */
     public array $limits = [];
@@ -204,6 +236,9 @@ new class extends Component {
         }
         foreach (array_keys(self::LIMIT_LABELS) as $key) {
             $this->limits[$key] = (string) Settings::get($key);
+        }
+        foreach (array_keys(self::OPS_LABELS) as $key) {
+            $this->ops[$key] = in_array($key, self::OPS_TOGGLES, true) ? (Settings::bool($key) ? '1' : '0') : (string) Settings::get($key);
         }
         foreach (array_keys(self::SCRAPER_KEYS) as $key) {
             $this->scraper[$key] = in_array($key, self::SCRAPER_TOGGLES, true) ? (Settings::bool($key) ? '1' : '0') : (in_array($key, self::AI_SECRET_KEYS, true) ? '' : (string) Settings::get($key));
@@ -532,6 +567,56 @@ new class extends Component {
         session()->flash('success_message', $changed > 0 ? "{$changed} ayar güncellendi." : 'Değişiklik yok.');
     }
 
+    /** İşletim ve uyarı ayarları: bekçi, CSP, SMTP sertifikası ve bekçi süreleri. Yalnız sistem yönetimi yetkisi kaydeder. */
+    public function saveOps(): void
+    {
+        if (! auth()->user()?->can('manage system')) {
+            session()->flash('error_message', 'İşletim ayarlarını yalnız sistem yönetimi yetkisi olan yönetici değiştirebilir.');
+
+            return;
+        }
+
+        foreach ($this->ops as $key => $value) {
+            $this->ops[$key] = trim((string) $value);
+        }
+
+        $this->validate([
+            'ops.alert_telegram_chat_id' => ['nullable', 'regex:/^-?\d+$/'],
+            'ops.csp_enforce' => 'required|in:0,1',
+            'ops.mail_verify_tls' => 'required|in:0,1',
+            'ops.intake_silence_alert_hours' => 'required|integer|min:1|max:72',
+            'ops.transit_overdue_grace_days' => 'required|integer|min:0|max:30',
+            'ops.no_show_grace_days' => 'required|integer|min:0|max:30',
+            'ops.bank_change_hold_hours' => 'required|integer|min:0|max:168',
+            'ops.payment_order_stale_hours' => 'required|integer|min:1|max:168',
+            'ops.payout_processing_stale_minutes' => 'required|integer|min:5|max:1440',
+            'ops.payout_retry_max_attempts' => 'required|integer|min:1|max:10',
+        ], [
+            'ops.alert_telegram_chat_id.regex' => 'Sohbet kimliği yalnız rakamlardan oluşur (başında eksi olabilir).',
+        ]);
+
+        $changed = 0;
+        foreach (self::OPS_LABELS as $key => $label) {
+            $value = $this->ops[$key];
+            if (in_array($key, self::OPS_TOGGLES, true)) {
+                $value = $value === '1' ? '1' : '0';
+                $old = Settings::bool($key) ? '1' : '0';
+            } elseif ($key === 'alert_telegram_chat_id') {
+                $old = Settings::string($key);
+                $value = $value === '' ? null : $value;
+                $old = $old === '' ? null : $old;
+            } else {
+                $value = (string) (int) $value;
+                $old = (string) Settings::int($key);
+            }
+            $changed += $this->persist($key, $label, $value, $old) ? 1 : 0;
+        }
+
+        $this->loadValues();
+        \App\Support\RuntimeMailConfig::apply();
+        session()->flash('success_message', $changed > 0 ? "{$changed} ayar güncellendi." : 'Değişiklik yok.');
+    }
+
     public function saveLimits(): void
     {
         if (! auth()->user()?->can('manage settings')) {
@@ -674,6 +759,9 @@ new class extends Component {
 
     public function fetchAiModels(string $provider): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            return;
+        }
         $parser = app(\App\Services\AiParserService::class);
         $models = $parser->listModels($provider, refresh: true);
         \Illuminate\Support\Facades\Cache::forget('ai:auto_model:'.$provider);
@@ -684,6 +772,9 @@ new class extends Component {
 
     public function testAiProvider(string $provider): void
     {
+        if (! auth()->user()?->can('manage settings')) {
+            return;
+        }
         $this->aiTest[$provider] = app(\App\Services\AiParserService::class)->testProvider($provider);
     }
 
@@ -716,6 +807,9 @@ new class extends Component {
             'aiLive' => collect(array_keys(\App\Services\AiParserService::PROVIDERS))->filter(fn ($p) => is_array(\Illuminate\Support\Facades\Cache::get('ai:models:'.$p)))->mapWithKeys(fn ($p) => [$p => count(\Illuminate\Support\Facades\Cache::get('ai:models:'.$p))])->all(),
             'generalKeys' => self::GENERAL_KEYS,
             'limitLabels' => self::LIMIT_LABELS,
+            'opsLabels' => self::OPS_LABELS,
+            'opsHelp' => self::OPS_HELP,
+            'direct' => \App\Support\FreightPayment::direct(),
             'defaults' => Settings::DEFAULTS,
             'companyLabels' => Company::LABELS,
             'mail' => [
@@ -753,7 +847,7 @@ new class extends Component {
 <div class="max-w-5xl mx-auto space-y-6">
     @php
         $input = 'w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/60 dark:border-neutral-700/40 text-neutral-900 dark:text-white text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500';
-        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı', 'mail' => 'E-posta ve bildirim'];
+        $tabs = ['general' => 'Genel', 'limits' => 'Komisyon ve limitler', 'scraper' => 'Dış kaynak ve Telegram', 'payment' => 'Ödeme altyapısı', 'mail' => 'E-posta ve bildirim', 'ops' => 'İşletim ve uyarılar'];
         if (! $isSuperAdmin) {
             unset($tabs['payment']); // ödeme anahtarları ve sağlayıcı seçimi yalnız süper yönetici
         }
@@ -805,13 +899,48 @@ new class extends Component {
                 @foreach($limitLabels as $key => $label)
                     <div>
                         <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
-                        <input type="text" inputmode="decimal" wire:model="limits.{{ $key }}" class="{{ $input }}">
-                        <span class="text-[11px] text-neutral-400">Varsayılan: {{ $defaults[$key] }}</span>
+                        @if($key === 'cargo_owner_verification_required')
+                            <select wire:model="limits.{{ $key }}" class="{{ $input }}"><option value="1">Açık</option><option value="0">Kapalı</option></select>
+                            <span class="text-[11px] text-neutral-400">Açıkken bireysel yük sahibi ilk teklifi kabul ederken kimliğini bir kez doğrular; kurumsalda vergi numarası yeter.</span>
+                        @else
+                            <input type="text" inputmode="decimal" wire:model="limits.{{ $key }}" class="{{ $input }}">
+                            <span class="text-[11px] text-neutral-400">Varsayılan: {{ $defaults[$key] }}@if($direct && in_array($key, ['commission_standard_driver', 'commission_cargo_owner', 'offer_payment_hours'], true)) · Navlun şu an doğrudan ödeniyor; bu ayar yalnız platform kipine geçilince etkili olur.@endif</span>
+                        @endif
                         @error('limits.'.$key) <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                     </div>
                 @endforeach
             </div>
             <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+        </form>
+    @endif
+
+    @if($activeTab === 'ops')
+        <form wire:submit="saveOps" class="apple-glass rounded-3xl p-6 space-y-4 text-xs">
+            <div>
+                <h3 class="section-title">İşletim ve uyarılar</h3>
+                <p class="text-[11px] text-neutral-400 mt-1">Bekçinin (system:watchdog) uyarı kanalı, güvenlik başlıkları ve sevkiyat/ödeme bekçilerinin süreleri. Yalnız sistem yönetimi yetkisi olan yönetici değiştirir; her değişiklik revizyon geçmişine yazılır.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @foreach($opsLabels as $key => $label)
+                    <div>
+                        <label class="form-label">{{ $label }} <span class="font-mono text-neutral-400">({{ $key }})</span></label>
+                        @if(in_array($key, ['csp_enforce', 'mail_verify_tls'], true))
+                            <select wire:model="ops.{{ $key }}" class="{{ $input }}" @disabled(! $canSystem)><option value="0">Kapalı</option><option value="1">Açık</option></select>
+                        @elseif($key === 'alert_telegram_chat_id')
+                            <input type="text" inputmode="numeric" wire:model="ops.{{ $key }}" class="{{ $input }} font-mono" placeholder="123456789" @disabled(! $canSystem)>
+                        @else
+                            <input type="number" inputmode="numeric" wire:model="ops.{{ $key }}" class="{{ $input }}" @disabled(! $canSystem)>
+                        @endif
+                        <span class="text-[11px] text-neutral-400">{{ $opsHelp[$key] }} Varsayılan: {{ in_array($key, ['csp_enforce', 'mail_verify_tls'], true) ? ($defaults[$key] ? 'Açık' : 'Kapalı') : ($defaults[$key] === '' ? 'boş' : $defaults[$key]) }}</span>
+                        @error('ops.'.$key) <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
+                    </div>
+                @endforeach
+            </div>
+            @if($canSystem)
+                <button type="submit" wire:loading.attr="disabled" class="btn-apple-brand py-2.5 px-5 text-xs">Kaydet</button>
+            @else
+                <p class="text-[11px] text-neutral-400">Bu ayarları yalnız sistem yönetimi yetkisi olan yönetici değiştirebilir.</p>
+            @endif
         </form>
     @endif
 
@@ -885,7 +1014,7 @@ new class extends Component {
                 <div>
                     <label class="form-label">{{ $scraperKeys['scraper_list_days'] }}</label>
                     <input type="number" min="1" max="365" wire:model="scraper.scraper_list_days" class="{{ $input }}">
-                    <span class="text-[11px] text-neutral-400">Yayınlanan ilan bu süre sonunda listeden kalkar ama silinmez: arşivde durur ve "bugüne kadar" sayaçlarında sayılmaya devam eder. Nakliyede birkaç günlük ilan bayatladığından 14 gün yeterlidir.</span>
+                    <span class="text-[11px] text-neutral-400">Yayınlanan ilan bu süre sonunda listeden kalkar ama silinmez: arşivde durur ve "bugüne kadar" sayaçlarında sayılmaya devam eder. Nakliyede birkaç günlük ilan bayatladığından 7 gün yeterlidir.</span>
                     @error('scraper.scraper_list_days') <span class="text-red-500 text-[11px] block">{{ $message }}</span> @enderror
                 </div>
                 <div class="md:col-span-2">
@@ -998,7 +1127,7 @@ new class extends Component {
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Sağlayıcı</span><span class="font-bold">{{ $payment['provider'] }}</span></div>
                 <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Durum</span><span class="font-bold {{ $payment['configured'] ? 'text-emerald-600' : 'text-amber-600' }}">{{ $payment['configured'] ? ($payment['sandbox'] ? 'Etkin · test modu' : 'Etkin · canlı') : 'Anahtarlar tanımlı değil' }}</span></div>
-                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Şoför ödemeleri</span><span class="font-bold">{{ $payment['marketplace'] ? 'Ödeme kuruluşu üzerinden (pazaryeri)' : 'Finans ekibi banka transferi' }}</span></div>
+                <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40"><span class="text-neutral-400 block">Şoför ödemeleri</span><span class="font-bold">{{ $direct ? 'Doğrudan: navlun taraflar arasında ödenir' : ($payment['marketplace'] ? 'Ödeme kuruluşu üzerinden (pazaryeri)' : 'Finans ekibi banka transferi') }}</span></div>
             </div>
             <div class="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/40 dark:border-neutral-700/40 space-y-1">
                 <span class="text-neutral-400 block">Sağlayıcı paneline yazılacak sunucu bildirimi (webhook) adresi</span>

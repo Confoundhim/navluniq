@@ -257,6 +257,58 @@ class LoadService
     }
 
     /**
+     * Yönetici (operasyon) iptali, ödemesi alınmamış ilan: doğrudan kipte ya da ödeme bekleyen ilan askıya alınır, bekleyen/kabul
+     * edilmiş teklifler reddedilir, sevkiyat satırı ve şoförün açık işi (DriverTrip) kapanır; yük sahibi ve teklif veren şoförler
+     * bilgilendirilir. Yola çıkmış ya da ödemesi alınmış ilan buradan iptal edilmez (cancelPaid / uyuşmazlık).
+     */
+    public function cancelByAdmin(Load $load, User $admin, ?string $reason = null): void
+    {
+        $reason = trim((string) $reason);
+        $affected = collect();
+        $locked = DB::transaction(function () use ($load, $admin, $reason, &$affected): Load {
+            $locked = Load::query()->lockForUpdate()->find($load->id);
+            if (! $locked) {
+                throw new RuntimeException('İlan bulunamadı.');
+            }
+            // Doğrudan ödeme kipindeki ilan (para platformda değil) yola çıkılana kadar aynı yoldan askıya alınır.
+            if (! in_array($locked->escrow_status, [Load::ESCROW_PENDING, Load::ESCROW_DIRECT], true) || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
+                throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
+            }
+            self::closeOpenOrders($locked); // ödeme ekranı yeni açılmışsa iptal reddedilir, eski açık emirler kapanır
+
+            $affected = $locked->offers()->with('driverProfile.user')->whereIn('status', ['pending', 'accepted'])->get();
+            $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
+            $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
+            $locked->update([
+                'status' => Load::STATUS_CANCELLED,
+                'rejection_reason' => 'Yönetici kararı: '.mb_substr($reason, 0, 900),
+                'cancelled_at' => now(),
+                'visibility' => 'private',
+            ]);
+
+            ActivityLog::record('load.suspended', "İlan #{$locked->id} yönetici tarafından iptal edildi: {$reason}", $admin->id, $locked);
+
+            return $locked;
+        });
+        app(DriverTripService::class)->closeForLoad($locked->id);
+
+        $notifications = app(NotificationService::class);
+        if ($owner = $locked->cargoOwnerProfile?->user) {
+            $notifications->notify($owner, 'İlanınız yönetici tarafından kaldırıldı',
+                ["#{$locked->id} numaralı ilanınız platform kuralları gereği yayından kaldırıldı.", 'Gerekçe: '.mb_substr($reason, 0, 300)],
+                route('cargo-owner.loads.index'), 'İlanlarımı gör', 'load');
+        }
+        foreach ($affected as $offer) {
+            if ($driverUser = $offer->driverProfile?->user) {
+                $notifications->notify($driverUser, 'İlan iptal edildi',
+                    ["{$locked->pickup_location} → {$locked->delivery_location} ilanı yönetici tarafından kaldırıldı; ".($offer->status === 'accepted' ? 'kabul edilmiş teklifiniz ve iş kaydınız kapandı.' : 'teklifiniz kapandı.'),
+                        $reason !== '' ? 'Gerekçe: '.mb_substr($reason, 0, 300) : 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                    route('driver.loads.index'), 'İlan havuzuna git', 'load');
+            }
+        }
+    }
+
+    /**
      * Açık ödeme emirlerini kapatır. Ödeme ekranı yeni açılmış bir sipariş varsa (sağlayıcı sonucu daha gelmemiş olabilir) iptal
      * reddedilir; daha eski açık emirler "cancelled" olur. Sonradan yine de "başarılı" bildirimi gelirse PaymentService bunu
      * iptal edilmiş ilana gelen ödeme sayıp iadeye sokar.

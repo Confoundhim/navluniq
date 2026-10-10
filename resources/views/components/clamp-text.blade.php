@@ -9,5 +9,5 @@
 @endphp
 <div wire:ignore x-data="{ open: false, clipped: false, measure: null }" x-init="measure = () => clipped = open || $refs.t.scrollHeight > $refs.t.clientHeight + 1; $nextTick(measure); document.fonts && document.fonts.ready.then(measure)" {{ $attributes->merge(['class' => 'min-w-0']) }}>
     <p x-ref="t" class="whitespace-pre-line break-words {{ $clamp }}" :class="{ '{{ $clamp }}': !open }">{{ $text }}</p>
-    <button type="button" x-show="clipped" x-cloak @click="open = !open" class="mt-0.5 text-[11px] font-semibold text-brand-600 dark:text-brand-400" x-text="open ? 'Daha az' : 'Devamı'"></button>
+    <button type="button" x-show="clipped" x-cloak @click="open = !open" class="mt-0.5 text-2xs font-semibold text-brand-600 dark:text-brand-400" x-text="open ? 'Daha az' : 'Devamı'"></button>
 </div>

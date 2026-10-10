@@ -51,6 +51,12 @@ final class IyzicoGateway implements PaymentGateway
     /** Kayıtlı kartla (cardUserKey + cardToken) sunucudan sunucuya çekim: abonelik yenilemesi. */
     public const PATH_AUTH = '/payment/auth';
 
+    /** Ödeme sorgulama (paymentId ya da paymentConversationId ile): kuruluşa ulaşılamayan çekimin akıbeti buradan öğrenilir. */
+    public const PATH_PAYMENT_DETAIL = '/payment/detail';
+
+    /** request() ağ hatasında yanıta bu anahtarı koyar: istek kuruluşa ulaşmış olabilir, sonuç belirsiz. */
+    public const TRANSPORT_ERROR_KEY = '_transport_error';
+
     /** Kart saklama: DELETE ile kayıtlı kart silinir; /cards ile kullanıcının kartları listelenir (sınama). */
     public const PATH_CARD = '/cardstorage/card';
 
@@ -129,7 +135,7 @@ final class IyzicoGateway implements PaymentGateway
             throw new RuntimeException('Ödeme sağlayıcısından yanıt alınamadı: '.trim(($data['errorCode'] ?? '').' '.($data['errorMessage'] ?? 'bilinmeyen hata')).(isset($data['errorGroup']) ? ' ('.$data['errorGroup'].')' : ''));
         }
 
-        $order->update(['status' => 'pending', 'request_snapshot' => $payload]);
+        $order->update(['status' => 'pending', 'request_snapshot' => $this->redactedSnapshot($payload)]);
 
         return new Checkout('redirect', (string) $data['paymentPageUrl'], (string) $data['token'], (int) ($data['tokenExpireTime'] ?? 1800));
     }
@@ -140,8 +146,14 @@ final class IyzicoGateway implements PaymentGateway
      */
     public function parseWebhook(Request $request): WebhookResult
     {
-        $token = (string) ($request->input('token') ?: $request->input('paymentConversationId', ''));
+        $token = (string) $request->input('token', '');
         $fromBrowser = ! $request->has('iyziEventType');
+
+        // iyzico'nun sunucu bildirimi (webhook) yalnız Ödeme Formu olaylarında token taşır. Kayıtlı kartla sunucudan yapılan
+        // çekimin (API_AUTH) bildirimi tokensızdır ve sonucu zaten çekim anında işlendi: sessizce "OK" dönülür, uyarı yazılmaz.
+        if ($token === '' && ! $fromBrowser) {
+            return new WebhookResult(false, '', 'failed', null, 'iyzico:ignored', [], null, null, 'OK', 'OK', false, ignored: true);
+        }
 
         if ($token === '' || ! $this->isConfigured()) {
             return new WebhookResult(false, '', 'failed', null, 'iyzico:invalid', $request->all(), null, 'Token yok', 'OK', 'INVALID', $fromBrowser);
@@ -214,6 +226,11 @@ final class IyzicoGateway implements PaymentGateway
         ] + $this->buyerPayload($order, $context) + ['basketItems' => [$this->basketItem($order, $context)]];
 
         $data = $this->request(self::PATH_AUTH, $payload);
+        if (! empty($data[self::TRANSPORT_ERROR_KEY])) {
+            // Yanıt gelmedi: iyzico isteği işlemiş de olabilir. Deneme sayılmaz, 24 saat sonra körlemesine tekrar çekilmez;
+            // PaymentService önce /payment/detail ile akıbeti sorar (retrievePayment), yönetici haberdar edilir.
+            return new ChargeResult(false, $eventId.':'.time(), $data, null, null, (string) ($data['errorMessage'] ?? 'Ödeme kuruluşuna ulaşılamadı'), false, true);
+        }
         $ok = ($data['status'] ?? '') === 'success' && ! empty($data['paymentId']);
         if (! $ok) {
             Log::warning('iyzico kayıtlı kart çekimi başarısız.', ['order' => $order->id, 'code' => $data['errorCode'] ?? null, 'error' => $data['errorMessage'] ?? null]);
@@ -226,6 +243,42 @@ final class IyzicoGateway implements PaymentGateway
         $txId = (string) ($data['itemTransactions'][0]['paymentTransactionId'] ?? '');
 
         return new ChargeResult(true, $eventId, $data, isset($data['paidPrice']) ? (float) $data['paidPrice'] : (float) $order->amount, $paymentId.':'.$txId);
+    }
+
+    /**
+     * Sonucu belirsiz kalan çekimin akıbeti: conversationId (merchant_oid) ile ödeme sorgulanır. Ödeme iyzico'da başarılıysa
+     * ChargeResult(succeeded) döner (yeniden çekilmez), başarısız/kayıt yoksa null (çekim yeniden denenebilir), kuruluşa yine
+     * ulaşılamadıysa transportError işaretli sonuç döner. Sözleşmede yoktur; PaymentService method_exists ile arar.
+     */
+    public function retrievePayment(PaymentOrder $order): ?ChargeResult
+    {
+        if (! $this->isConfigured()) {
+            return null;
+        }
+        $data = $this->request(self::PATH_PAYMENT_DETAIL, ['locale' => 'tr', 'conversationId' => $order->merchant_oid, 'paymentConversationId' => $order->merchant_oid]);
+        if (! empty($data[self::TRANSPORT_ERROR_KEY])) {
+            return new ChargeResult(false, 'iyzico:retrieve:'.$order->merchant_oid.':'.time(), $data, null, null, (string) ($data['errorMessage'] ?? 'Ödeme kuruluşuna ulaşılamadı'), false, true);
+        }
+        $paid = ($data['status'] ?? '') === 'success' && strtoupper((string) ($data['paymentStatus'] ?? '')) === 'SUCCESS' && ! empty($data['paymentId']);
+        if (! $paid) {
+            return null;
+        }
+        $paymentId = (string) $data['paymentId'];
+        $txId = (string) ($data['itemTransactions'][0]['paymentTransactionId'] ?? '');
+
+        return new ChargeResult(true, 'iyzico:renew:'.$order->merchant_oid, $data, isset($data['paidPrice']) ? (float) $data['paidPrice'] : (float) $order->amount, $paymentId.':'.$txId);
+    }
+
+    /** Emirde saklanan istek görüntüsü kişisel veri taşımaz: alıcı ve adres blokları "[gizlendi]" olur (KVKK, veri en azlığı). */
+    private function redactedSnapshot(array $payload): array
+    {
+        foreach (['buyer', 'shippingAddress', 'billingAddress'] as $key) {
+            if (array_key_exists($key, $payload)) {
+                $payload[$key] = '[gizlendi]';
+            }
+        }
+
+        return $payload;
     }
 
     public function deleteStoredCard(StoredCard $card): bool
@@ -510,7 +563,8 @@ final class IyzicoGateway implements PaymentGateway
         } catch (\Throwable $e) {
             Log::error('iyzico isteği başarısız.', ['path' => $path, 'error' => $e->getMessage()]);
 
-            return ['status' => 'failure', 'errorMessage' => 'Ödeme kuruluşuna ulaşılamadı: '.$e->getMessage()];
+            // Yanıt yok: istek kuruluşa ulaşmış olabilir (zaman aşımı). Çağıran bunu "reddedildi" ile karıştırmasın.
+            return ['status' => 'failure', 'errorMessage' => 'Ödeme kuruluşuna ulaşılamadı: '.$e->getMessage(), self::TRANSPORT_ERROR_KEY => true];
         }
 
         $data = $response->json();

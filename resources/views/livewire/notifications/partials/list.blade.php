@@ -27,7 +27,7 @@
                         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span class="text-sm font-semibold text-neutral-900 dark:text-white">{{ $n->title }}</span>
                             <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">{{ $typeLabels[$n->type] ?? $n->type }}</span>
-                            <span class="text-[11px] text-neutral-400">{{ $n->created_at->format('d.m.Y H:i') }}</span>
+                            <span class="text-2xs text-neutral-400">{{ $n->created_at->format('d.m.Y H:i') }}</span>
                         </div>
                         @foreach($n->lines as $line)
                             <p class="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">{{ $line }}</p>
@@ -37,9 +37,9 @@
                                 <button type="button" wire:click="open({{ $n->id }})" class="text-xs font-semibold text-brand-500 hover:underline">{{ $n->action_text ?? 'Görüntüle' }} →</button>
                             @endif
                             @if(! $n->isRead())
-                                <button type="button" wire:click="markRead({{ $n->id }})" class="text-[11px] font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white">Okundu işaretle</button>
+                                <button type="button" wire:click="markRead({{ $n->id }})" class="text-2xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white">Okundu işaretle</button>
                             @endif
-                            <button type="button" wire:click="delete({{ $n->id }})" class="text-[11px] font-semibold text-neutral-400 hover:text-rose-500 ml-auto" aria-label="Bildirimi sil">Sil</button>
+                            <button type="button" wire:click="delete({{ $n->id }})" class="text-2xs font-semibold text-neutral-400 hover:text-rose-500 ml-auto" aria-label="Bildirimi sil">Sil</button>
                         </div>
                     </div>
                 </div>

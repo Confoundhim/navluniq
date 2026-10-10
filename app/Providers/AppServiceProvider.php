@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\EnsureCargoOwner;
+use App\Http\Middleware\EnsureDriver;
 use App\Livewire\PausePollWhileInteracting;
 use App\Payments\GatewayManager;
 use App\Services\SystemWatchdog;
@@ -14,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Livewire\ComponentHookRegistry;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -56,6 +60,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('marketing-unsubscribe', fn (Request $r) => Limit::perMinute(20)->by('unsub|'.$r->ip()));
         RateLimiter::for('driver-location', fn (Request $r) => Limit::perMinute(60)->by('loc|'.($r->user()?->getAuthIdentifier() ?: $r->ip()))); // şoför konumu: kullanıcı başına, paylaşımlı sayaç değil (A22)
         RateLimiter::for('csp-report', fn (Request $r) => Limit::perMinute(30)->by('csp|'.$r->ip()));
+        // Ödeme kuruluşu bildirimi: kuruluş aynı bildirimi yineler ve kullanıcı dönüşü de buraya düşer; IP başına geniş ama sonlu sınır (M6).
+        RateLimiter::for('payment-webhook', fn (Request $r) => Limit::perMinute(120)->by('paywh|'.$r->ip()));
+
+        // Livewire güncelleme istekleri sayfanın ilk açılışındaki rol/yasak/pasiflik denetimlerinden tekrar geçer: yasaklanan ya da
+        // rolü alınan kullanıcı açık sekmedeki bileşenle işlem yapmayı sürdüremez. Yalnız ilk sayfanın rotasında bulunan ara katman uygulanır.
+        Livewire::addPersistentMiddleware([AdminMiddleware::class, EnsureDriver::class, EnsureCargoOwner::class]);
 
         // /up adresi gerçek sağlık döner (veritabanı, önbellek, zamanlayıcı nabzı); dış izleme (UptimeRobot) buna bakar (I1).
         Event::listen(DiagnosingHealth::class, fn () => SystemWatchdog::diagnose());

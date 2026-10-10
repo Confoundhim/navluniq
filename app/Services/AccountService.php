@@ -48,6 +48,10 @@ class AccountService
         $notifications = app(NotificationService::class);
         $withdrawnOffers = collect();
 
+        // Kayıtlı kartlar kuruluştan ve NavlunIQ'dan silinir, sürmekte olan abonelikler yenilemesiz kapanır: kapanmış hesaba
+        // bir daha çekim yapılmaz (M2). Kuruluş çağrısı işlem dışında (sağlayıcı yavaşsa satırlar kilitli beklemesin).
+        app(SubscriptionService::class)->closeForAccountDeletion($user);
+
         DB::transaction(function () use ($user, $reason, &$withdrawnOffers): void {
             $user->consents()->whereNull('revoked_at')->update(['revoked_at' => now()]);
             // Kişisel veri taşıyan yan kayıtlar kalıcı silinir / anonimleştirilir (KVKK: unutulma hakkı).

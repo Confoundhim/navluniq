@@ -232,6 +232,9 @@ class DirectFreightPaymentTest extends TestCase
         // Şoför: iş sayfasında "Yola çıktım" ödeme beklemeden, IBAN uyarısı yok; Ödemelerim doğrudan kipi anlatır
         $this->actingAs($driverUser->fresh())->get(route('driver.jobs.show', $load->id))->assertOk()
             ->assertSee('Yola çıktım')->assertDontSee('ödeme alındığında burada görünür')->assertDontSee('Kayıtlı IBAN\'ınız yok');
+        // İşlerim kartı: doğrudan kipte iş "Yüklemeye hazır"dır, "Yola çıktım" düğmesi çıkar; "Ödeme bekleniyor" ve IBAN uyarısı yok
+        $this->get(route('driver.jobs.index'))->assertOk()
+            ->assertSee('Yola çıktım')->assertSee('Yüklemeye hazır')->assertDontSee('Ödeme bekleniyor')->assertDontSee('IBAN ekle');
         $this->get(route('driver.wallet.index'))->assertOk()->assertSee('doğrudan')->assertDontSee('iyzico pazaryeri');
         $this->get(route('driver.dashboard'))->assertOk();
 

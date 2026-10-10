@@ -37,15 +37,24 @@ class extends Component {
     /** Sayfadaki verinin ucuz imzası: yeni ilan, iş / teklif / bildirim değişimi; aynıysa süreli yenileme çizmez. */
     public ?string $pollSignature = null;
 
-    private function currentSignature(): string
+    /**
+     * İmza; $matched verilirse ("Size uygun ilanlar" koleksiyonları, with() içinde bir kez çekilir) sorgu yeniden koşmaz.
+     *
+     * @param  array{0: \Illuminate\Support\Collection, 1: \Illuminate\Support\Collection}|null  $matched
+     */
+    private function currentSignature(?array $matched = null): string
     {
         $profileId = Auth::user()->driverProfile?->id ?? 0;
         // İmza yalnız bu şoförün gördüğü 8+8 ilana bakar: canlıda dakikada onlarca dış kaynak ilanı gelirken tüm tablonun
         // max(id)'si her 15 sn'de değişiyor ve liste parmağın altından kayıyordu.
-        [$systemQ, $externalQ] = $this->matchedQueries();
+        if ($matched === null) {
+            [$systemQ, $externalQ] = $this->matchedQueries();
+            $matched = [$systemQ ? $systemQ->pluck('id') : collect(), $externalQ ? $externalQ->pluck('id') : collect()];
+        }
+        $ids = fn ($c) => $c->map(fn ($l) => is_object($l) ? $l->id : $l)->implode(',');
         $parts = [
-            $systemQ ? $systemQ->pluck('id')->implode(',') : '',
-            $externalQ ? $externalQ->pluck('id')->implode(',') : '',
+            $ids($matched[0]),
+            $ids($matched[1]),
             Load::query()->where('driver_profile_id', $profileId)->max('updated_at'),
             DriverTrip::query()->where('driver_profile_id', $profileId)->max('updated_at'),
             DriverTrip::query()->where('driver_profile_id', $profileId)->open()->count(),
@@ -104,7 +113,6 @@ class extends Component {
         $user = Auth::user();
         $profile = $user->driverProfile;
         $profileId = $profile?->id ?? 0;
-        $this->pollSignature = $this->currentSignature();
 
         // Açık işler (kabul edilen teklifler + "Bu işi aldım") ve seçili işin varış çevresindeki dönüş yükleri
         $openJobs = $profileId ? $this->openJobsQuery()->get() : collect();
@@ -121,6 +129,8 @@ class extends Component {
         [$systemQ, $externalQ] = $this->matchedQueries();
         $systemLoads = $systemQ ? $systemQ->get() : collect();
         $externalLoads = $externalQ ? $externalQ->get() : collect();
+        // İmza aynı koleksiyonlardan türetilir; sorgular ikinci kez koşmaz.
+        $this->pollSignature = $this->currentSignature([$systemLoads, $externalLoads]);
         $matchedLoads = $systemLoads->map(fn ($l) => ['kind' => 'system', 'at' => $l->published_at ?? $l->created_at, 'load' => $l])
             ->concat($externalLoads->map(fn ($l) => ['kind' => 'external', 'at' => $l->last_seen_at ?? $l->created_at, 'load' => $l]))
             ->sortByDesc('at')->take(8)->values();
@@ -152,6 +162,13 @@ class extends Component {
 
 <div wire:poll.15s="tick" class="space-y-6">
 
+    @if (session()->has('success_message'))
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+    @endif
+
     @php $kycStatus = $profile?->kyc_status ?? 'unsubmitted'; @endphp
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
@@ -179,7 +196,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Değerlendirilen tekliflerim</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ (int) $pendingOffers }}</div>
-            <a href="{{ route('driver.loads.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Teklifleri gör</a>
+            <a href="{{ route('driver.loads.index', ['tab' => 'offers']) }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Teklifleri gör</a>
         </div>
         @php $walletTotal = (float) ($wallet['in_escrow'] ?? 0) + (float) ($wallet['pending'] ?? 0) + (float) ($wallet['paid'] ?? 0); @endphp
         @if($directPayment && $walletTotal <= 0)
@@ -306,5 +323,5 @@ class extends Component {
             </div>
         </div>
     </div>
-    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" />
+    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" :is-premium="$isPremium" />
 </div>

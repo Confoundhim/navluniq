@@ -193,7 +193,7 @@ new class extends Component {
             $payments = app(\App\Services\PaymentService::class);
             $gateway = app(\App\Payments\GatewayManager::class)->selected();
             if (! $payments->isConfigured()) {
-                throw new RuntimeException($gateway->label().': anahtarlar tanımlı değil; navlun ve premium ödemesi alınamaz.');
+                throw new RuntimeException($gateway->label().': anahtarlar tanımlı değil; '.(\App\Support\FreightPayment::direct() ? 'premium ödemesi alınamaz.' : 'navlun ve premium ödemesi alınamaz.'));
             }
 
             if ($payments->isSandbox()) {
@@ -280,7 +280,7 @@ new class extends Component {
         $this->checks[] = $this->probe('Uyarı sistemi (watchdog)', function (): array|string {
             $st = \App\Services\SystemWatchdog::lastStatus();
             if ($st['last_run'] === null) {
-                return ['warn' => true, 'detail' => 'Henüz çalışmadı (zamanlayıcı 5 dakikada bir çalıştırır). Telegram uyarısı için Ayarlar → alert_telegram_chat_id.'];
+                return ['warn' => true, 'detail' => 'Henüz çalışmadı (zamanlayıcı 5 dakikada bir çalıştırır). Telegram uyarısı için Ayarlar → İşletim ve uyarılar → Telegram uyarı sohbet kimliği.'];
             }
             $open = array_keys((array) ($st['last_run']['alerts'] ?? []));
             $line = 'son kontrol '.$st['last_run']['at'].($st['last_alert'] ? ' · son uyarı '.$st['last_alert']['at'] : ' · uyarı gönderilmedi');
@@ -517,24 +517,7 @@ new class extends Component {
         @endforeach
     </div>
 
-    <div class="grid gap-6 xl:grid-cols-2">
-        <section class="apple-glass rounded-3xl p-6">
-            <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Zamanlanmış görevler</h2>
-            <p class="mt-1 text-xs text-neutral-500">Sunucuda her dakika çalışan "schedule:run" tetikleyicisine bağlıdır; çalışıp çalışmadığı yukarıdaki "Zamanlayıcı" kartında görünür. Tam liste routes/console.php içindedir.</p>
-            <div class="mt-4 space-y-2 text-xs">
-                @foreach([
-                    ['offers:expire', 'Saatte bir', 'Süresi dolan teklifleri kapatır'],
-                    ['shipments:auto-approve', 'Saatte bir', 'Onay süresi geçen teslimatları otomatik onaylar'],
-                    ['accounts:purge-drafts', 'Günde bir', 'Tamamlanmamış kayıt taslaklarını temizler'],
-                ] as [$command, $frequency, $description])
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-xl border border-neutral-200/70 p-3 dark:border-neutral-800">
-                        <div><span class="font-mono font-semibold">{{ $command }}</span><div class="text-neutral-500">{{ $description }}</div></div>
-                        <div class="text-neutral-400 whitespace-nowrap">{{ $frequency }} · son çalışma: bilinmiyor</div>
-                    </div>
-                @endforeach
-            </div>
-        </section>
-
+    <div class="grid gap-6">
         <section class="apple-glass rounded-3xl p-6">
             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Son uygulama günlükleri (son 50 satır)</h2>
             <p class="mt-1 text-xs text-neutral-500">E-posta adresleri ve anahtar kalıpları ekranda maskelenir.</p>

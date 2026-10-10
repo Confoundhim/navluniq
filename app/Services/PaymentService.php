@@ -36,6 +36,9 @@ class PaymentService
 
     public const PURPOSE_SUBSCRIPTION = 'subscription';
 
+    /** Ödeme olayı durumu: kuruluşa ulaşılamadı, çekim yapılmış da olabilir (sonraki deneme önce akıbeti sorar). */
+    public const EVENT_STATUS_UNKNOWN = 'unknown';
+
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly LedgerService $ledger,
@@ -257,6 +260,11 @@ class PaymentService
         $gateway = $this->gateways->gateway($providerId);
         $result = $gateway->parseWebhook($request);
 
+        // Bu akışı ilgilendirmeyen bildirim (ör. iyzico'nun tokensız kayıtlı kart çekimi olayı): sessizce "OK", uyarı yok (L4).
+        if ($result->ignored) {
+            return [$result->ackBody, 200, null];
+        }
+
         if (! $result->valid) {
             Log::warning('Ödeme bildirimi imza doğrulaması başarısız.', ['provider' => $providerId, 'merchant_oid' => $result->merchantOid]);
 
@@ -271,6 +279,14 @@ class PaymentService
             Log::warning('Ödeme bildirimi bilinmeyen sipariş.', ['provider' => $providerId, 'merchant_oid' => $result->merchantOid]);
 
             return [$result->ackBody, 200, $result->redirectUser ? route('home') : null];
+        }
+
+        // Emir başka bir kuruluşta açılmış: bu kuruluşun (doğru imzalı da olsa) bildirimi onu kapatamaz. PayTR imzalı bir
+        // çağrı iyzico emrini "ödendi" yapamaz; bildirim reddedilir, para hareketi yazılmaz.
+        if ((string) $order->provider !== $gateway->id()) {
+            Log::warning('Ödeme bildirimi emrin kuruluşuyla uyuşmuyor.', ['provider' => $providerId, 'order_provider' => $order->provider, 'merchant_oid' => $result->merchantOid]);
+
+            return [$result->rejectBody, 200, null];
         }
 
         $payloadJson = json_encode($result->payload, JSON_UNESCAPED_UNICODE) ?: '{}';
@@ -296,6 +312,12 @@ class PaymentService
             ]);
 
             if (in_array($locked->status, ['paid', 'refunded', 'refund_pending'], true)) {
+                // Ödenmiş emre BAŞKA bir ödeme kimliğiyle ikinci "başarılı" bildirim: aynı siparişin iki kez tahsil edilmiş olma
+                // şüphesi. Olay yukarıda kaydedildi; emir dokunulmaz, çift tahsilat yönetime bildirilir ve iade denenir (H4).
+                if ($result->status === 'success' && $result->providerReference && $locked->provider_reference && $result->providerReference !== $locked->provider_reference) {
+                    return 'duplicate';
+                }
+
                 return null;
             }
 
@@ -349,13 +371,81 @@ class PaymentService
         $card = $outcome === 'paid' && $result->card && $order->purpose === self::PURPOSE_SUBSCRIPTION ? $this->storeCard($order, $result->card) : null;
 
         match ($outcome) {
-            'paid' => $this->afterPaid($order->fresh(), $card),
+            'paid' => $this->afterPaidSafely($order->fresh(), $card),
             'mismatch' => $this->afterMismatch($order->fresh(), $result),
             'orphan' => $this->afterOrphanPayment($order->fresh()),
+            'duplicate' => $this->afterDuplicateCharge($order->fresh(), $result),
             default => null,
         };
 
         return [$result->ackBody, 200, $this->resultRedirect($result, $order, $outcome === 'paid')];
+    }
+
+    /**
+     * Ödeme alındıktan sonraki adım (abonelik etkinleştirme / havuz bildirimi) çökerse bildirim yine "OK" ile kapanır: kuruluş
+     * bildirimi yinelemez, para kaybolmaz. Hata günlüğe yazılır ve yönetime düşer; abonelik emri subscriptions:reconcile ile
+     * (ya da yenileme döngüsünde) ödenmiş-ama-etkinleşmemiş emir olarak yakalanıp etkinleştirilir (H2).
+     */
+    private function afterPaidSafely(PaymentOrder $order, ?StoredCard $card = null): void
+    {
+        try {
+            $this->afterPaid($order, $card);
+        } catch (\Throwable $e) {
+            Log::error('Ödeme alındı ama sonraki adım tamamlanamadı.', ['order' => $order->id, 'purpose' => $order->purpose, 'error' => $e->getMessage()]);
+            try {
+                $this->notifications->notifyAdmins('manage system',
+                    $order->purpose === self::PURPOSE_SUBSCRIPTION ? 'Ödeme alındı ama abonelik etkinleştirilemedi' : 'Ödeme alındı ama sonraki adım tamamlanamadı',
+                    ["Emir #{$order->id} ({$order->merchant_oid}, ".number_format((float) $order->amount, 2, ',', '.').' ₺) ödendi olarak kaydedildi; ardından gelen adım hata verdi: '.mb_substr($e->getMessage(), 0, 300),
+                        $order->purpose === self::PURPOSE_SUBSCRIPTION ? 'Saatlik abonelik mutabakatı (subscriptions:reconcile) emri yeniden etkinleştirmeyi dener; sorun sürerse Finans → Ödeme emirleri sekmesinden kontrol edin.' : 'Finans → Ödeme emirleri sekmesinden emri kontrol edin.'],
+                    route('admin.finance'), 'Finans ekranı', 'admin');
+            } catch (\Throwable $inner) {
+                Log::error('Yönetici bildirimi gönderilemedi.', ['order' => $order->id, 'error' => $inner->getMessage()]);
+            }
+        }
+    }
+
+    /**
+     * Çift tahsilat şüphesi: ödenmiş emre farklı ödeme kimliğiyle ikinci "başarılı" bildirim geldi. Emrin kendi kaydı
+     * değişmez (ilk ödeme geçerli); ikinci çekim, kuruluş iadeyi destekliyorsa emrin kopyası üzerinden (yalnız o çekimin
+     * kimliğiyle) iade edilmeye çalışılır, sonuç olay olarak yazılır ve yönetime bildirilir. İade yapılamazsa yalnız uyarı kalır.
+     */
+    private function afterDuplicateCharge(PaymentOrder $order, WebhookResult $result): void
+    {
+        $gateway = $this->gateways->gateway((string) $order->provider);
+        $amount = round((float) ($result->paidAmount ?? $order->amount), 2);
+        $refunded = false;
+        $detail = 'iade denenmedi (kuruluş yapılandırılmamış)';
+        if ($gateway->isConfigured() && $amount > 0) {
+            // Kayıtlı emir dokunulmaz: iade isteği, ikinci çekimin kimliğini taşıyan kaydedilmeyen bir kopya ile gider.
+            $duplicate = $order->replicate(['public_id', 'merchant_oid']);
+            $duplicate->id = $order->id;
+            $duplicate->merchant_oid = $order->merchant_oid;
+            $duplicate->provider_reference = $result->providerReference;
+            $duplicate->amount = $amount;
+            try {
+                $refundResult = $gateway->refund($duplicate, $amount);
+                $refunded = $refundResult->succeeded;
+                $detail = $refunded ? 'ikinci çekim kuruluşa iade talimatıyla geri gönderildi' : 'iade reddedildi: '.($refundResult->failureMessage ?: 'bilinmeyen hata');
+                PaymentEvent::create([
+                    'payment_order_id' => $order->id,
+                    'provider_event_id' => 'dup-refund:'.$order->id.':'.uniqid('', true),
+                    'event_type' => 'duplicate_refund',
+                    'status' => $refunded ? 'success' : 'failed',
+                    'payload_hash' => hash('sha256', $refundResult->rawResponse),
+                    'payload_encrypted' => Crypt::encryptString($refundResult->rawResponse),
+                    'processed_at' => now(),
+                    'failure_message' => $refunded ? null : $refundResult->failureMessage,
+                ]);
+            } catch (\Throwable $e) {
+                $detail = 'iade isteği hata verdi: '.$e->getMessage();
+                Log::error('Çift tahsilat iadesi başarısız.', ['order' => $order->id, 'error' => $e->getMessage()]);
+            }
+        }
+        Log::critical('Çift tahsilat şüphesi.', ['order' => $order->id, 'first' => $order->provider_reference, 'second' => $result->providerReference, 'refunded' => $refunded]);
+        $this->notifications->notifyAdmins('manage payouts', 'Çift tahsilat şüphesi',
+            ["Çift tahsilat şüphesi: emir #{$order->id} ({$order->merchant_oid}) zaten ödenmişken {$gateway->label()} ikinci bir başarılı ödeme bildirdi (ödeme {$result->providerReference}; ilk ödeme {$order->provider_reference}). Tutar ".number_format($amount, 2, ',', '.').' ₺.',
+                'Sonuç: '.$detail.'. Kuruluş panelinden iki ödemeyi karşılaştırın; iade yapılmadıysa ikinci çekimi elle iade edin.'],
+            route('admin.finance'), 'Finans ekranı', 'admin');
     }
 
     /**
@@ -460,14 +550,19 @@ class PaymentService
         if (! $gateway->isConfigured() || ! $gateway->supportsStoredCards() || $card->provider !== $gateway->id()) {
             return new ChargeResult(false, 'renew:'.$order->merchant_oid.':gateway', [], null, null, 'Ödeme kuruluşunda kart saklama açık değil.');
         }
-        try {
-            $result = $gateway->chargeStoredCard($order, $card, [
-                'ip' => '127.0.0.1',
-                'description' => 'NavlunIQ Premium şoför üyeliği ('.max(1, (int) ($order->subscription_months ?: 1)).' ay, otomatik yenileme)',
-                'identity_number' => $this->buyerIdentity($order),
-            ]);
-        } catch (RuntimeException $e) {
-            $result = new ChargeResult(false, 'renew:'.$order->merchant_oid.':prepare', [], null, null, $e->getMessage(), true);
+        // Aynı emir daha önce "kuruluşa ulaşılamadı" ile kalmışsa önce akıbeti sorulur: iyzico çekimi işlemiş olabilir; körlemesine
+        // ikinci çekim çift tahsilat olur (H3). Kuruluş sorgulamayı destekliyorsa (retrievePayment) ödenmişse çekim yapılmaz.
+        $result = $this->hadTransportError($order) ? $this->retrieveUnsettled($gateway, $order) : null;
+        if ($result === null) {
+            try {
+                $result = $gateway->chargeStoredCard($order, $card, [
+                    'ip' => '127.0.0.1',
+                    'description' => 'NavlunIQ Premium şoför üyeliği ('.max(1, (int) ($order->subscription_months ?: 1)).' ay, otomatik yenileme)',
+                    'identity_number' => $this->buyerIdentity($order),
+                ]);
+            } catch (RuntimeException $e) {
+                $result = new ChargeResult(false, 'renew:'.$order->merchant_oid.':prepare', [], null, null, $e->getMessage(), true);
+            }
         }
 
         $payloadJson = json_encode($result->payload, JSON_UNESCAPED_UNICODE) ?: '{}';
@@ -478,7 +573,7 @@ class PaymentService
                     'payment_order_id' => $locked->id,
                     'provider_event_id' => $result->eventId,
                     'event_type' => 'renewal',
-                    'status' => $result->succeeded ? 'success' : 'failed',
+                    'status' => $result->succeeded ? 'success' : ($result->transportError ? self::EVENT_STATUS_UNKNOWN : 'failed'),
                     'payload_hash' => hash('sha256', $payloadJson),
                     'payload_encrypted' => Crypt::encryptString($payloadJson),
                     'processed_at' => now(),
@@ -486,6 +581,12 @@ class PaymentService
                 ]);
             }
             if (! in_array($locked->status, ['created', 'pending'], true)) {
+                return false;
+            }
+            if ($result->transportError) {
+                // Sonuç belirsiz: emir açık (pending) kalır ki sonraki deneme önce akıbeti sorsun; "failed" yazılmaz.
+                $locked->update(['status' => 'pending', 'failure_message' => mb_substr('Kuruluşa ulaşılamadı, sonuç belirsiz: '.(string) $result->failureMessage, 0, 500)]);
+
                 return false;
             }
             if (! $result->succeeded) {
@@ -502,10 +603,36 @@ class PaymentService
         }, 3);
 
         if ($paid) {
-            $this->afterPaid($order->fresh(), $card);
+            $this->afterPaidSafely($order->fresh(), $card);
         }
 
         return $result;
+    }
+
+    /** Bu emirde daha önce sonucu belirsiz kalan (kuruluşa ulaşılamayan) bir çekim denemesi var mı? */
+    public function hadTransportError(PaymentOrder $order): bool
+    {
+        return PaymentEvent::query()->where('payment_order_id', $order->id)->where('event_type', 'renewal')->where('status', self::EVENT_STATUS_UNKNOWN)->exists();
+    }
+
+    /**
+     * Kuruluş "conversationId ile ödeme sorgula" yeteneği taşıyorsa (iyzico: retrievePayment) belirsiz çekimin akıbeti sorulur.
+     * Ödenmişse başarılı ChargeResult (çekim tekrarlanmaz), kayıt yoksa null (çekim yapılabilir), yine ulaşılamazsa transportError.
+     */
+    private function retrieveUnsettled(PaymentGateway $gateway, PaymentOrder $order): ?ChargeResult
+    {
+        if (! method_exists($gateway, 'retrievePayment')) {
+            return null;
+        }
+        try {
+            $found = $gateway->retrievePayment($order);
+        } catch (\Throwable $e) {
+            Log::warning('Belirsiz çekim sorgulanamadı.', ['order' => $order->id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+
+        return $found instanceof ChargeResult ? $found : null;
     }
 
     private function afterPaid(PaymentOrder $order, ?StoredCard $card = null): void

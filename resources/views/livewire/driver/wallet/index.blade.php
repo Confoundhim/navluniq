@@ -207,7 +207,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.10s class="space-y-6">
+<div @unless($directPayment) wire:poll.30s @endunless class="space-y-6">
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
@@ -288,7 +288,7 @@ class extends Component {
                             </thead>
                             <tbody class="divide-y divide-neutral-200 dark:divide-neutral-800">
                                 @foreach($payouts as $payout)
-                                    <tr>
+                                    <tr wire:key="payout-{{ $payout->id }}">
                                         <td class="py-3 pr-3 text-neutral-900 dark:text-white">
                                             @if($payout->cargoLoad)
                                                 <a href="{{ route('driver.jobs.show', $payout->cargoLoad->id) }}" wire:navigate class="hover:text-brand-400">{{ $payout->cargoLoad->pickup_location }} &rarr; {{ $payout->cargoLoad->delivery_location }}</a>
@@ -331,7 +331,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
                 <h3 class="section-title">Faturalar</h3>
                 @forelse($invoices as $invoice)
-                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs" wire:key="inv-{{ $invoice->id }}">
                         <div>
                             <div class="text-neutral-900 dark:text-white font-semibold">{{ $invoice->invoice_no ?: 'Numara bekleniyor' }}</div>
                             <div class="text-2xs text-neutral-500">{{ $invoice->typeLabel() }} · {{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>

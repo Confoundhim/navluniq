@@ -222,6 +222,10 @@ class User extends Authenticatable
         if (! in_array($role, ['cargo_owner', 'driver'], true)) {
             return false;
         }
+        // Yönetici hesabı rol değiştiremez: current_role 'admin' olmaktan çıkınca yönetici girişi kapanır (kendini kilitleme).
+        if ($this->hasAnyRole(self::ADMIN_PANEL_ROLES)) {
+            return false;
+        }
 
         $this->update(['current_role' => $role]);
 

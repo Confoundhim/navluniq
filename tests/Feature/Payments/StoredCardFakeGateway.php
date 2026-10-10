@@ -25,6 +25,16 @@ final class StoredCardFakeGateway implements PaymentGateway
 
     public bool $cardInvalid = false;
 
+    /** Çekimde kuruluşa ulaşılamadı (zaman aşımı): sonuç belirsiz. */
+    public bool $transportError = false;
+
+    /** retrievePayment() cevabı: null = kuruluşta kayıt yok (çekim yeniden yapılabilir). */
+    public ?ChargeResult $retrieveResult = null;
+
+    public int $retrieves = 0;
+
+    public bool $deleteSucceeds = true;
+
     /** @var list<array{order:int, card:int, amount:float}> */
     public array $charges = [];
 
@@ -100,6 +110,9 @@ final class StoredCardFakeGateway implements PaymentGateway
     {
         $this->charges[] = ['order' => $order->id, 'card' => $card->id, 'amount' => (float) $order->amount];
         $n = count($this->charges);
+        if ($this->transportError) {
+            return new ChargeResult(false, 'fake-charge:'.$order->merchant_oid.':t'.$n, [], null, null, 'Ödeme kuruluşuna ulaşılamadı: cURL error 28', false, true);
+        }
 
         return $this->chargeSucceeds
             ? new ChargeResult(true, 'fake-charge:'.$order->merchant_oid, ['ok' => 1], (float) $order->amount, 'fake-renew-'.$order->id)
@@ -110,6 +123,14 @@ final class StoredCardFakeGateway implements PaymentGateway
     {
         $this->deletedCards[] = $card->id;
 
-        return true;
+        return $this->deleteSucceeds;
+    }
+
+    /** iyzico'daki gibi conversationId ile ödeme sorgulama (sözleşme dışı yetenek; PaymentService method_exists ile bulur). */
+    public function retrievePayment(PaymentOrder $order): ?ChargeResult
+    {
+        $this->retrieves++;
+
+        return $this->retrieveResult;
     }
 }

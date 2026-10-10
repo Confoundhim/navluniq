@@ -187,7 +187,8 @@ class Load extends Model
         if (! $viewer) {
             return false;
         }
-        if ($viewer->hasAnyRole(User::ADMIN_PANEL_ROLES)) {
+        // Pasif ya da engellenmiş yönetici hesabı gizli alanları göremez (isAdminPanelUser aktiflik ve engel denetimi yapar).
+        if ($viewer->isAdminPanelUser()) {
             return true;
         }
         if ($this->cargo_owner_profile_id && $viewer->cargoOwnerProfile?->id === $this->cargo_owner_profile_id) {

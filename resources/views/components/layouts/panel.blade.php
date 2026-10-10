@@ -57,7 +57,7 @@
                 </div>
                 <div class="min-w-0 leading-tight transition-transform duration-300 ease-apple-ease group-hover:translate-x-0.5">
                     <div class="text-base font-black tracking-tight text-neutral-900 dark:text-white"><span>Navlun</span><span class="text-brand-500">IQ</span></div>
-                    <div class="text-[10px] font-bold uppercase tracking-wider {{ $roleColor }}">{{ $roleLabel }}</div>
+                    <div class="text-3xs font-bold uppercase tracking-wider {{ $roleColor }}">{{ $roleLabel }}</div>
                 </div>
             </a>
             <button type="button" @click="mobileSidebarOpen = false" class="md:hidden p-2 -mr-2 rounded-lg text-neutral-500 hover:text-neutral-900 dark:hover:text-white" aria-label="Menüyü kapat">
@@ -90,7 +90,7 @@
 
         <div class="p-4 border-t border-neutral-200 dark:border-neutral-800 safe-bottom">
             <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-3 space-y-3">
-                <livewire:role-switcher />
+                @unless(auth()->user()?->hasAnyRole(\App\Models\User::ADMIN_PANEL_ROLES))<livewire:role-switcher />@endunless
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 shrink-0 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-sm">
                         {{ mb_strtoupper(mb_substr($user?->first_name ?? 'N', 0, 1)) }}

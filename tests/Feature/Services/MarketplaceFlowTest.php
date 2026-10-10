@@ -142,6 +142,8 @@ class MarketplaceFlowTest extends TestCase
         config(['services.paytr.merchant_id' => '1', 'services.paytr.merchant_key' => 'key', 'services.paytr.merchant_salt' => 'salt']);
         $payments = app(PaymentService::class);
         $order = $payments->orderFor($load, $this->ownerUser);
+        // Emir PayTR'de açılmış gibi: başka kuruluşta açılan emri PayTR imzalı bildirim kapatamaz (PaymentHardeningTest).
+        $order->update(['provider' => 'paytr']);
         $total = (string) (int) round($order->amount * 100);
         $hash = base64_encode(hash_hmac('sha256', $order->merchant_oid.'salt'.'success'.$total, 'key', true));
 
