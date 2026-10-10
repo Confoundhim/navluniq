@@ -7,6 +7,7 @@
     $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes(); // panel ayarı: ücretsiz üyelere açılma gecikmesi
     $leadText = $lead > 0 ? "{$lead} dakika" : 'aynı anda';
     $trialDays = app(\App\Services\SubscriptionService::class)->trialDays(); // panel ayarı: ücretsiz deneme (0 kapalı)
+    $autoRenew = app(\App\Services\SubscriptionService::class)->autoRenewAvailable(); // kart saklama açıksa otomatik yenileme seçilebilir
     $stats = app(\App\Services\LoadStatsService::class)->summary();
     $weekLoads = (int) ($stats['external_7d'] ?? 0);
     $isDriver = auth()->user()?->driverProfile !== null;
@@ -24,7 +25,7 @@
         ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
         $trialDays > 0 ? ['Ücretsiz deneme', '—', "{$trialDays} gün, bir kez, kart gerekmez"] : null,
-        ['Aylık ücret', '0 ₺', "{$priceText} ₺ (KDV dahil), otomatik yenilenmez"],
+        ['Aylık ücret', '0 ₺', "{$priceText} ₺ (KDV dahil), ".($autoRenew ? 'isterseniz otomatik yenilenir' : 'otomatik yenilenmez')],
     ]));
 @endphp
 
@@ -47,7 +48,7 @@
                     <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Kart gerekmez</span>
                 @endif
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Taahhüt yok</span>
-                <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">Otomatik yenilenmez</span>
+                <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">{{ $autoRenew ? 'Yenileme sizin seçiminiz' : 'Otomatik yenilenmez' }}</span>
                 <span class="badge bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700">KDV dahil fatura</span>
             </div>
         </section>
@@ -162,7 +163,7 @@
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/><path stroke-linecap="round" d="M7 14h4"/></svg>
                     </div>
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">3. {{ $trialDays > 0 ? 'Beğenirseniz aylık devam edin' : 'İlanları ilk siz görün' }}</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">{{ $trialDays > 0 ? 'Deneme bitince Premium sayfasından aylık üyeliği başlatırsınız: '.$priceText.' ₺, KDV dahil, otomatik yenilenmez. Kart bilgileriniz NavlunIQ\'da saklanmaz, faturanız panelinizde görünür.' : 'Üyeliğiniz süresince yeni NavlunIQ ilanları panelinize anında, bildirimle düşer; gruplardan derlenen ilanlar da yalnız size açılır. Dönem bittiğinde hesabınız kendiliğinden standarda döner.' }}</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">{{ $trialDays > 0 ? 'Deneme bitince Premium sayfasından aylık üyeliği başlatırsınız: '.$priceText.' ₺, KDV dahil, '.($autoRenew ? 'isterseniz otomatik yenilenir' : 'otomatik yenilenmez').'. Kart bilgileriniz NavlunIQ\'da saklanmaz, faturanız panelinizde görünür.' : 'Üyeliğiniz süresince yeni NavlunIQ ilanları panelinize anında, bildirimle düşer; gruplardan derlenen ilanlar da yalnız size açılır. Dönem bittiğinde hesabınız kendiliğinden standarda döner.' }}</p>
                 </div>
             </div>
         </section>
@@ -182,7 +183,7 @@
                 @endif
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Üyelik otomatik yenilenir mi?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Hayır. Premium aylık dönemler halinde satın alınır. Dönem sonunda uzatmazsanız hesabınız standart plana döner; hiçbir şey kaybetmezsiniz.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">{{ $autoRenew ? 'Siz seçerseniz. Ödeme sayfasında "otomatik yenile" işaretliyse kartınız lisanslı ödeme kuruluşunda saklanır (NavlunIQ kart numarasını görmez) ve dönem bitiminden 3 gün önce aynı süre güncel ücretten çekilir; bedel çekimden önce bildirilir. Premium sayfasından tek dokunuşla kapatırsınız, dönem sonuna kadar haklarınız sürer. İşaretlemezseniz üyelik dönem sonunda biter.' : 'Hayır. Premium aylık dönemler halinde satın alınır. Dönem sonunda uzatmazsanız hesabınız standart plana döner; hiçbir şey kaybetmezsiniz.' }}</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Gruplardan derlenen ilanlar nedir?</h3>

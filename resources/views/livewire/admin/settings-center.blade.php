@@ -136,6 +136,7 @@ new class extends Component {
         'iyzico_secret_key' => 'iyzico gizli anahtar',
         'iyzico_sandbox' => 'iyzico test (sandbox) modu',
         'iyzico_marketplace' => 'iyzico pazaryeri (alt üye işyeri) ürünü aktif',
+        'iyzico_card_storage' => 'iyzico kart saklama ürünü aktif (premium otomatik yenileme)',
     ];
 
     /** @var array<string, string> */
@@ -221,7 +222,7 @@ new class extends Component {
         foreach (array_keys(self::PAYMENT_KEYS) as $key) {
             // Onay kutuları gerçek boolean taşır: tarayıcıda "0" metni de doğru (truthy) sayıldığından string bağlanınca kutu
             // kapatılıp kaydedilse bile işaretli görünüyordu (2026-10-07, Osman: "sandbox tiki tekrar açılıyor").
-            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
+            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace', 'iyzico_card_storage'], true)
                 ? Settings::bool($key)
                 : ($key === 'iyzico_secret_key' ? '' : (string) Settings::get($key));
         }
@@ -358,7 +359,7 @@ new class extends Component {
         foreach (self::PAYMENT_KEYS as $key => $label) {
             $raw = $this->paymentForm[$key] ?? '';
             // Onay kutusu: tarayıcı true/false, testler '1'/'0' gönderebilir; ikisi de '1' ya da '0' metnine indirgenir.
-            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)
+            $this->paymentForm[$key] = in_array($key, ['iyzico_sandbox', 'iyzico_marketplace', 'iyzico_card_storage'], true)
                 ? (filter_var($raw, FILTER_VALIDATE_BOOLEAN) ? '1' : '0')
                 : trim((string) $raw);
         }
@@ -386,7 +387,7 @@ new class extends Component {
             if ($key === 'iyzico_secret_key' && $value === '') {
                 continue;
             }
-            if (in_array($key, ['iyzico_sandbox', 'iyzico_marketplace'], true)) {
+            if (in_array($key, ['iyzico_sandbox', 'iyzico_marketplace', 'iyzico_card_storage'], true)) {
                 $value = $value === '1' ? '1' : '0';
                 $old = Settings::bool($key) ? '1' : '0';
             } else {
@@ -1025,6 +1026,7 @@ new class extends Component {
                     <div class="space-y-2 pt-5">
                         <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_sandbox" value="1" class="rounded"> Test (sandbox) modu</label>
                         <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_marketplace" value="1" class="rounded"> Pazaryeri ürünü aktif (şoför ödemeleri iyzico üzerinden)</label>
+                        <label class="flex items-center gap-2 text-xs"><input type="checkbox" wire:model="paymentForm.iyzico_card_storage" value="1" class="rounded"> Kart saklama ürünü aktif (premium üyelik kayıtlı karttan otomatik yenilenir)</label>
                     </div>
                 </div>
                 @error('paymentForm.payment_provider')<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror

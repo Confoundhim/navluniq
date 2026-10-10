@@ -4,6 +4,8 @@ namespace App\Payments\Contracts;
 
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\StoredCard;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\RefundResult;
 use App\Payments\Data\TransferResult;
@@ -17,6 +19,7 @@ use Illuminate\Http\Request;
  * Zorunlu: createCheckout, parseWebhook, refund.
  * Pazaryeri (alt üye işyeri) yetenekleri isteğe bağlıdır; supportsSubMerchants() false ise
  * şoför ödemeleri finans ekibince banka transferiyle yapılır.
+ * Kart saklama (otomatik yenilenen premium) isteğe bağlıdır; supportsStoredCards() false ise abonelik tek seferlik satın alınır.
  */
 interface PaymentGateway
 {
@@ -52,4 +55,17 @@ interface PaymentGateway
 
     /** Onaylanmış hakedişi alt üye işyerine aktarır. */
     public function transferToSubMerchant(Payout $payout, string $subMerchantRef): TransferResult;
+
+    /** Kuruluşta kart saklama ve kayıtlı kartla sunucudan çekim (otomatik yenileme) açık mı? */
+    public function supportsStoredCards(): bool;
+
+    /**
+     * Kayıtlı kartla sunucudan sunucuya çekim (abonelik yenilemesi); kart ilk ödemede 3D Secure ile kaydedilmiştir.
+     *
+     * @param  array{ip?:string, description:string, identity_number?:string}  $context
+     */
+    public function chargeStoredCard(PaymentOrder $order, StoredCard $card, array $context): ChargeResult;
+
+    /** Kayıtlı kartı kuruluştan siler; kuruluşta zaten yoksa da true döner. */
+    public function deleteStoredCard(StoredCard $card): bool;
 }

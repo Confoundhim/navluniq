@@ -26,6 +26,39 @@ class extends Component {
         session()->flash('success_message', $prefs['notify_new_loads'] ? 'Yeni ilan e-postaları açıldı.' : 'Yeni ilan e-postaları kapatıldı; uygulama içi bildirimler devam eder.');
     }
 
+    /** Otomatik yenilemeyi tek dokunuşla aç/kapat (kapatma dönem sonuna kadar hakları etkilemez). */
+    public function setAutoRenew(SubscriptionService $subscriptions, bool $on): void
+    {
+        $user = Auth::user();
+        if ($user->driverProfile?->is_staff_view) {
+            session()->flash('error_message', 'Yönetici görünümünde işlem yapılamaz.');
+
+            return;
+        }
+        if ($subscriptions->setAutoRenew($user, $on)) {
+            session()->flash('success_message', $on ? 'Otomatik yenileme açıldı; dönem bitiminden 3 gün önce kayıtlı kartınızdan çekilir.' : 'Otomatik yenileme kapatıldı; üyeliğiniz dönem sonuna kadar sürer.');
+        } else {
+            session()->flash('error_message', $on ? 'Otomatik yenileme açılamadı: kayıtlı kartınız yok. Yeni bir ödeme yapıp kartınızı kaydedin.' : 'Sürmekte olan ücretli üyelik bulunamadı.');
+        }
+    }
+
+    /** Kayıtlı kartı sil (kuruluştan ve NavlunIQ'dan); otomatik yenileme kapanır. */
+    public function deleteCard(SubscriptionService $subscriptions, int $cardId): void
+    {
+        $user = Auth::user();
+        if ($user->driverProfile?->is_staff_view) {
+            session()->flash('error_message', 'Yönetici görünümünde işlem yapılamaz.');
+
+            return;
+        }
+        $card = \App\Models\StoredCard::query()->whereKey($cardId)->where('user_id', $user->id)->first();
+        if (! $card) {
+            return;
+        }
+        $subscriptions->deleteStoredCard($user, $card);
+        session()->flash('success_message', 'Kayıtlı kart silindi; otomatik yenileme kapatıldı.');
+    }
+
     /** Ücretsiz denemeyi başlat (bir kez; belgeleri onaylı şoför). */
     public function startTrial(SubscriptionService $subscriptions): void
     {
@@ -51,8 +84,14 @@ class extends Component {
         $profile = $user->driverProfile;
         $subscriptions = app(SubscriptionService::class);
 
+        $paidSubscription = $subscriptions->activePaidSubscription($user);
+
         return [
             'profile' => $profile,
+            'autoRenewAvailable' => $subscriptions->autoRenewAvailable(),
+            'paidSubscription' => $paidSubscription,
+            'willAutoRenew' => $paidSubscription ? $subscriptions->willAutoRenew($paidSubscription) : false,
+            'storedCard' => $subscriptions->storedCardFor($user),
             'isPremium' => $profile?->isPremium() ?? false,
             'premiumUntil' => $profile?->premium_until,
             'trialDays' => $subscriptions->trialDays(),
@@ -150,10 +189,50 @@ class extends Component {
                                 </a>
                             @endforeach
                         </div>
-                        <span class="text-2xs text-neutral-500 block">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. Otomatik yenilenmez; süre mevcut dönemin bitiminden itibaren eklenir.</span>
+                        <span class="text-2xs text-neutral-500 block">Kredi kartı, banka kartı; KDV dahil fatura panelinizde. {{ $autoRenewAvailable ? 'Ödeme sayfasında otomatik yenilemeyi seçebilirsiniz; seçmezseniz üyelik dönem sonunda biter.' : 'Otomatik yenilenmez; süre mevcut dönemin bitiminden itibaren eklenir.' }}</span>
                     </div>
                 @endif
             </div>
+
+            @if($autoRenewAvailable && ($paidSubscription || $storedCard))
+                {{-- Otomatik yenileme kartı: durum + tek dokunuşla aç/kapat + kayıtlı kartı sil. Kart NavlunIQ'da değil iyzico'da saklanır. --}}
+                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <h3 class="section-title">Otomatik yenileme</h3>
+                            <div class="mt-1 font-bold {{ $willAutoRenew ? 'text-emerald-600 dark:text-emerald-400' : 'text-neutral-900 dark:text-white' }}">{{ $willAutoRenew ? 'Açık' : 'Kapalı' }}</div>
+                            <p class="text-neutral-500 dark:text-neutral-400 leading-relaxed mt-0.5">
+                                @if($willAutoRenew)
+                                    {{ $paidSubscription->current_period_ends_at->format('d.m.Y') }} bitişinden 3 gün önce kayıtlı kartınızdan ({{ $paidSubscription->storedCard->label() }}) {{ in_array((int) $paidSubscription->renew_months, \App\Services\SubscriptionService::PLAN_MONTHS, true) ? $paidSubscription->renew_months : 1 }} aylık güncel ücret çekilir; bedel çekimden önce bildirilir. Kapatırsanız üyelik dönem sonuna kadar sürer.
+                                @elseif($paidSubscription && $paidSubscription->last_renewal_error)
+                                    Son yenileme denemesi başarısız: {{ $paidSubscription->last_renewal_error }}. Üyeliğiniz {{ $paidSubscription->current_period_ends_at->format('d.m.Y') }} tarihinde biter; yeni ödeme yapınca kart yeniden kaydedilir.
+                                @elseif($paidSubscription && $storedCard)
+                                    Üyeliğiniz {{ $paidSubscription->current_period_ends_at->format('d.m.Y') }} tarihinde biter. Açarsanız kayıtlı kartınızdan ({{ $storedCard->label() }}) kendiliğinden uzatılır.
+                                @elseif($paidSubscription)
+                                    Kayıtlı kartınız yok; yeni ödeme yaparken "kartımı sakla" seçeneğiyle otomatik yenilemeyi açabilirsiniz.
+                                @else
+                                    Sürmekte olan ücretli üyelik yok; kayıtlı kartınız yeni ödemede iyzico sayfasında listelenir.
+                                @endif
+                            </p>
+                        </div>
+                        @if($paidSubscription)
+                            <div class="shrink-0">
+                                @if($willAutoRenew)
+                                    <button type="button" wire:click="setAutoRenew(false)" wire:loading.attr="disabled" class="inline-flex px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 font-semibold">Yenilemeyi kapat</button>
+                                @elseif($storedCard)
+                                    <button type="button" wire:click="setAutoRenew(true)" wire:loading.attr="disabled" class="btn-primary text-sm px-4 py-2">Yenilemeyi aç</button>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                    @if($storedCard)
+                        <div class="flex items-center justify-between gap-3 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+                            <span class="text-neutral-600 dark:text-neutral-300">Kayıtlı kart: <strong>{{ $storedCard->label() }}</strong> · iyzico'da saklanır, NavlunIQ kart numarasını görmez.</span>
+                            <button type="button" wire:click="deleteCard({{ $storedCard->id }})" wire:confirm="Kayıtlı kart silinsin mi? Otomatik yenileme kapanır." class="text-rose-500 font-semibold hover:underline shrink-0">Kartı sil</button>
+                        </div>
+                    @endif
+                </div>
+            @endif
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <h3 class="section-title">Premium avantajları</h3>
@@ -197,7 +276,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <h3 class="section-title">Nasıl çalışır</h3>
                 <p>Premium hakkı yalnız doğrulanmış bir ödeme sonrasında tanımlanır; kart bilgileri NavlunIQ'da saklanmaz.</p>
-                <p>Üyelik süresi dolduğunda hesabınız kendiliğinden standart üyeliğe döner; ilanlarınız ve geçmişiniz aynen kalır.</p>
+                <p>{{ $willAutoRenew ? 'Otomatik yenileme açıkken üyeliğiniz kesintisiz sürer; kapattığınızda dönem sonunda' : 'Üyelik süresi dolduğunda' }} hesabınız kendiliğinden standart üyeliğe döner; ilanlarınız ve geçmişiniz aynen kalır.</p>
                 @if($telegramUrl = \App\Services\TelegramPublisher::channelUrl())
                     <p>Uygulamayı sürekli açmak istemiyorsanız sistem ilanları herkese açıldığı anda <a href="{{ $telegramUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-bold hover:underline">Telegram kanalımızda</a> da yayınlanır.</p>
                 @endif

@@ -42,12 +42,20 @@ class extends Component {
     /** Mesafeli satış sözleşmesi ve "cayma hakkı yok" onayı (MSS 3.1: satın alma ekranında açıkça gösterilir ve onay alınır). */
     public bool $accepted = false;
 
-    public function mount(PaymentService $payments, ?int $sure = null): void
+    /** Otomatik yenileme tercihi: yalnız kuruluşta kart saklama açıkken gösterilir; varsayılan açık (Osman: "bir kere kayıt olsun, devam etsin"). */
+    public bool $autoRenew = true;
+
+    #[Locked]
+    public bool $autoRenewAvailable = false;
+
+    public function mount(PaymentService $payments, SubscriptionService $subscriptions, ?int $sure = null): void
     {
         $requested = (int) ($sure ?? request()->query('sure', 1));
         $this->months = in_array($requested, SubscriptionService::PLAN_MONTHS, true) ? $requested : 1;
         $this->configured = $payments->isConfigured();
         $this->sandbox = $payments->isSandbox();
+        $this->autoRenewAvailable = $subscriptions->autoRenewAvailable();
+        $this->autoRenew = $this->autoRenewAvailable;
     }
 
     /**
@@ -68,7 +76,7 @@ class extends Component {
         $this->error = null;
 
         try {
-            $order = $subscriptions->startCheckout(Auth::user(), $this->months);
+            $order = $subscriptions->startCheckout(Auth::user(), $this->months, $this->autoRenewAvailable && $this->autoRenew);
             $this->orderId = $order->id;
             $cacheKey = 'checkout.'.$order->id;
             $cached = session($cacheKey);
@@ -123,6 +131,7 @@ class extends Component {
             'premiumUntil' => $premiumUntil,
             'premiumActive' => $active,
             'trialEndsAt' => $subscriptions->activeTrialEndsAt(Auth::user()),
+            'storedCard' => $this->autoRenewAvailable ? $subscriptions->storedCardFor(Auth::user()) : null,
             // Ödeme sonrası yeni bitiş: aktif süre varsa onun üstüne, yoksa bugünden itibaren
             'newUntil' => ($active ? $premiumUntil->copy() : now())->addMonthsNoOverflow($this->months),
         ];
@@ -152,7 +161,7 @@ class extends Component {
             <div class="flex items-center justify-between py-3"><span class="text-neutral-500">Yeni bitiş</span><span class="text-neutral-900 dark:text-white font-semibold">{{ $newUntil->format('d.m.Y') }}</span></div>
             <div class="flex items-center justify-between py-3"><span class="text-neutral-800 dark:text-neutral-200 font-semibold">Ödenecek toplam (KDV %{{ number_format($vatRate, 0) }} dahil)</span><span class="tabular-nums font-bold text-brand-400 text-base">{{ number_format($price, 2, ',', '.') }} ₺</span></div>
         </div>
-        <p class="text-2xs text-neutral-500 leading-relaxed">Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner. Dijital hizmet kullanıma açıldığından dönem içinde iade yapılmaz; ayrıntılar <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesinde</a>.</p>
+        <p class="text-2xs text-neutral-500 leading-relaxed">{{ $autoRenewAvailable ? 'Otomatik yenilemeyi aşağıda seçebilirsiniz; seçmezseniz üyelik dönem sonunda biter.' : 'Üyelik otomatik yenilenmez; dönem sonunda hesabınız standart plana döner.' }} Dijital hizmet kullanıma açıldığından dönem içinde iade yapılmaz; ayrıntılar <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 hover:underline">mesafeli satış sözleşmesinde</a>.</p>
     </div>
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
@@ -192,10 +201,20 @@ class extends Component {
             <label class="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" wire:model="accepted" class="mt-0.5 rounded">
                 <span class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                    <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 font-semibold hover:underline">Mesafeli satış sözleşmesini</a> okudum. Premium'un dijital bir hizmet olduğunu, ödeme onaylanınca {{ $premiumActive ? 'mevcut sürenin bitiminde uzayacağını' : 'hemen başlayacağını' }} ve bu nedenle cayma hakkımın bulunmadığını, üyeliğin otomatik yenilenmediğini kabul ediyorum.
+                    <a href="{{ route('contracts', 'mesafeli-satis') }}" target="_blank" class="text-brand-400 font-semibold hover:underline">Mesafeli satış sözleşmesini</a> okudum. Premium'un dijital bir hizmet olduğunu, ödeme onaylanınca {{ $premiumActive ? 'mevcut sürenin bitiminde uzayacağını' : 'hemen başlayacağını' }} ve bu nedenle cayma hakkımın bulunmadığını, {{ $autoRenewAvailable && $autoRenew ? 'otomatik yenilemeyi seçtiğimi ve her dönem bedelinin çekimden önce bildirileceğini' : 'üyeliğin otomatik yenilenmediğini' }} kabul ediyorum.
                 </span>
             </label>
             @error('accepted') <p class="text-rose-500 font-semibold">{{ $message }}</p> @enderror
+            @if($autoRenewAvailable)
+                {{-- Otomatik yenileme: kart ödeme kuruluşunda saklanır (NavlunIQ'da değil); dönem bitiminden 3 gün önce aynı süre güncel fiyattan çekilir. --}}
+                <label class="flex items-start gap-3 cursor-pointer rounded-xl border {{ $autoRenew ? 'border-brand-500/40 bg-brand-500/5' : 'border-neutral-200 dark:border-neutral-700' }} p-3">
+                    <input type="checkbox" wire:model.live="autoRenew" @checked($autoRenew) class="mt-0.5 rounded">
+                    <span class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                        <span class="font-bold text-neutral-900 dark:text-white">Otomatik yenile</span> · dönem bitiminden 3 gün önce {{ $months }} aylık ücret kayıtlı kartınızdan çekilir, üyelik kesintisiz sürer; bedel çekimden önce bildirilir. İstediğiniz zaman Premium sayfasından tek dokunuşla kapatırsınız.
+                        {{ $storedCard ? 'Kayıtlı kartınız: '.$storedCard->label().'. ' : 'Ödeme sayfasında "kartımı sakla" kutusunu işaretleyin; kart NavlunIQ\'da değil iyzico\'da saklanır. ' }}
+                    </span>
+                </label>
+            @endif
             <button type="button" wire:click="pay" wire:loading.attr="disabled" class="btn-primary w-full sm:w-auto text-sm px-6 py-3">
                 <span wire:loading.remove wire:target="pay">{{ $premiumActive ? 'Süreyi uzat' : 'Ödemeye geç' }} · {{ number_format($price, 2, ',', '.') }} ₺</span>
                 <span wire:loading wire:target="pay">iyzico ödeme sayfası açılıyor…</span>

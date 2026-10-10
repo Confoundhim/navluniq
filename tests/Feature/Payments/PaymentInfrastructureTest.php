@@ -13,10 +13,12 @@ use App\Models\PaymentOrder;
 use App\Models\Payout;
 use App\Models\ScrapedLoad;
 use App\Models\Scraper;
+use App\Models\StoredCard;
 use App\Models\Subscription;
 use App\Models\SubscriptionCycle;
 use App\Models\User;
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\RefundResult;
 use App\Payments\Data\TransferResult;
@@ -48,6 +50,15 @@ use Tests\TestCase;
 final class FakeGateway implements PaymentGateway
 {
     public array $transfers = [];
+
+    /** Kart saklama açık mı; kayıtlı kart çekimi başarılı mı; yapılan çekimler (sipariş id, kart id). */
+    public bool $storedCards = false;
+
+    public bool $chargeSucceeds = true;
+
+    public array $charges = [];
+
+    public array $deletedCards = [];
 
     public function __construct(public bool $marketplace = false) {}
 
@@ -83,7 +94,9 @@ final class FakeGateway implements PaymentGateway
         $oid = (string) $request->input('merchant_oid');
         $status = (string) $request->input('status', 'success');
 
-        return new WebhookResult($request->input('sig') === 'ok', $oid, $status, $request->input('amount') !== null ? (float) $request->input('amount') : null, $oid.':'.$status, $request->all(), 'fake-ref');
+        $card = $request->input('card_token') ? ['card_user_key' => 'cuk-'.$request->input('card_token'), 'card_token' => (string) $request->input('card_token'), 'last_four' => '1234', 'association' => 'VISA', 'family' => 'Bonus', 'bank' => null] : null;
+
+        return new WebhookResult($request->input('sig') === 'ok', $oid, $status, $request->input('amount') !== null ? (float) $request->input('amount') : null, $oid.':'.$status, $request->all(), 'fake-ref', card: $card);
     }
 
     public function refund(PaymentOrder $order, float $amount): RefundResult
@@ -106,6 +119,27 @@ final class FakeGateway implements PaymentGateway
         $this->transfers[] = [$payout->id, $subMerchantRef];
 
         return new TransferResult(true, 'TRF-'.$payout->id);
+    }
+
+    public function supportsStoredCards(): bool
+    {
+        return $this->storedCards;
+    }
+
+    public function chargeStoredCard(PaymentOrder $order, StoredCard $card, array $context): ChargeResult
+    {
+        $this->charges[] = [$order->id, $card->id];
+
+        return $this->chargeSucceeds
+            ? new ChargeResult(true, 'fake-charge:'.$order->merchant_oid, ['ok' => 1], (float) $order->amount, 'fake-renew-'.$order->id)
+            : new ChargeResult(false, 'fake-charge:'.$order->merchant_oid.':'.count($this->charges), ['ok' => 0], null, null, 'Yetersiz bakiye');
+    }
+
+    public function deleteStoredCard(StoredCard $card): bool
+    {
+        $this->deletedCards[] = $card->id;
+
+        return true;
     }
 }
 

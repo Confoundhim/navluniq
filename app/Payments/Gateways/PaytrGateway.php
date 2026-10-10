@@ -4,7 +4,9 @@ namespace App\Payments\Gateways;
 
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\StoredCard;
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\RefundResult;
 use App\Payments\Data\TransferResult;
@@ -171,5 +173,20 @@ final class PaytrGateway implements PaymentGateway
     public function transferToSubMerchant(Payout $payout, string $subMerchantRef): TransferResult
     {
         return new TransferResult(false, null, 'PayTR standart üye işyeri hesabı alt üye işyeri aktarımını desteklemez.');
+    }
+
+    public function supportsStoredCards(): bool
+    {
+        return false;
+    }
+
+    public function chargeStoredCard(PaymentOrder $order, StoredCard $card, array $context): ChargeResult
+    {
+        return new ChargeResult(false, 'paytr:'.$order->merchant_oid, [], null, null, 'PayTR adaptöründe kayıtlı kart çekimi yok.');
+    }
+
+    public function deleteStoredCard(StoredCard $card): bool
+    {
+        return true;
     }
 }

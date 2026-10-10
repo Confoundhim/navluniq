@@ -4,7 +4,9 @@ namespace App\Payments\Gateways;
 
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\StoredCard;
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\RefundResult;
 use App\Payments\Data\TransferResult;
@@ -21,6 +23,9 @@ use RuntimeException;
  *    token ile POST eder → token sunucudan sorgulanır (retrieve) → sipariş "paid".
  *  - Pazaryeri ürünü açıksa (iyzico_marketplace) navlun sepet kalemi şoförün alt üye işyerine bağlanır,
  *    teslimat onayında kalem onayı (item approve) ile tutar şoföre aktarılır.
+ *  - Kart saklama ürünü açıksa (iyzico_card_storage) premium ödemesinde kullanıcı iyzico sayfasında kartını kaydeder;
+ *    sorgu yanıtındaki cardUserKey/cardToken saklanır ve dönem bitiminde /payment/auth ile sunucudan çekim yapılır
+ *    (otomatik yenileme). Kart numarası NavlunIQ'a hiç gelmez.
  * Anahtarlar panelden (iyzico_api_key / iyzico_secret_key) ya da .env'den okunur.
  */
 final class IyzicoGateway implements PaymentGateway
@@ -42,6 +47,17 @@ final class IyzicoGateway implements PaymentGateway
     public const PATH_BIN_CHECK = '/payment/bin/check';
 
     public const PATH_APPROVE = '/payment/iyzipos/item/approve';
+
+    /** Kayıtlı kartla (cardUserKey + cardToken) sunucudan sunucuya çekim: abonelik yenilemesi. */
+    public const PATH_AUTH = '/payment/auth';
+
+    /** Kart saklama: DELETE ile kayıtlı kart silinir; /cards ile kullanıcının kartları listelenir (sınama). */
+    public const PATH_CARD = '/cardstorage/card';
+
+    public const PATH_CARDS = '/cardstorage/cards';
+
+    /** Kartın kendisi geçersiz (süresi dolmuş, kayıp/çalıntı, internete kapalı, kayıt bulunamadı): tekrar denenmez. */
+    public const CARD_INVALID_CODES = ['10054', '10041', '10043', '10093', '3005', '3007'];
 
     /** Kalem onayını geri çekme (resmî belge "Onay Geri Çekme"); akışta kullanılmaz, yönetici aracı için hazır. */
     public const PATH_DISAPPROVE = '/payment/iyzipos/item/disapprove';
@@ -82,27 +98,8 @@ final class IyzicoGateway implements PaymentGateway
             throw new RuntimeException('Ödeme altyapısı henüz etkin değil.');
         }
 
-        $user = $order->user;
         $amount = number_format((float) $order->amount, 2, '.', '');
-        $phone = preg_replace('/\D/', '', (string) $user->phone);
-        $gsm = $phone !== '' ? '+90'.ltrim($phone, '0') : '+905000000000';
-        // Alıcı kimliği: bireyselde TC (11 hane), kurumsalda VKN (10 hane). Sahte "11111111111" hiç gönderilmez (iyzico canlıda reddeder,
-        // e-fatura/mutabakat bozulur); eksikse ödeme açılmaz ve kullanıcı profiline yönlendirilir.
-        $identity = preg_replace('/\D/', '', (string) ($context['identity_number'] ?? ''));
-        if (! in_array(strlen($identity), [10, 11], true)) {
-            throw new RuntimeException('Ödeme için kimlik bilgisi eksik: bireysel hesapta T.C. kimlik numarası, kurumsal hesapta vergi numarası profilinizde kayıtlı olmalı.');
-        }
-        $address = mb_substr((string) ($context['address'] ?? 'Türkiye'), 0, 200);
-        $city = mb_substr((string) ($context['city'] ?? 'İstanbul'), 0, 60);
-        $contactName = mb_substr((string) $user->full_name, 0, 100);
-
-        $item = [
-            'id' => 'ORD-'.$order->id,
-            'name' => mb_substr((string) ($context['description'] ?? 'NavlunIQ'), 0, 100),
-            'category1' => $order->purpose === 'subscription' ? 'Üyelik' : 'Nakliye hizmeti',
-            'itemType' => 'VIRTUAL',
-            'price' => $amount,
-        ];
+        $item = $this->basketItem($order, $context);
         if (! empty($context['sub_merchant_ref']) && ! empty($context['sub_merchant_price']) && $this->supportsSubMerchants()) {
             $item['subMerchantKey'] = (string) $context['sub_merchant_ref'];
             $item['subMerchantPrice'] = number_format((float) $context['sub_merchant_price'], 2, '.', '');
@@ -115,25 +112,15 @@ final class IyzicoGateway implements PaymentGateway
             'paidPrice' => $amount,
             'currency' => 'TRY',
             'basketId' => $order->merchant_oid,
-            'paymentGroup' => 'PRODUCT',
+            'paymentGroup' => $order->purpose === 'subscription' ? 'SUBSCRIPTION' : 'PRODUCT',
             'callbackUrl' => route('payment.webhook', ['provider' => 'iyzico']),
             'enabledInstallments' => [1],
-            'buyer' => [
-                'id' => (string) $user->id,
-                'name' => mb_substr((string) $user->first_name, 0, 50) ?: 'Ad',
-                'surname' => mb_substr((string) $user->last_name, 0, 50) ?: 'Soyad',
-                'gsmNumber' => $gsm,
-                'email' => (string) $user->email,
-                'identityNumber' => $identity,
-                'registrationAddress' => $address,
-                'ip' => (string) ($context['ip'] ?? '127.0.0.1'),
-                'city' => $city,
-                'country' => 'Turkey',
-            ],
-            'shippingAddress' => ['contactName' => $contactName, 'city' => $city, 'country' => 'Turkey', 'address' => $address],
-            'billingAddress' => ['contactName' => $contactName, 'city' => $city, 'country' => 'Turkey', 'address' => $address],
-            'basketItems' => [$item],
-        ];
+        ] + $this->buyerPayload($order, $context) + ['basketItems' => [$item]];
+        // Kart saklama: kullanıcının daha önce kaydettiği kart varsa iyzico sayfasında listelenir (cardUserKey); yeni kartı
+        // kaydetme kutusu kart saklama açık üye işyerlerinde formda kendiliğinden çıkar. Kullanıcı istemediyse anahtar gönderilmez.
+        if (! empty($context['save_card']) && $this->supportsStoredCards() && ! empty($context['card_user_key'])) {
+            $payload['cardUserKey'] = (string) $context['card_user_key'];
+        }
 
         $data = $this->request(self::PATH_INITIALIZE, $payload);
         if (($data['status'] ?? '') !== 'success' || empty($data['paymentPageUrl']) || empty($data['token'])) {
@@ -171,6 +158,15 @@ final class IyzicoGateway implements PaymentGateway
         $paid = strtoupper((string) ($data['paymentStatus'] ?? '')) === 'SUCCESS';
         $paymentId = (string) ($data['paymentId'] ?? '');
         $txId = (string) ($data['itemTransactions'][0]['paymentTransactionId'] ?? '');
+        // Kullanıcı iyzico sayfasında "kartımı sakla" dediyse yanıtta kart anahtarları gelir; kart numarası gelmez.
+        $card = $paid && ! empty($data['cardToken']) && ! empty($data['cardUserKey']) ? [
+            'card_user_key' => (string) $data['cardUserKey'],
+            'card_token' => (string) $data['cardToken'],
+            'last_four' => (string) ($data['lastFourDigits'] ?? ''),
+            'association' => (string) ($data['cardAssociation'] ?? ''),
+            'family' => (string) ($data['cardFamily'] ?? ''),
+            'bank' => isset($data['bankName']) ? (string) $data['bankName'] : null,
+        ] : null;
 
         return new WebhookResult(
             valid: true,
@@ -184,7 +180,114 @@ final class IyzicoGateway implements PaymentGateway
             ackBody: 'OK',
             rejectBody: 'INVALID',
             redirectUser: $fromBrowser,
+            card: $card,
         );
+    }
+
+    public function supportsStoredCards(): bool
+    {
+        return Settings::bool('iyzico_card_storage');
+    }
+
+    /**
+     * Abonelik yenilemesi: kayıtlı kartla sunucudan çekim (3D Secure'süz; kart ilk ödemede 3D Secure ile kaydedilmişti).
+     * Sonuç anında döner; sipariş durumunu PaymentService yazar. Kart geçersizse ($cardInvalid) tekrar denenmez.
+     */
+    public function chargeStoredCard(PaymentOrder $order, StoredCard $card, array $context): ChargeResult
+    {
+        $eventId = 'iyzico:renew:'.$order->merchant_oid;
+        if (! $this->isConfigured() || ! $this->supportsStoredCards()) {
+            return new ChargeResult(false, $eventId, [], null, null, 'Kart saklama ürünü açık değil.');
+        }
+        $amount = number_format((float) $order->amount, 2, '.', '');
+        $payload = [
+            'locale' => 'tr',
+            'conversationId' => $order->merchant_oid,
+            'price' => $amount,
+            'paidPrice' => $amount,
+            'currency' => 'TRY',
+            'installment' => 1,
+            'basketId' => $order->merchant_oid,
+            'paymentChannel' => 'WEB',
+            'paymentGroup' => 'SUBSCRIPTION',
+            'paymentCard' => ['cardUserKey' => $card->card_user_key, 'cardToken' => $card->card_token],
+        ] + $this->buyerPayload($order, $context) + ['basketItems' => [$this->basketItem($order, $context)]];
+
+        $data = $this->request(self::PATH_AUTH, $payload);
+        $ok = ($data['status'] ?? '') === 'success' && ! empty($data['paymentId']);
+        if (! $ok) {
+            Log::warning('iyzico kayıtlı kart çekimi başarısız.', ['order' => $order->id, 'code' => $data['errorCode'] ?? null, 'error' => $data['errorMessage'] ?? null]);
+
+            return new ChargeResult(false, $eventId.':'.time(), $data, null, null,
+                trim(($data['errorCode'] ?? '').' '.($data['errorMessage'] ?? 'Çekim reddedildi')),
+                in_array((string) ($data['errorCode'] ?? ''), self::CARD_INVALID_CODES, true));
+        }
+        $paymentId = (string) $data['paymentId'];
+        $txId = (string) ($data['itemTransactions'][0]['paymentTransactionId'] ?? '');
+
+        return new ChargeResult(true, $eventId, $data, isset($data['paidPrice']) ? (float) $data['paidPrice'] : (float) $order->amount, $paymentId.':'.$txId);
+    }
+
+    public function deleteStoredCard(StoredCard $card): bool
+    {
+        if (! $this->isConfigured()) {
+            return true; // kuruluşa ulaşılamıyorsa yerel kayıt yine silinir; kart NavlunIQ adına çekim yapamaz
+        }
+        $data = $this->request(self::PATH_CARD, ['locale' => 'tr', 'conversationId' => 'CARD-DEL-'.$card->id, 'cardUserKey' => $card->card_user_key, 'cardToken' => $card->card_token], 'DELETE');
+        $ok = ($data['status'] ?? '') === 'success';
+        if (! $ok) {
+            Log::warning('iyzico kayıtlı kart silinemedi.', ['card' => $card->id, 'error' => $data['errorMessage'] ?? null]);
+        }
+
+        return $ok || str_contains(mb_strtolower((string) ($data['errorMessage'] ?? '')), 'bulunamad');
+    }
+
+    /** Sepet kalemi: abonelikte "Üyelik", navlunda "Nakliye hizmeti"; pazaryeri alanları çağıran ekler. */
+    private function basketItem(PaymentOrder $order, array $context): array
+    {
+        return [
+            'id' => 'ORD-'.$order->id,
+            'name' => mb_substr((string) ($context['description'] ?? 'NavlunIQ'), 0, 100),
+            'category1' => $order->purpose === 'subscription' ? 'Üyelik' : 'Nakliye hizmeti',
+            'itemType' => 'VIRTUAL',
+            'price' => number_format((float) $order->amount, 2, '.', ''),
+        ];
+    }
+
+    /**
+     * Alıcı ve adres blokları (ödeme formu ve kayıtlı kart çekimi aynı veriyi gönderir). Alıcı kimliği: bireyselde TC (11 hane),
+     * kurumsalda VKN (10 hane). Sahte "11111111111" hiç gönderilmez (iyzico canlıda reddeder, e-fatura/mutabakat bozulur);
+     * eksikse ödeme açılmaz ve kullanıcı profiline yönlendirilir.
+     */
+    private function buyerPayload(PaymentOrder $order, array $context): array
+    {
+        $user = $order->user;
+        $phone = preg_replace('/\D/', '', (string) $user->phone);
+        $gsm = $phone !== '' ? '+90'.ltrim($phone, '0') : '+905000000000';
+        $identity = preg_replace('/\D/', '', (string) ($context['identity_number'] ?? ''));
+        if (! in_array(strlen($identity), [10, 11], true)) {
+            throw new RuntimeException('Ödeme için kimlik bilgisi eksik: bireysel hesapta T.C. kimlik numarası, kurumsal hesapta vergi numarası profilinizde kayıtlı olmalı.');
+        }
+        $address = mb_substr((string) ($context['address'] ?? 'Türkiye'), 0, 200);
+        $city = mb_substr((string) ($context['city'] ?? 'İstanbul'), 0, 60);
+        $contactName = mb_substr((string) $user->full_name, 0, 100);
+
+        return [
+            'buyer' => [
+                'id' => (string) $user->id,
+                'name' => mb_substr((string) $user->first_name, 0, 50) ?: 'Ad',
+                'surname' => mb_substr((string) $user->last_name, 0, 50) ?: 'Soyad',
+                'gsmNumber' => $gsm,
+                'email' => (string) $user->email,
+                'identityNumber' => $identity,
+                'registrationAddress' => $address,
+                'ip' => (string) ($context['ip'] ?? '127.0.0.1'),
+                'city' => $city,
+                'country' => 'Turkey',
+            ],
+            'shippingAddress' => ['contactName' => $contactName, 'city' => $city, 'country' => 'Turkey', 'address' => $address],
+            'billingAddress' => ['contactName' => $contactName, 'city' => $city, 'country' => 'Turkey', 'address' => $address],
+        ];
     }
 
     public function refund(PaymentOrder $order, float $amount): RefundResult
@@ -329,6 +432,16 @@ final class IyzicoGateway implements PaymentGateway
                         : ' — pazaryeri ürünü hesapta açık değilse iyzico temsilcinizden açılmasını isteyin.'))];
         } else {
             $checks[] = ['label' => 'Pazaryeri (alt üye işyeri)', 'ok' => $this->isSandbox(), 'detail' => $this->isSandbox() ? 'Test modunda pazaryeri şartı aranmaz.' : 'Kapalı: canlıda navlun tahsilatı açılmaz. Sözleşme imzalanınca "Pazaryeri ürünü aktif" kutusunu işaretleyin.'];
+        }
+
+        if ($this->supportsStoredCards()) {
+            $probe = $this->request(self::PATH_CARDS, ['locale' => 'tr', 'conversationId' => 'DIAG-CARD-'.time(), 'cardUserKey' => 'navluniq-diag-0']);
+            $msg = mb_strtolower((string) ($probe['errorMessage'] ?? ''));
+            $reachable = ($probe['status'] ?? '') === 'success' || str_contains($msg, 'bulunamad') || str_contains($msg, 'not found') || str_contains($msg, 'geçersiz');
+            $checks[] = ['label' => 'Kart saklama (otomatik yenileme)', 'ok' => $authOk && $reachable,
+                'detail' => ! $authOk ? 'Anahtar denetimi geçmeden sınanamaz.' : ($reachable
+                    ? 'Kart saklama uç noktası yanıt veriyor; premium ödemesinde "kartımı sakla" seçeneği çıkar ve dönem sonunda kayıtlı karttan çekim yapılır.'
+                    : 'iyzico kart saklama isteğini reddetti: '.trim(($probe['errorCode'] ?? '').' '.($probe['errorMessage'] ?? 'yanıt yok')).' — ürün hesapta açık değilse iyzico temsilcinizden "kart saklama" ve "kayıtlı kartla tahsilat" ürünlerinin açılmasını isteyin.')];
         }
 
         $webhook = route('payment.webhook', ['provider' => 'iyzico']);

@@ -8,6 +8,7 @@
     $maxDiscount = max(array_map(fn ($m) => $subscriptions->discountFor($m), \App\Services\SubscriptionService::PLAN_MONTHS));
     $perDay = $monthlyPrice > 0 ? (int) ceil($monthlyPrice / 30) : 0;
     $trialDays = $subscriptions->trialDays();
+    $autoRenew = $subscriptions->autoRenewAvailable(); // kuruluşta kart saklama açıksa "isterseniz otomatik yenilenir"
     $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes();
     $leadText = $lead > 0 ? "{$lead} dakika" : 'aynı anda';
     $stats = app(\App\Services\LoadStatsService::class)->summary();
@@ -60,7 +61,7 @@
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Yeni NavlunIQ ilanlarını herkesten <strong class="text-neutral-900 dark:text-white">{{ $leadText }} önce</strong> görün, ilk teklifi siz verin</span></li>
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Aracınıza uygun ilan çıkınca <strong class="text-neutral-900 dark:text-white">anında bildirim</strong>; uygulamayı açık tutmanız gerekmez</span></li>
                 <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span><strong class="text-neutral-900 dark:text-white">Dönüş yükü radarı</strong>: teslimden sonra boş dönmeyin, uygun yük size haber verilir</span></li>
-                <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit ücret; sevkiyat başına ek ödeme yok, otomatik yenilenmez{{ $maxDiscount > 0 ? '. 3, 6 ve 12 aylık seçeneklerde %'.rtrim(rtrim(number_format($maxDiscount, 1, ',', '.'), '0'), ',')."'e varan indirim" : '' }}</span></li>
+                <li class="flex items-start gap-2.5"><span class="text-brand-500 mt-px">{!! $check !!}</span><span>Sabit ücret; sevkiyat başına ek ödeme yok, {{ $autoRenew ? 'otomatik yenileme sizin seçiminiz, tek dokunuşla kapanır' : 'otomatik yenilenmez' }}{{ $maxDiscount > 0 ? '. 3, 6 ve 12 aylık seçeneklerde %'.rtrim(rtrim(number_format($maxDiscount, 1, ',', '.'), '0'), ',')."'e varan indirim" : '' }}</span></li>
             </ul>
             <div class="space-y-2">
                 <a href="{{ $premiumHref }}" class="btn-apple-brand w-full py-3.5 text-xs font-bold">{{ $premiumCta }}</a>

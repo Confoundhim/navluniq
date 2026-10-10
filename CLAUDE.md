@@ -634,6 +634,32 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   etmeyenin peşinden koşarız"). Hedef model adayı B: NavlunIQ taşımayı kendi adına satar, sanal POS ile tahsil eder, teslimat onayında şoföre
   havale (organizatör yetki belgesi + fatura düzeni; mali müşavir görüşü bekleniyor). Kod başlatılmadı; "Pazaryeri ürünü aktif" kutusu kapalı kalır.
   **Param elendi (2026-10-09): TURK Elektronik Para A.Ş. TMSF kayyımında**, üye işyeri ödemeleri sınırlı; kalan adaylar PayTR ve Sipay pazaryeri.
+  **2026-10-09 akşam durumu:** iyzico yazılı ret: "pazaryeri olarak aracılık hizmeti sunulan iş modellerine destek sağlayamıyoruz; sanal POS
+  yalnız yazılım ve SaaS satışı için" → premium abonelik iyzico'da kalabilir (kart saklama + abonelik ürünü sorulacak), navlun tahsilatı olmaz.
+  Sipay görüşmesi: pazaryeri altyapısı henüz yok, abonelik ve sanal POS için "inceleyip karar vereceğiz". PayTR başvurusu yarım. Osman'ın
+  2026-10-09 kararları: Sipay beklenmez. Yol haritası: (a) premium iyzico sanal POS'ta, otomatik yenileme iyzico abonelik ürünüyle (Osman:
+  "bir kere kayıt olsun, her ay otomatik devam etsin; ileride sadık üyeye hediye"); (b) navlun için Craftgate ve Paratika pazaryeri başvurusu
+  (dil: "kargo gibi aracılık", "emanet/escrow/havuz" sözcükleri kullanılmaz); (c) orta vade Model B: taşıma işleri organizatörü belgesi
+  (2025 değişikliğiyle 1.000.000 TL sermaye) + banka sanal POS, Qmove'un yaptığı gibi taşımayı kendi adına satmak; (d) karar gelene kadar
+  navlun ödemesi platform dışında, "Pazaryeri ürünü aktif" kapalı. "Bakiye/cüzdan" fikri olmaz: platformda para tutmak e-para lisansı ister.
+- **Otomatik yenilenen premium (2026-10-10, Osman: "sen şimdiden bu senaryoyu kodlamaya başla"; iyzico pazaryerini reddetti, sanal POS
+  yalnız yazılım/SaaS satışına açık, premium buna uyar):** panel kutusu `iyzico_card_storage` (Ödeme altyapısı; REAUTH; iyzico "kart
+  saklama + kayıtlı kartla tahsilat" ürünlerini açınca işaretlenir, "Bağlantıyı sına" satırı var). Kapalıyken hiçbir ekranda otomatik
+  yenileme yok, abonelik tek seferlik. Açıkken ödeme sayfasında "Otomatik yenile" kutusu (varsayılan açık): emir `payment_orders.auto_renew`,
+  Ödeme Formu'na `cardUserKey` (varsa), sorgu yanıtındaki `cardUserKey/cardToken/lastFourDigits` → `stored_cards` (`0001_01_63`, token
+  şifreli; kart numarası hiç gelmez; `StoredCard::label()` "Visa •••• 1234"), `activate()` yenilemeyi yalnız kart kaydedildiyse açar
+  (`subscriptions.auto_renew/renew_months/stored_card_id/renewal_failures/last_renewal_error/next_renewal_attempt_at`).
+  `subscriptions:renew` (saatlik) bitime `RENEWAL_LEAD_HOURS=72` kala `priceFor(renew_months)` güncel fiyatla
+  `PaymentService::chargeRenewal` → `IyzicoGateway::chargeStoredCard` (`POST /payment/auth`, `paymentCard{cardUserKey,cardToken}`,
+  `paymentGroup SUBSCRIPTION`), `PaymentEvent event_type=renewal`; başarıda süre eklenir + "yenilendi" bildirimi, başarısızlıkta 24 sa sonra
+  tekrar (en çok 3), kart geçersiz kodunda (`CARD_INVALID_CODES`) ya da 3. hatada `auto_renew=false` + bildirim; dönem sonunda `expireDue`
+  biter. `remindExpiring` yenilenecek aboneliğe 5 gün kala tutarı yazar (bedel önceden bildirilir). Şoför Premium sayfası "Otomatik
+  yenileme" kartı: tek dokunuşla kapat/aç (`setAutoRenew`), "Kartı sil" (`deleteStoredCard` → `DELETE /cardstorage/card`). Gateway
+  sözleşmesine `supportsStoredCards/chargeStoredCard/deleteStoredCard` eklendi (Null/PayTR false; sahte geçitler güncellendi,
+  `tests/Feature/Payments/StoredCardFakeGateway`). Sözleşmeler MSS 2.1/3.1, İade 3.2 "satın alma ekranında seçilmediği sürece otomatik
+  yenilenmez" + kurallar; tanıtım metinleri (plan kartı, /uyelik, SSS) `autoRenewAvailable()` ile koşullu. **iyzico cevabı bekleniyor:**
+  kart saklama hesapta açılınca Osman kutuyu işaretler, sandbox'ta bir ödeme ile sınanır. İkinci kuruluş (navlun) seçilirse sağlayıcı
+  seçimi amaca göre ayrılacak (abonelik iyzico'da kalır). Testler `PremiumAutoRenewTest` (9), `IyzicoGatewayTest` (+3).
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL

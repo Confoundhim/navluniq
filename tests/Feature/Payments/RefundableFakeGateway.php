@@ -4,7 +4,9 @@ namespace Tests\Feature\Payments;
 
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\StoredCard;
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\RefundResult;
 use App\Payments\Data\TransferResult;
@@ -99,5 +101,20 @@ final class RefundableFakeGateway implements PaymentGateway
         $this->transfers[] = $payout->id;
 
         return $this->transferSucceeds ? new TransferResult(true, 'TRF-'.$payout->id) : new TransferResult(false, null, 'Kuruluş aktarımı reddetti');
+    }
+
+    public function supportsStoredCards(): bool
+    {
+        return false;
+    }
+
+    public function chargeStoredCard(PaymentOrder $order, StoredCard $card, array $context): ChargeResult
+    {
+        return new ChargeResult(false, 'fake:'.$order->merchant_oid, [], null, null, 'Kart saklama kapalı');
+    }
+
+    public function deleteStoredCard(StoredCard $card): bool
+    {
+        return true;
     }
 }
