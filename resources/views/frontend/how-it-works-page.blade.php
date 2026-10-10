@@ -1,4 +1,7 @@
-<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi" description="NavlunIQ nasıl çalışır: ilan, teklif, kabul, güvenli ödeme, teslimat kanıtı ve onay adım adım.">
+@php
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+@endphp
+<x-layouts.frontend title="Nasıl Çalışır? - NavlunIQ Platform Rehberi" :description="'NavlunIQ nasıl çalışır: ilan, teklif, kabul, '.($directPay ? 'doğrudan ödeme' : 'güvenli ödeme').', teslimat kanıtı ve onay adım adım.'">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-20 animate-fade-in text-xs">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">
@@ -34,8 +37,14 @@
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-brand-500/10 text-brand-500 font-bold flex items-center justify-center">3</div>
-                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklif Verin, Taşıyın, Ödemenizi Alın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Uygun yüke teklif verin; yük sahibi kabul edip ödemeyi yaptığında yola çıkın. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında navlun ödemesi banka hesabınıza geçer.</p>
+                    <h3 class="font-bold text-sm text-neutral-900 dark:text-white">{{ $directPay ? 'Teklif Verin, Taşıyın, Teslim Edin' : 'Teklif Verin, Taşıyın, Ödemenizi Alın' }}</h3>
+                    <p class="text-neutral-500 leading-relaxed">
+                        @if($directPay)
+                            Uygun yüke teklif verin; yük sahibi kabul edince iletişim bilgilerini hemen görürsünüz, navlunu yük sahibiyle doğrudan anlaşıp alırsınız; NavlunIQ komisyon kesmez. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında sevkiyat kapanır.
+                        @else
+                            Uygun yüke teklif verin; yük sahibi kabul edip ödemeyi yaptığında yola çıkın. Teslimatta fotoğraflı teslim kanıtı yükleyin; yük sahibi onayladığında navlun ödemesi banka hesabınıza geçer.
+                        @endif
+                    </p>
                 </div>
             </div>
         </div>
@@ -59,12 +68,18 @@
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">2</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Teklifleri Karşılaştırın, Şoförü Seçin</h3>
-                    <p class="text-neutral-500 leading-relaxed">Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödeyin, şoför yola çıksın.</p>
+                    <p class="text-neutral-500 leading-relaxed">
+                        @if($directPay)
+                            Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; şoförün iletişim bilgisi açılır, navlun bedelini şoföre doğrudan ödersiniz. NavlunIQ tahsilat yapmaz, komisyon almaz.
+                        @else
+                            Gelen teklifleri fiyat, araç ve şoför puanına göre karşılaştırın. Beğendiğiniz teklifi kabul edin; navlun bedelini lisanslı ödeme kuruluşu altyapısı üzerinden ödeyin, şoför yola çıksın.
+                        @endif
+                    </p>
                 </div>
                 <div class="apple-glass rounded-3xl p-6 space-y-3">
                     <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 font-bold flex items-center justify-center">3</div>
                     <h3 class="font-bold text-sm text-neutral-900 dark:text-white">Canlı İzleyin, Teslimatı Onaylayın</h3>
-                    <p class="text-neutral-500 leading-relaxed">Sevkiyatı haritadan anlık izleyin. Şoförün yüklediği teslim kanıtını kontrol edip onaylayın; ödeme ancak onayınızla şoföre tamamlanır. Sorun varsa tek tıkla uyuşmazlık açın.</p>
+                    <p class="text-neutral-500 leading-relaxed">Sevkiyatı haritadan anlık izleyin. Şoförün yüklediği teslim kanıtını kontrol edip onaylayın; {{ $directPay ? 'sevkiyat onayınızla kapanır' : 'ödeme ancak onayınızla şoföre tamamlanır' }}. Sorun varsa tek tıkla uyuşmazlık açın.</p>
                 </div>
             </div>
         </div>

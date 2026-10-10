@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Loads;
 
+use App\Console\Commands\RefreshFaqCommand;
 use App\Models\CargoOwnerProfile;
 use App\Models\CmsContent;
 use App\Models\Dispute;
 use App\Models\DriverProfile;
 use App\Models\DriverVehicle;
+use App\Models\Faq;
 use App\Models\Load;
 use App\Models\Payout;
 use App\Models\Shipment;
@@ -23,6 +25,7 @@ use App\Support\FreightPayment;
 use App\Support\PaymentReadiness;
 use App\Support\Settings;
 use Database\Seeders\CmsContractSeeder;
+use Database\Seeders\FaqSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -190,6 +193,25 @@ class DirectFreightPaymentTest extends TestCase
         $this->assertStringContainsString('teslimat onaylı ödeme hizmeti açıktır', Company::fillTokens($terms));
         $byLabel = collect(PaymentReadiness::checks())->keyBy('label');
         $this->assertFalse($byLabel['Navlun tahsilatı açık (platform kipi, pazaryeri modeli)']['ok'], 'Platform seçili ama pazaryeri kapalı: uyarı');
+    }
+
+    public function test_faq_follows_the_mode_and_is_refreshed_when_stale(): void
+    {
+        Settings::set('freight_payment_mode', 'platform');
+        (new FaqSeeder)->run();
+        $this->assertFalse(RefreshFaqCommand::isStale(), 'Platform kipinde üretilen SSS platform kipinde güncel');
+        $this->assertStringContainsString('IBAN', Faq::query()->get()->pluck('answer')->implode(' '));
+
+        Settings::set('freight_payment_mode', 'direct');
+        $this->assertTrue(RefreshFaqCommand::isStale(), 'Kip değişince eski ödeme kuruluşu / IBAN cümleleri eski sayılır');
+        $this->artisan('faq:refresh', ['--if-stale' => true])->assertSuccessful();
+        $this->assertFalse(RefreshFaqCommand::isStale());
+        $all = Faq::query()->get()->pluck('answer')->implode(' ');
+        $this->assertStringContainsString('doğrudan', $all);
+        $this->assertStringNotContainsString('kayıtlı IBAN', $all);
+
+        Settings::set('freight_payment_mode', 'platform');
+        $this->assertTrue(RefreshFaqCommand::isStale(), 'Doğrudan kip metni platform kipinde eski sayılır');
     }
 
     /** Doğrudan kipte kabul edilmiş ilan (şoförde IBAN ve kimlik yok). */

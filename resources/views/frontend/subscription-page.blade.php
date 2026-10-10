@@ -12,6 +12,7 @@
     $weekLoads = (int) ($stats['external_7d'] ?? 0);
     $isDriver = auth()->user()?->driverProfile !== null;
     $premiumHref = $isDriver ? route('driver.premium.index') : route('register.driver');
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
 
     $check = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
@@ -22,7 +23,7 @@
         ['Yeni ilan bildirimi', 'NavlunIQ ilanları panele düşer, ancak bildirim gelmez', 'Anında, uygulama içi + e-posta'],
         ['Dönüş yükü radarı', 'Radar ilanları panele düşer, ancak bildirim gelmez', 'Bildirimle'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
-        ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
+        $directPay ? ['Navlundan komisyon', 'Yok', 'Yok'] : ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
         ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
         $trialDays > 0 ? ['Ücretsiz deneme', '—', "{$trialDays} gün, bir kez, kart gerekmez"] : null,
         ['Aylık ücret', '0 ₺', "{$priceText} ₺ (KDV dahil), ".($autoRenew ? 'isterseniz otomatik yenilenir' : 'otomatik yenilenmez')],
@@ -64,7 +65,7 @@
                 <div class="md:col-span-2 space-y-2">
                     <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $lead > 0 ? $leadText.' neden fark yaratır?' : 'Bildirim neden fark yaratır?' }}</h3>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panellerinde görür, bildirim almaz. Gruplardan derlenen ilanlar ise yalnız premium üyelere açıktır.@if($weekLoads > 0) Son 7 günde {{ number_format($weekLoads, 0, ',', '.') }} grup ilanı derlendi; bunların hiçbiri standart üyeye görünmez.@endif Platform hizmet bedeli iki planda da aynıdır.
+                        Bir yük ilanı çoğu zaman ilk teklif veren şoförde kalır. Yük sahibi ilanı açtığı anda premium üyelere bildirim gider ve ilan onların havuzunda görünür; standart üyeler aynı ilanı {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} panellerinde görür, bildirim almaz. Gruplardan derlenen ilanlar ise yalnız premium üyelere açıktır.@if($weekLoads > 0) Son 7 günde {{ number_format($weekLoads, 0, ',', '.') }} grup ilanı derlendi; bunların hiçbiri standart üyeye görünmez.@endif {{ $directPay ? 'Navlundan komisyon alınmaz; teklif vermek iki planda da ücretsizdir.' : 'Platform hizmet bedeli iki planda da aynıdır.' }}
                     </p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 text-center">
@@ -127,7 +128,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="px-6 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 dark:border-neutral-800">Tamamlanan sevkiyatlarda uygulanan %{{ $pct($standardRate) }} platform hizmet bedeli her iki planda aynıdır.</p>
+                <p class="px-6 py-3 text-[11px] text-neutral-500 border-t border-neutral-100 dark:border-neutral-800">{{ $directPay ? 'Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ iki planda da komisyon almaz.' : 'Tamamlanan sevkiyatlarda uygulanan %'.$pct($standardRate).' platform hizmet bedeli her iki planda aynıdır.' }}</p>
             </div>
         </section>
 
@@ -187,7 +188,7 @@
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Gruplardan derlenen ilanlar nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan bilgilerinin tamamı kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan bilgilerinin tamamı kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; {{ $directPay ? 'teklif, canlı konum ve teslim kanıtı yalnız NavlunIQ ilanlarında vardır' : 'teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir' }}.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>

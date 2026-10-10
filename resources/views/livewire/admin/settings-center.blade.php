@@ -401,6 +401,14 @@ new class extends Component {
             }
         }
         $this->notifySensitiveChange($changedKeys);
+        if (in_array('freight_payment_mode', $changedKeys, true)) {
+            // SSS metinleri kipe göre yazılır; kip değişince yönetici elle değiştirmediyse yeniden üretilir (sözleşmeler yer tutucuyla kendiliğinden)
+            try {
+                Artisan::call('faq:refresh', ['--if-stale' => true]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Kip değişince SSS yenilenemedi.', ['error' => $e->getMessage()]);
+            }
+        }
 
         $this->loadValues();
         session()->flash('success_message', $changed > 0 ? "{$changed} ödeme ayarı kaydedildi." : 'Değişiklik yok.');

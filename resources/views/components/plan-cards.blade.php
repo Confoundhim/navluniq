@@ -19,6 +19,7 @@
     $premiumHref = $isDriver ? route('driver.premium.index') : route('register.driver');
     $premiumCta = $trialDays > 0 ? "{$trialDays} gün ücretsiz dene" : ($isDriver ? 'Premium sayfama git' : 'Premium ile başla');
     $freeHref = $isDriver ? route('driver.dashboard') : route('register.driver');
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
 
     $check = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>';
     $dash = '<svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>';
@@ -94,7 +95,7 @@
         </div>
         <ul class="space-y-3 text-xs text-neutral-600 dark:text-neutral-300 pt-5 border-t border-neutral-100 dark:border-neutral-800 flex-1">
             <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>NavlunIQ ilanlarına sınırsız teklif verin</span></li>
-            <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>Paranız güvende: teslim onaylanınca navlun hesabınıza geçer</span></li>
+            <li class="flex items-start gap-2.5"><span class="text-emerald-500 mt-px">{!! $check !!}</span><span>{{ $directPay ? 'Komisyon yok: navlunu yük sahibinden doğrudan alırsınız' : 'Paranız güvende: teslim onaylanınca navlun hesabınıza geçer' }}</span></li>
             <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>Gruplardan derlenen ilanlar yalnız Premium'da</span></li>
             <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>NavlunIQ ilanları ve dönüş yükü radarı ilanları panelinize düşer, ancak bildirim gelmez</span></li>
             <li class="flex items-start gap-2.5 text-neutral-500 dark:text-neutral-400"><span class="text-neutral-400 mt-px">{!! $dash !!}</span><span>NavlunIQ ilanlarını {{ $lead > 0 ? $lead.' dakika sonra' : 'aynı anda' }} görür</span></li>
