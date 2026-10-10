@@ -29,12 +29,36 @@ class Invoice extends Model
         'cancelled_at',
     ];
 
+    /** Durum ve tür etiketleri (ekranda ham İngilizce değer görünmesin). */
+    public const STATUS_LABELS = [
+        'pending' => 'Fatura hazırlanıyor',
+        'issued' => 'Kesildi',
+        'paid' => 'Ödendi',
+        'cancelled' => 'İptal edildi',
+    ];
+
+    public const TYPE_LABELS = [
+        'subscription' => 'Premium abonelik',
+        'commission' => 'Hizmet bedeli',
+        'payout' => 'Hakediş',
+    ];
+
     protected $casts = [
         'issued_at' => 'datetime',
         'base_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
     ];
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
+
+    public function typeLabel(): string
+    {
+        return self::TYPE_LABELS[$this->invoice_type] ?? (string) $this->invoice_type;
+    }
 
     /**
      * Faturanın Kesildiği Kullanıcı İlişkisi
