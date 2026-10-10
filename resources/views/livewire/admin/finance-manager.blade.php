@@ -480,10 +480,10 @@ new class extends Component {
                         @forelse($invoices as $invoice)
                             <tr>
                                 <td class="p-4 font-mono">{{ $invoice->invoice_no ?: '—' }}</td>
-                                <td class="p-4" data-label="Tür">{{ $invoice->invoice_type }}</td>
+                                <td class="p-4" data-label="Tür">{{ $invoice->typeLabel() }}</td>
                                 <td class="p-4" data-label="Kullanıcı">{{ $invoice->user?->full_name ?? '—' }}</td>
                                 <td class="p-4 whitespace-nowrap font-semibold" data-label="Tutar">{{ number_format((float) $invoice->total_amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">KDV {{ number_format((float) $invoice->tax_amount, 2, ',', '.') }} ₺</div></td>
-                                <td class="p-4" data-label="Durum">{{ $invoice->status }}</td>
+                                <td class="p-4" data-label="Durum">{{ $invoice->statusLabel() }}</td>
                                 <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($invoice->issued_at ?? $invoice->created_at)?->format('d.m.Y H:i') }}</td>
                             </tr>
                         @empty
