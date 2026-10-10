@@ -77,8 +77,14 @@ trait HandlesJobActions
         }
     }
 
+    /** Dönüş yükü bildirimi yalnız premium şoföre gider (Osman, 2026-10-06); standart üye kutuyu görmez, istek gelirse reddedilir. */
     public function toggleNotify(int $id): void
     {
+        if (! (Auth::user()->driverProfile?->isPremium() ?? false)) {
+            session()->flash('error_message', 'Dönüş yükü bildirimi premium üyelere gider; dönüş yükleri İşlerim\'de görünür.');
+
+            return;
+        }
         $trip = $this->jobsQuery()->whereKey($id)->first();
         if ($trip) {
             $trip->forceFill(['notify_return' => ! $trip->notify_return])->save();

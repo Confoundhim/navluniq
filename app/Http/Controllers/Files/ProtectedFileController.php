@@ -58,9 +58,10 @@ class ProtectedFileController extends Controller
             return false;
         }
 
+        // Yönetici tarafında yalnız operasyon/uyuşmazlık yetkisi olanlar teslim ve uyuşmazlık fotoğraflarını görür (destek/evrak rolleri göremez).
         return $user->id === $load->cargoOwnerProfile?->user_id
             || $user->id === $load->driverProfile?->user_id
-            || $user->isAdminPanelUser();
+            || ($user->isAdminPanelUser() && ($user->can('manage operations') || $user->can('manage disputes')));
     }
 
     private function stream(string $disk, string $path): StreamedResponse

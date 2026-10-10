@@ -145,7 +145,8 @@ new class extends Component {
             $this->selectedSources = $this->selectSourcePage ? array_map('strval', $this->sourceQuery()->limit(20)->pluck('id')->all()) : [];
         }
         if ($name === 'selectPage') {
-            $this->selected = $this->selectPage ? array_map('strval', $this->currentQuery()->pluck('id')->all()) : [];
+            // Yalnız görünen sayfa (20 kayıt); filtreye uyan tümü için "Eşleşenlerin tümünü seç" (selectAllMatching, en çok 2.000).
+            $this->selected = $this->selectPage ? array_map('strval', $this->currentQuery()->forPage($this->getPage(), 20)->pluck('id')->all()) : [];
         }
     }
 
@@ -462,15 +463,21 @@ new class extends Component {
         if (isset($cache[$key])) {
             return $cache[$key];
         }
-        $service = app(ScrapedLoadService::class);
-        $ids = [];
-        ScrapedLoad::query()->with('scraper')->where('visibility', 'private')->where('status', '!=', 'rejected')
-            ->latest('id')->limit(2000)->get()
-            ->each(function (ScrapedLoad $load) use (&$ids, $eligible, $service): void {
-                if (($service->autoApprovalBlocker($load) === null) === $eligible) {
-                    $ids[] = $load->id;
-                }
-            });
+        // 60 sn önbellek: her çizimde 2.000 adayın engel denetimi koşmasın; ayar değişince (eşikler) anahtar da değişir.
+        $cacheKey = 'admin:scrapers:auto-ids:'.$key.':'.(\App\Support\Settings::scraperSettingsChangedAt()?->timestamp ?? 0);
+        $ids = \Illuminate\Support\Facades\Cache::remember($cacheKey, 60, function () use ($eligible): array {
+            $service = app(ScrapedLoadService::class);
+            $ids = [];
+            ScrapedLoad::query()->with('scraper')->where('visibility', 'private')->where('status', '!=', 'rejected')
+                ->latest('id')->limit(2000)->get()
+                ->each(function (ScrapedLoad $load) use (&$ids, $eligible, $service): void {
+                    if (($service->autoApprovalBlocker($load) === null) === $eligible) {
+                        $ids[] = $load->id;
+                    }
+                });
+
+            return $ids;
+        });
 
         return $cache[$key] = $ids;
     }
@@ -666,7 +673,16 @@ new class extends Component {
         $service = app(ScrapedLoadService::class);
         $ok = 0;
         $errors = [];
-        foreach ($this->selectedLoads() as $load) {
+        $loads = $this->selectedLoads();
+        $remaining = 0;
+        $leftIds = [];
+        if ($action === 'reparse' && $loads->count() > self::REPARSE_BATCH) {
+            // Yapay zeka çağrısı istek içinde senkron koşar; 100'den fazlası isteği zaman aşımına sürükler.
+            $remaining = $loads->count() - self::REPARSE_BATCH;
+            $leftIds = array_map('strval', $loads->skip(self::REPARSE_BATCH)->pluck('id')->all());
+            $loads = $loads->take(self::REPARSE_BATCH);
+        }
+        foreach ($loads as $load) {
             try {
                 match ($action) {
                     'approve' => $service->approve($load, auth()->id(), bulk: true), // toplu yayın: tek tek incelenmemiş ilandan konum/kalıp öğrenilmez
@@ -682,10 +698,15 @@ new class extends Component {
             }
         }
         $labels = ['approve' => 'yayınlandı', 'reject' => 'reddedildi', 'delete' => 'silindi', 'reparse' => 'yapay zeka ile çözümlendi', 'restore' => 'kuyruğa alındı'];
-        $this->selected = [];
+        // Çözümlenmeyenler seçili kalır; "tekrar basın" ile kalan parça işlenir.
+        $this->selected = $leftIds;
         $this->selectPage = false;
-        session()->flash($errors === [] ? 'success_message' : 'error_message', "{$ok} aday {$labels[$action]}.".($errors !== [] ? ' Atlanan: '.implode(' · ', array_slice($errors, 0, 5)) : ''));
+        $tail = $remaining > 0 ? ' İlk '.self::REPARSE_BATCH." kayıt çözümlendi; kalan {$remaining} için tekrar basın." : '';
+        session()->flash($errors === [] ? 'success_message' : 'error_message', "{$ok} aday {$labels[$action]}.".$tail.($errors !== [] ? ' Atlanan: '.implode(' · ', array_slice($errors, 0, 5)) : ''));
     }
+
+    /** Tek istekte yapay zeka ile çözümlenecek en çok kayıt (senkron çağrı; fazlası sonraki basışa kalır). */
+    public const REPARSE_BATCH = 100;
 
     public function purgeRejected(): void
     {
@@ -693,7 +714,8 @@ new class extends Component {
             return;
         }
         $n = app(ScrapedLoadService::class)->purgeRejected(0, auth()->id());
-        session()->flash('success_message', "{$n} reddedilmiş aday kalıcı olarak silindi.");
+        $left = ScrapedLoad::query()->withTrashed()->where('status', 'rejected')->count();
+        session()->flash('success_message', "{$n} reddedilmiş aday kalıcı olarak silindi.".($left > 0 ? " {$left} kayıt kaldı; tekrar basın." : ''));
     }
 
     // ---- Düzenleme ----
@@ -1144,7 +1166,7 @@ new class extends Component {
                 $term = '%'.trim($this->search).'%';
                 $q->where(fn ($w) => $w->where('excerpt', 'like', $term)->orWhere('source_name', 'like', $term)->orWhere('title', 'like', $term));
             }
-            $data['events'] = $q->paginate(30);
+            $data['events'] = $q->simplePaginate(30); // her 15 sn'de COUNT(*) koşmasın
         } elseif ($this->activeTab === 'sources') {
             $data['sourceCounts'] = [
                 'active' => Scraper::query()->where('is_active', true)->count(),
@@ -1190,7 +1212,7 @@ new class extends Component {
     <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Dış Kaynak İlanları</h1>
-            <p class="page-subtitle">WhatsApp gruplarından gelen ilan adayları burada standartlaştırılır, incelenir ve yayınlanır. Yayınlananlar şoförlerin ilan listesine düşer.</p>
+            <p class="page-subtitle">Gruplardan gelen ilan adayları burada standartlaştırılır, incelenir ve yayınlanır. Yayınlananlar şoförlerin ilan listesine düşer.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2 text-[11px]">
             <span class="badge {{ $schedulerOk ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600' }}" title="{{ $schedulerAge === null ? 'Zamanlayıcıdan hiç nabız gelmedi' : 'Son nabız '.$schedulerAge.' sn önce' }}">Zamanlayıcı: {{ $schedulerOk ? 'çalışıyor' : ($schedulerAge === null ? 'nabız yok' : 'durmuş ('.floor($schedulerAge / 60).' dk)') }}</span>
@@ -1545,7 +1567,7 @@ new class extends Component {
     @if($activeTab === 'events')
         <div class="apple-glass p-3 rounded-2xl flex flex-col sm:flex-row gap-2 text-xs">
             <input type="search" wire:model.live.debounce.400ms="search" class="{{ $input }} sm:max-w-md" placeholder="Ara: kaynak, mesaj">
-            <span class="text-[11px] text-neutral-400 self-center">Telefondan gelen her istek burada görünür; "kuyruğa alındı" dışındakiler neden elendiğini söyler. 5 sn'de bir yenilenir.</span>
+            <span class="text-[11px] text-neutral-400 self-center">Telefondan gelen her istek burada görünür; "kuyruğa alındı" dışındakiler neden elendiğini söyler. 15 sn'de bir yenilenir.</span>
         </div>
         <div class="apple-glass rounded-3xl overflow-hidden">
             <div class="responsive-scroll">
@@ -1567,7 +1589,22 @@ new class extends Component {
                     </tbody>
                 </table>
             </div>
-            <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs">{{ $events->links() }}</div>
+            @if($events->hasPages())
+                {{-- simplePaginate: toplam sayfa bilinmez (COUNT yok); yalnız önceki / sonraki --}}
+                <div class="p-4 border-t border-neutral-100 dark:border-neutral-800/50 text-xs flex items-center justify-between gap-3">
+                    @if($events->onFirstPage())
+                        <span class="inline-flex h-10 items-center rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 text-sm font-bold text-neutral-300 dark:text-neutral-600" aria-disabled="true">‹ Önceki</span>
+                    @else
+                        <button type="button" wire:click="previousPage('{{ $events->getPageName() }}')" wire:loading.attr="disabled" class="inline-flex h-10 items-center rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 text-sm font-bold hover:border-brand-500 hover:text-brand-500">‹ Önceki</button>
+                    @endif
+                    <span class="text-neutral-400 tabular-nums">Sayfa {{ $events->currentPage() }}</span>
+                    @if($events->hasMorePages())
+                        <button type="button" wire:click="nextPage('{{ $events->getPageName() }}')" wire:loading.attr="disabled" class="inline-flex h-10 items-center rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 text-sm font-bold hover:border-brand-500 hover:text-brand-500">Sonraki ›</button>
+                    @else
+                        <span class="inline-flex h-10 items-center rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 text-sm font-bold text-neutral-300 dark:text-neutral-600" aria-disabled="true">Sonraki ›</span>
+                    @endif
+                </div>
+            @endif
         </div>
     @endif
 
@@ -1796,10 +1833,10 @@ new class extends Component {
                 @endif
                 @if(auth()->user()->hasRole('super_admin'))
                     <div class="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
-                        <p class="text-[11px] text-neutral-400">Geçmişten yeniden öğren: sayaçlar sıfırlanır, yayınlanan / "ilan değil" diye reddedilen tüm adaylardan yeniden öğrenilir. Geri alınamaz; önceki sayaçlar işlem kaydına yazılır. Onaylamak için <span class="font-mono">YENİDEN ÖĞREN</span> yazın.</p>
+                        <p class="text-[11px] text-rose-600 dark:text-rose-300"><strong>Dikkat, geri alınamaz.</strong> Geçmişten yeniden öğren: sayaçlar sıfırlanır, yayınlanan / "ilan değil" diye reddedilen tüm adaylardan yeniden öğrenilir. Geri alınamaz; önceki sayaçlar işlem kaydına yazılır. Onaylamak için <span class="font-mono">YENİDEN ÖĞREN</span> yazın.</p>
                         <div class="flex flex-wrap items-center gap-2">
                             <input type="text" wire:model="rebuildConfirm" placeholder="YENİDEN ÖĞREN" autocomplete="off" class="form-input py-1.5 text-xs w-44">
-                            <button type="button" wire:click="rebuildClassifier" class="btn-secondary py-1.5 px-3 text-xs">Geçmişten yeniden öğren</button>
+                            <button type="button" wire:click="rebuildClassifier" class="btn-danger py-1.5 px-3 text-xs">Geçmişten yeniden öğren · Geri alınamaz</button>
                         </div>
                         @error('rebuildConfirm')<p class="text-rose-500 text-[11px]">{{ $message }}</p>@enderror
                     </div>

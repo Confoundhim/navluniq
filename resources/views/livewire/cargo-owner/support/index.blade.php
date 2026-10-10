@@ -96,7 +96,7 @@ class extends Component {
 
     <div class="space-y-4">
         @forelse($tickets as $ticket)
-            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            <div wire:key="ticket-{{ $ticket->id }}" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
 
                 <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div class="flex flex-wrap items-center gap-3">

@@ -47,6 +47,10 @@ class ScheduleLocksTest extends TestCase
             'loads:expire' => 180,
             'system:backup' => 180,
             'scraped-loads:ai-audit' => 120,
+            'subscriptions:expire' => 10,
+            'subscriptions:remind' => 10,
+            'subscriptions:reconcile' => 10,
+            'subscriptions:renew' => 60,
         ];
         foreach ($expected as $name => $minutes) {
             $this->assertArrayHasKey($name, $events, "{$name} zamanlanmış olmalı");

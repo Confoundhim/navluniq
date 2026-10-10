@@ -9,6 +9,7 @@ use App\Services\PaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 
 /** Eski PayTR adresleri: genel bildirim ve sonuç sayfalarına yönlendirir (PayTR panelinde tanımlı adresler bozulmasın). */
 class PaytrController extends Controller
@@ -32,6 +33,8 @@ class PaytrController extends Controller
 
     private function redirectToResult(Load $load, string $outcome): RedirectResponse
     {
+        // Yalnız ilanın sahibi kendi ödeme emrine yönlendirilir; başka kullanıcı emir kimliğini öğrenemez.
+        abort_unless($load->cargoOwnerProfile?->user_id === Auth::id(), 403);
         $order = PaymentOrder::query()->where('load_id', $load->id)->where('purpose', PaymentService::PURPOSE_ESCROW)->latest('id')->first();
         // Livewire, oturum içinde redirect() yardımcısını kendi yönlendiricisiyle değiştirebildiği için doğrudan yanıt üretilir.
         if ($order) {

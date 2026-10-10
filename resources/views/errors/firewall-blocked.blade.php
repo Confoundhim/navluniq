@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ asset_v('/images/fav-ico.png') }}">
-    <title>NavlunIQ - Erişim Güvenlik Duvarı Tarafından Engellendi</title>
+    <title>NavlunIQ - Erişim engellendi</title>
     @vite(['resources/css/app.css'])
 </head>
 <body class="min-h-screen bg-neutral-950 text-white flex items-center justify-center p-6 font-sans">
@@ -15,7 +15,7 @@
         <div class="space-y-2">
             <h1 class="text-xl font-bold tracking-tight text-red-500">Erişiminiz Engellendi (403)</h1>
             <p class="text-xs text-neutral-400 leading-relaxed">
-                IP adresiniz şüpheli aktivite veya güvenlik kuralları ihlali nedeniyle NavlunIQ Güvenlik Duvarı (Firewall) tarafından engellenmiştir
+                IP adresiniz şüpheli etkinlik ya da güvenlik kuralı ihlali nedeniyle NavlunIQ güvenlik duvarı tarafından engellenmiştir.
             </p>
         </div>
         <div class="p-4 bg-neutral-950 rounded-2xl border border-neutral-800 text-xs text-left space-y-1.5 font-mono">
@@ -23,7 +23,7 @@
             <div><span class="text-neutral-500">Engel Sebebi:</span> <span class="text-red-400">{{ $reason }}</span></div>
             <div><span class="text-neutral-500">Geçerlilik:</span> <span class="text-white">{{ $until }}</span></div>
         </div>
-        <p class="text-[10px] text-neutral-500">Bir yanlışlık olduğunu düşünüyorsanız lütfen info@navluniq.com ile iletişime geçiniz.</p>
+        <p class="text-[10px] text-neutral-500">Bir yanlışlık olduğunu düşünüyorsanız lütfen {{ \App\Support\Company::get('email') }} adresine yazın.</p>
     </div>
 </body>
 </html>

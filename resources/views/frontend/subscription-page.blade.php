@@ -24,7 +24,7 @@
         ['Dönüş yükü radarı', 'Radar ilanları panele düşer, ancak bildirim gelmez', 'Bildirimle'],
         ['Teklif verme hakkı', 'Sınırsız', 'Sınırsız'],
         $directPay ? ['Canlı konum ve teslim kanıtı', 'Dahil', 'Dahil'] : ['Teslimat onaylı güvenli ödeme', 'Dahil', 'Dahil'],
-        ['Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
+        [$directPay ? 'Üyelik ödemeleri, fatura ve destek talepleri' : 'Ödeme geçmişi, fatura ve destek talepleri', 'Dahil', 'Dahil'],
         $trialDays > 0 ? ['Ücretsiz deneme', '—', "{$trialDays} gün, bir kez, kart gerekmez"] : null,
         ['Aylık ücret', '0 ₺', "{$priceText} ₺ (KDV dahil), ".($autoRenew ? 'isterseniz otomatik yenilenir' : 'otomatik yenilenmez')],
     ]));
@@ -71,8 +71,8 @@
                 <div class="grid grid-cols-2 gap-3 text-center">
                     <div class="rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200 dark:border-neutral-800 p-4">
                         <div class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Standart</div>
-                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">+{{ $lead }} dk</div>
-                        <div class="text-[10px] text-neutral-400 mt-0.5">gecikmeli</div>
+                        <div class="text-xl font-black text-neutral-900 dark:text-white tabular-nums mt-1">{{ $lead > 0 ? '+'.$lead.' dk' : 'Aynı anda' }}</div>
+                        <div class="text-[10px] text-neutral-400 mt-0.5">{{ $lead > 0 ? 'gecikmeli' : 'bildirimsiz' }}</div>
                     </div>
                     <div class="rounded-2xl bg-brand-500/10 border border-brand-500/20 p-4">
                         <div class="text-[10px] font-bold text-brand-500 uppercase tracking-wider">Premium</div>
@@ -191,8 +191,8 @@
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Taşımacılık gruplarında ve web mecralarında paylaşılan yük ilanları standart ilan kartı olarak, ilan bilgilerinin tamamıyla panelinize düşer; siz yalnız filtrenize uyanları görürsünüz. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; {{ $directPay ? 'teklif, canlı konum ve teslim kanıtı yalnız NavlunIQ ilanlarında vardır' : 'teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir' }}.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Sistem ilanları herkese açıldığı anda Telegram kanalımızda da yayınlanır; kanalı takip edip yalnız ilgilendiğiniz ilan için uygulamaya girebilirsiniz.@if($telegramUrl = \App\Services\TelegramPublisher::channelUrl()) <a href="{{ $telegramUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-bold hover:underline">Kanala katıl →</a>@endif</p>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Siteyi sürekli açık tutmak istemiyorum, ne yapabilirim?</h3>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Sistem ilanları herkese açıldığı anda Telegram kanalımızda da yayınlanır; kanalı takip edip yalnız ilgilendiğiniz ilan için NavlunIQ'ya girebilirsiniz.@if($telegramUrl = \App\Services\TelegramPublisher::channelUrl()) <a href="{{ $telegramUrl }}" target="_blank" rel="noopener" class="text-brand-500 font-bold hover:underline">Kanala katıl →</a>@endif</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Fatura alabilir miyim?</h3>

@@ -122,7 +122,8 @@ final class PaytrGateway implements PaymentGateway
         $hash = (string) ($post['hash'] ?? '');
 
         $expected = base64_encode(hash_hmac('sha256', $oid.$merchantSalt.$status.$totalAmount, $merchantKey, true));
-        $valid = $oid !== '' && $hash !== '' && $merchantKey !== '' && hash_equals($expected, $hash);
+        // Anahtarlar girilmemişken hiçbir bildirim geçerli sayılmaz (boş anahtarla üretilen imza taklit edilebilir).
+        $valid = $this->isConfigured() && $oid !== '' && $hash !== '' && $merchantKey !== '' && hash_equals($expected, $hash);
 
         return new WebhookResult(
             valid: $valid,

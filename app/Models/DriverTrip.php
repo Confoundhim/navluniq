@@ -122,7 +122,8 @@ class DriverTrip extends Model
         }
 
         return match ($load->status) {
-            Load::STATUS_ASSIGNED => $load->isPaid() ? 'Yüklemeye hazır' : 'Ödeme bekleniyor',
+            // Doğrudan kipte ödeme platformdan geçmez: kabulle birlikte yüklemeye hazırdır.
+            Load::STATUS_ASSIGNED => ($load->isPaid() || $load->isDirectPayment()) ? 'Yüklemeye hazır' : 'Ödeme bekleniyor',
             Load::STATUS_ON_THE_WAY => 'Yolda',
             Load::STATUS_DELIVERED => 'Teslim edildi, onay bekleniyor',
             Load::STATUS_DISPUTED => 'Uyuşmazlık',
@@ -138,7 +139,7 @@ class DriverTrip extends Model
         return ! $this->isSystem() && $this->isOpen();
     }
 
-    /** NavlunIQ işinde "Yola çıktım" ancak ödeme alındıktan sonra; gruptan alınan işte planlandı durumunda. */
+    /** NavlunIQ işinde "Yola çıktım" ödeme alındıktan sonra (doğrudan kipte kabulle birlikte); gruptan alınan işte planlandı durumunda. */
     public function canStart(): bool
     {
         if (! $this->isOpen()) {
@@ -147,7 +148,7 @@ class DriverTrip extends Model
         if ($this->isSystem()) {
             $load = $this->cargoLoad;
 
-            return $load !== null && $load->status === Load::STATUS_ASSIGNED && $load->isPaid();
+            return $load !== null && $load->status === Load::STATUS_ASSIGNED && ($load->isPaid() || $load->isDirectPayment());
         }
 
         return $this->status === self::STATUS_PLANNED;

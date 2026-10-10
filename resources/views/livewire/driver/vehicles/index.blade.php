@@ -246,7 +246,7 @@ class extends Component {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         @forelse($vehicles as $vehicle)
-            <div class="bg-white dark:bg-neutral-900 border {{ $vehicle->is_active ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800' }} rounded-2xl p-6 space-y-3 text-xs">
+            <div class="bg-white dark:bg-neutral-900 border {{ $vehicle->is_active ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800' }} rounded-2xl p-6 space-y-3 text-xs" wire:key="vehicle-{{ $vehicle->id }}">
                 <div class="flex items-center justify-between gap-2">
                     <div class="text-base font-black text-neutral-900 dark:text-white font-mono">{{ $vehicle->plate }}</div>
                     @if($vehicle->is_active)
@@ -258,8 +258,8 @@ class extends Component {
                 <div class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
                     <svg class="w-6 h-6 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! \App\Support\VehicleTypes::iconPath($vehicle->vehicle_type) !!}</svg>
                     <span class="font-semibold">{{ $vehicleTypes[$vehicle->vehicle_type] ?? $vehicle->vehicle_type }}</span>
-                    @if($vehicle->body_type || $vehicle->trailer_length || $vehicle->has_lift)
-                        <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null, $vehicle->has_lift ? 'Liftli' : null])) }}</span>
+                    @if($vehicle->body_type || $vehicle->trailer_length || $vehicle->has_lift !== null)
+                        <span class="text-neutral-500">· {{ implode(' · ', array_filter([$vehicle->trailer_length ? \App\Support\BodyTypes::TRAILER_LENGTHS[$vehicle->trailer_length] ?? null : null, $vehicle->body_type ? \App\Support\BodyTypes::label($vehicle->body_type) : null, $vehicle->has_lift === null ? null : ($vehicle->has_lift ? 'Liftli' : 'Liftsiz')])) }}</span>
                     @else
                         <button type="button" wire:click="openEdit({{ $vehicle->id }})" class="text-2xs text-amber-600 hover:underline">Kasa tipini ekleyin</button>
                     @endif

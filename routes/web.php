@@ -120,7 +120,7 @@ Route::middleware('auth')->get('/panel', function () {
 Route::post('/csp-rapor', CspReportController::class)->middleware('throttle:csp-report')->name('csp.report');
 
 // Ödeme kuruluşu sunucu bildirimi (sağlayıcıdan bağımsız) ve eski PayTR adresleri
-Route::post('/odeme/bildirim/{provider}', [PaymentWebhookController::class, 'handle'])->whereAlpha('provider')->name('payment.webhook');
+Route::post('/odeme/bildirim/{provider}', [PaymentWebhookController::class, 'handle'])->whereAlpha('provider')->middleware('throttle:payment-webhook')->name('payment.webhook');
 Route::post('/odeme/paytr/bildirim', [PaytrController::class, 'callback'])->name('payment.paytr.callback');
 Route::middleware('auth')->group(function () {
     // Kullanıcı ödeme ekranından döndüğünde: nihai durum yalnız sunucu bildirimiyle belirlenir, sayfa durumu sorgular.

@@ -106,11 +106,16 @@ class NotificationService
         }
     }
 
-    /** Başarısız e-postaları yeniden dener (zamanlanmış görev). Başarıyla gönderilen sayısını döner. */
+    /**
+     * Başarısız e-postaları yeniden dener (zamanlanmış görev). 15 dakikadan uzun "bekliyor" kalan kayıtlar da alınır: kuyruk işi
+     * işçi kesintisinde kaybolmuş olabilir (M4). Başarıyla gönderilen sayısını döner.
+     */
     public function retryFailedMail(int $limit = 50): int
     {
         $sent = 0;
-        UserNotification::query()->with('user')->mailRetryable()
+        UserNotification::query()->with('user')
+            ->where(fn ($q) => $q->where(fn ($q) => $q->mailRetryable())
+                ->orWhere(fn ($q) => $q->where('mail_status', UserNotification::MAIL_PENDING)->where('mail_attempts', '<', UserNotification::MAX_MAIL_ATTEMPTS)->where('created_at', '<', now()->subMinutes(15))))
             ->where('updated_at', '<', now()->subMinutes(5))->orderBy('id')->limit($limit)->get()
             ->each(function (UserNotification $n) use (&$sent): void {
                 $sent += $this->sendMail($n) ? 1 : 0;

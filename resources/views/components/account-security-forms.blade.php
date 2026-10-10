@@ -75,9 +75,9 @@
             <input type="password" wire:model="new_password_confirmation" autocomplete="new-password" class="form-input">
         </div>
     </div>
-    <p class="text-[11px] text-neutral-500">Şifre değişince diğer cihazlardaki oturumlar kapanır.</p>
+    <p class="text-2xs text-neutral-500">Şifre değişince diğer cihazlardaki oturumlar kapanır.</p>
     <div class="pt-2 flex flex-wrap items-center justify-between gap-3">
-        <button type="button" wire:click="exportMyData" class="text-[11px] text-neutral-500 hover:text-brand-500 underline">Hesabımdaki verileri indir (JSON)</button>
+        <button type="button" wire:click="exportMyData" class="text-2xs text-neutral-500 hover:text-brand-500 underline">Hesabımdaki verileri indir (JSON)</button>
         <button type="submit" class="btn-secondary py-2 text-xs">Şifreyi güncelle</button>
     </div>
 </form>

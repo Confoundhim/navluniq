@@ -59,6 +59,7 @@ class extends Component {
     }
 
     /** "Tekrar yayınla" küçük penceresi: tarih seçtirir (varsayılan yarın). */
+    #[\Livewire\Attributes\Locked]
     public ?int $repeatLoadId = null;
 
     public string $repeat_pickup_date = '';
@@ -91,7 +92,7 @@ class extends Component {
         ]);
 
         $profile = Auth::user()->cargoOwnerProfile;
-        $load = $this->repeatLoadId ? Load::query()->whereKey($this->repeatLoadId)->where('cargo_owner_profile_id', $profile?->id)->first() : null;
+        $load = $this->repeatLoadId ? Load::query()->whereKey($this->repeatLoadId)->where('cargo_owner_profile_id', $profile?->id)->whereIn('status', self::PAST_STATUSES)->first() : null;
 
         if (! $load) {
             $this->repeatLoadId = null;
@@ -177,7 +178,7 @@ class extends Component {
                 };
                 $pendingPayment = $load->status === 'driver_assigned' && $load->escrow_status === 'pending_payment';
             @endphp
-            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div wire:key="load-{{ $load->id }}" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-5 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
 
                 <div class="space-y-3 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">

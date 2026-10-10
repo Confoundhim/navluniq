@@ -134,11 +134,14 @@ class ScrapedLoadService
     {
         $days = $olderThanDays ?? max(0, Settings::int('scraper_rejected_retention_days'));
         $count = 0;
+        // Parça parça (500) ve sorguyla silinir: model başına forceDelete 5.000 kayıtta isteği zaman aşımına sürüklüyordu.
+        // Üst sınır 5.000/çağrı; kalan varsa çağıran "tekrar basın" der.
         ScrapedLoad::query()->withTrashed()->where('status', 'rejected')
             ->when($days > 0, fn ($q) => $q->where('updated_at', '<', now()->subDays($days)))
-            ->orderBy('id')->limit(5000)->get()->each(function (ScrapedLoad $load) use (&$count): void {
-                $load->forceDelete();
-                $count++;
+            ->chunkById(500, function ($chunk) use (&$count): bool {
+                $count += ScrapedLoad::query()->withTrashed()->whereIn('id', $chunk->pluck('id'))->forceDelete();
+
+                return $count < 5000;
             });
         if ($count > 0) {
             ActivityLog::record('scraped_load.purged', "Reddedilen {$count} dış kaynak ilanı kalıcı silindi", $userId);

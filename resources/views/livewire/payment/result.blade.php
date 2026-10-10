@@ -119,7 +119,7 @@ class extends Component {
             <div class="mx-auto max-w-sm text-left text-xs divide-y divide-neutral-200 dark:divide-neutral-800 border-y border-neutral-200 dark:border-neutral-800">
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Sipariş no</span><span class="font-mono font-semibold text-neutral-900 dark:text-white">{{ $order->merchant_oid }}</span></div>
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Tutar</span><span class="font-bold tabular-nums text-neutral-900 dark:text-white">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺</span></div>
-                <div class="flex justify-between py-2.5"><span class="text-neutral-500">Konu</span><span class="text-neutral-900 dark:text-white">{{ $isSubscription ? 'Premium şoför üyeliği (1 ay)' : 'Navlun bedeli #'.$order->load_id }}</span></div>
+                <div class="flex justify-between py-2.5"><span class="text-neutral-500">Konu</span><span class="text-neutral-900 dark:text-white">{{ $isSubscription ? 'Premium şoför üyeliği ('.max(1, (int) $order->subscription_months).' ay)' : 'Navlun bedeli #'.$order->load_id }}</span></div>
                 <div class="flex justify-between py-2.5"><span class="text-neutral-500">Durum</span><span class="text-neutral-900 dark:text-white">{{ ['created' => 'Ödeme bekleniyor', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => $order->refunded_at ? 'Kabul edilmedi, iade edildi' : 'Başarısız', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi', 'expired' => 'Süresi doldu', 'cancelled' => 'İptal edildi'][$order->status] ?? $order->status }}</span></div>
                 @if($order->paid_at)<div class="flex justify-between py-2.5"><span class="text-neutral-500">Ödeme zamanı</span><span class="text-neutral-900 dark:text-white">{{ $order->paid_at->format('d.m.Y H:i') }}</span></div>@endif
             </div>
@@ -135,6 +135,6 @@ class extends Component {
                 <a href="{{ $nextUrl }}" class="btn-secondary text-sm px-6 py-3">Panele dön</a>
             @endif
         </div>
-        <p class="text-[11px] text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme lisanslı ödeme kuruluşunun güvenli sayfasında alınır.</p>
+        <p class="text-2xs text-neutral-400">Kart bilgileriniz NavlunIQ sunucularına ulaşmaz; ödeme lisanslı ödeme kuruluşunun güvenli sayfasında alınır.</p>
     </div>
 </div>

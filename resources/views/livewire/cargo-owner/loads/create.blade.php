@@ -79,7 +79,7 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'İlanınız #'.$load->id.' yayına alındı; premium şoförlere anında bildirildi, '.app(\App\Services\LoadReleaseService::class)->delayMinutes().' dakika sonra tüm şoförlere ve Telegram kanalına açılır. Teklifleri ilan listenizden takip edebilirsiniz.');
+        session()->flash('success_message', 'İlanınız #'.$load->id.' yayına alındı; premium şoförlere anında bildirildi, '.(($d = app(\App\Services\LoadReleaseService::class)->delayMinutes()) > 0 ? $d.' dakika sonra' : 'aynı anda').' tüm şoförlere ve Telegram kanalına açılır. Teklifleri ilan listenizden takip edebilirsiniz.');
         $this->redirect(route('cargo-owner.loads.index'), navigate: true);
     }
 

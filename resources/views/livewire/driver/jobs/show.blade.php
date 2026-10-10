@@ -164,6 +164,40 @@ class extends Component {
         session()->flash('success_message', 'Değerlendirmeniz kaydedildi.');
     }
 
+    /** Sayfadaki verinin ucuz imzası: ilan/sevkiyat durumu ve son konum; aynıysa süreli yenileme çizmez. */
+    public ?string $pollSignature = null;
+
+    private function currentSignature(): string
+    {
+        $load = $this->ownedLoadQuery()->with('shipment')->first();
+        $shipment = $load?->shipment;
+        $parts = [
+            $load?->status, $load?->escrow_status, $load?->updated_at?->timestamp,
+            $shipment?->status, $shipment?->updated_at?->timestamp,
+            $shipment ? \App\Models\DriverLocation::query()->where('shipment_id', $shipment->id)->max('id') : null,
+            session()->has('success_message') || session()->has('error_message') ? 'flash' : '',
+        ];
+
+        return md5(implode('|', array_map(fn ($v) => (string) $v, $parts)));
+    }
+
+    public function tick(): void
+    {
+        $idle = request()->header('X-User-Idle-Ms');
+        if ($idle !== null && is_numeric($idle) && (int) $idle < \App\Livewire\PausePollWhileInteracting::IDLE_MS) {
+            $this->skipRender();
+
+            return;
+        }
+        $signature = $this->currentSignature();
+        if ($this->pollSignature === $signature) {
+            $this->skipRender();
+
+            return;
+        }
+        $this->pollSignature = $signature;
+    }
+
     public function with(): array
     {
         $user = Auth::user();
@@ -171,6 +205,7 @@ class extends Component {
             ->with(['cargoOwnerProfile.user', 'driverProfile', 'shipment.evidence.uploader', 'shipment.vehicle', 'payout'])
             ->first();
         $shipment = $load?->shipment;
+        $this->pollSignature = $this->currentSignature();
 
         $trail = $shipment ? app(DriverLocationService::class)->trailFor($shipment) : ['latest' => null, 'trail' => []];
         $latest = $trail['latest'];
@@ -203,7 +238,7 @@ class extends Component {
     }
 }; ?>
 
-<div wire:poll.8s class="space-y-6">
+<div wire:poll.30s="tick" class="space-y-6">
 
     @if (session()->has('success_message'))
         <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
@@ -229,8 +264,8 @@ class extends Component {
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div class="text-base font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                         <div class="flex flex-wrap gap-2">
-                            <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[11px]">{{ $load->statusLabel() }}</span>
-                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ ($load->isPaid() || $directPayment) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-2xs">{{ $load->statusLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full text-2xs font-bold border {{ ($load->isPaid() || $directPayment) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -340,7 +375,7 @@ class extends Component {
                                     <label class="form-label">Teslimat kanıtı (JPG, PNG, PDF; en fazla 10 MB)</label>
                                     <input type="file" wire:model="pod_file" accept="image/jpeg,image/png,application/pdf" class="w-full text-neutral-500 dark:text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-neutral-200 dark:file:bg-neutral-800 file:text-neutral-900 dark:file:text-white">
                                     @error('pod_file') <span class="form-error">{{ $message }}</span> @enderror
-                                    <div wire:loading wire:target="pod_file" class="text-[11px] text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
+                                    <div wire:loading wire:target="pod_file" class="text-2xs text-neutral-500 mt-1">Dosya hazırlanıyor...</div>
                                 </div>
                                 <div>
                                     <label class="form-label">Not (isteğe bağlı)</label>
@@ -510,7 +545,7 @@ class extends Component {
                                 </button>
                             </div>
                             <div class="relative w-full h-80 bg-neutral-50 dark:bg-neutral-950 z-0" x-ref="map"></div>
-                            <div class="p-3 text-[11px] text-neutral-500 border-t border-neutral-200 dark:border-neutral-800">
+                            <div class="p-3 text-2xs text-neutral-500 border-t border-neutral-200 dark:border-neutral-800">
                                 @if($latestLocation)
                                     Sunucuya kaydedilen son konum: {{ $latestLocation->recorded_at?->format('d.m.Y H:i') }}
                                 @else
@@ -526,7 +561,7 @@ class extends Component {
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                                 <div>
                                     <div class="text-neutral-900 dark:text-white font-semibold">{{ $evidence->type === 'pod' ? 'Teslimat kanıtı' : $evidence->type }}</div>
-                                    <div class="text-[11px] text-neutral-500">
+                                    <div class="text-2xs text-neutral-500">
                                         {{ $evidence->captured_at?->format('d.m.Y H:i') ?? $evidence->created_at?->format('d.m.Y H:i') }}
                                         @if($evidence->uploader) · {{ $evidence->uploader->full_name }} @endif
                                         @if(! empty($evidence->metadata['note'])) · {{ $evidence->metadata['note'] }} @endif
@@ -548,9 +583,9 @@ class extends Component {
                     <h3 class="section-title">Yük sahibi</h3>
                     <div class="text-neutral-900 dark:text-white font-bold">{{ $load->cargoOwnerProfile?->displayName() ?: 'Belirtilmemiş' }}</div>
                     @if($ownerPhone)
-                        <a href="tel:0{{ \App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
+                        <a href="{{ \App\Support\Phone::telHref(\App\Support\Phone::normalize($ownerPhone) ?? $ownerPhone) }}" class="text-brand-400 tabular-nums font-bold hover:underline">{{ \App\Support\Phone::format($ownerPhone) }}</a>
                     @else
-                        <div class="text-neutral-500">İletişim numarası, yük sahibi navlun ödemesini yaptıktan sonra görünür.</div>
+                        <div class="text-neutral-500">{{ $directPayment ? 'Yük sahibinin numarası kayıtlı değil.' : 'İletişim numarası, yük sahibi navlun ödemesini yaptıktan sonra görünür.' }}</div>
                     @endif
                 </div>
 

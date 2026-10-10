@@ -150,7 +150,8 @@ final class Settings
     /**
      * Revizyon geçmişinden "eski değere dön" ile geri alınamayan anahtarlar: gizli anahtarlar revizyona maskeli yazılır
      * (geri alma maskeyi gerçek anahtar yapardı), sözleşme sürümü yeniden onay akışını tetikler, sabit kod ve telefon
-     * anahtarı güvenlik kapısıdır. SECRET_KEYS de geri alınamaz (bkz. isRollbackable).
+     * anahtarı güvenlik kapısıdır. SECRET_KEYS ve REAUTH_KEYS (ödeme kipi/kuruluşu; şifre onayı ve süper yönetici ister) de
+     * geri alınamaz (bkz. isRollbackable).
      */
     public const NON_ROLLBACK_KEYS = ['legal_document_version', 'legal_effective_date', 'scraper_api_token', 'review_login_emails', 'review_login_code', 'review_login_until'];
 
@@ -162,7 +163,9 @@ final class Settings
 
     public static function isRollbackable(string $key): bool
     {
-        return ! in_array($key, self::SECRET_KEYS, true) && ! in_array($key, self::NON_ROLLBACK_KEYS, true);
+        return ! in_array($key, self::SECRET_KEYS, true)
+            && ! in_array($key, self::NON_ROLLBACK_KEYS, true)
+            && ! in_array($key, self::REAUTH_KEYS, true);
     }
 
     /** Gizli anahtar ya da ödeme ayarı mı: kaydı şifre doğrulaması ve yönetici bildirimi ister. */

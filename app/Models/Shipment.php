@@ -25,6 +25,16 @@ class Shipment extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Yönetici ekranlarında gösterilen Türkçe durum adları. */
+    public const STATUS_LABELS = [
+        self::STATUS_AWAITING_PICKUP => 'Yükleme bekliyor',
+        self::STATUS_IN_TRANSIT => 'Yolda',
+        self::STATUS_DELIVERED => 'Teslim edildi, onay bekliyor',
+        self::STATUS_COMPLETED => 'Tamamlandı',
+        self::STATUS_DISPUTED => 'Uyuşmazlıkta',
+        self::STATUS_CANCELLED => 'İptal edildi',
+    ];
+
     protected $fillable = [
         'load_id',
         'accepted_offer_id',
@@ -49,6 +59,11 @@ class Shipment extends Model
         'owner_rejected_at' => 'datetime',
         'auto_approval_due_at' => 'datetime',
     ];
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
 
     public function cargoLoad(): BelongsTo
     {

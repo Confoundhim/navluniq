@@ -76,7 +76,7 @@ class extends Component {
             'radiusKm' => \App\Support\Settings::int('return_load_radius_km'),
             'isPremium' => $profile?->isPremium() ?? false,
             // IBAN yoksa "Yola çıktım" engellenir; şoför sürprizle karşılaşmasın diye liste başında uyarı.
-            'ibanWarning' => $profile && $this->tab === 'open' && $trips->contains(fn ($t) => $t->isSystem()) ? \App\Services\ShipmentService::startBlocker($profile) : null,
+            'ibanWarning' => $profile && $this->tab === 'open' && $trips->contains(fn ($t) => $t->isSystem() && $t->canStart()) ? \App\Services\ShipmentService::startBlocker($profile) : null,
         ];
     }
 }; ?>
@@ -92,7 +92,7 @@ class extends Component {
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
             <h2 class="page-title">İşlerim</h2>
-            <p class="page-subtitle">Kabul edilen teklifleriniz ve "Bu işi aldım" dediğiniz ilanlar. Varış yerinizin çevresinden ({{ $radiusKm }} km ve aynı il) çıkan yeni ilanlar dönüş yükü olarak bildirilir.</p>
+            <p class="page-subtitle">Kabul edilen teklifleriniz ve "Bu işi aldım" dediğiniz ilanlar. Varış yerinizin çevresinden ({{ $radiusKm }} km ve aynı il) çıkan yeni ilanlar dönüş yükü olarak {{ $isPremium ? 'bildirilir' : 'burada görünür' }}.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs">
             @foreach(['open' => 'Açık işler', 'past' => 'Geçmiş'] as $key => $label)
@@ -122,5 +122,5 @@ class extends Component {
             <div class="pt-2 text-xs">{{ $past->links() }}</div>
         @endif
     </div>
-    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" />
+    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" :is-premium="$isPremium" />
 </div>

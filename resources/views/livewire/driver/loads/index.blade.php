@@ -372,16 +372,11 @@ class extends Component {
     /** Teklif verilebilir açık ilanlar: şoförün aktif teklifi olan ilanlar hariç. */
     private function poolQuery(bool $pinned = true): Builder
     {
-        $profileId = $this->profile()?->id ?? 0;
-
+        // Genel bakışla aynı kapı (offerableBy): açık + yayında, yükleme tarihi geçmemiş, kendi ilanı değil, aktif teklifi yok, premium bekleme süresi.
         return Load::query()
             ->with('cargoOwnerProfile.user')
-            ->where('status', Load::STATUS_ACTIVE)
-            ->where('visibility', 'public')
-            ->where(fn (Builder $q) => $q->whereNull('pickup_date')->orWhere('pickup_date', '>=', today())) // yükleme tarihi geçmiş ilan havuzda görünmez
+            ->offerableBy($this->profile())
             ->when($pinned && $this->listAsOf > 0, fn (Builder $q) => $this->visibleUntil($q, $this->asOfTime()))
-            ->openTo($this->profile())
-            ->whereDoesntHave('offers', fn (Builder $q) => $q->where('driver_profile_id', $profileId)->whereIn('status', ['pending', 'accepted']))
             ->when(trim($this->search) !== '', fn (Builder $q) => $this->applySearch($q))
             ->tap(fn (Builder $q) => app(LoadFilterService::class)->applyToLoads($q, LoadFilterService::normalize($this->filters), $this->profile()));
     }
@@ -410,14 +405,22 @@ class extends Component {
             ->orWhere('available_to_free_at', '<=', $until));
     }
 
+    /** Listeye gerçekten uygulanan süzgeç: eksik bilgili bölümde araç süzgeci kapalıdır (araç zaten belirsiz; il ve arama yine geçerli). */
+    private function effectiveFilters(): array
+    {
+        $filters = LoadFilterService::normalize($this->filters);
+        if ($this->tab === 'external' && $this->incomplete) {
+            $filters['vehicle_mode'] = 'any';
+        }
+
+        return $filters;
+    }
+
     private function externalQuery(bool $pinned = true): Builder
     {
         $premium = $this->profile()?->isPremium() ?? false;
 
-        $filters = LoadFilterService::normalize($this->filters);
-        if ($this->incomplete) {
-            $filters['vehicle_mode'] = 'any'; // araç zaten belirsiz; il ve arama süzgeci yine geçerli
-        }
+        $filters = $this->effectiveFilters();
 
         return ScrapedLoad::query()
             ->with('scraper')
@@ -510,7 +513,8 @@ class extends Component {
 
     public function openOffer(int $loadId): void
     {
-        $load = $this->poolQuery()->whereKey($loadId)->first();
+        // Bildirim / dönüş yükü kartından gelen ilan kayıtlı filtreye uymasa da teklif penceresi açılır; kapı offerableBy.
+        $load = Load::query()->offerableBy($this->profile())->whereKey($loadId)->first();
 
         if (! $load) {
             session()->flash('error_message', 'İlan bulunamadı veya artık teklif kabul etmiyor.');
@@ -610,7 +614,8 @@ class extends Component {
             'vehicleTypes' => DriverVehicle::getVehicleTypes(),
             'presets' => $this->presetsQuery()->orderByDesc('is_default')->orderBy('name')->get(),
             'provinces' => TurkishLocations::provinces(),
-            'normalizedFilters' => $normalized = LoadFilterService::normalize($this->filters),
+            // Eksik bilgili bölümde araç süzgeci uygulanmaz (externalQuery vehicle_mode=any yapar); çubuk da etkin süzgeci gösterir.
+            'normalizedFilters' => $normalized = $this->effectiveFilters(),
             'filterChips' => LoadFilterService::chips($normalized),
             'chipItems' => LoadFilterService::chipItems($normalized),
             'activeFilterCount' => LoadFilterService::activeCount($normalized),
@@ -643,9 +648,19 @@ class extends Component {
             'takenExternalIds' => DriverTrip::query()->where('driver_profile_id', $profileId)->open()->whereNotNull('scraped_load_id')->pluck('scraped_load_id')->map(fn ($v) => (int) $v)->all(),
             'savedItems' => null,
             'takeLoad' => $this->takeLoadId ? ScrapedLoad::query()->whereKey($this->takeLoadId)->first() : null,
-            'externalLoads' => null, 'webLoadsCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->complete()->count(),
-            'incompleteCount' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->where('is_incomplete', true)->count(),
+            'externalLoads' => null,
+            'webLoadsCount' => 0,
+            'incompleteCount' => 0,
         ];
+        if ($this->tab === 'external') {
+            // Sayımlar herkes için aynı; 60 sn önbellek (her 15 sn'lik yenilemede iki tam sayım koşuyordu).
+            $counts = \Illuminate\Support\Facades\Cache::remember('driver:external-counts', 60, fn () => [
+                'web' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->complete()->count(),
+                'incomplete' => ScrapedLoad::query()->where('status', 'parsed_success')->where('visibility', 'public')->where('is_incomplete', true)->count(),
+            ]);
+            $data['webLoadsCount'] = (int) $counts['web'];
+            $data['incompleteCount'] = (int) $counts['incomplete'];
+        }
 
         if ($this->tab === 'offers') {
             $data['offers'] = Offer::query()->with('cargoLoad')->where('driver_profile_id', $profileId)->latest('id')->paginate(50);
@@ -694,7 +709,7 @@ class extends Component {
             <p class="page-subtitle">Açık ilanlara teklif verin, tekliflerinizi takip edin ve dış kaynaklı ilanları inceleyin.</p>
         </div>
         <div class="flex flex-wrap gap-2 text-xs">
-            @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanlar', 'saved' => 'Kaydettiklerim'] as $key => $label)
+            @foreach(['pool' => 'İlan havuzu', 'offers' => 'Tekliflerim', 'external' => 'Dış kaynak ilanları', 'saved' => 'Kaydettiklerim'] as $key => $label)
                 <button type="button" wire:click="setTab('{{ $key }}')"
                     class="px-4 py-2 rounded-xl font-bold border transition-colors {{ $tab === $key ? 'bg-brand-500/10 border-brand-500/30 text-brand-400' : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white' }}">
                     {{ $label }}
@@ -773,7 +788,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 scroll-mt-24" id="ilan-listesi">
             @forelse($offers as $offer)
                 @php $offerLoad = $offer->cargoLoad; @endphp
-                <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs" wire:key="offer-{{ $offer->id }}">
                     <div class="space-y-1.5 flex-1">
                         <div class="text-sm font-bold text-neutral-900 dark:text-white">
                             @if($offerLoad)
@@ -820,7 +835,7 @@ class extends Component {
 
     @if($kycApproved && $tab === 'saved')
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-            <div class="text-2xs text-neutral-500 leading-relaxed">Yıldızladığınız ilanlar burada durur. Kaldırmak için yıldıza yeniden basın. İlan yayından kalkınca listeden düşer.</div>
+            <div class="text-2xs text-neutral-500 leading-relaxed">Yıldızladığınız ilanlar burada durur; ilan yayından kalkınca listeden düşer.</div>
             <div class="space-y-3">
                 @forelse($savedItems as $saved)
                     @if($saved->kind() === 'system')
@@ -835,7 +850,7 @@ class extends Component {
         </div>
     @endif
 
-    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" />
+    <x-take-trip-modal :load="$takeModalOpen ? $takeLoad : null" :is-premium="$isPremium" />
 
     @if($kycApproved && $tab === 'external' && ! $isPremium)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-8 text-center space-y-3">
@@ -843,7 +858,7 @@ class extends Component {
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
             </div>
             <h2 class="text-base font-bold text-neutral-900 dark:text-white">Dış kaynak ilanları premium üyelere özeldir</h2>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">İzinli gruplardan ve web mecralarından derlenip ekibimizce onaylanan ilanlar, ilan sahibinin telefon numarasıyla birlikte yalnız premium üyelere gösterilir. Şu anda {{ $webLoadsCount ?? '' }} onaylı dış kaynak ilanı yayında.</p>
+            <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">Gruplardan ve web mecralarından derlenen ilanlar, ilan sahibinin telefon numarasıyla birlikte yalnız premium üyelere gösterilir. Şu anda {{ $webLoadsCount ?? '' }} dış kaynak ilanı yayında.</p>
             <a href="{{ route('driver.premium.index') }}" wire:navigate class="btn-primary inline-flex py-2.5 px-5 text-xs">Premium'a geç</a>
         </div>
     @endif
@@ -855,7 +870,7 @@ class extends Component {
                     Bu ilanlar izinli dış kaynaklardan derlenir; @if(! $directPayment)NavlunIQ havuz ödemesi kapsamında değildir. @endif Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" wire:click="setIncomplete(false)" class="tab-pill {{ ! $incomplete ? 'tab-pill-active' : '' }}">Dış kaynak ilanlar <span class="opacity-70">{{ number_format($webLoadsCount, 0, ',', '.') }}</span></button>
+                    <button type="button" wire:click="setIncomplete(false)" class="tab-pill {{ ! $incomplete ? 'tab-pill-active' : '' }}">Dış kaynak ilanları <span class="opacity-70">{{ number_format($webLoadsCount, 0, ',', '.') }}</span></button>
                     <button type="button" wire:click="setIncomplete(true)" class="tab-pill {{ $incomplete ? 'tab-pill-active' : '' }}">Eksik bilgili ilanlar <span class="opacity-70">{{ number_format($incompleteCount, 0, ',', '.') }}</span></button>
                     <label class="ml-auto inline-flex items-center gap-1.5 text-neutral-500">Sırala
                         <select wire:model.live="filters.sort" class="form-input py-1.5 w-auto text-xs">

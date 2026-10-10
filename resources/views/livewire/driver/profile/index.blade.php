@@ -176,7 +176,7 @@ class extends Component {
                 <div class="space-y-2 text-xs">
                     @foreach($allowedTypes as $type => $label)
                         @php $doc = $documents[$type] ?? null; @endphp
-                        <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2" wire:key="doc-{{ $type }}">
                             <div>
                                 <div class="text-neutral-900 dark:text-white font-semibold">{{ $label }} @if(in_array($type, $requiredTypes, true))<span class="text-brand-500">*</span>@endif</div>
                                 <div class="text-2xs text-neutral-500">
@@ -261,7 +261,7 @@ class extends Component {
                     <label class="flex items-start justify-between gap-3 cursor-pointer">
                         <span>
                             <span class="block font-bold text-neutral-900 dark:text-white">Teklif sonuçları</span>
-                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul ya da reddedildiğinde e-posta alın. Kapatırsanız uygulama içi bildirim devam eder. Rota tercihi için İlan havuzu'ndaki kayıtlı filtreleri kullanın.</span>
+                            <span class="text-neutral-500 dark:text-neutral-400">Teklifiniz kabul ya da reddedildiğinde e-posta gelir; kapalıyken uygulama içi bildirim sürer.</span>
                         </span>
                         <input type="checkbox" wire:model="notify_offer_results" class="form-input h-4">
                     </label>
@@ -279,7 +279,7 @@ class extends Component {
                 </div>
                 <p class="text-neutral-500 dark:text-neutral-400">İlan havuzu her açılışta varsayılan filtrenizle gelir; araç tipi, il, tonaj, fiyat ve "yakınımda" seçimlerini bir kez yapıp kaydedersiniz.</p>
                 @forelse($filterPresets as $preset)
-                    <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2" wire:key="preset-{{ $preset->id }}">
                         <div class="min-w-0">
                             <div class="font-bold text-neutral-900 dark:text-white">{{ $preset->name }} @if($preset->is_default)<span class="badge bg-brand-500/10 text-brand-600 dark:text-brand-400 ml-1">Varsayılan</span>@endif</div>
                             <div class="text-2xs text-neutral-500 truncate">{{ implode(' · ', \App\Services\LoadFilterService::chips(\App\Services\LoadFilterService::normalize((array) $preset->filters))) }}</div>
@@ -291,7 +291,7 @@ class extends Component {
                         </div>
                     </div>
                 @empty
-                    <div class="p-3 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-neutral-500">Henüz kalıcı filtreniz yok. İlan havuzunda "Gelişmiş filtreler" açıp seçimlerinizi kaydedin.</div>
+                    <div class="p-3 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 text-neutral-500">Henüz kayıtlı filtreniz yok; İlan havuzunda "Filtreler" panelinden kaydedilir.</div>
                 @endforelse
             </div>
 

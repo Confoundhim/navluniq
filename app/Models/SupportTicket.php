@@ -15,9 +15,9 @@ class SupportTicket extends Model
     public const CATEGORIES = [
         'technical' => 'Teknik sorun ve hata bildirimi',
         'account' => 'Hesap, giriş ve güvenlik',
-        'kyc' => 'Belge ve KYC doğrulama',
+        'kyc' => 'Belge doğrulama',
         'load' => 'İlan, teklif ve rota',
-        'escrow' => 'Ödeme ve tahsilat',
+        'escrow' => 'Üyelik ödemesi ve tahsilat',
         'billing' => 'Fatura ve muhasebe',
         'subscription' => 'Abonelik ve fiyatlandırma',
         'dispute' => 'Uyuşmazlık yönetimi',

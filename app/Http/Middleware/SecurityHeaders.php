@@ -24,6 +24,16 @@ class SecurityHeaders
             $response->headers->set(self::headerName(), self::policy());
         }
 
+        // nginx de bu başlıkları koyar; sunucu yapılandırması eksik kalsa bile uygulama kendi başına korur.
+        foreach (['X-Frame-Options' => 'SAMEORIGIN', 'X-Content-Type-Options' => 'nosniff', 'Referrer-Policy' => 'strict-origin-when-cross-origin', 'Permissions-Policy' => 'geolocation=(self), camera=(self), microphone=()'] as $name => $value) {
+            if (! $response->headers->has($name)) {
+                $response->headers->set($name, $value);
+            }
+        }
+        if ($request->isSecure() && ! $response->headers->has('Strict-Transport-Security')) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
         return $response;
     }
 

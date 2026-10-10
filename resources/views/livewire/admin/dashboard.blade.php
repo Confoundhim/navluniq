@@ -7,12 +7,101 @@ use App\Models\DriverProfile;
 use App\Models\Load;
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Support\FreightPayment;
 use Livewire\Volt\Component;
 use Spatie\Permission\Models\Role;
 
 new class extends Component {
     /** Sayfadaki verinin ucuz imzası; aynıysa süreli yenileme çizmez. */
     public ?string $pollSignature = null;
+
+    /** Etkinlik günlüğündeki işlem anahtarlarının Türkçe adları; listede olmayan anahtar olduğu gibi gösterilir. */
+    public const ACTION_LABELS = [
+        'admin.login' => 'Yönetici girişi',
+        'admin.panel_switch' => 'Panel değiştirildi',
+        'auth.review_code' => 'Sabit kodla giriş',
+        'backup.created' => 'Yedek alındı',
+        'backup.deleted' => 'Yedek silindi',
+        'backup.downloaded' => 'Yedek indirildi',
+        'bank_account.revealed' => 'IBAN görüntülendi',
+        'classifier.rebuilt' => 'Sınıflandırıcı yeniden eğitildi',
+        'cms.updated' => 'İçerik güncellendi',
+        'dispute.resolved' => 'Uyuşmazlık karara bağlandı',
+        'dispute.withdrawn' => 'Uyuşmazlık geri çekildi',
+        'faq.created' => 'SSS eklendi',
+        'faq.updated' => 'SSS güncellendi',
+        'faq.deleted' => 'SSS silindi',
+        'firewall.banned' => 'IP engellendi',
+        'firewall.unbanned' => 'IP engeli kaldırıldı',
+        'kyc.approved' => 'Belge onaylandı',
+        'kyc.rejected' => 'Belge reddedildi',
+        'kyc.reset' => 'Belge durumu sıfırlandı',
+        'kyc.company_updated' => 'Şirket bilgisi güncellendi',
+        'kyc.nvi_checked' => 'Kimlik sorgulandı',
+        'kyc.nvi_verified' => 'Kimlik doğrulandı',
+        'legal.version_bumped' => 'Sözleşme sürümü artırıldı',
+        'load.relisted' => 'İlan yeniden yayınlandı',
+        'load.suspended' => 'İlan askıya alındı',
+        'load.cancelled_paid' => 'Ödenmiş sevkiyat iptal edildi',
+        'load.updated' => 'İlan düzenlendi',
+        'marketing.announcement' => 'Duyuru gönderildi',
+        'payment.refunded_manually' => 'İade elle işaretlendi',
+        'payout.exported' => 'Hakedişler dışa aktarıldı',
+        'payout.failed' => 'Hakediş başarısız işaretlendi',
+        'payout.paid' => 'Hakediş ödendi',
+        'payout.retry_requested' => 'Hakediş yeniden denendi',
+        'payout.submerchant' => 'Alt üye işyeri kaydı',
+        'role.permissions_updated' => 'Rol izinleri güncellendi',
+        'scraped_load.auto_rejected' => 'Dış kaynak ilanı kendiliğinden reddedildi',
+        'scraped_load.completed_by_driver' => 'Dış kaynak ilanı şoför tamamladı',
+        'scraped_load.deleted' => 'Dış kaynak ilanı silindi',
+        'scraped_load.duplicate' => 'Dış kaynak ilanı tekrar sayıldı',
+        'scraped_load.edited' => 'Dış kaynak ilanı düzenlendi',
+        'scraped_load.pickup_taught' => 'Kalkış öğretildi',
+        'scraped_load.purged' => 'Reddedilen ilanlar temizlendi',
+        'scraped_load.rejected' => 'Dış kaynak ilanı reddedildi',
+        'scraped_load.restored' => 'Dış kaynak ilanı geri alındı',
+        'scraped_load.superseded' => 'Dış kaynak ilanı yenisiyle değişti',
+        'scraper.created' => 'Kaynak eklendi',
+        'scraper.deleted' => 'Kaynak silindi',
+        'scraper.purged' => 'Kaynak kalıcı silindi',
+        'scraper.restored' => 'Kaynak geri alındı',
+        'scraper.toggled' => 'Kaynak açıldı/kapatıldı',
+        'scraper.token_regenerated' => 'Telefon anahtarı yenilendi',
+        'setting.updated' => 'Ayar değişti',
+        'setting.sensitive_changed' => 'Gizli ayar değişti',
+        'setting.rolled_back' => 'Ayar eski değere döndü',
+        'setting.mail_test' => 'Deneme e-postası',
+        'settings.payment_diagnosed' => 'Ödeme bağlantısı sınandı',
+        'staff.created' => 'Personel eklendi',
+        'staff.toggled' => 'Personel açıldı/kapatıldı',
+        'subscription.gifted' => 'Premium hediye edildi',
+        'subscription.revoked' => 'Premium geri alındı',
+        'subscription.trial_started' => 'Deneme başladı',
+        'subscription.auto_renew_on' => 'Otomatik yenileme açıldı',
+        'subscription.auto_renew_off' => 'Otomatik yenileme kapatıldı',
+        'subscription.auto_renew_stopped' => 'Otomatik yenileme durdu',
+        'subscription.card_deleted' => 'Kayıtlı kart silindi',
+        'system.update_started' => 'Site güncellemesi başladı',
+        'ticket.answered' => 'Destek bileti yanıtlandı',
+        'ticket.closed' => 'Destek bileti kapatıldı',
+        'trash.purged' => 'Çöp kalıcı silindi',
+        'trash.restored' => 'Çöpten geri alındı',
+        'user.banned' => 'Kullanıcı engellendi',
+        'user.unbanned' => 'Kullanıcı engeli kaldırıldı',
+    ];
+
+    public function actionLabel(string $action): string
+    {
+        if (isset(self::ACTION_LABELS[$action])) {
+            return self::ACTION_LABELS[$action];
+        }
+        if (str_starts_with($action, 'intake_layer.')) {
+            return 'Okuma katmanı aşaması değişti';
+        }
+
+        return $action;
+    }
 
     private function currentSignature(): string
     {
@@ -68,12 +157,14 @@ new class extends Component {
 
         $finance = null;
         if ($canFinance) {
+            $direct = FreightPayment::direct();
             $paidOrders = PaymentOrder::query()->where('status', 'paid');
             $finance = [
-                'payouts_pending' => (float) Payout::query()->whereIn('status', ['pending', 'processing'])->sum('net_amount'),
-                'payouts_pending_count' => Payout::query()->whereIn('status', ['pending', 'processing'])->count(),
-                'escrow' => (float) Load::query()->where('escrow_status', Load::ESCROW_PAID)->sum('price'),
-                'escrow_on_hold' => (float) Load::query()->where('escrow_status', Load::ESCROW_ON_HOLD)->sum('price'),
+                'direct' => $direct,
+                'payouts_pending' => $direct ? 0.0 : (float) Payout::query()->whereIn('status', ['pending', 'processing'])->sum('net_amount'),
+                'payouts_pending_count' => $direct ? 0 : Payout::query()->whereIn('status', ['pending', 'processing'])->count(),
+                'escrow' => $direct ? 0.0 : (float) Load::query()->where('escrow_status', Load::ESCROW_PAID)->sum('price'),
+                'escrow_on_hold' => $direct ? 0.0 : (float) Load::query()->where('escrow_status', Load::ESCROW_ON_HOLD)->sum('price'),
                 'paid_today_count' => (clone $paidOrders)->where('paid_at', '>=', now()->startOfDay())->count(),
                 'paid_today_sum' => (float) (clone $paidOrders)->where('paid_at', '>=', now()->startOfDay())->sum('amount'),
                 'paid_month_count' => (clone $paidOrders)->where('paid_at', '>=', now()->startOfMonth())->count(),
@@ -113,7 +204,7 @@ new class extends Component {
                 <a href="{{ route('admin.disputes') }}" wire:navigate class="text-[11px] text-brand-500 font-semibold mt-1 inline-block">Uyuşmazlıklara git</a>
             @endcan
         </div>
-        @if($finance)
+        @if($finance && ! $finance['direct'])
             <div class="apple-glass rounded-2xl p-5">
                 <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Ödeme bekleyen hakediş</span>
                 <p class="mt-2 text-2xl font-bold text-neutral-900 dark:text-white">{{ number_format($finance['payouts_pending'], 2, ',', '.') }} ₺</p>
@@ -187,7 +278,7 @@ new class extends Component {
                         <tr>
                             <td class="py-2 pr-4 whitespace-nowrap text-neutral-500" data-label="Zaman">{{ $log->created_at?->format('d.m.Y H:i') }}</td>
                             <td class="py-2 pr-4 whitespace-nowrap" data-label="Personel">{{ $log->user?->full_name ?? 'Sistem' }}</td>
-                            <td class="py-2 pr-4 whitespace-nowrap font-mono text-[11px]" data-label="İşlem">{{ $log->action }}</td>
+                            <td class="py-2 pr-4 whitespace-nowrap text-[11px]" data-label="İşlem" title="{{ $log->action }}">{{ $this->actionLabel($log->action) }}</td>
                             <td class="py-2 text-neutral-600 dark:text-neutral-300 tc-block" data-label="Açıklama">{{ $log->description }}</td>
                         </tr>
                     @empty

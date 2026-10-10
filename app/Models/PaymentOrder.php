@@ -12,6 +12,25 @@ class PaymentOrder extends Model
 {
     use HasFactory, HasPublicId;
 
+    /** Yönetici ekranlarında gösterilen Türkçe durum adları. */
+    public const STATUS_LABELS = [
+        'created' => 'Oluşturuldu',
+        'pending' => 'Bekliyor',
+        'paid' => 'Ödendi',
+        'failed' => 'Başarısız',
+        'cancelled' => 'İptal',
+        'expired' => 'Süresi doldu',
+        'refund_pending' => 'İade bekliyor',
+        'refunded' => 'İade edildi',
+    ];
+
+    /** Ödeme emrinin amacı (PaymentService::PURPOSE_*). */
+    public const PURPOSE_LABELS = [
+        'subscription' => 'Premium üyelik',
+        'escrow' => 'Navlun',
+        'freight' => 'Navlun',
+    ];
+
     protected $fillable = [
         'load_id',
         'user_id',
@@ -52,6 +71,16 @@ class PaymentOrder extends Model
         'failed_at' => 'datetime',
         'refunded_at' => 'datetime',
     ];
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? (string) $this->status;
+    }
+
+    public function purposeLabel(): string
+    {
+        return self::PURPOSE_LABELS[$this->purpose] ?? (string) $this->purpose;
+    }
 
     public function cargoLoad(): BelongsTo
     {

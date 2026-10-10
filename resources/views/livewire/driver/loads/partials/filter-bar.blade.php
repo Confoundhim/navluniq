@@ -3,11 +3,14 @@
 @php
     $f = $normalizedFilters;
     $isExternal = $tab === 'external';
-    $quick = [
+    // Eksik bilgili bölümde araç süzgeci uygulanmaz; çip gösterilmez (açık görünüp sayılmasın).
+    $quick = $isExternal && $incomplete ? [] : [
         ['key' => 'mine', 'label' => 'Aracıma uygun', 'on' => $f['vehicle_mode'] === 'mine'],
+    ];
+    $quick = array_merge($quick, [
         ['key' => 'priced', 'label' => 'Fiyatlı', 'on' => $f['only_priced'] || $f['min_price'] !== null],
         ['key' => 'today', 'label' => 'Bugün', 'on' => $f['seen_within_hours'] === '24'],
-    ];
+    ]);
     if ($isExternal) {
         $quick[] = ['key' => 'urgent', 'label' => 'Acil', 'on' => $f['urgent']];
     }
@@ -28,7 +31,9 @@
     $section = 'space-y-2';
     $heading = 'text-2xs font-bold uppercase tracking-wider text-neutral-400';
 @endphp
-<div x-data="{ sheet: $wire.entangle('advancedOpen') }" x-init="$watch('sheet', v => document.body.classList.toggle('overflow-hidden', v))" class="space-y-3">
+<div x-data="{ sheet: $wire.entangle('advancedOpen') }"
+     x-init="document.body.classList.toggle('overflow-hidden', !!sheet); $watch('sheet', v => document.body.classList.toggle('overflow-hidden', v)); document.addEventListener('livewire:navigating', () => document.body.classList.remove('overflow-hidden'), { once: true })"
+     class="space-y-3">
     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 sm:p-4 space-y-3 text-xs">
         {{-- Arama + Filtreler --}}
         <div class="flex items-center gap-2">

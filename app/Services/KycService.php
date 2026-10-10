@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ActivityLog;
 use App\Models\KycDocument;
 use App\Models\User;
+use App\Support\FreightPayment;
 use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -158,7 +159,7 @@ class KycService
         });
         $isDriver = $role === 'driver';
         $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
-            ['Belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzunu görebilir ve yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
+            ['Belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzunu görebilir ve yüklere teklif verebilirsiniz.' : (FreightPayment::direct() ? 'Artık teklifleri kabul edebilirsiniz; ilanlarınızda doğrulanmış yük sahibi rozeti görünür.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.'))],
             route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
         if ($isDriver) {
             $this->startTrialQuietly($user);
@@ -236,7 +237,7 @@ class KycService
         } elseif ($profile?->kyc_status === 'approved') {
             $isDriver = array_key_exists($document->document_type, KycDocument::DRIVER_TYPES);
             $this->notifications->notify($user, 'Belge doğrulamanız tamamlandı',
-                ['Tüm belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzundaki yüklere teklif verebilirsiniz.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.')],
+                ['Tüm belgeleriniz onaylandı. '.($isDriver ? 'Artık ilan havuzundaki yüklere teklif verebilirsiniz.' : (FreightPayment::direct() ? 'Artık teklifleri kabul edebilirsiniz; ilanlarınızda doğrulanmış yük sahibi rozeti görünür.' : 'Artık teklifleri kabul edip navlun ödemesi yapabilirsiniz.'))],
                 route($isDriver ? 'driver.loads.index' : 'cargo-owner.loads.index'), $isDriver ? 'İlan havuzuna git' : 'İlanlarıma git', 'kyc');
             if ($isDriver) {
                 $this->startTrialQuietly($user);

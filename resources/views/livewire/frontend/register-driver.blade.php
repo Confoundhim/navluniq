@@ -306,7 +306,7 @@ new class extends Component {
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1">
                         <label class="form-label">E-Posta</label>
-                        <input type="email" wire:model="email" placeholder="sofor@hotmail.com" class="form-input">
+                        <input type="email" wire:model="email" placeholder="ornek@eposta.com" class="form-input">
                         @error('email') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
                     <div class="space-y-1">
@@ -360,7 +360,7 @@ new class extends Component {
                 </div>
 
                 <button type="submit" class="btn-primary w-full py-3">
-                    <span wire:loading.remove wire:target="registerDriver">Şoför Kaydını Başlat (E-Posta OTP Al)</span>
+                    <span wire:loading.remove wire:target="registerDriver">Kaydol ve doğrulama kodunu al</span>
                     <span wire:loading wire:target="registerDriver">Bilgiler Kaydediliyor...</span>
                 </button>
 

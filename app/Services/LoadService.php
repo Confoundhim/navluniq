@@ -188,6 +188,9 @@ class LoadService
         if ($source->cargo_owner_profile_id !== $owner->id) {
             throw new RuntimeException('Bu ilan size ait değil.');
         }
+        if (! in_array($source->status, [Load::STATUS_COMPLETED, Load::STATUS_CANCELLED], true)) {
+            throw new RuntimeException('Yalnız tamamlanmış ya da iptal edilmiş ilan yeniden yayınlanabilir.');
+        }
         $pickupDate = ($pickupDate ?? now()->addDay())->copy()->startOfDay();
         if ($pickupDate->lt(today())) {
             throw new RuntimeException('Yükleme tarihi bugünden önce olamaz.');
@@ -248,6 +251,58 @@ class LoadService
                 $notifications->notify($driverUser, 'İlan iptal edildi',
                     ["{$load->pickup_location} → {$load->delivery_location} ilanı yük sahibi tarafından iptal edildi; ".($offer->status === 'accepted' ? 'kabul edilmiş teklifiniz ve sevkiyat kaydı kapandı.' : 'teklifiniz kapandı.'),
                         $reason ? 'Yük sahibinin açıklaması: '.mb_substr($reason, 0, 300) : 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
+                    route('driver.loads.index'), 'İlan havuzuna git', 'load');
+            }
+        }
+    }
+
+    /**
+     * Yönetici (operasyon) iptali, ödemesi alınmamış ilan: doğrudan kipte ya da ödeme bekleyen ilan askıya alınır, bekleyen/kabul
+     * edilmiş teklifler reddedilir, sevkiyat satırı ve şoförün açık işi (DriverTrip) kapanır; yük sahibi ve teklif veren şoförler
+     * bilgilendirilir. Yola çıkmış ya da ödemesi alınmış ilan buradan iptal edilmez (cancelPaid / uyuşmazlık).
+     */
+    public function cancelByAdmin(Load $load, User $admin, ?string $reason = null): void
+    {
+        $reason = trim((string) $reason);
+        $affected = collect();
+        $locked = DB::transaction(function () use ($load, $admin, $reason, &$affected): Load {
+            $locked = Load::query()->lockForUpdate()->find($load->id);
+            if (! $locked) {
+                throw new RuntimeException('İlan bulunamadı.');
+            }
+            // Doğrudan ödeme kipindeki ilan (para platformda değil) yola çıkılana kadar aynı yoldan askıya alınır.
+            if (! in_array($locked->escrow_status, [Load::ESCROW_PENDING, Load::ESCROW_DIRECT], true) || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
+                throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
+            }
+            self::closeOpenOrders($locked); // ödeme ekranı yeni açılmışsa iptal reddedilir, eski açık emirler kapanır
+
+            $affected = $locked->offers()->with('driverProfile.user')->whereIn('status', ['pending', 'accepted'])->get();
+            $locked->offers()->whereIn('status', ['pending', 'accepted'])->update(['status' => 'rejected', 'responded_at' => now()]);
+            $locked->shipment()->update(['status' => Shipment::STATUS_CANCELLED]);
+            $locked->update([
+                'status' => Load::STATUS_CANCELLED,
+                'rejection_reason' => 'Yönetici kararı: '.mb_substr($reason, 0, 900),
+                'cancelled_at' => now(),
+                'visibility' => 'private',
+            ]);
+
+            ActivityLog::record('load.suspended', "İlan #{$locked->id} yönetici tarafından iptal edildi: {$reason}", $admin->id, $locked);
+
+            return $locked;
+        });
+        app(DriverTripService::class)->closeForLoad($locked->id);
+
+        $notifications = app(NotificationService::class);
+        if ($owner = $locked->cargoOwnerProfile?->user) {
+            $notifications->notify($owner, 'İlanınız yönetici tarafından kaldırıldı',
+                ["#{$locked->id} numaralı ilanınız platform kuralları gereği yayından kaldırıldı.", 'Gerekçe: '.mb_substr($reason, 0, 300)],
+                route('cargo-owner.loads.index'), 'İlanlarımı gör', 'load');
+        }
+        foreach ($affected as $offer) {
+            if ($driverUser = $offer->driverProfile?->user) {
+                $notifications->notify($driverUser, 'İlan iptal edildi',
+                    ["{$locked->pickup_location} → {$locked->delivery_location} ilanı yönetici tarafından kaldırıldı; ".($offer->status === 'accepted' ? 'kabul edilmiş teklifiniz ve iş kaydınız kapandı.' : 'teklifiniz kapandı.'),
+                        $reason !== '' ? 'Gerekçe: '.mb_substr($reason, 0, 300) : 'İlan havuzunda size uygun başka yükler sizi bekliyor.'],
                     route('driver.loads.index'), 'İlan havuzuna git', 'load');
             }
         }
@@ -376,14 +431,14 @@ class LoadService
                 $due = $load->delivery_date?->format('d.m.Y') ?? $load->pickup_date?->format('d.m.Y');
                 if ($driver = $load->driverProfile?->user) {
                     $notifications->notify($driver, 'Teslimat bildirimi bekleniyor',
-                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin; navlun ödemeniz yük sahibinin onayıyla başlar.",
+                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin".($load->isDirectPayment() ? '; yük sahibi onaylayınca sevkiyat kapanır.' : '; navlun ödemeniz yük sahibinin onayıyla başlar.'),
                             'Yolda bir sorun varsa yük sahibiyle görüşün; gecikme uzarsa yük sahibi uyuşmazlık açabilir.'],
                         route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
                 }
                 if ($owner = $load->cargoOwnerProfile?->user) {
                     $notifications->notify($owner, 'Sevkiyat teslim tarihini geçti',
-                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi. Navlun bedeliniz ödeme kuruluşunda bekliyor.",
-                            'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
+                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi.".($load->isDirectPayment() ? '' : ' Navlun bedeliniz ödeme kuruluşunda bekliyor.'),
+                            $load->isDirectPayment() ? 'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz.' : 'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
                         route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
                 }
                 $notifications->notifyAdmins('manage operations', 'Yolda takılan sevkiyat',

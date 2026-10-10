@@ -55,7 +55,13 @@ class extends Component {
         if (! $card) {
             return;
         }
-        $subscriptions->deleteStoredCard($user, $card);
+        try {
+            $subscriptions->deleteStoredCard($user, $card);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
         session()->flash('success_message', 'Kayıtlı kart silindi; otomatik yenileme kapatıldı.');
     }
 
@@ -109,6 +115,13 @@ class extends Component {
 
 <div class="space-y-6">
 
+    @if (session()->has('success_message'))
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">{{ session('success_message') }}</div>
+    @endif
+    @if (session()->has('error_message'))
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
+    @endif
+
     @php
         $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes();
         $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
@@ -130,7 +143,7 @@ class extends Component {
                         </div>
                         <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                             @if($trialEndsAt)
-                                Deneme süreniz {{ $trialEndsAt->format('d.m.Y H:i') }} tarihine kadar; ücret alınmaz, sonra isterseniz aylık devam edersiniz.
+                                Deneme süreniz {{ $trialEndsAt->format('d.m.Y H:i') }} tarihine kadar; ücret alınmaz, sonra isterseniz 1, 3, 6 ya da 12 aylık devam edersiniz.
                             @elseif($isPremium)
                                 {{ $premiumUntil->format('d.m.Y H:i') }} tarihine kadar geçerli.
                             @elseif($premiumUntil)
@@ -250,10 +263,12 @@ class extends Component {
                     </div>
                     <div class="p-4 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-bold">Grup ilanları yalnız size</div>
-                        <div class="text-neutral-500 dark:text-neutral-400">Numaralar yalnız o ilan için ilan sahibiyle görüşmeniz içindir; üçüncü kişilerle paylaşılamaz (Kullanıcı Sözleşmesi md. 3.4). İzinli gruplardan derlenip onaylanan dış kaynak ilanları ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
+                        <div class="text-neutral-500 dark:text-neutral-400">Numaralar yalnız o ilan için ilan sahibiyle görüşmeniz içindir; üçüncü kişilerle paylaşılamaz (Kullanıcı Sözleşmesi md. 3.4). Gruplardan ve web mecralarından derlenen ilanlar ilan sahibinin telefon numarasıyla yalnız premium üyelere gösterilir; standart üyeler bu ilanları görmez.</div>
                     </div>
                 </div>
-                <p class="text-2xs text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
+                @unless(\App\Support\FreightPayment::direct())
+                    <p class="text-2xs text-neutral-500">Platform hizmet bedeli (%{{ number_format($standardRate, 1, ',', '.') }}) üyelik türünden bağımsızdır; premium ile değişmez.</p>
+                @endunless
             </div>
         </div>
 
@@ -261,7 +276,7 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
                 <h3 class="section-title">Abonelik faturaları</h3>
                 @forelse($invoices as $invoice)
-                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2" wire:key="inv-{{ $invoice->id }}">
                         <div>
                             <div class="text-neutral-900 dark:text-white font-semibold">{{ $invoice->invoice_no ?: 'Numara bekleniyor' }}</div>
                             <div class="text-2xs text-neutral-500">{{ $invoice->issued_at?->format('d.m.Y H:i') ?? $invoice->created_at?->format('d.m.Y H:i') }}</div>

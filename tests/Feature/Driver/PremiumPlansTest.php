@@ -97,6 +97,34 @@ class PremiumPlansTest extends TestCase
         $this->assertSame(12, (int) PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->value('subscription_months'));
     }
 
+    public function test_checkout_asks_identity_once_when_profile_has_none(): void
+    {
+        Settings::set('payment_provider', 'iyzico');
+        Settings::set('iyzico_api_key', 'sandbox-x');
+        Settings::set('iyzico_secret_key', 'sandbox-y');
+        Settings::set('iyzico_sandbox', '1');
+        Http::fake(['sandbox-api.iyzipay.com/*' => Http::response(['status' => 'failure', 'errorMessage' => 'deneme'])]);
+        $driver = $this->driver();
+        $driver->driverProfile->update(['identity_number' => null]);
+        $this->actingAs($driver->fresh());
+
+        // Kimliği olmayan şoför: TC alanı görünür, boş ya da geçersiz TC ile sipariş açılmaz
+        $this->get(route('driver.premium.checkout', ['sure' => 3]))->assertOk()
+            ->assertSee('T.C. kimlik numarası')->assertSee('fatura için ister');
+        $c = Volt::test('driver.premium.checkout', ['sure' => 3])->set('accepted', true)->call('pay')->assertHasErrors(['identityNumber']);
+        $c->set('identityNumber', '12345678901')->call('pay')->assertHasErrors(['identityNumber']);
+        $this->assertSame(0, PaymentOrder::query()->where('user_id', $driver->id)->count(), 'Kimliksiz sipariş açılmaz');
+        $this->assertNull($driver->driverProfile->fresh()->identity_number);
+
+        // Geçerli TC: profile yazılır, sipariş açılır
+        $c->set('identityNumber', '100 000 001 46')->call('pay')->assertHasNoErrors();
+        $this->assertSame('10000000146', $driver->driverProfile->fresh()->identity_number);
+        $this->assertSame(1, PaymentOrder::query()->where('user_id', $driver->id)->count());
+
+        // Kimliği olan şoför alanı görmez
+        $this->get(route('driver.premium.checkout', ['sure' => 3]))->assertOk()->assertDontSee('fatura için ister');
+    }
+
     public function test_active_premium_sees_extension_warning_and_new_end_date(): void
     {
         Settings::set('payment_provider', 'iyzico');

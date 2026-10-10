@@ -61,11 +61,13 @@ class DisputeService
 
         if ($driverUser = $load->driverProfile?->user) {
             $this->notifications->notify($driverUser, 'Sevkiyatınız için uyuşmazlık açıldı',
-                ['Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi. Navlun ödemesi karar verilene kadar askıya alındı. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'],
+                [$load->isDirectPayment()
+                    ? 'Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi; karar verilene kadar sevkiyat askıda. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'
+                    : 'Yük sahibi sevkiyat hakkında bir uyuşmazlık bildirdi. Navlun ödemesi karar verilene kadar askıya alındı. Lütfen savunmanızı ve kanıtlarınızı yükleyin.'],
                 route('driver.disputes.index'), 'Savunma yap', 'dispute');
         }
         $this->notifications->notifyAdmins('manage disputes', 'Yeni uyuşmazlık açıldı',
-            ["Sevkiyat #{$load->id} ({$load->pickup_location} → {$load->delivery_location}) için yük sahibi uyuşmazlık bildirdi; navlun ödemesi askıya alındı.", 'Şoför savunmasını sunduktan sonra karar bekliyor.'],
+            ["Sevkiyat #{$load->id} ({$load->pickup_location} → {$load->delivery_location}) için yük sahibi uyuşmazlık bildirdi; ".($load->isDirectPayment() ? 'sevkiyat askıya alındı (navlun taraflar arasında).' : 'navlun ödemesi askıya alındı.'), 'Şoför savunmasını sunduktan sonra karar bekliyor.'],
             route('admin.disputes'), 'Uyuşmazlıkları incele', 'admin');
 
         return $dispute;

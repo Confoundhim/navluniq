@@ -29,4 +29,14 @@ class SendNotificationMail implements ShouldQueue
         }
         $notifications->sendMail($notification);
     }
+
+    /** İş tüm denemelerde düştü (zaman aşımı, işçi hatası): kayıt "bekliyor"da kalmaz, "başarısız" olur ve retry-mail yeniden dener. */
+    public function failed(?\Throwable $e = null): void
+    {
+        UserNotification::query()->whereKey($this->notificationId)->where('mail_status', UserNotification::MAIL_PENDING)->update([
+            'mail_status' => UserNotification::MAIL_FAILED,
+            'mail_error' => mb_substr('Kuyruk işi düştü: '.($e?->getMessage() ?? 'bilinmeyen hata'), 0, 1000),
+            'updated_at' => now(),
+        ]);
+    }
 }

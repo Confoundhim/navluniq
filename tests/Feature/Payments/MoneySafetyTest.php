@@ -278,8 +278,15 @@ class MoneySafetyTest extends TestCase
     {
         $owner = User::factory()->create();
         $load = $this->assignedLoad($owner, $this->driver());
-        $again = app(LoadService::class)->repeat($load, $owner->cargoOwnerProfile);
-        $this->assertSame([['tenteli'], 'komple'], [$again->body_types, $again->load_kind]);
+        // Yalnız tamamlanmış/iptal edilmiş ilan yeniden yayınlanır (aktif ilan iki kez listelenmesin).
+        $this->expectExceptionMessage('tamamlanmış ya da iptal edilmiş');
+        try {
+            app(LoadService::class)->repeat($load, $owner->cargoOwnerProfile);
+        } finally {
+            $load->forceFill(['status' => Load::STATUS_COMPLETED])->save();
+            $again = app(LoadService::class)->repeat($load->fresh(), $owner->cargoOwnerProfile);
+            $this->assertSame([['tenteli'], 'komple'], [$again->body_types, $again->load_kind]);
+        }
     }
 
     /** V4: aynı ilan için ikinci bir emrin "başarılı" bildirimi havuzu ikinci kez doldurmaz; para iade edilir. */

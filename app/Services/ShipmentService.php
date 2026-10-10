@@ -213,8 +213,8 @@ class ShipmentService
                 $count++;
                 $due = $shipment->auto_approval_due_at;
                 $this->notifications->notify($owner, 'Teslimatı onaylamanız bekleniyor',
-                    ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için şoför teslimat kanıtını yükledi. {$due->format('d.m.Y H:i')} tarihine kadar onaylamaz ya da sorun bildirmezseniz teslimat kendiliğinden onaylanır ve navlun şoföre aktarılır.",
-                        'Yükte sorun varsa aynı sayfadan uyuşmazlık açın; onay ve ödeme o zaman durur.'],
+                    ["{$load->pickup_location} → {$load->delivery_location} sevkiyatı için şoför teslimat kanıtını yükledi. {$due->format('d.m.Y H:i')} tarihine kadar onaylamaz ya da sorun bildirmezseniz teslimat kendiliğinden onaylanır".($load->isDirectPayment() ? '.' : ' ve navlun şoföre aktarılır.'),
+                        $load->isDirectPayment() ? 'Yükte sorun varsa aynı sayfadan uyuşmazlık açın; onay o zaman durur.' : 'Yükte sorun varsa aynı sayfadan uyuşmazlık açın; onay ve ödeme o zaman durur.'],
                     route('cargo-owner.shipments.show', $load->id), 'Teslimatı onayla', 'shipment');
             });
 

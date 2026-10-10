@@ -8,6 +8,7 @@ use App\Models\Payout;
 use App\Services\BankAccountService;
 use App\Services\LedgerService;
 use App\Services\PayoutService;
+use App\Support\FreightPayment;
 use App\Support\Settings;
 use Livewire\Volt\Component;
 use Livewire\WithPagination;
@@ -37,6 +38,10 @@ new class extends Component {
     {
         abort_unless(auth()->user()->can('view financials'), 403);
         $this->exportMonth = now()->format('Y-m');
+        if (FreightPayment::direct()) {
+            // Doğrudan kipte hakediş yok; premium ödemeleri "Ödeme emirleri" sekmesindedir.
+            $this->activeTab = 'orders';
+        }
     }
 
     public function updatedActiveTab(): void
@@ -229,7 +234,8 @@ new class extends Component {
     {
         $data = [
             'canManage' => auth()->user()->can('manage payouts'),
-            'rates' => [
+            'direct' => FreightPayment::direct(),
+            'rates' => FreightPayment::direct() ? [] : [
                 'Standart şoför komisyonu' => Settings::float('commission_standard_driver'),
                 'Yük sahibi hizmet bedeli' => Settings::float('commission_cargo_owner'),
             ],
@@ -286,13 +292,15 @@ new class extends Component {
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Finans ve Muhasebe</h1>
-            <p class="page-subtitle">Hakediş ödemeleri banka transferi sonrasında elle işaretlenir; havuz bakiyesi yalnız ödeme bildirimi ve uyuşmazlık kararıyla değişir.</p>
+            <p class="page-subtitle">@if($direct)Navlun taraflar arasında ödenir; platform tahsilat yapmaz, komisyon almaz. Buradaki kayıtlar premium üyelik ödemeleridir.@else Hakediş ödemeleri banka transferi sonrasında elle işaretlenir; havuz bakiyesi yalnız ödeme bildirimi ve uyuşmazlık kararıyla değişir.@endif</p>
         </div>
-        <div class="flex flex-wrap gap-2 text-[11px]">
-            @foreach($rates as $label => $rate)
-                <span class="px-3 py-1.5 rounded-full bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $label }}: %{{ number_format($rate, 2, ',', '.') }}</span>
-            @endforeach
-        </div>
+        @if($rates !== [])
+            <div class="flex flex-wrap gap-2 text-[11px]">
+                @foreach($rates as $label => $rate)
+                    <span class="px-3 py-1.5 rounded-full bg-neutral-500/10 text-neutral-600 dark:text-neutral-300">{{ $label }}: %{{ number_format($rate, 2, ',', '.') }}</span>
+                @endforeach
+            </div>
+        @endif
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
@@ -308,6 +316,7 @@ new class extends Component {
                 <option value="processing">Transfer yapılıyor</option>
                 <option value="failed">Düzeltme bekleyen (başarısız)</option>
                 <option value="paid">Ödendi</option>
+                <option value="cancelled">{{ \App\Models\Payout::STATUS_LABELS['cancelled'] }}</option>
                 <option value="all">Tümü</option>
             </select>
             <form wire:submit="exportCsv" class="flex gap-2 sm:ml-auto">
@@ -402,7 +411,7 @@ new class extends Component {
         <div class="apple-glass p-3 rounded-2xl">
             <select wire:model.live="orderStatus" class="{{ $input }} sm:w-56">
                 <option value="all">Tüm durumlar</option>
-                @foreach(['created' => 'Oluşturuldu', 'pending' => 'Ödeme bekleniyor', 'paid' => 'Ödendi', 'failed' => 'Başarısız', 'cancelled' => 'İptal edildi', 'refund_pending' => 'İade bekliyor', 'refunded' => 'İade edildi'] as $value => $label)
+                @foreach(\App\Models\PaymentOrder::STATUS_LABELS as $value => $label)
                     <option value="{{ $value }}">{{ $label }}</option>
                 @endforeach
             </select>
@@ -423,11 +432,11 @@ new class extends Component {
                     <tbody class="divide-y divide-neutral-100 dark:divide-neutral-800/40">
                         @forelse($orders as $order)
                             <tr>
-                                <td class="p-4 font-mono">{{ $order->merchant_oid }}<div class="text-[11px] text-neutral-400 font-sans">{{ $order->provider }} · {{ $order->purpose }}</div></td>
-                                <td class="p-4" data-label="İlan">#{{ $order->load_id }}<div class="text-[11px] text-neutral-400">{{ $order->cargoLoad?->pickup_location }} → {{ $order->cargoLoad?->delivery_location }}</div></td>
+                                <td class="p-4 font-mono">{{ $order->merchant_oid }}<div class="text-[11px] text-neutral-400 font-sans">{{ $order->provider }} · {{ $order->purposeLabel() }}</div></td>
+                                <td class="p-4" data-label="İlan">@if($order->load_id)#{{ $order->load_id }}<div class="text-[11px] text-neutral-400">{{ $order->cargoLoad?->pickup_location }} → {{ $order->cargoLoad?->delivery_location }}</div>@else<span class="text-neutral-400">—</span>@endif</td>
                                 <td class="p-4" data-label="Ödeyen">{{ $order->user?->full_name ?? '—' }}</td>
                                 <td class="p-4 whitespace-nowrap font-semibold" data-label="Tutar">{{ number_format((float) $order->amount, 2, ',', '.') }} ₺<div class="text-[11px] font-normal text-neutral-400">Hizmet bedeli {{ number_format((float) $order->service_fee_amount, 2, ',', '.') }} ₺</div></td>
-                                <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->status }}</span></td>
+                                <td class="p-4" data-label="Durum"><span class="px-2 py-1 rounded-full text-[10px] font-semibold {{ $order->status === 'paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-neutral-500/10 text-neutral-500' }}">{{ $order->statusLabel() }}</span></td>
                                 <td class="p-4 whitespace-nowrap text-neutral-500" data-label="Tarih">{{ ($order->paid_at ?? $order->created_at)?->format('d.m.Y H:i') }}
                                     @if($order->failure_message)<div class="text-[11px] text-red-600 whitespace-normal">{{ $order->failure_message }}</div>@endif
                                     @if($order->status === 'refund_pending' && $canManage)
@@ -455,7 +464,7 @@ new class extends Component {
                 <div class="apple-glass rounded-2xl p-5">
                     <span class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">{{ $account['name'] }}</span>
                     <p class="mt-2 text-xl font-bold text-neutral-900 dark:text-white">{{ number_format($account['balance'], 2, ',', '.') }} ₺</p>
-                    <p class="text-[11px] text-neutral-400 mt-1 font-mono">{{ $account['code'] }} · {{ $account['type'] }}</p>
+                    <p class="text-[11px] text-neutral-400 mt-1 font-mono">{{ $account['code'] }} · {{ ['asset' => 'Varlık', 'liability' => 'Borç', 'revenue' => 'Gelir', 'expense' => 'Gider'][$account['type']] ?? $account['type'] }}</p>
                 </div>
             @endforeach
         </div>

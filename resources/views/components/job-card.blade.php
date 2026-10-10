@@ -40,7 +40,7 @@
                     <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="{{ $load->isDirectPayment() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : ($load->isPaid() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : 'Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?') }}" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
                 @endif
             @else
-                @if(in_array($trip->status, ['planned', 'on_the_way'], true))<button type="button" wire:click="setStatus({{ $trip->id }}, 'delivered')" class="load-card-action-ghost">Teslim ettim</button>@endif
+                @if($trip->status === 'on_the_way')<button type="button" wire:click="setStatus({{ $trip->id }}, 'delivered')" class="load-card-action-ghost">Teslim ettim</button>@endif
                 @if($trip->canCloseManually())<button type="button" wire:click="setStatus({{ $trip->id }}, 'closed')" wire:confirm="İş kapatılsın mı? Dönüş yükü bildirimi durur." class="load-card-action-ghost text-neutral-500">Kapat</button>@endif
             @endif
         </div>
@@ -48,10 +48,14 @@
 
     @if($trip->isOpen())
         <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <label class="inline-flex items-center gap-2 cursor-pointer text-neutral-600 dark:text-neutral-300">
-                <input type="checkbox" wire:click="toggleNotify({{ $trip->id }})" @checked($trip->notify_return) class="rounded">
-                Dönüş yükü çıkınca bildir
-            </label>
+            @if($isPremium)
+                <label class="inline-flex items-center gap-2 cursor-pointer text-neutral-600 dark:text-neutral-300">
+                    <input type="checkbox" wire:click="toggleNotify({{ $trip->id }})" @checked($trip->notify_return) class="rounded">
+                    Dönüş yükü çıkınca bildir
+                </label>
+            @else
+                <span class="text-neutral-500 dark:text-neutral-400">Dönüş yükleri burada görünür</span>
+            @endif
             <button type="button" wire:click="toggleReturnLoads({{ $trip->id }})" class="text-brand-500 font-bold hover:underline text-left">
                 {{ $expanded ? 'Dönüş yüklerini gizle' : 'Dönüş yüklerini göster' }} ({{ $trip->delivery_location ?: 'varış' }} çevresi)
             </button>
@@ -65,7 +69,7 @@
                     <x-external-load-card :item="$item" variant="return" :saved="in_array($item->id, $savedExternalIds, true)" :taken="in_array($item->id, $takenExternalIds, true)" wire:key="rl-e-{{ $trip->id }}-{{ $item->id }}" />
                 @endforeach
                 @if($returnLoads['system']->isEmpty() && $returnLoads['external']->isEmpty())
-                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-neutral-500">Şu anda {{ $trip->delivery_location ?: 'varış yeri' }} çevresinden çıkan, aracınıza uyan ilan yok. Yeni ilan gelince {{ $trip->notify_return ? 'bildirilecek' : 'burada görünecek' }}.@if(! $isPremium) Gruptan derlenen ilanlar premium üyelere gösterilir.@endif</div>
+                    <div class="p-4 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-neutral-500">Şu anda {{ $trip->delivery_location ?: 'varış yeri' }} çevresinden çıkan, aracınıza uyan ilan yok. Yeni ilan gelince {{ $isPremium && $trip->notify_return ? 'bildirilecek' : 'burada görünecek' }}.@if(! $isPremium) Gruptan derlenen ilanlar premium üyelere gösterilir.@endif</div>
                 @endif
             </div>
         @endif

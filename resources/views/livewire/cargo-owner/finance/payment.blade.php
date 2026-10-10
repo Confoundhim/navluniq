@@ -138,7 +138,9 @@ class extends Component {
         $payments = app(PaymentService::class);
 
         // Doğrudan kip: ilan doğrudan ödemeli ya da (henüz platform akışı başlamamışken) genel ayar doğrudan ise ödeme ekranı yerine açıklama.
-        $directLoad = $load && ($load->isDirectPayment() || (\App\Support\FreightPayment::direct() && empty($load->escrow_status)));
+        // publish() havuzu hep 'pending_payment' yazar; teklif kabul edilmemiş ilanda da platform akışı başlamış sayılmaz.
+        $directLoad = $load && ($load->isDirectPayment() || (\App\Support\FreightPayment::direct() && ! $load->isPaid()
+            && ! ($load->status === \App\Models\Load::STATUS_ASSIGNED && $load->escrow_status === \App\Models\Load::ESCROW_PENDING)));
 
         return [
             'load' => $load,

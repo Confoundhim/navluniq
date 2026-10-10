@@ -11,8 +11,10 @@ use App\Models\Subscription;
 use App\Models\SubscriptionCycle;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Payments\GatewayManager;
 use App\Support\Settings;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -36,6 +38,15 @@ class SubscriptionService
     public const RENEWAL_RETRY_HOURS = 24;
 
     public const RENEWAL_MAX_ATTEMPTS = 3;
+
+    /** Dönem bittikten sonra yenileme çekiminin yine denendiği süre (saat); bu sürede abonelik kapanmaz (M7). */
+    public const RENEWAL_GRACE_HOURS = 24;
+
+    /** Kuruluşa ulaşılamayan (sonucu belirsiz) çekimden sonra yeniden deneme aralığı (saat). */
+    public const RENEWAL_TRANSPORT_RETRY_HOURS = 2;
+
+    /** Ödenmiş ama etkinleşmemiş abonelik emirlerinin mutabakat penceresi (gün). */
+    public const RECONCILE_DAYS = 14;
 
     public function __construct(
         private readonly PaymentService $payments,
@@ -218,7 +229,7 @@ class SubscriptionService
 
         $this->notifications->notify($user, 'Premium üyelik hediye edildi',
             ["Hesabınıza {$days} günlük premium üyelik tanımlandı; ".$profile->fresh()->premium_until->format('d.m.Y H:i').' tarihine kadar geçerli.',
-                'Yeni ilanları herkesten 20 dakika önce görür, anında bildirim alırsınız; yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görürsünüz.'],
+                (($lead = app(LoadReleaseService::class)->delayMinutes()) > 0 ? "Yeni ilanları herkesten {$lead} dakika önce görür" : 'Yeni ilanları yayınlandığı anda görür').', anında bildirim alırsınız; gruplardan derlenen ilanlar ilan bilgileriyle yalnız size açılır.'],
             route('driver.premium.index'), 'Premium sayfam', 'subscription');
 
         return $subscription;
@@ -412,7 +423,7 @@ class SubscriptionService
 
             return $subscription;
         }
-        $lines = [$months.' aylık premium üyeliğiniz '.$until.' tarihine kadar geçerli. Onaylı dış kaynak ilanlarını artık herkesten önce, ilan sahibinin numarasıyla görüyorsunuz.'];
+        $lines = [$months.' aylık premium üyeliğiniz '.$until.' tarihine kadar geçerli. Gruplardan derlenen ilanları artık ilan bilgileriyle görüyor, yeni ilanlara herkesten önce ulaşıyorsunuz.'];
         if ($autoRenew) {
             $lines[] = 'Otomatik yenileme açık: dönem bitiminden 3 gün önce kayıtlı kartınızdan ('.$card->label().') o günkü '.$months.' aylık ücret çekilir ve üyelik kesintisiz sürer; bedel çekimden önce bildirilir. Premium sayfasından tek dokunuşla kapatabilirsiniz.';
         } elseif ($order->auto_renew) {
@@ -437,7 +448,8 @@ class SubscriptionService
         $providerId = $this->payments->gateway()->id();
         $ids = Subscription::query()->where('plan_code', self::PLAN_PREMIUM_MONTHLY)->where('status', 'active')->where('auto_renew', true)
             ->whereNotNull('stored_card_id')->where('renewal_failures', '<', self::RENEWAL_MAX_ATTEMPTS)
-            ->where('current_period_ends_at', '>', now())->where('current_period_ends_at', '<=', now()->addHours(self::RENEWAL_LEAD_HOURS))
+            // Dönem bittikten sonra RENEWAL_GRACE_HOURS boyunca deneme sürer (banka bir gün kapalıysa üyelik düşmez; M7)
+            ->where('current_period_ends_at', '>', now()->subHours(self::RENEWAL_GRACE_HOURS))->where('current_period_ends_at', '<=', now()->addHours(self::RENEWAL_LEAD_HOURS))
             ->where(fn ($q) => $q->whereNull('next_renewal_attempt_at')->orWhere('next_renewal_attempt_at', '<=', now()))
             ->orderBy('current_period_ends_at')->limit($limit)->pluck('id');
 
@@ -455,12 +467,74 @@ class SubscriptionService
             if (! $subscription) {
                 continue;
             }
-            if ($this->renewOne($subscription->fresh(['user.driverProfile', 'storedCard']), $providerId)) {
-                $renewed++;
+            try {
+                if ($this->renewOne($subscription->fresh(['user.driverProfile', 'storedCard']), $providerId)) {
+                    $renewed++;
+                }
+            } catch (\Throwable $e) {
+                // Tek abonelikteki hata (ör. fiyat ayarı sıfır) döngüyü durdurmaz: çekimsiz başarısızlık sayılır, yönetim günde bir kez duyar (M1).
+                $this->recordRenewalException($subscription->fresh(), $e);
             }
         }
 
         return $renewed;
+    }
+
+    /** Yenileme döngüsünde beklenmedik hata: deneme sayılır (çekim yapılmadı), 24 saat sonra tekrar, yönetime günde bir bildirim. */
+    private function recordRenewalException(Subscription $subscription, \Throwable $e): void
+    {
+        Log::error('Abonelik yenilemesi hata verdi.', ['subscription' => $subscription->id, 'error' => $e->getMessage()]);
+        $failures = (int) $subscription->renewal_failures + 1;
+        $subscription->update([
+            'renewal_failures' => $failures,
+            'last_renewal_error' => mb_substr('Sistem hatası: '.$e->getMessage(), 0, 255),
+            'next_renewal_attempt_at' => $failures >= self::RENEWAL_MAX_ATTEMPTS ? null : now()->addHours(self::RENEWAL_RETRY_HOURS),
+        ]);
+        if (Cache::add('subscription:renew-error:'.$subscription->id.':'.now()->format('Y-m-d'), 1, now()->addDay())) {
+            $this->notifications->notifyAdmins('manage system', 'Premium yenilemesi hata verdi',
+                ["Abonelik #{$subscription->id} (kullanıcı #{$subscription->user_id}) yenileme döngüsünde hata verdi, çekim yapılmadı: ".mb_substr($e->getMessage(), 0, 300),
+                    'Deneme '.$failures.'/'.self::RENEWAL_MAX_ATTEMPTS.'. Fiyat ayarını (Komisyon ve limitler → Premium aylık ücret) ve ödeme altyapısını kontrol edin.'],
+                route('admin.settings'), 'Ayarlar', 'admin');
+        }
+    }
+
+    /**
+     * Mutabakat (saatlik görev): ödenmiş ama dönemi yazılmamış abonelik emirleri (etkinleştirme bildirim içinde çökmüştü,
+     * işçi kesilmişti vb.) etkinleştirilir. Son RECONCILE_DAYS gün içinde ödenenlere bakılır. Etkinleştirilen emir sayısı döner (H2).
+     */
+    public function reconcilePaidOrders(): int
+    {
+        $orders = PaymentOrder::query()->where('purpose', PaymentService::PURPOSE_SUBSCRIPTION)->where('status', 'paid')
+            ->where('paid_at', '>=', now()->subDays(self::RECONCILE_DAYS))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('subscription_cycles')->whereColumn('subscription_cycles.payment_order_id', 'payment_orders.id'))
+            ->orderBy('id')->limit(100)->get();
+
+        $done = 0;
+        foreach ($orders as $order) {
+            try {
+                if ($this->activate($order, $order->storedCard)) {
+                    $done++;
+                    Log::info('Ödenmiş abonelik emri mutabakatla etkinleştirildi.', ['order' => $order->id]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Abonelik mutabakatı başarısız.', ['order' => $order->id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $done;
+    }
+
+    /**
+     * Bu abonelik için dönem başlangıcından sonra açılmış, ödenmiş ama dönemi yazılmamış yenileme emri (çekim başarılı,
+     * etkinleştirme çökmüş). Varsa yeniden çekilmez; emir etkinleştirilir (H2c).
+     */
+    private function unsettledPaidRenewal(Subscription $subscription): ?PaymentOrder
+    {
+        return PaymentOrder::query()->where('user_id', $subscription->user_id)->where('purpose', PaymentService::PURPOSE_SUBSCRIPTION)
+            ->where('status', 'paid')->whereNotNull('stored_card_id')
+            ->when($subscription->current_period_starts_at, fn ($q) => $q->where('created_at', '>', $subscription->current_period_starts_at))
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('subscription_cycles')->whereColumn('subscription_cycles.payment_order_id', 'payment_orders.id'))
+            ->latest('id')->first();
     }
 
     /** Tek aboneliğin yenileme çekimi; sonuçta abonelik satırını ve bildirimi yazar. */
@@ -474,6 +548,12 @@ class SubscriptionService
 
             return false;
         }
+        // Daha önce çekilmiş ama etkinleşmemiş yenileme emri varsa yeniden çekilmez: o emir etkinleştirilir (çift tahsilat yok).
+        if ($unsettled = $this->unsettledPaidRenewal($subscription)) {
+            Log::warning('Ödenmiş ama etkinleşmemiş yenileme emri bulundu; yeniden çekilmedi.', ['subscription' => $subscription->id, 'order' => $unsettled->id]);
+
+            return $this->activate($unsettled, $unsettled->storedCard ?? $card) !== null;
+        }
         $months = max(1, min(12, (int) $subscription->renew_months ?: 1));
         if (! in_array($months, self::PLAN_MONTHS, true)) {
             $months = 1;
@@ -482,6 +562,19 @@ class SubscriptionService
         $result = $this->payments->chargeRenewal($order, $card);
         if ($result->succeeded) {
             return true; // activate() yenileme alanlarını sıfırladı ve bildirimi gönderdi
+        }
+
+        if ($result->transportError) {
+            // Kuruluşa ulaşılamadı: çekim yapılmış olabilir. Deneme sayılmaz, 2 saat sonra önce akıbet sorulur; yönetim bir kez duyar (H3).
+            $subscription->update(['last_renewal_error' => mb_substr((string) $result->failureMessage, 0, 255), 'next_renewal_attempt_at' => now()->addHours(self::RENEWAL_TRANSPORT_RETRY_HOURS)]);
+            if (Cache::add('subscription:renew-transport:'.$order->id, 1, now()->addDay())) {
+                $this->notifications->notifyAdmins('manage system', 'Ödeme kuruluşuna ulaşılamadı; çekim sonucu belirsiz',
+                    ["Premium yenileme çekiminde kuruluşa ulaşılamadı; işlem durumu belirsiz: emir #{$order->id}, conversationId {$order->merchant_oid}, abonelik #{$subscription->id}. ".mb_substr((string) $result->failureMessage, 0, 200),
+                        self::RENEWAL_TRANSPORT_RETRY_HOURS.' saat sonra önce ödeme sorgulanır, ödenmemişse yeniden çekilir. Kuruluş panelinde bu conversationId ile çekim görünüyorsa emir mutabakatla etkinleşir.'],
+                    route('admin.finance'), 'Finans ekranı', 'admin');
+            }
+
+            return false;
         }
 
         $failures = (int) $subscription->renewal_failures + 1;
@@ -559,20 +652,51 @@ class SubscriptionService
         return true;
     }
 
-    /** Kayıtlı kartı kuruluştan ve NavlunIQ'dan siler; karta bağlı yenilemeler kapanır. */
-    public function deleteStoredCard(User $user, StoredCard $card): void
+    /**
+     * Kayıtlı kartı kuruluştan ve NavlunIQ'dan siler; karta bağlı yenilemeler kapanır. Kuruluş silmeyi reddederse yerel kayıt
+     * DURUR (kuruluşta çekim yapabilen bir kart NavlunIQ'da görünmez kalmasın) ve "tekrar deneyin" hatası fırlatılır (L8);
+     * $force yalnız hesap kapatmada: kuruluş ne derse desin yerel kayıt silinir (kullanıcı bir daha deneyemez).
+     */
+    public function deleteStoredCard(User $user, StoredCard $card, bool $force = false): void
     {
         if ($card->user_id !== $user->id) {
             throw new RuntimeException('Bu kart size ait değil.');
         }
+        // Yenileme her durumda kapanır: kuruluş reddetse de bu kartla çekim yapılmaz.
+        Subscription::query()->where('stored_card_id', $card->id)->update(['auto_renew' => false, 'stored_card_id' => null, 'next_renewal_attempt_at' => null]);
+        $removed = false;
+        $error = null;
         try {
-            $this->payments->gateway()->deleteStoredCard($card);
+            $removed = app(GatewayManager::class)->gateway((string) $card->provider)->deleteStoredCard($card);
         } catch (\Throwable $e) {
+            $error = $e->getMessage();
             Log::warning('Kayıtlı kart kuruluştan silinemedi.', ['card' => $card->id, 'error' => $e->getMessage()]);
         }
-        Subscription::query()->where('stored_card_id', $card->id)->update(['auto_renew' => false, 'stored_card_id' => null, 'next_renewal_attempt_at' => null]);
+        if (! $removed && ! $force) {
+            Log::warning('Kayıtlı kart kuruluşta silinemedi; yerel kayıt korunuyor.', ['card' => $card->id, 'error' => $error]);
+            throw new RuntimeException('Kart silinemedi, tekrar deneyin.');
+        }
         $card->delete();
-        ActivityLog::record('subscription.card_deleted', 'Kayıtlı kart silindi ('.$card->label().')', $user->id);
+        ActivityLog::record('subscription.card_deleted', 'Kayıtlı kart silindi ('.$card->label().')'.($removed ? '' : ' · kuruluşta silinemedi'), $user->id);
+    }
+
+    /**
+     * Hesap kapatma: kullanıcının tüm kayıtlı kartları kuruluştan ve NavlunIQ'dan silinir, sürmekte olan abonelikleri
+     * yenilemesiz kapanır (M2). Kuruluş hatası hesap kapatmayı durdurmaz; günlüğe yazılır.
+     */
+    public function closeForAccountDeletion(User $user): void
+    {
+        foreach (StoredCard::query()->where('user_id', $user->id)->get() as $card) {
+            try {
+                $this->deleteStoredCard($user, $card, force: true);
+            } catch (\Throwable $e) {
+                Log::warning('Hesap kapatmada kayıtlı kart silinemedi.', ['card' => $card->id, 'error' => $e->getMessage()]);
+                $card->delete();
+            }
+        }
+        Subscription::query()->where('user_id', $user->id)->where('status', 'active')
+            ->update(['status' => 'cancelled', 'cancelled_at' => now(), 'ended_at' => now(), 'auto_renew' => false, 'stored_card_id' => null, 'next_renewal_attempt_at' => null]);
+        Subscription::query()->where('user_id', $user->id)->where('auto_renew', true)->update(['auto_renew' => false, 'stored_card_id' => null, 'next_renewal_attempt_at' => null]);
     }
 
     /**
@@ -582,12 +706,19 @@ class SubscriptionService
     public function expireDue(): int
     {
         $due = Subscription::query()->with('user.driverProfile')->where('status', 'active')
-            ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '<', now())->get();
+            ->whereNotNull('current_period_ends_at')->where('current_period_ends_at', '<', now())
+            // Yenileme denemesi süren abonelik (hakkı kalan, kartı duran) RENEWAL_GRACE_HOURS boyunca kapanmaz; renewDue yetişirse dönem uzar (M7).
+            ->where(fn ($q) => $q->where('auto_renew', false)->orWhereNull('stored_card_id')
+                ->orWhere('renewal_failures', '>=', self::RENEWAL_MAX_ATTEMPTS)
+                ->orWhere('current_period_ends_at', '<', now()->subHours(self::RENEWAL_GRACE_HOURS)))
+            ->get();
         if ($due->isEmpty()) {
             return 0;
         }
 
-        $count = Subscription::query()->whereIn('id', $due->pluck('id'))->update(['status' => 'expired', 'ended_at' => now()]);
+        // Yenilemesi hâlâ açık görünen abonelik kapanırken yenileme de kapanır (kapanmış aboneliğe çekim yapılmaz); bildirimde söylenir.
+        $renewWasOn = $due->filter(fn (Subscription $s) => $s->auto_renew)->pluck('id');
+        $count = Subscription::query()->whereIn('id', $due->pluck('id'))->update(['status' => 'expired', 'ended_at' => now(), 'auto_renew' => false, 'next_renewal_attempt_at' => null]);
 
         foreach ($due as $subscription) {
             $user = $subscription->user;
@@ -602,7 +733,7 @@ class SubscriptionService
                 continue;
             }
             $this->notifications->notify($user, 'Premium üyeliğiniz sona erdi',
-                ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.'.($subscription->last_renewal_error ? ' Otomatik yenileme ödemesi alınamamıştı: '.$subscription->last_renewal_error : ''), 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
+                ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitti; hesabınız standart plana döndü.'.($subscription->last_renewal_error ? ' Otomatik yenileme ödemesi alınamamıştı: '.$subscription->last_renewal_error : '').($renewWasOn->contains($subscription->id) ? ' Otomatik yenileme kapatıldı; yeni ödemede isterseniz yeniden açılır.' : ''), 'Onaylı dış kaynak ilanlarını yine herkesten önce görmek için premium\'u istediğiniz zaman yeniden başlatabilirsiniz.'],
                 route('driver.premium.index'), 'Premium\'u yeniden başlat', 'subscription');
         }
 
@@ -627,8 +758,11 @@ class SubscriptionService
                 if (! $renewing && $subscription->current_period_ends_at->gt(now()->addDays($daysBefore)->endOfDay())) {
                     return; // yenilenmeyen abonelikte pencere eskisi gibi $daysBefore gün
                 }
+                // Tekrar anahtarı yenilenecek/yenilenmeyecek ayrımını taşır: "sona eriyor" uyarısı almış şoför yenilemeyi açarsa
+                // çekim tutarını söyleyen "yenilenecek" bildirimi yine gider (bedel önceden bildirilir; M8).
+                $title = $renewing && $subscription->plan_code !== self::PLAN_PREMIUM_TRIAL ? 'Premium üyeliğiniz yakında yenilenecek' : 'Premium üyeliğiniz yakında sona eriyor';
                 $already = UserNotification::query()->where('user_id', $user->id)->where('type', 'subscription')
-                    ->where('title', 'Premium üyeliğiniz yakında sona eriyor')->where('created_at', '>=', now()->subDays(10))->exists();
+                    ->where('title', $title)->where('created_at', '>=', now()->subDays(10))->exists();
                 if ($already) {
                     return;
                 }
@@ -638,7 +772,7 @@ class SubscriptionService
                         route('driver.premium.index'), 'Premium ile devam et', 'subscription');
                 } elseif ($renewing) {
                     $months = in_array((int) $subscription->renew_months, self::PLAN_MONTHS, true) ? (int) $subscription->renew_months : 1;
-                    $this->notifications->notify($user, 'Premium üyeliğiniz yakında sona eriyor',
+                    $this->notifications->notify($user, $title,
                         ['Premium döneminiz '.$subscription->current_period_ends_at->format('d.m.Y').' tarihinde bitiyor. Otomatik yenileme açık: bitişten 3 gün önce kayıtlı kartınızdan ('.$subscription->storedCard->label().') '.number_format($this->priceFor($months), 2, ',', '.').' ₺ çekilerek üyelik '.$months.' ay uzatılır.',
                             'İstemiyorsanız Premium sayfasından otomatik yenilemeyi tek dokunuşla kapatın; mevcut dönem sonuna kadar haklarınız sürer.'],
                         route('driver.premium.index'), 'Premium sayfam', 'subscription');

@@ -221,7 +221,7 @@ new class extends Component {
 
     <div>
         <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Uyuşmazlık ve Destek</h1>
-        <p class="page-subtitle">Hakem kararı havuz ödemesini serbest bırakır ya da iade sürecini başlatır; karar geri alınamaz.</p>
+        <p class="page-subtitle">@if(\App\Support\FreightPayment::direct())Hakem kararı sevkiyatın sonucunu belirler; navlun taraflar arasında ödenir. Karar geri alınamaz.@else Hakem kararı havuz ödemesini serbest bırakır ya da iade sürecini başlatır; karar geri alınamaz.@endif</p>
     </div>
 
     <div class="flex p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl overflow-x-auto">
@@ -308,7 +308,11 @@ new class extends Component {
                     <form wire:submit="resolve" class="space-y-3 pt-4 border-t border-neutral-100 dark:border-neutral-800/50">
                         @php $resolutions = \App\Services\DisputeService::allowedResolutions($selected); $inTransit = $selected->cargoLoad?->shipment?->delivered_at === null; @endphp
                         <label class="text-[11px] font-bold uppercase tracking-wider text-neutral-400">Hakem kararı</label>
-                        <p class="text-[11px] text-neutral-500">{{ $inTransit ? 'Yük henüz teslim edilmedi: hakediş bu aşamada ödenmez. Sevkiyat ya devam eder ya da iptal edilip navlun yük sahibine iade edilir.' : 'Yük teslim edildi: hakediş şoföre ödenir ya da navlun yük sahibine iade edilir.' }}</p>
+                        @if($selected->cargoLoad?->isDirectPayment())
+                            <p class="text-[11px] text-neutral-500">Hakem kararı sevkiyatın sonucunu belirler; navlun taraflar arasında ödenir, platform iade ya da hakediş işlemi yapmaz.</p>
+                        @else
+                            <p class="text-[11px] text-neutral-500">{{ $inTransit ? 'Yük henüz teslim edilmedi: hakediş bu aşamada ödenmez. Sevkiyat ya devam eder ya da iptal edilip navlun yük sahibine iade edilir.' : 'Yük teslim edildi: hakediş şoföre ödenir ya da navlun yük sahibine iade edilir.' }}</p>
+                        @endif
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             @foreach($resolutions as $value => $label)
                                 <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer {{ $decision === $value ? ($value === 'owner_refunded' ? 'border-amber-500 bg-amber-500/5' : 'border-emerald-500 bg-emerald-500/5') : 'border-neutral-200/60 dark:border-neutral-700/40' }}">
@@ -399,7 +403,7 @@ new class extends Component {
                     <div class="flex justify-between items-start border-b border-neutral-100 dark:border-neutral-800/50 pb-4">
                         <div>
                             <h2 class="text-sm font-bold text-neutral-900 dark:text-white">Bilet #{{ $ticket->id }} · {{ $ticket->subject ?: (\App\Models\SupportTicket::CATEGORIES[$ticket->category] ?? $ticket->category) }}</h2>
-                            <p class="text-[11px] text-neutral-400">{{ $ticket->name }} · {{ $ticket->email }}@if($ticket->phone) · {{ $ticket->phone }}@endif · {{ $ticket->role }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</p>
+                            <p class="text-[11px] text-neutral-400">{{ $ticket->name }} · {{ $ticket->email }}@if($ticket->phone) · {{ $ticket->phone }}@endif · {{ ['driver' => 'Şoför', 'cargo_owner' => 'Yük sahibi', 'admin' => 'Yönetici', 'guest' => 'Ziyaretçi'][$ticket->role] ?? $ticket->role }} · {{ $ticket->created_at?->format('d.m.Y H:i') }}</p>
                         </div>
                         <button type="button" wire:click="closeTicketPanel" class="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>

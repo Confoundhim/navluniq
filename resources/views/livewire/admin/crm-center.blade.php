@@ -118,7 +118,7 @@ new class extends Component {
         $subject = $this->subject;
 
         $this->segmentQuery()->select('id')->orderBy('id')->chunkById(self::CHUNK, function ($users) use (&$queued, &$jobs, $subject, $lines): void {
-            SendAnnouncementJob::dispatch($users->pluck('id')->map(fn ($id) => (int) $id)->all(), $subject, $lines);
+            SendAnnouncementJob::dispatch($users->pluck('id')->map(fn ($id) => (int) $id)->all(), $subject, $lines, $this->category === 'marketing' ? 'marketing' : 'general');
             $queued += $users->count();
             $jobs++;
         });

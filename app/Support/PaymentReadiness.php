@@ -31,7 +31,7 @@ final class PaymentReadiness
             return null;
         }
         if (! $gateway->supportsSubMerchants()) {
-            return 'Navlun tahsilatı yalnız pazaryeri (alt üye işyeri) modeliyle yapılır; ödeme kuruluşunda pazaryeri ürünü henüz açık değil. Yönetici panelinde Ödeme altyapısı → "Pazaryeri ürünü aktif" işaretlenince ödeme açılır.';
+            return 'Navlun tahsilatı yalnız pazaryeri (alt üye işyeri) modeliyle yapılır; ödeme kuruluşunda pazaryeri ürünü henüz açık değil. Pazaryeri ürünü olan bir ödeme kuruluşu seçilince yönetici panelinde Ödeme altyapısı → "Pazaryeri ürünü aktif" işaretlenir ve ödeme açılır.';
         }
 
         return null;
@@ -70,9 +70,15 @@ final class PaymentReadiness
         $checks[] = self::item('Ödeme kuruluşu', 'Sonuç sayfaları', true, $appUrl.'/odeme/sonuc/{sipariş}/basarili · …/basarisiz', null);
         $logos = file_exists(public_path('images/payment/iyzico-band-colored.svg')) && file_exists(public_path('images/payment/iyzico-ile-ode.svg'));
         $checks[] = self::item('Ödeme kuruluşu', 'Kart markaları ve "iyzico ile Öde" logoları', $logos, $logos ? 'Altbilgi ve ödeme sayfalarında' : 'Eksik', 'public/images/payment altındaki logo dosyaları eksik.');
-        $checks[] = self::item('Ödeme kuruluşu', 'Pazaryeri (alt üye işyeri) aktarımı', $active->supportsSubMerchants(),
-            $active->supportsSubMerchants() ? 'Destekleniyor; şoför ödemeleri kuruluş üzerinden' : 'Kapalı; canlıda navlun tahsilatı açılmaz (elle banka transferi yalnız başarısız aktarımda yedek yoldur)',
-            'iyzico pazaryeri sözleşmesi imzalanınca formdaki "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
+        if (FreightPayment::direct()) {
+            // Doğrudan kipte pazaryeri gerekmez: bilgi satırı, uyarı değil.
+            $checks[] = self::item('Ödeme kuruluşu', 'Pazaryeri (alt üye işyeri) aktarımı', true,
+                $active->supportsSubMerchants() ? 'Destekleniyor (doğrudan kipte kullanılmaz)' : 'Gerekmiyor: navlun doğrudan ödeniyor; pazaryeri ürünü olan bir ödeme kuruluşu seçilince platform kipi açılabilir', null);
+        } else {
+            $checks[] = self::item('Ödeme kuruluşu', 'Pazaryeri (alt üye işyeri) aktarımı', $active->supportsSubMerchants(),
+                $active->supportsSubMerchants() ? 'Destekleniyor; şoför ödemeleri kuruluş üzerinden' : 'Kapalı; canlıda navlun tahsilatı açılmaz (elle banka transferi yalnız başarısız aktarımda yedek yoldur)',
+                'Pazaryeri ürünü olan bir ödeme kuruluşu seçilince formdaki "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
+        }
 
         // 2) Şirket bilgileri (sitede görünür olmalı)
         foreach (Company::LABELS as $key => $label) {
@@ -112,7 +118,9 @@ final class PaymentReadiness
         $withIdentity = DriverProfile::query()->where(fn ($q) => $q->whereNotNull('identity_number')->orWhereNotNull('tax_number'))->count();
         $checks[] = self::item('Şoför ödemeleri', 'Kayıtlı IBAN', true, "{$withIban} şoför IBAN girdi ({$drivers} şoför)", null);
         $checks[] = self::item('Şoför ödemeleri', 'Kimlik / vergi numarası (alt üye işyeri için)', true, "{$withIdentity} şoför TC/VKN girdi ({$drivers} şoför)", null);
-        $checks[] = self::item('Şoför ödemeleri', 'Alt üye işyeri kaydı', ! $active->supportsSubMerchants() || $withRef > 0, "{$withRef} şoför ödeme kuruluşuna kayıtlı", 'Şoförler Ödemelerim sayfasından TC/VKN ve IBAN girince teklif kabulünde otomatik kaydedilir.');
+        $checks[] = self::item('Şoför ödemeleri', 'Alt üye işyeri kaydı', FreightPayment::direct() || ! $active->supportsSubMerchants() || $withRef > 0,
+            FreightPayment::direct() ? "{$withRef} şoför ödeme kuruluşuna kayıtlı (doğrudan kipte gerekmez)" : "{$withRef} şoför ödeme kuruluşuna kayıtlı",
+            'Şoförler Ödemelerim sayfasından TC/VKN ve IBAN girince teklif kabulünde otomatik kaydedilir.');
 
         // 6) E-posta ve bildirim
         $mailFrom = (string) config('mail.from.address');
