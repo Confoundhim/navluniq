@@ -39,6 +39,7 @@ class extends Component {
                 ->take(5)
                 ->get(),
             'activeShipment' => $activeShipment,
+            'directPayment' => \App\Support\FreightPayment::direct(),
         ];
     }
 }; ?>
@@ -62,7 +63,7 @@ class extends Component {
                     Hoş geldiniz, <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-neutral-200 to-neutral-400">{{ auth()->user()?->full_name }}</span>
                 </h2>
                 <p class="text-sm text-neutral-300 max-w-2xl leading-relaxed">
-                    İlan yayınlayın, belgeleri doğrulanmış şoförlerden teklif toplayın ve sevkiyatınızı bu panelden takip edin. Navlun ödemesi teslimat onayınıza bağlı olarak tamamlanır.
+                    İlan yayınlayın, belgeleri doğrulanmış şoförlerden teklif toplayın ve sevkiyatınızı bu panelden takip edin. @if($directPayment)Navlun bedelini şoförle aranızda doğrudan ödersiniz; NavlunIQ tahsilat yapmaz, komisyon almaz.@else Navlun ödemesi teslimat onayınıza bağlı olarak tamamlanır.@endif
                 </p>
             </div>
             <div class="flex flex-wrap gap-3">
@@ -118,6 +119,20 @@ class extends Component {
             <div class="text-xs text-neutral-500 mt-2">Şoför yükü taşıyor</div>
         </a>
 
+        @if($directPayment && $escrowBalance <= 0)
+        <a href="{{ route('cargo-owner.shipments.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Navlun ödemesi</span>
+                <span class="p-2.5 rounded-xl bg-brand-500/10 text-brand-400 group-hover:scale-110 transition-transform">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                </span>
+            </div>
+            <div class="text-lg font-extrabold text-neutral-900 dark:text-white tracking-tight">Şoförle doğrudan</div>
+            <div class="text-xs text-neutral-500 mt-2">NavlunIQ tahsilat yapmaz, komisyon almaz</div>
+        </a>
+        @else
         <a href="{{ route('cargo-owner.finance.index') }}" wire:navigate class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800/80 rounded-2xl p-5 hover:border-neutral-300 dark:hover:border-neutral-700 transition-all duration-200 group">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen ödemeler</span>
@@ -132,6 +147,7 @@ class extends Component {
             </div>
             <div class="text-xs text-neutral-500 mt-2">Onayınızla şoföre tamamlanır</div>
         </a>
+        @endif
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -217,7 +233,7 @@ class extends Component {
                         <a href="{{ route('cargo-owner.shipments.show', $activeShipment->id) }}" wire:navigate class="w-full px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs flex items-center justify-center">Sevkiyatı görüntüle</a>
                     </div>
                 @else
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Henüz aktif bir sevkiyatınız yok. Bir teklifi kabul edip ödemeyi tamamladığınızda sevkiyat burada görünür.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Henüz aktif bir sevkiyatınız yok. @if($directPayment)Bir teklifi kabul ettiğinizde sevkiyat burada görünür.@else Bir teklifi kabul edip ödemeyi tamamladığınızda sevkiyat burada görünür.@endif</p>
                 @endif
             </div>
 

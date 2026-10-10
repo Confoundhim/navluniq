@@ -65,7 +65,29 @@ class extends Component {
             return;
         }
 
-        session()->flash('success_message', 'Teslimat onaylandı. Şoförün navlun ödemesi tamamlanma sırasına alındı.');
+        session()->flash('success_message', $load->fresh()?->isDirectPayment()
+            ? 'Teslimat onaylandı; sevkiyat tamamlandı.'
+            : 'Teslimat onaylandı. Şoförün navlun ödemesi tamamlanma sırasına alındı.');
+    }
+
+    /** Doğrudan kipte (navlun taraflar arasında) yola çıkılmadan iptal: para platformda yok, iade yok; şoförün işi kapanır. */
+    public function cancelDirect(LoadService $loads): void
+    {
+        $load = $this->ownerLoad();
+        if (! $load || ! $load->isDirectPayment()) {
+            session()->flash('error_message', 'Sevkiyat bulunamadı.');
+
+            return;
+        }
+        try {
+            $loads->cancel($load, Auth::user()->cargoOwnerProfile, trim($this->cancel_reason) ?: null);
+        } catch (\RuntimeException $e) {
+            session()->flash('error_message', $e->getMessage());
+
+            return;
+        }
+        $this->cancel_reason = '';
+        session()->flash('success_message', 'Sevkiyat iptal edildi; şoförün işi kapandı. İlanı yeniden yayınlayarak başka şoför bulabilirsiniz.');
     }
 
     /** Yola çıkılmadan iptal (karar 4): navlun tam iade, şoförün işi kapanır. */
@@ -170,14 +192,16 @@ class extends Component {
             $trail = app(DriverLocationService::class)->trailFor($shipment);
         }
 
-        $timeline = $load ? [
+        // Doğrudan kipte ödeme adımı yoktur (navlun taraflar arasında); zaman çizelgesinde o satır çıkmaz.
+        $directPayment = (bool) $load?->isDirectPayment();
+        $timeline = $load ? array_values(array_filter([
             ['label' => 'İlan yayınlandı', 'at' => $load->published_at ?? $load->created_at],
             ['label' => 'Şoför atandı', 'at' => $shipment?->created_at],
-            ['label' => 'Ödeme havuza alındı', 'at' => $load->isPaid() ? ($load->paymentOrders()->where('status', 'paid')->latest('paid_at')->value('paid_at')) : null, 'done' => $load->isPaid()],
+            $directPayment ? null : ['label' => 'Ödeme havuza alındı', 'at' => $load->isPaid() ? ($load->paymentOrders()->where('status', 'paid')->latest('paid_at')->value('paid_at')) : null, 'done' => $load->isPaid()],
             ['label' => 'Yük alındı, yola çıkıldı', 'at' => $shipment?->in_transit_at ?? $shipment?->pickup_confirmed_at],
             ['label' => 'Teslim edildi', 'at' => $shipment?->delivered_at],
             ['label' => 'Teslimat onaylandı', 'at' => $shipment?->owner_approved_at],
-        ] : [];
+        ])) : [];
 
         // Tahmini varış: kabul edilen teklifteki gün sayısı + yola çıkış; yalnız yoldayken anlamlı.
         $estimatedDays = $shipment?->acceptedOffer?->estimated_days;
@@ -187,6 +211,7 @@ class extends Component {
 
         return [
             'load' => $load,
+            'directPayment' => $directPayment,
             'shipment' => $shipment,
             'driverUser' => $load?->driverProfile?->user,
             'vehicle' => $shipment?->vehicle ?? $load?->driverProfile?->activeVehicle,
@@ -242,9 +267,10 @@ class extends Component {
     @if($load)
         @php
             $canApprove = $shipment && $shipment->status === 'delivered' && $load->status === 'delivered' && ! $openDispute;
-            $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && $load->escrow_status === 'paid_in_escrow' && ! $openDispute;
+            $canDispute = in_array($load->status, ['on_the_way', 'delivered'], true) && in_array($load->escrow_status, ['paid_in_escrow', 'direct_payment'], true) && ! $openDispute;
             $canReview = \App\Services\ReviewService::canReview($load) && ! $hasReviewed && $driverUser;
             $canCancelPaid = $load->canBeCancelledBeforeTransit();
+            $canCancelDirect = $directPayment && $load->status === 'driver_assigned';
             $isLive = $shipment && ($shipment->status === 'in_transit' || ($shipment->status === 'disputed' && $shipment->delivered_at === null));
             $showMap = $shipment && in_array($shipment->status, ['in_transit', 'delivered', 'disputed'], true) && $latest;
         @endphp
@@ -261,10 +287,30 @@ class extends Component {
 
         @if($openDispute)
             <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). Navlun ödemesi karar verilene kadar askıda.</span>
+                <span>Bu sevkiyat için açık bir uyuşmazlık var ({{ $openDispute->created_at?->format('d.m.Y H:i') }}). @if($directPayment)Karar sevkiyatın sonucunu belirler; navlun platform üzerinden ödenmediği için iade ya da hakediş kararı yoktur.@else Navlun ödemesi karar verilene kadar askıda.@endif</span>
                 <div class="flex flex-wrap gap-2">
                     <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white font-semibold text-center">Uyuşmazlığı görüntüle</a>
-                    <button type="button" wire:click="withdrawDispute" wire:confirm="Uyuşmazlık geri çekilecek; sevkiyat önceki durumuna döner ve navlun ödemesi teslimat onayıyla şoföre gider. Devam edilsin mi?" wire:loading.attr="disabled" class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold">Uyuşmazlığı geri çek</button>
+                    <button type="button" wire:click="withdrawDispute" wire:confirm="{{ $directPayment ? 'Uyuşmazlık geri çekilecek; sevkiyat önceki durumuna döner. Devam edilsin mi?' : 'Uyuşmazlık geri çekilecek; sevkiyat önceki durumuna döner ve navlun ödemesi teslimat onayıyla şoföre gider. Devam edilsin mi?' }}" wire:loading.attr="disabled" class="px-4 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 font-semibold">Uyuşmazlığı geri çek</button>
+                </div>
+            </div>
+        @endif
+
+        @if($canCancelDirect)
+            {{-- Doğrudan kip: ödeme adımı yok; şoför yükleme bilgilerini görür, yola çıkılmadan iptal edilebilir (iade söz konusu değil). --}}
+            <div class="p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3 text-xs">
+                <div>
+                    <span class="font-bold text-neutral-900 dark:text-white block mb-0.5">Yükleme bekleniyor</span>
+                    <span class="text-neutral-600 dark:text-neutral-400">Navlun bedelini şoförle aranızda doğrudan ödersiniz; NavlunIQ tahsilat yapmaz. Şoför yükü alıp yola çıkmadan sevkiyatı iptal edebilirsiniz. Yola çıkıldıktan sonra yalnız uyuşmazlık açılabilir.</span>
+                </div>
+                @if($load->no_show_notified_at)
+                    <div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">Yükleme tarihi geçti, şoför hâlâ yola çıkmadı. Şoförle görüşün; gelmeyecekse iptal edip ilanı yeniden yayınlayabilirsiniz.</div>
+                @endif
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" wire:model="cancel_reason" maxlength="300" placeholder="İptal nedeni (isteğe bağlı, şoföre iletilir)" class="form-input flex-1">
+                    <button type="button" wire:click="cancelDirect" wire:confirm="Sevkiyat iptal edilecek ve şoförün işi kapanacak. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">
+                        <span wire:loading.remove wire:target="cancelDirect">İptal et</span>
+                        <span wire:loading wire:target="cancelDirect">İptal ediliyor...</span>
+                    </button>
                 </div>
             </div>
         @endif
@@ -417,7 +463,7 @@ class extends Component {
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <h3 class="section-title">Teslimat kanıtları</h3>
                         @if($canApprove)
-                            <button type="button" wire:click="approveDelivery" wire:confirm="Teslimatı onayladığınızda navlun ödemesi şoföre tamamlanır. Onaylıyor musunuz?" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                            <button type="button" wire:click="approveDelivery" wire:confirm="{{ $directPayment ? 'Teslimatı onayladığınızda sevkiyat tamamlanır. Onaylıyor musunuz?' : 'Teslimatı onayladığınızda navlun ödemesi şoföre tamamlanır. Onaylıyor musunuz?' }}" wire:loading.attr="disabled" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
                                 <span wire:loading.remove wire:target="approveDelivery">Teslimatı onayla</span>
                                 <span wire:loading wire:target="approveDelivery">Onaylanıyor...</span>
                             </button>
@@ -492,7 +538,7 @@ class extends Component {
                             <div class="min-w-0">
                                 <div class="text-sm font-bold text-neutral-900 dark:text-white">{{ $driverUser->full_name }}</div>
                                 <div class="text-xs text-neutral-500 dark:text-neutral-400">
-                                    @if($load->isPaid() && $driverUser->phone)
+                                    @if(($load->isPaid() || $directPayment) && $driverUser->phone)
                                         <a href="tel:0{{ Phone::normalize($driverUser->phone) ?? preg_replace('/\D/', '', $driverUser->phone) }}" class="tabular-nums text-brand-400 hover:underline">{{ Phone::format(Phone::normalize($driverUser->phone) ?? $driverUser->phone) }}</a>
                                     @else
                                         Telefon, ödeme havuza alındıktan sonra görünür.
@@ -524,7 +570,7 @@ class extends Component {
                 </div>
 
                 <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3 text-xs">
-                    <h3 class="section-title">Ödeme durumu</h3>
+                    <h3 class="section-title">{{ $directPayment ? 'Navlun ödemesi' : 'Ödeme durumu' }}</h3>
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-neutral-500 dark:text-neutral-400">Navlun bedeli</span>
                         <span class="text-brand-400 font-bold tabular-nums text-sm">{{ number_format((float) ($load->price ?? 0), 2, ',', '.') }} ₺</span>
@@ -534,7 +580,9 @@ class extends Component {
                         <span class="text-neutral-900 dark:text-white font-semibold text-right">{{ $load->escrowLabel() }}</span>
                     </div>
                     <p class="text-[11px] text-neutral-500 leading-relaxed">
-                        @if($load->escrow_status === 'pending_payment')
+                        @if($directPayment)
+                            Navlun bedelini şoförle aranızda doğrudan ödersiniz; NavlunIQ tahsilat yapmaz, para tutmaz, komisyon almaz.
+                        @elseif($load->escrow_status === 'pending_payment')
                             Ödeme henüz alınmadı.
                         @elseif($load->escrow_status === 'paid_in_escrow')
                             Teslimatı onayladığınızda navlun ödemesi şoföre tamamlanır.
@@ -556,7 +604,7 @@ class extends Component {
                 @if($canDispute)
                     <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-3">
                         <h3 class="section-title">Sorun mu var?</h3>
-                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır.</p>
+                        <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Hasar, eksik teslimat veya başka bir sorun için uyuşmazlık açabilirsiniz. @if($directPayment)Karar sevkiyatın sonucunu belirler; navlun platform üzerinden ödenmediği için iade kararı yoktur.@else Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır.@endif</p>
                         <a href="{{ route('cargo-owner.disputes.index', ['load' => $load->id]) }}" wire:navigate class="w-full py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold border border-neutral-700/60 transition-colors flex items-center justify-center">Uyuşmazlık aç</a>
                     </div>
                 @endif

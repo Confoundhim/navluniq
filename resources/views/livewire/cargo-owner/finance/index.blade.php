@@ -44,6 +44,7 @@ class extends Component {
         $monthlyMax = max(1.0, max($monthly ?: [0.0]));
 
         return [
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'inEscrow' => $inEscrow,
             'totalPaid' => $totalPaid,
             'monthly' => $monthly,
@@ -73,12 +74,18 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Finans, ödemeler ve faturalar</h2>
-        <p class="page-subtitle">Teslimat onayı bekleyen ödemeler, ödeme geçmişiniz ve adınıza kesilen faturalar.</p>
+        <p class="page-subtitle">@if($directPayment)Ödeme geçmişiniz ve adınıza kesilen faturalar.@else Teslimat onayı bekleyen ödemeler, ödeme geçmişiniz ve adınıza kesilen faturalar.@endif</p>
     </div>
+
+    @if($directPayment)
+        <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">
+            Navlun bedeli şoförle aranızda doğrudan ödenir; NavlunIQ tahsilat yapmaz, para tutmaz, komisyon almaz. Bu sayfada yalnız daha önce platform üzerinden yapılmış ödemeler ve faturalar görünür.
+        </div>
+    @endif
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 
-        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5">
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 {{ $directPayment && $inEscrow <= 0 ? 'hidden' : '' }}">
             <span class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 block mb-2">Teslimat onayı bekleyen ödemeler</span>
             <div class="text-3xl font-extrabold text-brand-400 tabular-nums">
                 {{ number_format($inEscrow, 2, ',', '.') }} <span class="text-lg text-neutral-900 dark:text-white">₺</span>
@@ -148,7 +155,7 @@ class extends Component {
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-8 text-center text-neutral-500">Henüz ödeme kaydınız yok.</td>
+                            <td colspan="5" class="py-8 text-center text-neutral-500">@if($directPayment)Platform üzerinden yapılmış ödeme kaydınız yok; navlun şoförle doğrudan ödenir.@else Henüz ödeme kaydınız yok.@endif</td>
                         </tr>
                     @endforelse
                 </tbody>

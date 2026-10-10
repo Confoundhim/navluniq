@@ -130,7 +130,7 @@ class MarketplaceOnlyTest extends TestCase
             $this->assertStringContainsString('pazaryeri', mb_strtolower($e->getMessage()));
         }
         $byLabel = collect(PaymentReadiness::checks())->keyBy('label');
-        $this->assertFalse($byLabel['Navlun tahsilatı açık (pazaryeri modeli)']['ok']);
+        $this->assertFalse($byLabel['Navlun tahsilatı açık (platform kipi, pazaryeri modeli)']['ok']);
         $this->assertSame(0, PaymentOrder::query()->count());
 
         // Abonelik emri pazaryerinden bağımsız (NavlunIQ'nun kendi cirosu)
@@ -139,7 +139,7 @@ class MarketplaceOnlyTest extends TestCase
         // Pazaryeri açılınca canlıda da açılır; test kipinde zaten açık
         $this->gateway->marketplace = true;
         $this->assertSame('created', $payments->orderFor($load, $owner)->status);
-        $this->assertTrue(collect(PaymentReadiness::checks())->keyBy('label')['Navlun tahsilatı açık (pazaryeri modeli)']['ok']);
+        $this->assertTrue(collect(PaymentReadiness::checks())->keyBy('label')['Navlun tahsilatı açık (platform kipi, pazaryeri modeli)']['ok']);
         $this->gateway->sandbox = true;
         $this->gateway->marketplace = false;
         $this->assertNull(PaymentReadiness::escrowBlocker($this->gateway));

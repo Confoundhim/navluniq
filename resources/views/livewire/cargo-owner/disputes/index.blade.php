@@ -45,7 +45,8 @@ class extends Component {
         return Load::query()
             ->where('cargo_owner_profile_id', (int) Auth::user()->cargoOwnerProfile?->id)
             ->whereIn('status', [Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED])
-            ->where('escrow_status', Load::ESCROW_PAID)
+            // Doğrudan kipte (navlun taraflar arasında) da uyuşmazlık açılabilir; karar yalnız sevkiyatın sonucunu belirler.
+            ->whereIn('escrow_status', [Load::ESCROW_PAID, Load::ESCROW_DIRECT])
             ->whereDoesntHave('disputes', fn ($q) => $q->where('status', 'open'));
     }
 
@@ -84,7 +85,9 @@ class extends Component {
         $this->createModalOpen = false;
         $this->reset(['selected_load_id', 'claim', 'claim_photo']);
         $this->resetPage();
-        session()->flash('success_message', 'Uyuşmazlık kaydı açıldı. Navlun ödemesi karar verilene kadar askıya alındı; şoförün savunması ve hakem kararı burada görünecek.');
+        session()->flash('success_message', $load->isDirectPayment()
+            ? 'Uyuşmazlık kaydı açıldı. Şoförün savunması ve hakem kararı burada görünecek; karar sevkiyatın sonucunu belirler.'
+            : 'Uyuşmazlık kaydı açıldı. Navlun ödemesi karar verilene kadar askıya alındı; şoförün savunması ve hakem kararı burada görünecek.');
     }
 
     /** Açık uyuşmazlığı geri çek: sevkiyat önceki durumuna (yolda / teslim edildi) döner. */
@@ -111,6 +114,7 @@ class extends Component {
         $profileId = (int) Auth::user()->cargoOwnerProfile?->id;
 
         return [
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'disputes' => Dispute::query()
                 ->whereHas('cargoLoad', fn ($q) => $q->where('cargo_owner_profile_id', $profileId))
                 ->with(['cargoLoad.driverProfile.user', 'resolver'])
@@ -139,7 +143,7 @@ class extends Component {
                 </span>
                 <span>Uyuşmazlık merkezi</span>
             </h2>
-            <p class="page-subtitle">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; navlun ödemesi karar verilene kadar askıya alınır.</p>
+            <p class="page-subtitle">Hasar, eksik teslimat veya gecikme durumunda uyuşmazlık açın; @if($directPayment)NavlunIQ ekibi kanıtları inceleyip sevkiyatın sonucuna karar verir.@else navlun ödemesi karar verilene kadar askıya alınır.@endif</p>
         </div>
 
         <button type="button" wire:click="openModal" class="btn-primary bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 py-2 text-xs">
@@ -152,8 +156,8 @@ class extends Component {
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div class="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
-            <div class="text-xs font-bold text-brand-400">1. Ödeme askıya alınır</div>
-            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar şoföre tamamlanmaz.</p>
+            <div class="text-xs font-bold text-brand-400">1. {{ $directPayment ? 'Kayıt açılır' : 'Ödeme askıya alınır' }}</div>
+            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">@if($directPayment)Sorununuzu ve kanıtlarınızı yazarsınız; sevkiyat karar verilene kadar askıda sayılır.@else Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar şoföre tamamlanmaz.@endif</p>
         </div>
         <div class="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
             <div class="text-xs font-bold text-brand-400">2. Şoför savunma yapar</div>
@@ -161,7 +165,7 @@ class extends Component {
         </div>
         <div class="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1">
             <div class="text-xs font-bold text-brand-400">3. Karar verilir</div>
-            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">NavlunIQ ekibi kanıtları inceler; karara göre bedel şoföre ödenir veya size iade edilir.</p>
+            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">@if($directPayment)NavlunIQ ekibi kanıtları inceler; karar sevkiyatın devam, tamamlandı ya da iptal sayılmasını belirler. Navlun platform üzerinden ödenmediği için iade ya da hakediş kararı yoktur.@else NavlunIQ ekibi kanıtları inceler; karara göre bedel şoföre ödenir veya size iade edilir.@endif</p>
         </div>
     </div>
 
@@ -221,7 +225,7 @@ class extends Component {
 
                 @if($dispute->status === 'open')
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs border-t border-neutral-200 dark:border-neutral-800 pt-3">
-                        <span class="text-neutral-500 dark:text-neutral-400">Sorun çözüldüyse uyuşmazlığı geri çekebilirsiniz; sevkiyat önceki durumuna döner, ödeme teslimat onayıyla şoföre gider.</span>
+                        <span class="text-neutral-500 dark:text-neutral-400">Sorun çözüldüyse uyuşmazlığı geri çekebilirsiniz; sevkiyat önceki durumuna döner{{ $load?->isDirectPayment() ? '' : ', ödeme teslimat onayıyla şoföre gider' }}.</span>
                         <button type="button" wire:click="withdrawDispute({{ $dispute->id }})" wire:confirm="Uyuşmazlık geri çekilecek. Devam edilsin mi?" wire:loading.attr="disabled" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 font-semibold whitespace-nowrap">Uyuşmazlığı geri çek</button>
                     </div>
                 @endif
@@ -240,7 +244,7 @@ class extends Component {
         @empty
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-12 text-center space-y-3">
                 <h4 class="text-base font-bold text-neutral-900 dark:text-white">Henüz uyuşmazlık kaydınız yok</h4>
-                <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yolda veya teslim edilmiş ve ödemesi teslimat onayı bekleyen sevkiyatlarınız için uyuşmazlık açabilirsiniz.</p>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">Yolda veya teslim edilmiş{{ $directPayment ? '' : ' ve ödemesi teslimat onayı bekleyen' }} sevkiyatlarınız için uyuşmazlık açabilirsiniz.</p>
             </div>
         @endforelse
     </div>
@@ -273,7 +277,7 @@ class extends Component {
                             @endforeach
                         </select>
                         @if($eligibleLoads->isEmpty())
-                            <p class="text-[11px] text-neutral-500 mt-1">Şu anda uyuşmazlık açılabilecek sevkiyatınız yok. Uyuşmazlık yalnız yolda veya teslim edilmiş ve ödemesi teslimat onayı bekleyen sevkiyatlar için açılabilir.</p>
+                            <p class="text-[11px] text-neutral-500 mt-1">Şu anda uyuşmazlık açılabilecek sevkiyatınız yok. Uyuşmazlık yalnız yolda veya teslim edilmiş{{ $directPayment ? '' : ' ve ödemesi teslimat onayı bekleyen' }} sevkiyatlar için açılabilir.</p>
                         @endif
                         @error('selected_load_id') <span class="form-error">{{ $message }}</span> @enderror
                     </div>
@@ -293,7 +297,7 @@ class extends Component {
                 </div>
 
                 <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
-                    Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır ve şoföre tamamlanmaz.
+                    @if($directPayment)Uyuşmazlık açıldığında sevkiyat karar verilene kadar askıda sayılır; karar sevkiyatın sonucunu belirler, iade ya da hakediş kararı yoktur.@else Uyuşmazlık açıldığında navlun ödemesi karar verilene kadar askıya alınır ve şoföre tamamlanmaz.@endif
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-3 pt-1">

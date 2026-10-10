@@ -30,6 +30,25 @@ Uygulama yalnız `App\Payments\Contracts\PaymentGateway` arayüzünü bilir. Sa�
 
 Pazaryeri (alt üye işyeri) ürünü olan sağlayıcıda `supportsSubMerchants()` true döner; şoför `payout_provider_ref` ile kaydedilir ve hakedişler `transferToSubMerchant` ile otomatik aktarılır. Desteklenmiyorsa finans ekibi Finans ve Muhasebe ekranından banka transferini işaretler.
 
+## Navlun ödeme yolu: doğrudan / platform (2026-10-10)
+
+Osman'ın kararı: pazaryeri ürünü olan bir kuruluş bulunana kadar navlun bedeli **yük sahibi ile şoför arasında doğrudan** ödenir;
+NavlunIQ tahsilat yapmaz, para tutmaz, komisyon almaz, ödemeye taraf olmaz. Panel: Sistem Ayarları → Ödeme altyapısı → "Navlun ödeme
+yolu" (`freight_payment_mode`: `direct` varsayılan | `platform`). Tek kaynak `App\Support\FreightPayment` (`direct()`, `notice()`,
+`platformBlocker()`); akış ve metinler buradan okur. Teklif kabulünde o anki kip ilana yazılır: doğrudan kipte
+`loads.escrow_status = direct_payment` (`Load::ESCROW_DIRECT`, `isDirectPayment()`), `payment_due_at` boş; eski/platform ilanları kendi
+kipinde yürür.
+
+Doğrudan kipte: kabulde IBAN/TC ve alt üye işyeri şartı yok; şoför açık adres, yetkili ve notları hemen görür (`canSeePrivateDetails`);
+"Yola çıktım" ödeme ve IBAN beklemez (`startBlocker($driver, $load)`); teslimat onayı sevkiyatı kapatır, hakediş açılmaz; şoför vazgeçerse
+ilan havuza döner, iade yok, vazgeçme sicilde sayılır; yük sahibi yola çıkılana kadar düz "İptal et" (iade düğmesi yok); uyuşmazlık
+açılır ama karar yalnız sevkiyatın sonucunu belirler (`allowedResolutions`), iade/hakediş yok; `loads:expire-unpaid` doğrudan ilanlara
+dokunmaz; `loads:no-show` iki kipte de uyarır. Sağlık ekranı "Ödeme kuruluşu" satırı doğrudan kipte pazaryeri şartı aramaz; platform
+seçili ama kuruluş navlun tahsilatına kapalıysa uyarır. Sözleşmeler iki kipi de anlatır (Kullanıcı Sözleşmesi 5.0 `data-clause="odeme-yolu"`,
+MSS 2.2/2.3/3.2, İade giriş/1/2.x/3.1/4); yürürlükteki kip `{{FREIGHT_PAYMENT_STATUS}}` yer tutucusuyla (`Company::fillTokens`) metne
+girer, kip değişince sözleşme yeniden seed edilmez. Tanıtım sayfaları, SSS ve panel ekranları `FreightPayment::direct()` /
+`$load->isDirectPayment()` ile koşullu. Test `DirectFreightPaymentTest`.
+
 ## iyzico
 
 `IyzicoGateway` (Ödeme Formu): anahtarlar panelden (Sistem Ayarları → Ödeme altyapısı → "Ödeme kuruluşu ve

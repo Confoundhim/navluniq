@@ -116,6 +116,10 @@ final class Company
         foreach (self::SETTING_TOKENS as $token => $key) {
             $map[$token] = (string) max(in_array($token, self::ZERO_ALLOWED_TOKENS, true) ? 0 : 1, Settings::int($key));
         }
+        // Navlun ödeme yolu (panel ayarı): sözleşmeler iki kipi de anlatır, yürürlükteki kip bu cümleyle söylenir (kip değişince metin yenilenmez).
+        $map['{{FREIGHT_PAYMENT_STATUS}}'] = FreightPayment::direct()
+            ? 'Bu sözleşmenin yayımlandığı tarihte platformun teslimat onaylı ödeme hizmeti kapalıdır: navlun bedeli gönderici ile sürücü arasında doğrudan ödenir, NavlunIQ tahsilat yapmaz ve komisyon almaz.'
+            : 'Bu sözleşmenin yayımlandığı tarihte platformun teslimat onaylı ödeme hizmeti açıktır.';
 
         return strtr($html, $map);
     }

@@ -1,4 +1,7 @@
-<x-layouts.frontend title="Şoförler İçin - NavlunIQ Akıllı Lojistik" description="Şoförler için NavlunIQ: ilan havuzu, WhatsApp ve Facebook gruplarından derlenen yükler, dönüş yükü bildirimi, güvenli ödeme. Belgelerinizi yükleyin, teklif vermeye başlayın.">
+@php
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+@endphp
+<x-layouts.frontend title="Şoförler İçin - NavlunIQ Akıllı Lojistik" :description="'Şoförler için NavlunIQ: ilan havuzu, WhatsApp ve Facebook gruplarından derlenen yükler, dönüş yükü bildirimi, '.($directPay ? 'komisyonsuz kazanç' : 'güvenli ödeme').'. Belgelerinizi yükleyin, teklif vermeye başlayın.'">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">
@@ -7,7 +10,7 @@
                 Boş Dönüşe Son, Alın Teriniz Güvende
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Tercih ettiğiniz rotalardaki ilanları tek panelden görün, teklif verin. Teslimat onaylandığında navlun ödemeniz banka hesabınıza geçer.
+                Tercih ettiğiniz rotalardaki ilanları tek panelden görün, teklif verin. {{ $directPay ? 'Navlununuzu yük sahibinden doğrudan alırsınız; NavlunIQ komisyon kesmez.' : 'Teslimat onaylandığında navlun ödemeniz banka hesabınıza geçer.' }}
             </p>
         </div>
 
@@ -20,8 +23,14 @@
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">Teslimat Onaylı Ödeme</h4>
-                <p class="text-neutral-500 leading-relaxed">Yük sahibi navlun bedelini siz yola çıkmadan lisanslı ödeme kuruluşu üzerinden öder; teslimat onaylandığında ödeme kayıtlı IBAN'ınıza geçer. Hesaba geçiş süresi banka iş günlerine göre değişir.</p>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">{{ $directPay ? 'Komisyonsuz Kazanç' : 'Teslimat Onaylı Ödeme' }}</h4>
+                <p class="text-neutral-500 leading-relaxed">
+                    @if($directPay)
+                        Teklifiniz kabul edilince yük sahibinin iletişim bilgisini hemen görürsünüz; navlun bedelini yük sahibiyle doğrudan anlaşıp alırsınız. NavlunIQ araya girmez, komisyon kesmez; kazancınızın tamamı size kalır.
+                    @else
+                        Yük sahibi navlun bedelini siz yola çıkmadan lisanslı ödeme kuruluşu üzerinden öder; teslimat onaylandığında ödeme kayıtlı IBAN'ınıza geçer. Hesaba geçiş süresi banka iş günlerine göre değişir.
+                    @endif
+                </p>
             </div>
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>

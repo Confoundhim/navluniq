@@ -667,6 +667,19 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   çalıştırma düzgün bitmezse sonraki çalıştırma o kaydı atlar (`progress.skipped`, en çok 20). Sağlık ekranı "hata N (son: …)", "atlanan kayıt #…",
   "#id kaydında takılı görünüyor" yazar; bekçi mesajı bekleyen kaydı ve son hatayı söyler. Osman'dan atlanan/hatalı kayıt numarası gelirse ham
   mesajı Dış kaynak sayfasında "#id" aramasıyla bulunup kural düzeltilir. Test `RelocationHealthTest` (+2).
+- **Navlun doğrudan ödeme kipi (2026-10-10, Osman: "sitemizde her yerde navlun şoför hakedişlerinin iyzico ile ödeneceği yazıyor, bu şu an
+  böyle değil; gerekli tüm yerleri ve sözleşmeleri güncelle"):** panel ayarı `freight_payment_mode` (`direct` varsayılan | `platform`;
+  Ödeme altyapısı formu, REAUTH), tek kaynak `App\Support\FreightPayment` (`direct()/platform()/notice()/platformBlocker()`), teklif kabulünde
+  kip ilana yazılır (`Load::ESCROW_DIRECT='direct_payment'`, `isDirectPayment()`, `payment_due_at` boş). Doğrudan kipte: kabulde IBAN/TC/alt üye
+  şartı yok, şoför açık adresi hemen görür, "Yola çıktım" ödeme/IBAN beklemez (`ShipmentService::startBlocker($driver,$load)`), teslimat
+  onayı hakediş açmaz (havuz `direct_payment` kalır), şoför vazgeçince iade yok + `withdrawals_after_payment` artar, yük sahibi yola çıkılana
+  kadar düz iptal, uyuşmazlık kararı yalnız sevkiyat sonucu (`allowedResolutions` doğrudan etiketleri; iade/hakediş yok), `expire-unpaid`
+  dokunmaz, `no-show` iki kipte. `PaymentReadiness` "Navlun ödeme yolu" satırı; sağlık "Ödeme kuruluşu" ışığı doğrudan kipte pazaryeri
+  aramaz. Sözleşmeler iki kipi anlatır: Kullanıcı Sözleşmesi **5.0** (`data-clause="odeme-yolu"`), 6.x ekleri, KVKK/Gizlilik "hizmet
+  açıkken" nitelemeleri, MSS 2.2/2.3/3.2, İade giriş/1/2.x/3.1/4; yürürlükteki kip `{{FREIGHT_PAYMENT_STATUS}}` (`Company::fillTokens`,
+  kip değişince seed gerekmez). Tanıtım sayfaları/SSS/plan kartı/panel ekranları `FreightPayment::direct()` ya da `$load->isDirectPayment()`
+  ile koşullu; premium (iyzico) metinleri ve logoları kalır. **Testler platform kipinde koşar** (`tests/TestCase` `freight_payment_mode=platform`);
+  doğrudan kip `DirectFreightPaymentTest` (6). SSS kipe göre seed edilir; `RefreshFaqCommand::DIRECT/PLATFORM_STALE_PATTERN` eski kipin cümlelerini yakalar, Ödeme altyapısı formunda kip değişince `faq:refresh --if-stale` çağrılır. Ana sayfa CMS metinleri (`slider_owner_title/desc`, `hakkimizda_ozet`) canlıda kayıtlıysa eski kalır, Osman CMS'den günceller. Pazaryeri gelince panelden "Platform" seçilir; açık sevkiyatlar kendi kipinde biter.
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL

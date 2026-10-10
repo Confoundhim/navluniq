@@ -133,6 +133,7 @@ class extends Component {
             'profile' => $profile,
             'pendingOffers' => Offer::query()->where('driver_profile_id', $profileId)->where('status', 'pending')->count(),
             'wallet' => app(PayoutService::class)->walletSummary($user),
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'matchedLoads' => $matchedLoads,
             'matchSummary' => $matchSummary,
             'matchPreset' => $preset,
@@ -155,7 +156,7 @@ class extends Component {
 
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Hoş geldiniz, {{ auth()->user()->first_name }}</h2>
-        <p class="page-subtitle">Tekliflerinizin, açık işlerinizin ve ödemelerinizin özeti.</p>
+        <p class="page-subtitle">@if($directPayment)Tekliflerinizin ve açık işlerinizin özeti.@else Tekliflerinizin, açık işlerinizin ve ödemelerinizin özeti.@endif</p>
     </div>
 
     @if($kycStatus !== 'approved')
@@ -180,6 +181,15 @@ class extends Component {
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ (int) $pendingOffers }}</div>
             <a href="{{ route('driver.loads.index') }}" wire:navigate class="mt-2 inline-block text-xs text-brand-400 font-bold hover:underline">Teklifleri gör</a>
         </div>
+        @php $walletTotal = (float) ($wallet['in_escrow'] ?? 0) + (float) ($wallet['pending'] ?? 0) + (float) ($wallet['paid'] ?? 0); @endphp
+        @if($directPayment && $walletTotal <= 0)
+        {{-- Doğrudan kip: hakediş/komisyon kartları yerine tek açıklama kartı (eski platform ödemesi varsa eski kartlar kalır). --}}
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 sm:col-span-1 lg:col-span-3">
+            <div class="text-xs text-neutral-500 dark:text-neutral-400">Navlun ödemesi</div>
+            <div class="mt-2 text-lg font-black text-neutral-900 dark:text-white">Yük sahibiyle doğrudan</div>
+            <div class="mt-2 text-2xs text-neutral-500">Teklifiniz kabul edilince yük sahibinin iletişim bilgileri ve yükleme adresi hemen açılır; NavlunIQ tahsilat yapmaz, komisyon almaz.</div>
+        </div>
+        @else
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Teslimat onayı bekleyen</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($wallet['in_escrow'] ?? 0), 2, ',', '.') }} ₺</div>
@@ -195,6 +205,7 @@ class extends Component {
             <div class="mt-2 text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{{ number_format((float) ($wallet['paid'] ?? 0), 2, ',', '.') }} ₺</div>
             <div class="mt-2 text-2xs text-neutral-500">Kesilen komisyon: {{ number_format((float) ($wallet['commission'] ?? 0), 2, ',', '.') }} ₺</div>
         </div>
+        @endif
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -276,7 +287,9 @@ class extends Component {
                     <div class="text-neutral-500 dark:text-neutral-400">Kart gerekmez; grup ilanları ve erken erişim hemen açılır.</div>
                 @else
                     <div class="text-neutral-700 dark:text-neutral-300 font-bold">Pasif</div>
-                    <div class="text-neutral-500 dark:text-neutral-400">Komisyon oranınız: %{{ number_format($profile?->commissionRate() ?? 0, 1, ',', '.') }}</div>
+                    @unless($directPayment)
+                        <div class="text-neutral-500 dark:text-neutral-400">Komisyon oranınız: %{{ number_format($profile?->commissionRate() ?? 0, 1, ',', '.') }}</div>
+                    @endunless
                 @endif
                 <a href="{{ route('driver.premium.index') }}" wire:navigate class="inline-block text-brand-400 font-bold hover:underline">{{ $trialOffer ? 'Denemeyi başlat' : 'Premium ayrıntıları' }}</a>
             </div>

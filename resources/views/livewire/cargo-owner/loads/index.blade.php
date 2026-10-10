@@ -249,6 +249,14 @@ class extends Component {
                             <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Şoför ataması yapılmış bu ilanı iptal etmek istediğinize emin misiniz?" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
                                 İptal et
                             </button>
+                        @elseif($load->status === 'driver_assigned' && $load->isDirectPayment())
+                            {{-- Doğrudan kip: ödeme adımı yok; yola çıkılmadan iptal edilebilir (iade söz konusu değil). --}}
+                            <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-xs shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center">
+                                Sevkiyatı görüntüle
+                            </a>
+                            <button type="button" wire:click="cancelLoad({{ $load->id }})" wire:confirm="Şoför ataması yapılmış bu ilanı iptal etmek istediğinize emin misiniz?" class="px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-500/10 text-neutral-700 dark:text-neutral-300 hover:text-rose-400 text-xs font-semibold transition-colors">
+                                İptal et
+                            </button>
                         @elseif($load->status === 'delivered')
                             <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center">
                                 Teslimatı onayla

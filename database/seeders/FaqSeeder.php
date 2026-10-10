@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Faq;
 use App\Services\LoadReleaseService;
 use App\Services\SubscriptionService;
+use App\Support\FreightPayment;
 use App\Support\Settings;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,9 @@ class FaqSeeder extends Seeder
         $lead = app(LoadReleaseService::class)->delayMinutes();
         $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
         $trialDays = app(SubscriptionService::class)->trialDays();
+        // Navlun ödeme kipi: doğrudan kipte navlun taraflar arasında ödenir, NavlunIQ tahsilat yapmaz, komisyon almaz (FreightPayment);
+        // platform kipinde ödeme kuruluşu + teslimat onayı + hizmet bedeli.
+        $direct = FreightPayment::direct();
 
         $ownerFeeText = $ownerRate > 0
             ? 'Yük sahiplerine navlun bedeli üzerinden %'.self::percent($ownerRate).' hizmet bedeli yansıtılır.'
@@ -33,8 +37,10 @@ class FaqSeeder extends Seeder
         $faqs = [
             [
                 'order_num' => 1,
-                'question' => 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
-                'answer' => 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla öder; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki Ödemelerim ekranından izlenir.',
+                'question' => $direct ? 'Navlun bedeli nasıl ödenir, NavlunIQ araya girer mi?' : 'Teslimat onaylı ödeme nedir, şoför ödemesini ne zaman alır?',
+                'answer' => $direct
+                    ? 'Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ tahsilat yapmaz, para tutmaz, komisyon almaz ve ödemeye taraf olmaz. Yük sahibi teklifi kabul ettiği anda şoför yük sahibinin iletişim bilgisini görür; ödeme biçimini (nakit, havale) ve zamanını taraflar kendi aralarında kararlaştırır. Şoför yükü teslim edip teslim kanıtını yüklediğinde yük sahibi teslimatı onaylar; '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar ve sevkiyat kapanır.'
+                    : 'Yük sahibi teklifi kabul ettikten sonra navlun bedelini lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla öder; NavlunIQ taraflar adına para tutmaz. Şoför yükü teslim edip teslim kanıtını (POD) yüklediğinde yük sahibi teslimatı onaylar. Yük sahibi '.$autoApprovalHours.' saat içinde onay vermez ya da itiraz etmezse sistem teslimatı otomatik onaylar. Onayın ardından şoförün ödemesi, platform hizmet bedeli düşülerek kayıtlı IBAN\'ına yapılır; durumu şoför panelindeki Ödemelerim ekranından izlenir.',
             ],
             [
                 'order_num' => 2,
@@ -49,27 +55,29 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 4,
                 'question' => 'Premium şoför üyeliği bana ne kazandırır?',
-                'answer' => 'Üç şey: gruplardan derlenen ilanların tamamını ilan bilgileriyle görürsünüz (standart üyeye bu ilanlar hiç görünmez); yük sahiplerinin NavlunIQ ilanlarını herkesten '.$leadText.' önce görürsünüz; aracınıza uygun ilan ve dönüş yükü çıktığında anında bildirim alırsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur, otomatik yenilenmez ve platform hizmet bedeli premium ile değişmez.'.($trialDays > 0 ? ' Belgeleri onaylanan her şoföre bir kez '.$trialDays.' günlük ücretsiz deneme tanımlanır; kart bilgisi istenmez, süre sonunda ücret alınmaz.' : ''),
+                'answer' => 'Üç şey: gruplardan derlenen ilanların tamamını ilan bilgileriyle görürsünüz (standart üyeye bu ilanlar hiç görünmez); yük sahiplerinin NavlunIQ ilanlarını herkesten '.$leadText.' önce görürsünüz; aracınıza uygun ilan ve dönüş yükü çıktığında anında bildirim alırsınız. Aylık ücret '.$premiumPrice.' ₺\'dir (KDV dahil), sevkiyat başına ek ücret yoktur, otomatik yenilenmez'.($direct ? '; navlundan komisyon alınmaz.' : ' ve platform hizmet bedeli premium ile değişmez.').($trialDays > 0 ? ' Belgeleri onaylanan her şoföre bir kez '.$trialDays.' günlük ücretsiz deneme tanımlanır; kart bilgisi istenmez, süre sonunda ücret alınmaz.' : ''),
             ],
             [
                 'order_num' => 5,
                 'question' => 'Ücretsiz şoför hesabı ile premium arasındaki fark nedir?',
-                'answer' => 'Ücretsiz hesap NavlunIQ ilanlarını görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Farklar: gruplardan derlenen ilanlar yalnız premium üyelere açıktır; yeni NavlunIQ ilanları ücretsiz hesaba premium üyelerden '.$leadText.' sonra açılır; ücretsiz hesaba bildirim gönderilmez; NavlunIQ ilanları ve dönüş yükü radarı ilanları panelinize düşer, siz takip edersiniz. Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır.',
+                'answer' => 'Ücretsiz hesap NavlunIQ ilanlarını görür ve sınırsız teklif verir; bu hak her zaman ücretsizdir. Farklar: gruplardan derlenen ilanlar yalnız premium üyelere açıktır; yeni NavlunIQ ilanları ücretsiz hesaba premium üyelerden '.$leadText.' sonra açılır; ücretsiz hesaba bildirim gönderilmez; NavlunIQ ilanları ve dönüş yükü radarı ilanları panelinize düşer, siz takip edersiniz. '.($direct ? 'Navlundan komisyon iki hesapta da alınmaz.' : 'Platform hizmet bedeli (%'.$driverRate.') iki hesapta da aynıdır.'),
             ],
             [
                 'order_num' => 6,
                 'question' => 'Dış kaynaklı ilanlar sisteme nasıl derlenir?',
-                'answer' => 'Yalnız kullanım ve paylaşım izni alınmış kaynaklardan (web siteleri ve izinli gruplar) gelen ilan mesajları toplanır. Mesajlar önce otomatik olarak rota, yük cinsi, tonaj ve fiyat alanlarına ayrıştırılır, ardından operasyon ekibimiz her ilanı kontrol edip onaylar veya reddeder. Sadece onaylanan ilanlar şoför ilan listesine düşer ve "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; NavlunIQ\'nun teslimat onaylı ödeme sistemi yalnız platform içi ilanlarda geçerlidir.',
+                'answer' => 'Yalnız kullanım ve paylaşım izni alınmış kaynaklardan (web siteleri ve izinli gruplar) gelen ilan mesajları toplanır. Mesajlar önce otomatik olarak rota, yük cinsi, tonaj ve fiyat alanlarına ayrıştırılır, ardından operasyon ekibimiz her ilanı kontrol edip onaylar veya reddeder. Sadece onaylanan ilanlar şoför ilan listesine düşer ve "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; '.($direct ? 'teklif, canlı konum ve teslim kanıtı yalnız platform içi ilanlarda vardır.' : 'NavlunIQ\'nun teslimat onaylı ödeme sistemi yalnız platform içi ilanlarda geçerlidir.'),
             ],
             [
                 'order_num' => 7,
                 'question' => 'NavlunIQ bir nakliye firması mıdır?',
-                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, ödemeyi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlayan ve süreci kayıt altına alan bir aracı teknoloji platformudur. Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
+                'answer' => 'Hayır. NavlunIQ bir nakliye firması veya kargo operatörü değildir; yük sahipleri ile onaylı şoförleri buluşturan, '.($direct ? 'süreci (teklif, canlı konum, teslim kanıtı) kayıt altına alan bir aracı teknoloji platformudur. Navlun bedeli taraflar arasında doğrudan ödenir; NavlunIQ ödemeye taraf olmaz, komisyon almaz.' : 'ödemeyi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlayan ve süreci kayıt altına alan bir aracı teknoloji platformudur.').' Taşıma sözleşmesi yük sahibi ile şoför arasında kurulur; tarafların sorumlulukları kullanıcı sözleşmesinde açıklanmıştır.',
             ],
             [
                 'order_num' => 8,
                 'question' => 'Uyuşmazlık merkezi nasıl çalışır?',
-                'answer' => 'Teslimatta hasar, eksik ya da anlaşmazlık yaşanırsa yük sahibi teslimatı onaylamak yerine panelinden itiraz açar; o anda navlun ödemesi askıya alınır ve otomatik onay durur. Şoför kendi açıklamasını ve fotoğrafını ekler. NavlunIQ destek ekibi iki tarafın beyanlarını, yükleme ve teslim fotoğraflarını ve varsa konum kayıtlarını inceleyerek ödemenin şoföre yapılmasına ya da yük sahibine iadesine karar verir. Karar ve gerekçesi her iki tarafa panelden bildirilir. Bu süreç taraflara hukuki yollara başvurma hakkını kaybettirmez.',
+                'answer' => $direct
+                    ? 'Teslimatta hasar, eksik ya da anlaşmazlık yaşanırsa yük sahibi teslimatı onaylamak yerine panelinden itiraz açar; otomatik onay durur. Şoför kendi açıklamasını ve fotoğrafını ekler. NavlunIQ destek ekibi iki tarafın beyanlarını, yükleme ve teslim fotoğraflarını ve varsa konum kayıtlarını inceleyerek teslimatın tamamlandığına ya da tamamlanmadığına karar verir; karar ve gerekçesi her iki tarafa panelden bildirilir. Navlun taraflar arasında ödendiğinden NavlunIQ para tutmaz, iade ya da ödeme yapmaz; karar, tarafların kendi aralarındaki hesaplaşmasına ve değerlendirmelere dayanak olur. Bu süreç taraflara hukuki yollara başvurma hakkını kaybettirmez.'
+                    : 'Teslimatta hasar, eksik ya da anlaşmazlık yaşanırsa yük sahibi teslimatı onaylamak yerine panelinden itiraz açar; o anda navlun ödemesi askıya alınır ve otomatik onay durur. Şoför kendi açıklamasını ve fotoğrafını ekler. NavlunIQ destek ekibi iki tarafın beyanlarını, yükleme ve teslim fotoğraflarını ve varsa konum kayıtlarını inceleyerek ödemenin şoföre yapılmasına ya da yük sahibine iadesine karar verir. Karar ve gerekçesi her iki tarafa panelden bildirilir. Bu süreç taraflara hukuki yollara başvurma hakkını kaybettirmez.',
             ],
             [
                 'order_num' => 9,
@@ -84,22 +92,26 @@ class FaqSeeder extends Seeder
             [
                 'order_num' => 11,
                 'question' => 'Yüklediğim ehliyet, ruhsat ve vergi levhası gibi belgeler güvende mi?',
-                'answer' => 'Evet. Belgeler internetten doğrudan erişilemeyen özel bir depolama alanında saklanır ve yalnız belge sahibi ile yetkili evrak ekibi oturum açarak görüntüleyebilir. IBAN bilgileri veritabanında şifreli tutulur, şifreler geri döndürülemez biçimde hashlenir. Belgeler evrak onayı ve yasal saklama yükümlülükleri dışında kullanılmaz; ayrıntılar KVKK aydınlatma metninde yer alır.',
+                'answer' => 'Evet. Belgeler internetten doğrudan erişilemeyen özel bir depolama alanında saklanır ve yalnız belge sahibi ile yetkili evrak ekibi oturum açarak görüntüleyebilir. '.($direct ? 'Şifreler' : 'IBAN bilgileri veritabanında şifreli tutulur, şifreler').' geri döndürülemez biçimde hashlenir. Belgeler evrak onayı ve yasal saklama yükümlülükleri dışında kullanılmaz; ayrıntılar KVKK aydınlatma metninde yer alır.',
             ],
             [
                 'order_num' => 12,
-                'question' => 'Komisyonlar ve faturalar nasıl işler?',
-                'answer' => 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve Ödemelerim sayfasında açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
+                'question' => $direct ? 'Komisyon var mı, faturalar nasıl işler?' : 'Komisyonlar ve faturalar nasıl işler?',
+                'answer' => $direct
+                    ? 'Gizli maliyet yoktur. NavlunIQ navlun bedelinden komisyon ya da hizmet bedeli almaz; ilan vermek ve teklif vermek ücretsizdir. Tek ücretli hizmet isteğe bağlı premium şoför üyeliğidir; her premium ödemesi için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Navlun bedelinin faturası taşımanın tarafları (yük sahibi ile şoför) arasında düzenlenir.'
+                    : 'Gizli maliyet yoktur. '.$ownerFeeText.' Tamamlanan sevkiyatlarda şoförün navlun ödemesinden %'.$driverRate.' platform hizmet bedeli kesilir; bu oran premium üyelikle değişmez; kesinti tutarı teklif ekranında ve Ödemelerim sayfasında açıkça gösterilir. Premium abonelik ve hizmet bedelleri için KDV dahil fatura düzenlenir ve panelinizden görüntülenir. Oranlar değiştiğinde yeni oran yalnız değişiklikten sonra kabul edilen tekliflere uygulanır.',
             ],
             [
                 'order_num' => 13,
                 'question' => 'Yük sahibi olarak bir ilanı nasıl iptal edebilirim?',
-                'answer' => 'İlan henüz teklif almadıysa ya da teklif kabul edilmiş ancak ödeme yapılmamışsa ilanı panelinizden tek adımda iptal edebilirsiniz; bekleyen teklifler otomatik olarak reddedilir. Navlun ödemesi alındıktan veya şoför yola çıktıktan sonra iptal yalnız destek ekibi üzerinden, tarafların mutabakatı ya da uyuşmazlık kararıyla yapılır; iade bu karara göre gerçekleşir.',
+                'answer' => $direct
+                    ? 'İlan henüz teklif almadıysa ya da şoför henüz yola çıkmadıysa ilanı panelinizden tek adımda iptal edebilirsiniz; bekleyen teklifler otomatik olarak reddedilir, kabul edilmiş teklif varsa şoföre bildirim gider. Şoför yola çıktıktan sonra iptal yalnız destek ekibi üzerinden, tarafların mutabakatı ya da uyuşmazlık kararıyla yapılır. Navlun taraflar arasında ödendiğinden NavlunIQ iade yapmaz; ödenmiş bir tutar varsa taraflar kendi aralarında çözer.'
+                    : 'İlan henüz teklif almadıysa ya da teklif kabul edilmiş ancak ödeme yapılmamışsa ilanı panelinizden tek adımda iptal edebilirsiniz; bekleyen teklifler otomatik olarak reddedilir. Navlun ödemesi alındıktan veya şoför yola çıktıktan sonra iptal yalnız destek ekibi üzerinden, tarafların mutabakatı ya da uyuşmazlık kararıyla yapılır; iade bu karara göre gerçekleşir.',
             ],
             [
                 'order_num' => 14,
                 'question' => 'Premium aboneliğimi iptal edebilir miyim, ücret iadesi var mı?',
-                'answer' => 'Premium üyelik aylık dönemler halinde satın alınır ve otomatik yenilenmez; dönem sonunda uzatmazsanız hesabınız kendiliğinden standart üyeliğe döner, komisyon oranınız standart orana ayarlanır. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde ücret iadesi yapılmaz; dönem sonuna kadar tüm premium haklarınızı kullanmaya devam edersiniz.',
+                'answer' => 'Premium üyelik aylık dönemler halinde satın alınır ve otomatik yenilenmez; dönem sonunda uzatmazsanız hesabınız kendiliğinden standart üyeliğe döner'.($direct ? '' : ', komisyon oranınız standart orana ayarlanır').'. Dijital hizmet satın alındığı anda kullanıma açıldığından dönem içinde ücret iadesi yapılmaz; dönem sonuna kadar tüm premium haklarınızı kullanmaya devam edersiniz.',
             ],
             [
                 'order_num' => 15,

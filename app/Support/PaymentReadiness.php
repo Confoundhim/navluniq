@@ -58,9 +58,13 @@ final class PaymentReadiness
             $sandboxInProduction ? 'Canlı sitede test (sandbox) geçidi açık: ödemeler sahte para ile "başarılı" olur' : 'Uygun',
             'Canlı sitede test modu kapalı olmalı; iyzico canlı anahtarlarını girip "Test (sandbox) modu" kutusunu kaldırın.');
         $blocker = self::escrowBlocker($active);
-        $checks[] = self::item('Ödeme kuruluşu', 'Navlun tahsilatı açık (pazaryeri modeli)', $blocker === null,
-            $blocker ?? ($active->isSandbox() ? 'Test modunda açık' : 'Pazaryeri ile açık'),
-            'Navlun tahsilatı yalnız iyzico Pazaryeri ile yapılır; sözleşme imzalanınca "Pazaryeri ürünü aktif" kutusunu işaretleyin.');
+        if (FreightPayment::direct()) {
+            $checks[] = self::item('Ödeme kuruluşu', 'Navlun ödeme yolu', true, 'Doğrudan: navlun yük sahibi ile şoför arasında ödenir; platform tahsilat yapmaz, komisyon almaz (premium üyelik kartla alınır)', null);
+        } else {
+            $checks[] = self::item('Ödeme kuruluşu', 'Navlun tahsilatı açık (platform kipi, pazaryeri modeli)', $blocker === null,
+                $blocker ?? ($active->isSandbox() ? 'Test modunda açık' : 'Pazaryeri ile açık'),
+                'Platform kipi seçili ama navlun tahsilatı kapalı: pazaryeri açılana kadar "Navlun ödeme yolu"nu "Doğrudan" yapın, yoksa teklif kabulünden sonra ilanlar ödeme bekler.');
+        }
         $checks[] = self::item('Ödeme kuruluşu', 'HTTPS adres', $https, $appUrl, 'APP_URL https:// ile başlamalı; SSL sertifikası kurulu olmalı.');
         $checks[] = self::item('Ödeme kuruluşu', 'Sunucu bildirimi (webhook) adresi', true, $appUrl.'/odeme/bildirim/'.$selected->id(), null);
         $checks[] = self::item('Ödeme kuruluşu', 'Sonuç sayfaları', true, $appUrl.'/odeme/sonuc/{sipariş}/basarili · …/basarisiz', null);

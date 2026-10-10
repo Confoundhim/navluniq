@@ -219,8 +219,9 @@ class LoadService
                 throw new RuntimeException('Bu ilan size ait değil.');
             }
 
+            // Doğrudan kipte (navlun taraflar arasında) yola çıkılmadan iptal serbest: para platformda yok, iade yok.
             $cancellable = $locked->status === Load::STATUS_ACTIVE
-                || ($locked->status === Load::STATUS_ASSIGNED && $locked->escrow_status === Load::ESCROW_PENDING);
+                || ($locked->status === Load::STATUS_ASSIGNED && in_array($locked->escrow_status, [Load::ESCROW_PENDING, Load::ESCROW_DIRECT], true));
 
             if (! $cancellable) {
                 throw new RuntimeException($locked->canBeCancelledBeforeTransit()
@@ -399,27 +400,29 @@ class LoadService
         $count = 0;
         $notifications = app(NotificationService::class);
         Load::query()->with(['cargoOwnerProfile.user', 'driverProfile.user'])
-            ->where('status', Load::STATUS_ASSIGNED)->where('escrow_status', Load::ESCROW_PAID)
+            ->where('status', Load::STATUS_ASSIGNED)->whereIn('escrow_status', [Load::ESCROW_PAID, Load::ESCROW_DIRECT])
             ->whereNotNull('pickup_date')->where('pickup_date', '<', today()->subDays($grace))
             ->whereNull('no_show_notified_at')->orderBy('id')->limit(100)->get()
             ->each(function (Load $load) use (&$count, $notifications): void {
                 $load->forceFill(['no_show_notified_at' => now()])->save();
                 $count++;
                 $route = "{$load->pickup_location} → {$load->delivery_location}";
+                $direct = $load->isDirectPayment();
                 if ($owner = $load->cargoOwnerProfile?->user) {
                     $notifications->notify($owner, 'Şoför yükü henüz almadı',
                         ["{$route} ilanında yükleme tarihi ({$load->pickup_date->format('d.m.Y')}) geçti, şoför hâlâ yola çıkmadı.",
-                            'Şoförle görüşün; gelmeyecekse sevkiyat sayfasındaki "İptal et ve iade al" düğmesiyle sevkiyatı iptal edip navlun bedelinizi geri alabilirsiniz.'],
+                            $direct ? 'Şoförle görüşün; gelmeyecekse ilanı iptal edip yeniden yayınlayarak başka şoför bulabilirsiniz.'
+                                : 'Şoförle görüşün; gelmeyecekse sevkiyat sayfasındaki "İptal et ve iade al" düğmesiyle sevkiyatı iptal edip navlun bedelinizi geri alabilirsiniz.'],
                         route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
                 }
                 if ($driver = $load->driverProfile?->user) {
                     $notifications->notify($driver, 'Yükleme tarihi geçti, yola çıkmadınız',
                         ["{$route} işinde yükleme tarihi geçti ve hâlâ \"Yola çıktım\" demediniz. Yükü aldıysanız İşlerim sayfasından yola çıktığınızı bildirin; işi yapamayacaksanız vazgeçin ki yük sahibi başka şoför bulsun.",
-                            'Yük sahibi sevkiyatı iptal edip iade alabilir; ödeme sonrası vazgeçmeler hesabınızda sayılır.'],
+                            $direct ? 'Yük sahibi sevkiyatı iptal edip başka şoför bulabilir; kabulden sonra vazgeçmeler hesabınızda sayılır.' : 'Yük sahibi sevkiyatı iptal edip iade alabilir; ödeme sonrası vazgeçmeler hesabınızda sayılır.'],
                         route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
                 }
                 $notifications->notifyAdmins('manage operations', 'Şoför gelmedi şüphesi',
-                    ["İlan #{$load->id} ({$route}): ödeme alındı, yükleme tarihi {$load->pickup_date->format('d.m.Y')} geçti, şoför yola çıkmadı. İki taraf bilgilendirildi; gerekirse Operasyon ekranından \"İptal et ve iade et\"."],
+                    ["İlan #{$load->id} ({$route}): ".($direct ? 'navlun taraflar arasında' : 'ödeme alındı').", yükleme tarihi {$load->pickup_date->format('d.m.Y')} geçti, şoför yola çıkmadı. İki taraf bilgilendirildi".($direct ? '.' : '; gerekirse Operasyon ekranından "İptal et ve iade et".')],
                     route('admin.operations'), 'Operasyon ekranı', 'admin');
             });
 

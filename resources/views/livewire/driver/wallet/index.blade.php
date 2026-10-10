@@ -195,6 +195,8 @@ class extends Component {
 
         return [
             'profile' => $user->driverProfile,
+            // Doğrudan kip: navlun taraflar arasında ödenir; hakediş, IBAN, kimlik ve satıcı sözleşmesi şu an gerekmez.
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'needsSellerAgreement' => $this->needsSellerAgreement($user->driverProfile),
             'sellerAgreementUrl' => IyzicoGateway::SELLER_AGREEMENT_URL,
             'summary' => app(PayoutService::class)->walletSummary($user),
@@ -214,12 +216,24 @@ class extends Component {
         <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs font-semibold">{{ session('error_message') }}</div>
     @endif
 
+    @php
+        $legacyTotal = (float) ($summary['pending'] ?? 0) + (float) ($summary['paid'] ?? 0) + (float) ($summary['in_escrow'] ?? 0) + (float) ($summary['failed'] ?? 0);
+        $hasLegacy = $legacyTotal > 0 || $payouts->total() > 0;
+    @endphp
+
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h2 class="page-title">Ödemelerim</h2>
-        <p class="page-subtitle">Navlun ödemeleriniz, teslimat onayından sonra lisanslı ödeme kuruluşu aracılığıyla kayıtlı IBAN adresinize yapılır.</p>
+        <p class="page-subtitle">@if($directPayment)Navlun bedeli yük sahibiyle aranızda doğrudan ödenir; NavlunIQ tahsilat yapmaz, komisyon almaz.@else Navlun ödemeleriniz, teslimat onayından sonra lisanslı ödeme kuruluşu aracılığıyla kayıtlı IBAN adresinize yapılır.@endif</p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    @if($directPayment)
+        <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed space-y-1">
+            <div class="font-bold text-neutral-900 dark:text-white">Navlun şoförle yük sahibi arasında ödenir</div>
+            <p>Teklifiniz kabul edilince yük sahibinin iletişim bilgilerini ve yükleme adresini hemen görürsünüz; ödemeyi yük sahibiyle aranızda anlaştığınız şekilde alırsınız. NavlunIQ para tutmaz, hakediş oluşturmaz, komisyon almaz. IBAN ve kimlik bilgisi şu an gerekmez; platform üzerinden ödeme açılırsa burada istenir.</p>
+        </div>
+    @endif
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 {{ $directPayment && ! $hasLegacy ? 'hidden' : '' }}">
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6">
             <div class="text-xs text-neutral-500 dark:text-neutral-400">Ödeme sırasında</div>
             <div class="mt-2 text-2xl font-black text-neutral-900 dark:text-white tabular-nums">{{ number_format((float) ($summary['pending'] ?? 0), 2, ',', '.') }} ₺</div>
@@ -256,7 +270,9 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
                 <h3 class="section-title">Ödeme kayıtları</h3>
 
-                @if($payouts->count())
+                @if($directPayment && ! $payouts->count())
+                    <div class="p-6 bg-neutral-50 dark:bg-neutral-950 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center text-xs text-neutral-500 dark:text-neutral-400">Platform üzerinden ödeme kaydınız yok; navlun yük sahibiyle aranızda ödenir.</div>
+                @elseif($payouts->count())
                     <div class="responsive-scroll overflow-x-auto">
                         <table class="table-cards w-full text-xs text-left">
                             <thead class="text-2xs uppercase text-neutral-500 border-b border-neutral-200 dark:border-neutral-800">
@@ -332,6 +348,16 @@ class extends Component {
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
                 <h3 class="section-title">Ödeme alacağınız hesap</h3>
 
+                @if($directPayment)
+                    <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 leading-relaxed">Şu an gerekmez: navlun yük sahibiyle aranızda ödenir. Platform üzerinden ödeme açılırsa IBAN ve kimlik bilgisi burada istenir.</div>
+                    @if($bankAccount)
+                        <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
+                            <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
+                            <div class="text-neutral-500 dark:text-neutral-400">{{ $bankAccount->account_holder }}</div>
+                            <div class="text-2xs text-neutral-500">Daha önce kaydedilen hesap; şu an kullanılmaz.</div>
+                        </div>
+                    @endif
+                @else
                 @if($bankAccount)
                     <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 space-y-1">
                         <div class="text-neutral-900 dark:text-white font-mono font-bold">{{ $bankAccount->maskedIban() }}</div>
@@ -408,12 +434,18 @@ class extends Component {
                         <span wire:loading wire:target="saveBankAccount">Kaydediliyor...</span>
                     </button>
                 </form>
+                @endif
             </div>
 
             <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-2 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 <h3 class="section-title">Ödeme süreci</h3>
-                <p>Yük sahibi teslimatı onayladığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.</p>
-                <p>Ödeme, lisanslı ödeme kuruluşu tarafından kayıtlı IBAN adresinize aktarılır; tamamlandığında referans numarası bu sayfada görünür. Kimlik numarası, ödeme kuruluşunun yasal zorunluluğudur ve yalnız bu amaçla kullanılır.</p>
+                @if($directPayment)
+                    <p>Teklifiniz kabul edilince yük sahibiyle doğrudan görüşürsünüz; navlun bedelini aranızda anlaştığınız şekilde alırsınız.</p>
+                    <p>Teslimat kanıtını yükledikten ve yük sahibi onayladıktan sonra iş tamamlanır. NavlunIQ bu ödemeye taraf olmaz; sorun olursa uyuşmazlık kaydı açabilirsiniz.</p>
+                @else
+                    <p>Yük sahibi teslimatı onayladığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.</p>
+                    <p>Ödeme, lisanslı ödeme kuruluşu tarafından kayıtlı IBAN adresinize aktarılır; tamamlandığında referans numarası bu sayfada görünür. Kimlik numarası, ödeme kuruluşunun yasal zorunluluğudur ve yalnız bu amaçla kullanılır.</p>
+                @endif
             </div>
         </div>
     </div>

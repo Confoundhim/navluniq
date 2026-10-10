@@ -2,6 +2,10 @@
 @php
     $whatsappNumber = preg_replace('/\D/', '', (string) \App\Models\CmsContent::getVal('contact_whatsapp', \App\Support\Company::get('phone')));
     $whatsappNumber = $whatsappNumber !== '' ? (str_starts_with($whatsappNumber, '90') ? $whatsappNumber : '90'.ltrim($whatsappNumber, '0')) : null;
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+    if ($directPay) {
+        $description = str_replace('güvenli ödeme ile taşıt', 'şoförle doğrudan anlaş; komisyon yok', $description);
+    }
 @endphp
 <!DOCTYPE html>
 <html lang="tr" class="scroll-smooth">
@@ -334,7 +338,7 @@
         <div class="max-w-7xl mx-auto pt-8 flex flex-col md:flex-row items-center justify-between gap-3">
             <div class="flex items-center gap-2 text-[11px] text-neutral-400">
                 <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                <span>Ödemeler 256-bit SSL ile lisanslı ödeme kuruluşu üzerinden alınır; kart bilgileri NavlunIQ'da saklanmaz.</span>
+                <span>{{ $directPay ? 'Premium üyelik ödemeleri' : 'Ödemeler' }} 256-bit SSL ile lisanslı ödeme kuruluşu üzerinden alınır; kart bilgileri NavlunIQ'da saklanmaz.{{ $directPay ? ' Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir.' : '' }}</span>
             </div>
             <a href="https://www.iyzico.com" target="_blank" rel="noopener" title="iyzico ile Öde · Mastercard, Visa, American Express, Troy" class="shrink-0">
                 <img src="{{ asset_v('/images/payment/iyzico-band-colored.svg') }}" alt="iyzico ile Öde, Mastercard, Visa, American Express, Troy" class="h-7 sm:h-8 w-auto dark:hidden">

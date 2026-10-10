@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Load;
+use App\Support\FreightPayment;
 use App\Support\Settings;
 use App\Support\VehicleTypes;
 use Illuminate\Support\Facades\Http;
@@ -42,7 +43,7 @@ class TelegramPublisher
             $lines[] = implode(' · ', $facts);
         }
         if ((float) $load->price > 0) {
-            $lines[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺ (teslimat onaylı güvenli ödeme)';
+            $lines[] = '💰 '.number_format((float) $load->price, 0, ',', '.').' ₺'.(FreightPayment::direct() ? '' : ' (teslimat onaylı güvenli ödeme)');
         }
         if ($load->pickup_date) {
             $lines[] = '📅 Yükleme: '.$load->pickup_date->format('d.m.Y');

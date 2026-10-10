@@ -95,9 +95,12 @@ class extends Component {
 
             return;
         }
+        $direct = (bool) $shipment->cargoLoad?->isDirectPayment();
         try {
             $offers->withdrawAccepted($offer, $profile);
-            session()->flash('success_message', 'Vazgeçtiniz; ilan yeniden havuza döndü, navlun yük sahibine iade ediliyor.');
+            session()->flash('success_message', $direct
+                ? 'Vazgeçtiniz; ilan yeniden havuza döndü.'
+                : 'Vazgeçtiniz; ilan yeniden havuza döndü, navlun yük sahibine iade ediliyor.');
         } catch (\RuntimeException $e) {
             session()->flash('error_message', $e->getMessage());
         }
@@ -188,8 +191,10 @@ class extends Component {
             'mapZoom' => $latest ? 12 : 6,
             'canReview' => $load && ReviewService::canReview($load) && ! $hasReviewed,
             'hasReviewed' => $hasReviewed,
-            'ownerPhone' => $load && $load->isPaid() ? $load->cargoOwnerProfile?->user?->phone : null,
-            'startBlocker' => $profile ? ShipmentService::startBlocker($profile) : null,
+            // Doğrudan kipte (navlun taraflar arasında) iletişim numarası teklif kabulünden itibaren görünür; IBAN şartı yok.
+            'ownerPhone' => $load && ($load->isPaid() || $load->isDirectPayment()) ? $load->cargoOwnerProfile?->user?->phone : null,
+            'startBlocker' => $profile ? ShipmentService::startBlocker($profile, $load) : null,
+            'directPayment' => (bool) $load?->isDirectPayment(),
             'commissionRate' => $rate,
             'driverNet' => $net,
             // Uyuşmazlık yolda açıldı, yük henüz teslim edilmedi: şoför kanıt yükleyebilir ve konum paylaşabilir (kanıt hakeme gider).
@@ -210,7 +215,7 @@ class extends Component {
     <div class="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <a href="{{ route('driver.jobs.index') }}" wire:navigate class="text-xs text-neutral-500 dark:text-neutral-400 hover:text-brand-400 font-semibold">&larr; İşlerim</a>
         <h2 class="text-xl font-bold text-neutral-900 dark:text-white tracking-tight mt-1">İş ayrıntısı</h2>
-        <p class="page-subtitle">NavlunIQ ilanı: ödeme, yola çıkış, teslimat kanıtı ve yük sahibi onayı bu sayfada ilerler.</p>
+        <p class="page-subtitle">NavlunIQ ilanı: {{ $directPayment ? '' : 'ödeme, ' }}yola çıkış, teslimat kanıtı ve yük sahibi onayı bu sayfada ilerler.</p>
     </div>
 
     @if(! $load)
@@ -225,7 +230,7 @@ class extends Component {
                         <div class="text-base font-bold text-neutral-900 dark:text-white">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
                         <div class="flex flex-wrap gap-2">
                             <span class="px-2.5 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-bold text-[11px]">{{ $load->statusLabel() }}</span>
-                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ $load->isPaid() ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
+                            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold border {{ ($load->isPaid() || $directPayment) ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400' }}">{{ $load->escrowLabel() }}</span>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -251,7 +256,7 @@ class extends Component {
                         </div>
                         @php $privateAddress = $load->privateAddressFor(auth()->user()); $pickupContact = $load->pickupContactFor(auth()->user()); $driverNotes = $load->notesFor(auth()->user()); @endphp
                         @if($privateAddress && (($privateAddress['pickup'] ?? null) || ($privateAddress['delivery'] ?? null) || $pickupContact))
-                            {{-- Açık adres ve yükleme yetkilisi yalnız ödeme alındıktan sonra, atanmış şoföre görünür (Load::canSeePrivateDetails). --}}
+                            {{-- Açık adres ve yükleme yetkilisi atanmış şoföre ödeme alındıktan sonra (doğrudan kipte teklif kabulünden itibaren) görünür (Load::canSeePrivateDetails). --}}
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800">
                                 <div class="text-neutral-500">Yükleme adresi</div>
                                 <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['pickup'] ?? $load->pickup_location }}</div>
@@ -271,7 +276,7 @@ class extends Component {
                                 <div class="text-neutral-500">Teslim adresi</div>
                                 <div class="text-neutral-900 dark:text-white font-semibold break-words">{{ $privateAddress['delivery'] ?? $load->delivery_location }}</div>
                             </div>
-                        @elseif(! $load->isPaid() && $shipment)
+                        @elseif(! $load->isPaid() && ! $directPayment && $shipment)
                             <div class="p-3 bg-neutral-50 dark:bg-neutral-950 rounded-xl border border-neutral-200 dark:border-neutral-800 sm:col-span-2 text-neutral-500">Açık yükleme ve teslim adresi, yükleme yetkilisi ve yük sahibinin notu ödeme alındığında burada görünür.</div>
                         @endif
                         @if($driverNotes)
@@ -299,8 +304,12 @@ class extends Component {
                         <h3 class="section-title">Teslimat adımları</h3>
 
                         @if($shipment->status === \App\Models\Shipment::STATUS_AWAITING_PICKUP)
-                            @if($load->escrow_status === \App\Models\Load::ESCROW_PAID)
-                                <p class="text-xs text-neutral-700 dark:text-neutral-300">Yük sahibi navlun ödemesini yaptı. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
+                            @if($load->escrow_status === \App\Models\Load::ESCROW_PAID || $directPayment)
+                                @if($directPayment)
+                                    <p class="text-xs text-neutral-700 dark:text-neutral-300">Navlun bedelini yük sahibiyle aranızda ödersiniz; NavlunIQ tahsilat yapmaz. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
+                                @else
+                                    <p class="text-xs text-neutral-700 dark:text-neutral-300">Yük sahibi navlun ödemesini yaptı. Yükü teslim aldığınızda yola çıktığınızı bildirin.</p>
+                                @endif
                                 @if($startBlocker)
                                     <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
                                         {{ $startBlocker }}
@@ -311,7 +320,7 @@ class extends Component {
                                         Yükü aldım, yola çıktım
                                     </button>
                                 @endif
-                                <button type="button" wire:click="withdrawPaid" wire:confirm="Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?" class="load-card-action-ghost text-neutral-500 text-xs" wire:loading.attr="disabled">Bu işten vazgeç</button>
+                                <button type="button" wire:click="withdrawPaid" wire:confirm="{{ $directPayment ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' }}" class="load-card-action-ghost text-neutral-500 text-xs" wire:loading.attr="disabled">Bu işten vazgeç</button>
                             @else
                                 <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs">
                                     Yük sahibi ödemeyi yapmadan yola çıkamazsınız. Ödeme yapıldığında bu sayfada yola çıkma düğmesi görünecektir.
@@ -355,7 +364,9 @@ class extends Component {
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_COMPLETED)
                             <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs space-y-2">
                                 <div class="font-bold">İş tamamlandı.</div>
-                                @if($load->payout)
+                                @if($directPayment)
+                                    <div>Navlun bedeli yük sahibiyle aranızda ödenir; NavlunIQ tahsilat yapmaz, komisyon almaz.</div>
+                                @elseif($load->payout)
                                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                         <div>Navlun: <span class="tabular-nums font-bold text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->total_amount ?? 0), 2, ',', '.') }} ₺</span></div>
                                         <div>Komisyon: <span class="tabular-nums text-neutral-900 dark:text-white">{{ number_format((float) ($load->payout->commission_amount ?? 0), 2, ',', '.') }} ₺</span></div>
@@ -365,7 +376,9 @@ class extends Component {
                                 @else
                                     <div>Ödeme kaydı henüz oluşmadı.</div>
                                 @endif
-                                <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Ödemelerime git</a>
+                                @if(! $directPayment)
+                                    <a href="{{ route('driver.wallet.index') }}" wire:navigate class="inline-block font-bold underline">Ödemelerime git</a>
+                                @endif
                             </div>
                         @elseif($shipment->status === \App\Models\Shipment::STATUS_DISPUTED)
                             <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 text-xs">
@@ -549,6 +562,9 @@ class extends Component {
                             @case(\App\Models\Load::ESCROW_PENDING)
                                 Yük sahibi ödemeyi yapmadan yola çıkamazsınız.
                                 @break
+                            @case(\App\Models\Load::ESCROW_DIRECT)
+                                Navlun bedelini yük sahibiyle aranızda doğrudan ödersiniz; NavlunIQ tahsilat yapmaz, komisyon almaz ve ödemeye taraf olmaz.
+                                @break
                             @case(\App\Models\Load::ESCROW_PAID)
                                 Navlun ödemesi yapıldı. Teslimat onaylandığında ödemeniz platform hizmet bedeli düşülerek hesabınıza geçer.
                                 @break
@@ -571,7 +587,7 @@ class extends Component {
                                 Ödeme durumu güncellenmedi.
                         @endswitch
                     </p>
-                    @if($load->driverProfile && ! $load->isClosedWithRefund())
+                    @if($load->driverProfile && ! $load->isClosedWithRefund() && ! $directPayment)
                         <div class="pt-2 border-t border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 space-y-0.5">
                             <div>Komisyon oranınız: %{{ number_format($commissionRate, 1, ',', '.') }}</div>
                             <div>Size kalan: <span class="text-neutral-900 dark:text-white font-bold tabular-nums">{{ number_format($driverNet, 2, ',', '.') }} ₺</span></div>
