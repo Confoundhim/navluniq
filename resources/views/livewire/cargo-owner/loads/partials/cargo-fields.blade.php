@@ -1,3 +1,6 @@
+@php
+    $privateHint = \App\Support\FreightPayment::direct() ? 'teklifini kabul ettiğiniz şoför görür' : 'yalnız ödeme sonrası atanan şoför görür';
+@endphp
 {{--
     Yük alanları (ilan oluşturma 2. adım ve ilan düzenleme): cins, araç, kasa, biçim, ağırlık, hacim, şoföre not, e-İrsaliye.
     $restricted = true (bekleyen teklif var): yalnız şoföre not değişir. $showFile: e-İrsaliye dosya alanı (yalnız sihirbaz).
@@ -65,7 +68,7 @@
     </fieldset>
 
     <div>
-        <label class="form-label">Şoföre not <span class="text-neutral-400 font-normal">(yükleme saati, forklift, palet sayısı…; yalnız ödeme sonrası atanan şoför görür)</span></label>
+        <label class="form-label">Şoföre not <span class="text-neutral-400 font-normal">(yükleme saati, forklift, palet sayısı…; {{ $privateHint }})</span></label>
         <textarea wire:model="notes" rows="3" maxlength="{{ \App\Models\Load::NOTES_MAX }}" class="form-input"></textarea>
         @error('notes') <span class="form-error">{{ $message }}</span> @enderror
     </div>

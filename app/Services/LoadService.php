@@ -188,6 +188,9 @@ class LoadService
         if ($source->cargo_owner_profile_id !== $owner->id) {
             throw new RuntimeException('Bu ilan size ait değil.');
         }
+        if (! in_array($source->status, [Load::STATUS_COMPLETED, Load::STATUS_CANCELLED], true)) {
+            throw new RuntimeException('Yalnız tamamlanmış ya da iptal edilmiş ilan yeniden yayınlanabilir.');
+        }
         $pickupDate = ($pickupDate ?? now()->addDay())->copy()->startOfDay();
         if ($pickupDate->lt(today())) {
             throw new RuntimeException('Yükleme tarihi bugünden önce olamaz.');
@@ -376,14 +379,14 @@ class LoadService
                 $due = $load->delivery_date?->format('d.m.Y') ?? $load->pickup_date?->format('d.m.Y');
                 if ($driver = $load->driverProfile?->user) {
                     $notifications->notify($driver, 'Teslimat bildirimi bekleniyor',
-                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin; navlun ödemeniz yük sahibinin onayıyla başlar.",
+                        ["{$route} işinde teslim tarihi ({$due}) geçti ve henüz \"Teslim ettim\" demediniz. Yükü teslim ettiyseniz teslimat kanıtını yükleyin".($load->isDirectPayment() ? '; yük sahibi onaylayınca sevkiyat kapanır.' : '; navlun ödemeniz yük sahibinin onayıyla başlar.'),
                             'Yolda bir sorun varsa yük sahibiyle görüşün; gecikme uzarsa yük sahibi uyuşmazlık açabilir.'],
                         route('driver.jobs.show', $load->id), 'İşi aç', 'shipment');
                 }
                 if ($owner = $load->cargoOwnerProfile?->user) {
                     $notifications->notify($owner, 'Sevkiyat teslim tarihini geçti',
-                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi. Navlun bedeliniz ödeme kuruluşunda bekliyor.",
-                            'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
+                        ["{$route} sevkiyatında teslim tarihi ({$due}) geçti, şoför henüz teslimat bildirmedi.".($load->isDirectPayment() ? '' : ' Navlun bedeliniz ödeme kuruluşunda bekliyor.'),
+                            $load->isDirectPayment() ? 'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz.' : 'Şoförle görüşün; yük teslim edilmediyse sevkiyat sayfasından uyuşmazlık açabilirsiniz, karar verilince bedeliniz iade edilir.'],
                         route('cargo-owner.shipments.show', $load->id), 'Sevkiyatı aç', 'shipment');
                 }
                 $notifications->notifyAdmins('manage operations', 'Yolda takılan sevkiyat',

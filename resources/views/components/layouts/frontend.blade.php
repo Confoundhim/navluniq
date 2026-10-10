@@ -350,11 +350,17 @@
         <div class="max-w-7xl mx-auto pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-neutral-400 text-[11px]">
             <div>© {{ date('Y') }} NavlunIQ. Tüm Hakları Saklıdır.</div>
             <div class="flex items-center space-x-4">
-                @if($ig = \App\Models\CmsContent::getVal('social_instagram'))<a href="{{ $ig }}" target="_blank" rel="noopener" class="hover:text-brand-500 transition-colors">Instagram</a>@endif
-                <span>•</span>
-                @if($w = \App\Models\CmsContent::getVal('social_whatsapp'))<a href="{{ $w }}" target="_blank" rel="noopener" class="hover:text-emerald-500 transition-colors">WhatsApp</a>@endif
-                <span>•</span>
-                @if($tg = \App\Models\CmsContent::getVal('social_telegram'))<a href="{{ $tg }}" target="_blank" rel="noopener" class="hover:text-blue-500 transition-colors">Telegram</a>@endif
+                @php
+                    $socials = array_filter([
+                        ['Instagram', \App\Models\CmsContent::getVal('social_instagram'), 'hover:text-brand-500'],
+                        ['WhatsApp', \App\Models\CmsContent::getVal('social_whatsapp'), 'hover:text-emerald-500'],
+                        ['Telegram', \App\Models\CmsContent::getVal('social_telegram'), 'hover:text-blue-500'],
+                    ], fn ($s) => filled($s[1]));
+                @endphp
+                @foreach($socials as $i => $s)
+                    @if($i > 0 && ! $loop->first)<span>•</span>@endif
+                    <a href="{{ $s[1] }}" target="_blank" rel="noopener" class="{{ $s[2] }} transition-colors">{{ $s[0] }}</a>
+                @endforeach
             </div>
         </div>
     </footer>

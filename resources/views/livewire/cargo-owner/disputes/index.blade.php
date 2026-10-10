@@ -172,7 +172,7 @@ class extends Component {
     <div class="space-y-4">
         @forelse($disputes as $dispute)
             @php $load = $dispute->cargoLoad; @endphp
-            <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+            <div wire:key="dispute-{{ $dispute->id }}" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
 
                 <div class="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div class="flex flex-wrap items-center gap-3">
@@ -231,9 +231,9 @@ class extends Component {
                 @endif
 
                 @if($dispute->status !== 'open')
-                    <div class="p-4 rounded-xl bg-neutral-950/80 border border-brand-500/20 space-y-1 text-xs">
+                    <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950/80 border border-brand-500/20 space-y-1 text-xs">
                         <div class="flex flex-wrap items-center justify-between gap-2">
-                            <span class="font-bold text-brand-400">Karar notu</span>
+                            <span class="font-bold text-brand-600 dark:text-brand-400">Karar notu</span>
                             <span class="text-neutral-500">{{ $dispute->resolved_at?->format('d.m.Y H:i') }}</span>
                         </div>
                         <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed break-words">{{ $dispute->arbitration_notes ?: 'Karar notu girilmedi.' }}</p>

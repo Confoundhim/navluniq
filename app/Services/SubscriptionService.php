@@ -218,7 +218,7 @@ class SubscriptionService
 
         $this->notifications->notify($user, 'Premium üyelik hediye edildi',
             ["Hesabınıza {$days} günlük premium üyelik tanımlandı; ".$profile->fresh()->premium_until->format('d.m.Y H:i').' tarihine kadar geçerli.',
-                'Yeni ilanları herkesten 20 dakika önce görür, anında bildirim alırsınız; yalnız premium üyelere açık dış kaynak ilanlarını ilan sahibinin numarasıyla görürsünüz.'],
+                (($lead = app(LoadReleaseService::class)->delayMinutes()) > 0 ? "Yeni ilanları herkesten {$lead} dakika önce görür" : 'Yeni ilanları yayınlandığı anda görür').', anında bildirim alırsınız; gruplardan derlenen ilanlar ilan bilgileriyle yalnız size açılır.'],
             route('driver.premium.index'), 'Premium sayfam', 'subscription');
 
         return $subscription;
@@ -412,7 +412,7 @@ class SubscriptionService
 
             return $subscription;
         }
-        $lines = [$months.' aylık premium üyeliğiniz '.$until.' tarihine kadar geçerli. Onaylı dış kaynak ilanlarını artık herkesten önce, ilan sahibinin numarasıyla görüyorsunuz.'];
+        $lines = [$months.' aylık premium üyeliğiniz '.$until.' tarihine kadar geçerli. Gruplardan derlenen ilanları artık ilan bilgileriyle görüyor, yeni ilanlara herkesten önce ulaşıyorsunuz.'];
         if ($autoRenew) {
             $lines[] = 'Otomatik yenileme açık: dönem bitiminden 3 gün önce kayıtlı kartınızdan ('.$card->label().') o günkü '.$months.' aylık ücret çekilir ve üyelik kesintisiz sürer; bedel çekimden önce bildirilir. Premium sayfasından tek dokunuşla kapatabilirsiniz.';
         } elseif ($order->auto_renew) {

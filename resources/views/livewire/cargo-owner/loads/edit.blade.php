@@ -80,6 +80,13 @@ class extends Component {
         }
 
         $profile = Auth::user()->cargoOwnerProfile;
+        // Sayfa açıkken teklif geldiyse rota/yük/fiyat artık değişemez; sessizce atlamak yerine söylenir.
+        if (! $this->restricted && $load->offers()->where('status', 'pending')->exists()) {
+            $this->restricted = true;
+            session()->flash('error_message', 'Bu arada ilana teklif geldi; artık yalnız tarih, açık adres, yetkili ve not değiştirilebilir. Değişiklikleri gözden geçirip tekrar kaydedin.');
+
+            return;
+        }
         try {
             $changed = $loads->update($load, $profile, $this->formPayload());
         } catch (\RuntimeException $e) {

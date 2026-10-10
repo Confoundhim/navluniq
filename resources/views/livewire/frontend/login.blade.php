@@ -189,7 +189,7 @@ new class extends Component {
         @else
             <div class="space-y-5 animate-slide-up">
                 <div class="text-center space-y-1">
-                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Doğrulama Kodu (OTP)</h3>
+                    <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Doğrulama Kodu</h3>
                     <p class="text-[11px] text-neutral-400">E-posta adresinize gönderilen 6 haneli güvenlik kodunu girin.</p>
                 </div>
 

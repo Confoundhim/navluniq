@@ -229,7 +229,7 @@ class extends Component {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         @forelse($addresses as $addr)
-            <div class="bg-white dark:bg-neutral-900 border {{ $addr->is_default ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700' }} rounded-2xl p-6 flex flex-col justify-between space-y-4 transition-all duration-200">
+            <div wire:key="addr-{{ $addr->id }}" class="bg-white dark:bg-neutral-900 border {{ $addr->is_default ? 'border-brand-500/40' : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700' }} rounded-2xl p-6 flex flex-col justify-between space-y-4 transition-all duration-200">
 
                 <div class="space-y-3">
                     <div class="flex items-start justify-between gap-2">

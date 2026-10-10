@@ -40,7 +40,7 @@ new class extends Component {
             <span class="text-[10px] text-neutral-400 font-medium">Bugüne kadar açılan · şu an açık {{ number_format($stats['system_open'] ?? 0, 0, ',', '.') }}</span>
         </div>
         <div class="apple-glass rounded-3xl p-6 text-center space-y-1 shadow-apple-sm">
-            <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Dış Kaynak İlanları</span>
+            <span class="text-xs font-bold text-neutral-400 uppercase tracking-wider">Gruplardan Derlenen İlanlar</span>
             <div class="live-counter text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white tabular-nums" x-data="countUp" data-value="{{ $stats['external_total'] ?? 0 }}" x-text="text">{{ number_format($stats['external_total'] ?? 0, 0, ',', '.') }}</div>
             <span class="text-[10px] text-brand-500 font-bold">Bugün {{ number_format($stats['external_today'] ?? 0, 0, ',', '.') }} yeni · günde ortalama {{ number_format($stats['external_daily_avg'] ?? 0, 0, ',', '.') }}</span>
         </div>

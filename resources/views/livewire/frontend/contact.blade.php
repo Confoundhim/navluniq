@@ -69,7 +69,7 @@ new class extends Component {
         ]);
 
         $notifications = app(\App\Services\NotificationService::class);
-        $confirmLines = ['Talebiniz alındı ve destek ekibimize iletildi. Konu: '.$ticket->subject.' (talep no #'.$ticket->id.').', 'Genellikle 1 iş günü içinde e-posta ile yanıt veriyoruz. Acil durumlar için WhatsApp destek hattımızı kullanabilirsiniz.'];
+        $confirmLines = ['Talebiniz alındı ve destek ekibimize iletildi. Konu: '.$ticket->subject.' (talep no #'.$ticket->id.').', 'Genellikle 1 iş günü içinde e-posta ile yanıt veriyoruz.'];
         if (Auth::user()) {
             $notifications->notify(Auth::user(), 'Destek talebiniz alındı', $confirmLines, null, null, 'support');
         } else {
@@ -101,7 +101,7 @@ new class extends Component {
             Yolculuğunuzun Her Anında Yanınızdayız
         </h1>
         <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-            Sorularınız, iş birliği teklifleriniz veya destek talepleriniz için ekibimiz kesintisiz hizmet vermektedir.
+            Sorularınız, iş birliği teklifleriniz veya destek talepleriniz için formu doldurun; genellikle bir iş günü içinde e-posta ile yanıt veriyoruz.
         </p>
     </div>
 
@@ -164,7 +164,7 @@ new class extends Component {
                 </div>
 
                 <button type="submit" class="w-full btn-apple-brand py-3.5 text-xs font-bold shadow-apple-md">
-                    Mesajı Gönder (Bilet Oluştur)
+                    Mesajı Gönder
                 </button>
             </form>
         </div>
@@ -174,18 +174,24 @@ new class extends Component {
             <div class="apple-glass rounded-3xl p-8 space-y-4 shadow-apple-md">
                 <h3 class="text-sm font-bold text-neutral-900 dark:text-white uppercase tracking-wider pb-3 border-b border-neutral-100 dark:border-neutral-800">İLETİŞİM KANALLARI</h3>
                 <div class="space-y-3 text-neutral-600 dark:text-neutral-300">
+                    @if(\App\Support\Company::get('phone'))
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Müşteri Hizmetleri / Telefon</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('phone') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('phone') }}</span>
                     </div>
+                    @endif
+                    @if(\App\Support\Company::get('email'))
                     <div>
                         <span class="text-neutral-400 block text-[10px]">E-Posta Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('email') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('email') }}</span>
                     </div>
+                    @endif
+                    @if(\App\Support\Company::get('address'))
                     <div>
                         <span class="text-neutral-400 block text-[10px]">Merkez Adresimiz</span>
-                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('address') ?: 'Yakında' }}</span>
+                        <span class="font-bold text-neutral-900 dark:text-white">{{ \App\Support\Company::get('address') }}</span>
                     </div>
+                    @endif
                     {{-- Şirket kimlik bilgileri sitede yalnız burada ve sözleşme sayfalarında; alt bilgi ve e-postalarda tekrarlanmaz. --}}
                     @if(\App\Support\Company::get('name'))
                         <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">

@@ -10,7 +10,7 @@
                 Yükünüz Güvende, Maliyetiniz Kontrol Altında
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                İlan sihirbazımız ile araç türü, rota ve bütçe stratejinizi girerek ilanınızı anında açın. {{ $directPay ? 'Belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla yükünüz güvende.' : 'Güvenceli ödeme sistemiyle teslimata kadar riskinizi sıfırlayın.' }}
+                İlan sihirbazımız ile araç türü, rota ve bütçenizi girerek ilanınızı anında açın. {{ $directPay ? 'Belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla yükünüz güvende.' : 'Güvenceli ödeme sistemiyle teslimata kadar riskinizi sıfırlayın.' }}
             </p>
         </div>
 

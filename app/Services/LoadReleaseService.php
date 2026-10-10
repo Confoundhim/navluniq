@@ -90,7 +90,7 @@ class LoadReleaseService
                         $load->goods_type.($load->weight ? ' · '.number_format((int) $load->weight / 1000, 1, ',', '.').' ton' : '').' · '.implode(' · ', array_filter([VehicleTypes::label($load->vehicle_type), $load->bodyLabel(), $load->loadKindLabel()])),
                         (float) $load->price > 0 ? 'Navlun: '.number_format((float) $load->price, 0, ',', '.').' ₺' : null,
                         $load->pickup_date ? 'Yükleme: '.$load->pickup_date->format('d.m.Y') : null,
-                        $premium ? 'Premium üyelere '.$this->delayMinutes().' dakika önce açıldı; teklifinizi şimdi verin.' : null,
+                        $premium ? ($this->delayMinutes() > 0 ? 'Premium üyelere '.$this->delayMinutes().' dakika önce açıldı; teklifinizi şimdi verin.' : 'Teklifinizi şimdi verin.') : null,
                         $mail ? self::MAIL_OPT_OUT_LINE : null,
                     ]));
                     $this->notifications->notify($profile->user, $title, $lines, route('driver.loads.index', ['ilan' => $load->id]), 'İlanı gör', 'load', sendMail: $mail);

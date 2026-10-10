@@ -412,7 +412,7 @@ new class extends Component {
                 </div>
 
                 <button type="submit" class="btn-primary w-full py-3">
-                    <span wire:loading.remove wire:target="register">Yük Sahibi Kaydını Başlat (E-Posta OTP Al)</span>
+                    <span wire:loading.remove wire:target="register">Kaydol ve doğrulama kodunu al</span>
                     <span wire:loading wire:target="register">Bilgiler Kaydediliyor...</span>
                 </button>
 

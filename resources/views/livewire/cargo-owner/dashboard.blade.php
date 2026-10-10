@@ -19,7 +19,7 @@ class extends Component {
 
         $activeShipment = (clone $base)
             ->with(['driverProfile.user', 'driverProfile.activeVehicle', 'shipment.vehicle'])
-            ->whereIn('status', [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED])
+            ->whereIn('status', [Load::STATUS_ASSIGNED, Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED, Load::STATUS_DISPUTED])
             ->latest('updated_at')
             ->first();
 
@@ -29,7 +29,7 @@ class extends Component {
                 ->where('status', 'pending')
                 ->whereHas('cargoLoad', fn ($q) => $q->where('cargo_owner_profile_id', $profileId))
                 ->count(),
-            'inTransitCount' => (clone $base)->where('status', Load::STATUS_ON_THE_WAY)->count(),
+            'inTransitCount' => (clone $base)->whereIn('status', [Load::STATUS_ON_THE_WAY, Load::STATUS_DISPUTED])->count(),
             'escrowBalance' => (float) (clone $base)
                 ->whereIn('escrow_status', [Load::ESCROW_PAID, Load::ESCROW_ON_HOLD, Load::ESCROW_RELEASE_APPROVED])
                 ->sum('price'),
@@ -167,7 +167,7 @@ class extends Component {
             @else
                 <div class="divide-y divide-neutral-200 dark:divide-neutral-800">
                     @foreach($latestLoads as $load)
-                        <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div wire:key="latest-{{ $load->id }}" class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                             <div class="space-y-1 min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 tabular-nums text-[11px] font-bold">#{{ $load->id }}</span>

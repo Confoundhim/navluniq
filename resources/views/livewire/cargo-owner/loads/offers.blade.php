@@ -168,9 +168,10 @@ class extends Component {
             ->whereNotIn('escrow_status', [Load::ESCROW_REFUNDED, Load::ESCROW_REFUND_PENDING])
             ->groupBy('driver_profile_id')->pluck('c', 'driver_profile_id');
         $userIds = $pendingOffers->map(fn (Offer $o) => $o->driverProfile?->user_id)->filter()->unique()->values();
-        $recentReviews = $userIds->isEmpty() ? collect() : Review::query()
-            ->whereIn('reviewee_id', $userIds)->whereNotNull('comment')->where('comment', '!=', '')
-            ->latest()->get()->groupBy('reviewee_id')->map(fn ($g) => $g->take(2)->values());
+        // Şoför başına yalnız son iki yorum çekilir (eskiden tüm yorumlar yükleniyordu; 5 sn'lik yenilemede ağırdı).
+        $recentReviews = $userIds->isEmpty() ? collect() : $userIds->mapWithKeys(fn ($uid) => [$uid => Review::query()
+            ->where('reviewee_id', $uid)->whereNotNull('comment')->where('comment', '!=', '')
+            ->latest()->limit(2)->get()->values()]);
         $payments = app(PaymentService::class);
 
         $pending = $pendingOffers->map(function (Offer $offer) use ($completedCounts, $recentReviews, $payments): array {
@@ -282,7 +283,7 @@ class extends Component {
                     $vehicle = $row['vehicle'];
                     $name = $user?->full_name ?: 'Şoför';
                 @endphp
-                <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-6 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div wire:key="offer-{{ $row['offer']->id }}" class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-2xl p-6 transition-all duration-200 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
 
                     <div class="space-y-3 flex-1 min-w-0">
                         <div class="flex items-center gap-3">
@@ -335,7 +336,7 @@ class extends Component {
                         </div>
 
                         @if($offer->message)
-                            <p class="text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-950/60 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800/80 leading-relaxed break-words">{{ $offer->message }}</p>
+                            <p class="text-xs text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-950/60 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800/80 leading-relaxed break-words">{{ $offer->message }}</p>
                         @endif
 
                         @if($row['recent_reviews']->isNotEmpty())
@@ -361,7 +362,7 @@ class extends Component {
                                 {{ number_format((float) $offer->amount, 2, ',', '.') }} <span class="text-brand-500 text-xl">₺</span>
                             </div>
                             @if($directPayment)
-                                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen şoföre ödeyeceğin tutar: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format((float) $offer->amount, 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(doğrudan şoföre, hizmet bedeli yok)</span></p>
+                                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul ederseniz şoföre ödeyeceğiniz tutar: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format((float) $offer->amount, 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(doğrudan şoföre, hizmet bedeli yok)</span></p>
                             @else
                                 <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen ödeyeceğin toplam: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format($row['amounts']['total'], 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(navlun + hizmet bedeli)</span></p>
                             @endif
@@ -407,7 +408,7 @@ class extends Component {
                 </button>
                 <div x-show="open" x-cloak class="border-t border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
                     @foreach($closedOffers as $offer)
-                        <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div wire:key="closed-{{ $offer->id }}" class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                             <div class="min-w-0">
                                 <span class="text-neutral-800 dark:text-neutral-200 font-semibold">{{ $offer->driverProfile?->user?->full_name ?: 'Şoför' }}</span>
                                 <span class="text-neutral-500"> · {{ $offer->created_at?->format('d.m.Y H:i') }}</span>
@@ -432,7 +433,7 @@ class extends Component {
                 <div class="space-y-1">
                     <span class="text-[11px] font-bold uppercase tracking-wider text-brand-500">Tek seferlik kimlik adımı</span>
                     <h3 class="text-base font-bold text-neutral-900 dark:text-white">Teklifi kabul etmeden önce kimliğinizi doğrulayın</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Ödeme güvenliği için T.C. kimlik numaranız ve doğum yılınız Nüfus Müdürlüğü kaydıyla bir kez eşleştirilir; bir daha sorulmaz. Bilgileriniz şoföre gösterilmez.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Şoförün yükü kime teslim ettiğini bilmesi için T.C. kimlik numaranız ve doğum yılınız Nüfus Müdürlüğü kaydıyla bir kez eşleştirilir; bir daha sorulmaz. Bilgileriniz şoföre gösterilmez.</p>
                 </div>
                 <div class="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-xs flex items-center justify-between gap-3">
                     <span class="text-neutral-500">Kabul edilecek teklif</span>

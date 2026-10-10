@@ -1,3 +1,6 @@
+@php
+    $privateHint = \App\Support\FreightPayment::direct() ? 'teklifini kabul ettiğiniz şoför görür' : 'yalnız ödeme sonrası atanan şoför görür';
+@endphp
 {{--
     Rota alanları (ilan oluşturma 1. adım ve ilan düzenleme): adres defteri, il/ilçe seçici, gizli açık adres, yükleme yetkilisi, tarihler.
     $restricted = true (bekleyen teklif var): il/ilçe değişmez; açık adres, yetkili ve tarihler değişir.
@@ -36,7 +39,7 @@
         </div>
         <x-place-picker province-model="pickup_province_code" district-model="pickup_district" :province-code="$pickup_province_code" label="Yükleme" :disabled="$restricted" />
         <div>
-            <label class="form-label">Açık adres <span class="text-neutral-400 font-normal">(yalnız ödeme sonrası atanan şoför görür)</span></label>
+            <label class="form-label">Açık adres <span class="text-neutral-400 font-normal">({{ $privateHint }})</span></label>
             <textarea wire:model="pickup_address_private" rows="2" maxlength="1000" placeholder="Mahalle, cadde, kapı numarası, depo adı" class="form-input"></textarea>
             @error('pickup_address_private') <span class="form-error">{{ $message }}</span> @enderror
         </div>
@@ -61,7 +64,7 @@
         </div>
         <x-place-picker province-model="delivery_province_code" district-model="delivery_district" :province-code="$delivery_province_code" label="Teslimat" :disabled="$restricted" />
         <div>
-            <label class="form-label">Açık adres <span class="text-neutral-400 font-normal">(yalnız ödeme sonrası atanan şoför görür)</span></label>
+            <label class="form-label">Açık adres <span class="text-neutral-400 font-normal">({{ $privateHint }})</span></label>
             <textarea wire:model="delivery_address_private" rows="2" maxlength="1000" placeholder="Mahalle, cadde, kapı numarası, depo adı" class="form-input"></textarea>
             @error('delivery_address_private') <span class="form-error">{{ $message }}</span> @enderror
         </div>
