@@ -69,7 +69,8 @@ new class extends Component {
                 if (! $locked) {
                     throw new RuntimeException('İlan bulunamadı.');
                 }
-                if ($locked->escrow_status !== Load::ESCROW_PENDING || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
+                // Doğrudan ödeme kipindeki ilan (para platformda değil) yola çıkılana kadar aynı yoldan askıya alınır.
+                if (! in_array($locked->escrow_status, [Load::ESCROW_PENDING, Load::ESCROW_DIRECT], true) || ! in_array($locked->status, [Load::STATUS_ACTIVE, Load::STATUS_ASSIGNED], true)) {
                     throw new RuntimeException('Yalnız ödemesi alınmamış ve henüz yola çıkmamış ilanlar askıya alınabilir.');
                 }
                 \App\Services\LoadService::closeOpenOrders($locked); // ödeme ekranı yeni açılmışsa iptal reddedilir, eski açık emirler kapanır
@@ -374,7 +375,7 @@ new class extends Component {
                         @if($selected->status === \App\Models\Load::STATUS_ACTIVE && $selected->visibility !== 'public')
                             <button type="button" wire:click="relist" wire:loading.attr="disabled" class="btn-apple-secondary py-2 px-4 text-[11px]">Havuzda yeniden yayınla</button>
                         @endif
-                        @if($selected->escrow_status === \App\Models\Load::ESCROW_PENDING && in_array($selected->status, [\App\Models\Load::STATUS_ACTIVE, \App\Models\Load::STATUS_ASSIGNED], true))
+                        @if(in_array($selected->escrow_status, [\App\Models\Load::ESCROW_PENDING, \App\Models\Load::ESCROW_DIRECT], true) && in_array($selected->status, [\App\Models\Load::STATUS_ACTIVE, \App\Models\Load::STATUS_ASSIGNED], true))
                             <div class="space-y-2">
                                 <label class="form-label">İlanı askıya al (iptal eder, bekleyen teklifleri reddeder)</label>
                                 <textarea wire:model="suspendReason" rows="2" placeholder="Gerekçe (yük sahibine iletilir)" class="{{ $input }}"></textarea>

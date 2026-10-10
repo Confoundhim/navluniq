@@ -8,6 +8,7 @@ use App\Models\Load;
 use App\Models\Shipment;
 use App\Models\ShipmentEvidence;
 use App\Models\User;
+use App\Support\FreightPayment;
 use App\Support\Settings;
 use App\Support\UploadName;
 use Illuminate\Http\UploadedFile;
@@ -35,12 +36,15 @@ class ShipmentService
             if ($locked->status !== Shipment::STATUS_AWAITING_PICKUP || $load->status !== Load::STATUS_ASSIGNED) {
                 throw new RuntimeException('Sevkiyat yola çıkarılabilir durumda değil.');
             }
-            if ($load->escrow_status !== Load::ESCROW_PAID) {
-                throw new RuntimeException('Yük sahibi navlun ödemesini yapmadan yola çıkamazsınız.');
-            }
-            // Hakediş kayıtlı IBAN'a yapılır; IBAN'sız yola çıkan şoförün parası teslimattan sonra askıda kalırdı.
-            if (! $driver->user?->defaultBankAccount()->exists()) {
-                throw new RuntimeException('Yola çıkmadan önce Ödemelerim sayfasından IBAN ekleyin; navlun ödemeniz bu hesaba yapılır.');
+            // Doğrudan kipte (navlun taraflar arasında) ödeme ve IBAN beklenmez; platform kipinde ödeme alınmadan yola çıkılmaz.
+            if (! $load->isDirectPayment()) {
+                if ($load->escrow_status !== Load::ESCROW_PAID) {
+                    throw new RuntimeException('Yük sahibi navlun ödemesini yapmadan yola çıkamazsınız.');
+                }
+                // Hakediş kayıtlı IBAN'a yapılır; IBAN'sız yola çıkan şoförün parası teslimattan sonra askıda kalırdı.
+                if (! $driver->user?->defaultBankAccount()->exists()) {
+                    throw new RuntimeException('Yola çıkmadan önce Ödemelerim sayfasından IBAN ekleyin; navlun ödemeniz bu hesaba yapılır.');
+                }
             }
 
             $locked->update([
@@ -116,7 +120,7 @@ class ShipmentService
         if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
             $hours = max(1, Settings::int('delivery_auto_approval_hours'));
             $this->notifications->notify($ownerUser, 'Teslimat kanıtı yüklendi',
-                ["Şoför teslimatı tamamladı ve kanıt yükledi. Lütfen {$hours} saat içinde teslimatı onaylayın; aksi halde ödeme otomatik olarak serbest bırakılır."],
+                ["Şoför teslimatı tamamladı ve kanıt yükledi. Lütfen {$hours} saat içinde teslimatı onaylayın; aksi halde ".($shipment->cargoLoad?->isDirectPayment() ? 'sevkiyat otomatik olarak onaylanır.' : 'ödeme otomatik olarak serbest bırakılır.')],
                 route('cargo-owner.shipments.show', $shipment->load_id), 'Teslimatı onayla', 'shipment');
         }
 
@@ -124,8 +128,12 @@ class ShipmentService
     }
 
     /** Şoförün "Yola çıktım" diyebilmesi için eksik: null ise hazır (ekran uyarısı için). */
-    public static function startBlocker(DriverProfile $driver): ?string
+    public static function startBlocker(DriverProfile $driver, ?Load $load = null): ?string
     {
+        if ($load?->isDirectPayment() || (! $load && FreightPayment::direct())) {
+            return null; // navlun taraflar arasında: IBAN şartı yok
+        }
+
         return $driver->user?->defaultBankAccount()->exists()
             ? null
             : 'Kayıtlı IBAN\'ınız yok. "Yola çıktım" demeden önce Ödemelerim sayfasından IBAN ekleyin; navlun ödemeniz bu hesaba yapılır.';
@@ -145,7 +153,8 @@ class ShipmentService
             if ($locked->status !== Shipment::STATUS_DELIVERED || $load->status !== Load::STATUS_DELIVERED) {
                 throw new RuntimeException('Onaylanacak bir teslimat bulunmuyor.');
             }
-            if ($load->escrow_status !== Load::ESCROW_PAID) {
+            $direct = $load->isDirectPayment();
+            if (! $direct && $load->escrow_status !== Load::ESCROW_PAID) {
                 throw new RuntimeException('Teslimat onayı bekleyen bir navlun ödemesi bulunmadığından onay verilemez.');
             }
             if ($load->openDispute()) {
@@ -153,24 +162,32 @@ class ShipmentService
             }
 
             $locked->update(['status' => Shipment::STATUS_COMPLETED, 'owner_approved_at' => now()]);
-            $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_RELEASE_APPROVED]);
+            // Doğrudan kipte para platformdan geçmedi: havuz durumu "taraflar arasında" kalır, hakediş açılmaz.
+            $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => $direct ? Load::ESCROW_DIRECT : Load::ESCROW_RELEASE_APPROVED]);
         }, 3); // eşzamanlı işlemde kilitlenme olursa 3 kez denenir
+        $load = $shipment->cargoLoad()->firstOrFail()->fresh();
+        $direct = $load->isDirectPayment();
         // Hakediş ve ödeme kuruluşu aktarımı kilit dışında (yavaş sağlayıcı satırları kilitlemesin); ilan başına tek hakediş zaten korunur.
-        $this->payouts->createForLoad($shipment->cargoLoad()->firstOrFail()->fresh());
+        if (! $direct) {
+            $this->payouts->createForLoad($load);
+        }
         app(DriverTripService::class)->syncShipment($shipment, DriverTrip::STATUS_CLOSED);
         app(LoadStatsService::class)->forget();
 
         if ($driverUser = $shipment->driverProfile?->user) {
-            $this->notifications->notify($driverUser, 'Teslimat onaylandı, ödemeniz sıraya alındı',
-                [($automatic ? 'Teslimat, yük sahibi onay süresi içinde itiraz etmediği için otomatik onaylandı.' : 'Yük sahibi teslimatı onayladı.').' Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.', 'Sevkiyat sayfasından yük sahibini değerlendirebilirsiniz.'],
-                route('driver.wallet.index'), 'Ödemelerimi görüntüle', 'shipment');
+            $approvedLine = $automatic ? 'Teslimat, yük sahibi onay süresi içinde itiraz etmediği için otomatik onaylandı.' : 'Yük sahibi teslimatı onayladı.';
+            $this->notifications->notify($driverUser, $direct ? 'Teslimat onaylandı, sevkiyat tamamlandı' : 'Teslimat onaylandı, ödemeniz sıraya alındı',
+                $direct
+                    ? [$approvedLine.' Navlun bedelini yük sahibiyle aranızda kararlaştırdığınız şekilde tahsil edersiniz; NavlunIQ bu ödemeye taraf değildir.', 'Sevkiyat sayfasından yük sahibini değerlendirebilirsiniz.']
+                    : [$approvedLine.' Ödemeniz platform hizmet bedeli düşüldükten sonra kayıtlı IBAN adresinize yapılacaktır.', 'Sevkiyat sayfasından yük sahibini değerlendirebilirsiniz.'],
+                $direct ? route('driver.jobs.show', $shipment->load_id) : route('driver.wallet.index'), $direct ? 'İşi görüntüle' : 'Ödemelerimi görüntüle', 'shipment');
         }
-        if ($ownerUser = $shipment->cargoLoad?->cargoOwnerProfile?->user) {
+        if ($ownerUser = $load->cargoOwnerProfile?->user) {
             $this->notifications->notify($ownerUser, $automatic ? 'Teslimat otomatik onaylandı' : 'Teslimatı onayladınız',
                 [$automatic
-                    ? 'Teslimat kanıtı yüklendikten sonra onay süresi içinde itiraz edilmediği için sevkiyat otomatik onaylandı ve navlun ödemesi şoföre tamamlanıyor.'
-                    : 'Sevkiyat tamamlandı; navlun ödemesi şoföre tamamlanıyor.',
-                    'Sevkiyat sayfasından şoförü değerlendirebilir, faturalarınıza ödemeler sayfasından ulaşabilirsiniz.'],
+                    ? 'Teslimat kanıtı yüklendikten sonra onay süresi içinde itiraz edilmediği için sevkiyat otomatik onaylandı'.($direct ? '.' : ' ve navlun ödemesi şoföre tamamlanıyor.')
+                    : 'Sevkiyat tamamlandı'.($direct ? '.' : '; navlun ödemesi şoföre tamamlanıyor.'),
+                    $direct ? 'Navlun bedelini şoförle aranızda ödersiniz. Sevkiyat sayfasından şoförü değerlendirebilirsiniz.' : 'Sevkiyat sayfasından şoförü değerlendirebilir, faturalarınıza ödemeler sayfasından ulaşabilirsiniz.'],
                 route('cargo-owner.shipments.show', $shipment->load_id), 'Şoförü değerlendir', 'shipment');
         }
     }

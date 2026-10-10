@@ -112,6 +112,7 @@ final class Settings
         'mail_embed_images' => 0,               // 1: logolar iletiye gömülür (ek olarak); 0: siteden yüklenen adres. Bazı barındırıcılar ekli iletileri düşürür.
 
         // Ödeme kuruluşu — panelden; boşsa .env PAYMENT_PROVIDER
+        'freight_payment_mode' => 'direct',     // direct: navlun taraflar arasında (platform tahsilat yapmaz) | platform: ödeme kuruluşu + pazaryeri
         'payment_provider' => '',               // paytr | iyzico
         'iyzico_api_key' => '',
         'iyzico_secret_key' => '',              // şifreli saklanır
@@ -154,7 +155,7 @@ final class Settings
     public const NON_ROLLBACK_KEYS = ['legal_document_version', 'legal_effective_date', 'scraper_api_token', 'review_login_emails', 'review_login_code', 'review_login_until'];
 
     /** Değişimi şifre ile yeniden doğrulama ve diğer yöneticilere bildirim isteyen ödeme ayarları (gizli anahtarlar da ister). */
-    public const REAUTH_KEYS = ['payment_provider', 'iyzico_sandbox', 'iyzico_marketplace', 'iyzico_card_storage'];
+    public const REAUTH_KEYS = ['payment_provider', 'freight_payment_mode', 'iyzico_sandbox', 'iyzico_marketplace', 'iyzico_card_storage'];
 
     /** Yalnız "manage system" izniyle düzenlenebilen genel ayarlar (sabit kodla giriş). */
     public const SYSTEM_ONLY_KEYS = ['review_login_emails', 'review_login_code', 'review_login_until'];

@@ -35,7 +35,7 @@ class DisputeService
             if (! in_array($locked->status, [Load::STATUS_ON_THE_WAY, Load::STATUS_DELIVERED], true)) {
                 throw new RuntimeException('Uyuşmazlık yalnız yoldaki veya teslim edilmiş sevkiyatlar için açılabilir.');
             }
-            if ($locked->escrow_status !== Load::ESCROW_PAID) {
+            if ($locked->escrow_status !== Load::ESCROW_PAID && ! $locked->isDirectPayment()) {
                 throw new RuntimeException('Teslimat onayı bekleyen bir navlun ödemesi bulunmadığından uyuşmazlık açılamaz.');
             }
             if ($locked->openDispute()) {
@@ -52,7 +52,8 @@ class DisputeService
                 'status' => 'open',
             ]);
 
-            $locked->update(['status' => Load::STATUS_DISPUTED, 'escrow_status' => Load::ESCROW_ON_HOLD, 'dispute_reason' => mb_substr(trim($claim), 0, 1000)]);
+            // Doğrudan kipte para platformda değil: havuz durumu "taraflar arasında" kalır, yalnız sevkiyat askıya alınır.
+            $locked->update(['status' => Load::STATUS_DISPUTED, 'escrow_status' => $locked->isDirectPayment() ? Load::ESCROW_DIRECT : Load::ESCROW_ON_HOLD, 'dispute_reason' => mb_substr(trim($claim), 0, 1000)]);
             $locked->shipment()->update(['status' => Shipment::STATUS_DISPUTED]);
 
             return $dispute;
@@ -106,6 +107,12 @@ class DisputeService
     public static function allowedResolutions(Dispute $dispute): array
     {
         $delivered = $dispute->cargoLoad?->shipment?->delivered_at !== null;
+        // Doğrudan kipte para platformda değil: karar yalnız sevkiyatın sonucunu belirler, iade/hakediş yoktur; bedel taraflar arasında kalır.
+        if ($dispute->cargoLoad?->isDirectPayment()) {
+            return $delivered
+                ? [Dispute::RESOLUTION_DRIVER_PAID => 'Şoför haklı: teslimat tamamlandı sayılır', Dispute::RESOLUTION_OWNER_REFUNDED => 'Yük sahibi haklı: sevkiyat yük sahibi lehine kapanır (bedel taraflar arasında)']
+                : [Dispute::RESOLUTION_CONTINUE => 'Sevkiyat devam eder: uyuşmazlık kapanır, yük yola döner', Dispute::RESOLUTION_OWNER_REFUNDED => 'İptal: sevkiyat iptal edilir (bedel taraflar arasında)'];
+        }
 
         return $delivered
             ? [Dispute::RESOLUTION_DRIVER_PAID => 'Şoför haklı: hakediş ödenir', Dispute::RESOLUTION_OWNER_REFUNDED => 'Yük sahibi haklı: navlun iade edilir']
@@ -128,7 +135,8 @@ class DisputeService
         // Durumlar kilit altında yazılır; ödeme kuruluşu çağrıları (hakediş aktarımı, iade) kilit DIŞINDA yapılır:
         // yavaş sağlayıcı ilan/uyuşmazlık satırlarını kilitli tutmasın, para hareketi veritabanı geri alınırken kaybolmasın.
         $delivered = false;
-        DB::transaction(function () use ($dispute, $admin, $resolution, $notes, &$delivered): void {
+        $direct = false;
+        DB::transaction(function () use ($dispute, $admin, $resolution, $notes, &$delivered, &$direct): void {
             $locked = Dispute::query()->lockForUpdate()->findOrFail($dispute->id);
             if ($locked->status !== 'open') {
                 throw new RuntimeException('Bu uyuşmazlık zaten karara bağlanmış.');
@@ -137,6 +145,11 @@ class DisputeService
             $load = Load::query()->lockForUpdate()->findOrFail($locked->load_id);
             $shipment = Shipment::query()->lockForUpdate()->where('load_id', $load->id)->first();
             $delivered = $shipment?->delivered_at !== null;
+            $direct = $load->isDirectPayment();
+            // Doğrudan kipte havuz durumu her kararda "taraflar arasında" kalır (para platformdan geçmedi)
+            $paidState = $direct ? Load::ESCROW_DIRECT : Load::ESCROW_PAID;
+            $approvedState = $direct ? Load::ESCROW_DIRECT : Load::ESCROW_RELEASE_APPROVED;
+            $holdState = $direct ? Load::ESCROW_DIRECT : Load::ESCROW_ON_HOLD;
 
             $locked->update([
                 'status' => match ($resolution) {
@@ -152,19 +165,19 @@ class DisputeService
 
             if ($resolution === Dispute::RESOLUTION_CONTINUE) {
                 // Yük yola döner: ilan "yolda", sevkiyat "taşınıyor", para yine teslimat onayını bekler.
-                $load->update(['status' => Load::STATUS_ON_THE_WAY, 'escrow_status' => Load::ESCROW_PAID]);
+                $load->update(['status' => Load::STATUS_ON_THE_WAY, 'escrow_status' => $paidState]);
                 $shipment?->update(['status' => Shipment::STATUS_IN_TRANSIT]);
             } elseif ($resolution === Dispute::RESOLUTION_DRIVER_PAID) {
-                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_RELEASE_APPROVED]);
+                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => $approvedState]);
                 $shipment?->update(['status' => Shipment::STATUS_COMPLETED, 'owner_approved_at' => now()]);
             } elseif ($delivered) {
                 // Teslim edilmiş ama yük sahibi haklı: sevkiyat kapanır, iade sonucu gelene kadar havuz "askıda" kalır.
-                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => Load::ESCROW_ON_HOLD]);
+                $load->update(['status' => Load::STATUS_COMPLETED, 'escrow_status' => $holdState]);
                 $shipment?->update(['status' => Shipment::STATUS_COMPLETED, 'owner_rejected_at' => now()]);
             } else {
                 // Yoldayken iptal + iade: sevkiyat ve iş kapanır, ilan iptal olur.
-                $load->update(['status' => Load::STATUS_CANCELLED, 'escrow_status' => Load::ESCROW_ON_HOLD, 'cancelled_at' => now(), 'visibility' => 'private',
-                    'rejection_reason' => 'Hakem kararı: sevkiyat yolda iptal edildi, navlun iade ediliyor.']);
+                $load->update(['status' => Load::STATUS_CANCELLED, 'escrow_status' => $holdState, 'cancelled_at' => now(), 'visibility' => 'private',
+                    'rejection_reason' => $direct ? 'Hakem kararı: sevkiyat yolda iptal edildi.' : 'Hakem kararı: sevkiyat yolda iptal edildi, navlun iade ediliyor.']);
                 $shipment?->update(['status' => Shipment::STATUS_CANCELLED]);
                 $load->offers()->where('status', 'accepted')->update(['status' => 'rejected', 'responded_at' => now()]);
             }
@@ -174,7 +187,9 @@ class DisputeService
 
         $load = $dispute->cargoLoad?->fresh();
         $refunded = null;
-        if ($load && $resolution === Dispute::RESOLUTION_DRIVER_PAID) {
+        if ($direct) {
+            // para platformdan geçmedi: hakediş ve iade yok
+        } elseif ($load && $resolution === Dispute::RESOLUTION_DRIVER_PAID) {
             $this->payouts->createForLoad($load);
         } elseif ($load && $resolution === Dispute::RESOLUTION_OWNER_REFUNDED) {
             $refunded = $this->payments->refundLoad($load, 'Uyuşmazlık kararı #'.$dispute->id);
@@ -186,6 +201,9 @@ class DisputeService
         foreach (array_filter([$ownerUser, $load?->driverProfile?->user]) as $user) {
             $isOwner = $user->id === $ownerUser?->id;
             $line = match (true) {
+                $direct && $resolution === Dispute::RESOLUTION_CONTINUE => 'Hakem kararı: sevkiyat devam eder. Uyuşmazlık kapandı, yük yolda sayılır.',
+                $direct && $resolution === Dispute::RESOLUTION_DRIVER_PAID => 'Hakem kararı şoför lehine sonuçlandı; teslimat tamamlanmış sayılır. Navlun bedeli taraflar arasında ödenir; NavlunIQ bu ödemeye taraf değildir.',
+                $direct => 'Hakem kararı yük sahibi lehine sonuçlandı; '.($delivered ? 'sevkiyat yük sahibi lehine kapandı.' : 'sevkiyat iptal edildi.').' Navlun platform üzerinden ödenmediği için iade işlemi yoktur; bedel taraflar arasında çözülür.',
                 $resolution === Dispute::RESOLUTION_CONTINUE => 'Hakem kararı: sevkiyat devam eder. Uyuşmazlık kapandı, yük yolda sayılır; navlun ödemesi teslimat onayıyla şoföre tamamlanır.',
                 $resolution === Dispute::RESOLUTION_DRIVER_PAID => 'Hakem kararı şoför lehine sonuçlandı; navlun ödemesi şoföre yapılmak üzere sıraya alındı.',
                 $refunded === true => 'Hakem kararı yük sahibi lehine sonuçlandı; '.($delivered ? '' : 'sevkiyat iptal edildi, ').'navlun bedeli yük sahibine iade edildi (bankaya göre 1-10 iş günü).',
@@ -220,10 +238,10 @@ class DisputeService
             if ($restoredDelivered) {
                 $hours = max(1, Settings::int('delivery_auto_approval_hours'));
                 $shipment->update(['status' => Shipment::STATUS_DELIVERED, 'auto_approval_due_at' => now()->addHours($hours)]);
-                $load->update(['status' => Load::STATUS_DELIVERED, 'escrow_status' => Load::ESCROW_PAID]);
+                $load->update(['status' => Load::STATUS_DELIVERED, 'escrow_status' => $load->isDirectPayment() ? Load::ESCROW_DIRECT : Load::ESCROW_PAID]);
             } else {
                 $shipment?->update(['status' => Shipment::STATUS_IN_TRANSIT]);
-                $load->update(['status' => Load::STATUS_ON_THE_WAY, 'escrow_status' => Load::ESCROW_PAID]);
+                $load->update(['status' => Load::STATUS_ON_THE_WAY, 'escrow_status' => $load->isDirectPayment() ? Load::ESCROW_DIRECT : Load::ESCROW_PAID]);
             }
             ActivityLog::record('dispute.withdrawn', "Uyuşmazlık #{$locked->id} yük sahibi tarafından geri çekildi", $owner->id, $locked);
         });

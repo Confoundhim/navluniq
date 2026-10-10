@@ -131,6 +131,7 @@ new class extends Component {
     public array $mailForm = [];
 
     public const PAYMENT_KEYS = [
+        'freight_payment_mode' => 'Navlun ödeme yolu',
         'payment_provider' => 'Ödeme kuruluşu',
         'iyzico_api_key' => 'iyzico API anahtarı',
         'iyzico_secret_key' => 'iyzico gizli anahtar',
@@ -364,6 +365,7 @@ new class extends Component {
                 : trim((string) $raw);
         }
         $this->validate([
+            'paymentForm.freight_payment_mode' => 'required|in:direct,platform',
             'paymentForm.payment_provider' => 'required|in:iyzico', // PayTR sözleşme yokken seçilemez (sınıf duruyor)
             'paymentForm.iyzico_api_key' => 'nullable|string|max:190',
             'paymentForm.iyzico_secret_key' => 'nullable|string|max:190',
@@ -1016,6 +1018,15 @@ new class extends Component {
             </div>
             <form wire:submit="savePayment" class="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
                 <h3 class="text-xs font-bold text-neutral-900 dark:text-white">Ödeme kuruluşu ve anahtarlar</h3>
+                <div>
+                    <label class="form-label">Navlun ödeme yolu</label>
+                    <select wire:model="paymentForm.freight_payment_mode" class="{{ $input }}">
+                        @foreach(\App\Support\FreightPayment::LABELS as $modeKey => $modeLabel)
+                            <option value="{{ $modeKey }}">{{ $modeLabel }}</option>
+                        @endforeach
+                    </select>
+                    <p class="text-[11px] text-neutral-400 mt-1">Doğrudan: teklif kabulünde ödeme adımı yoktur, şoför iletişim bilgilerini hemen görür ve yola çıkar; teslimat onayı sevkiyatı kapatır; hakediş, IBAN ve iade yoktur. Platform: pazaryeri ürünü açık bir kuruluş gerekir. Değişiklik yalnız yeni teklif kabullerini etkiler; açık sevkiyatlar kendi kipinde yürür.</p>
+                </div>
                 <p class="text-[11px] text-neutral-400">iyzico anahtarları iyzico üye işyeri panelinde Ayarlar → API anahtarları bölümündedir. Sözleşme öncesi sandbox anahtarlarıyla test modunda deneyin; canlıya geçerken canlı anahtarları girip test modunu kapatın.</p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label class="form-label">Ödeme kuruluşu</label>

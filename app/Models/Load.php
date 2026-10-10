@@ -46,6 +46,9 @@ class Load extends Model
     /** İade kararı verildi ama ödeme kuruluşu iadeyi henüz onaylamadı; finans ekibi "İade yapıldı" deyince refunded_to_owner olur. */
     public const ESCROW_REFUND_PENDING = 'refund_pending';
 
+    /** Navlun doğrudan taraflar arasında ödenir (FreightPayment::direct): platform tahsilat yapmaz, hakediş/iade yoktur. */
+    public const ESCROW_DIRECT = 'direct_payment';
+
     public const STATUS_LABELS = [
         self::STATUS_ACTIVE => 'Teklif bekliyor',
         self::STATUS_ASSIGNED => 'Şoför atandı',
@@ -64,6 +67,7 @@ class Load extends Model
         self::ESCROW_RELEASED => 'Şoföre ödendi',
         self::ESCROW_REFUNDED => 'Yük sahibine iade edildi',
         self::ESCROW_REFUND_PENDING => 'İade bekleniyor',
+        self::ESCROW_DIRECT => 'Taraflar arasında ödenir',
     ];
 
     public const GOODS_TYPES = [
@@ -192,7 +196,13 @@ class Load extends Model
 
         return $this->driver_profile_id
             && $viewer->driverProfile?->id === $this->driver_profile_id
-            && $this->isPaid();
+            && ($this->isPaid() || $this->isDirectPayment());
+    }
+
+    /** Navlun doğrudan taraflar arasında ödeniyor (teklif kabulünde FreightPayment::direct açıktı). */
+    public function isDirectPayment(): bool
+    {
+        return $this->escrow_status === self::ESCROW_DIRECT;
     }
 
     /**

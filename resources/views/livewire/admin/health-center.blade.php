@@ -199,9 +199,13 @@ new class extends Component {
             if ($payments->isSandbox()) {
                 return ['warn' => true, 'detail' => $gateway->label().' · TEST (sandbox) modu; gerçek para çekilmez'];
             }
-            // Canlı anahtar var ama pazaryeri ürünü kapalıysa navlun tahsilatı yine kapalıdır (escrowBlocker); ışık yeşil yanmasın
+            // Doğrudan kipte navlun platformdan geçmez; kuruluş yalnız premium için gerekir, pazaryeri şartı aranmaz.
+            if (\App\Support\FreightPayment::direct()) {
+                return $gateway->label().' · canlı · navlun doğrudan taraflar arasında (platform tahsilat yapmaz), premium kartla';
+            }
+            // Platform kipi: canlı anahtar var ama pazaryeri ürünü kapalıysa navlun tahsilatı kapalıdır (escrowBlocker); ışık yeşil yanmasın
             if (($blocker = \App\Support\PaymentReadiness::escrowBlocker($gateway)) !== null) {
-                return ['warn' => true, 'detail' => $gateway->label().' · canlı anahtar var, navlun tahsilatı kapalı: '.$blocker];
+                return ['warn' => true, 'detail' => $gateway->label().' · platform kipi seçili ama navlun tahsilatı kapalı: '.$blocker.' Pazaryeri açılana kadar Ödeme altyapısı → "Navlun ödeme yolu" ayarını "Doğrudan" yapın.'];
             }
 
             return $gateway->label().' · canlı · pazaryeri açık';
