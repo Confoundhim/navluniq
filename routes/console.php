@@ -22,6 +22,7 @@ use App\Support\Settings;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('offers:expire', function (OfferService $offers) {
@@ -140,38 +141,69 @@ Artisan::command('scraped-loads:relocate-force {--seconds=60 : Bu çalıştırma
     }
     $budget = max(5, (int) $this->option('seconds'));
     $cursor = (int) Settings::string('scraper_relocate_force_cursor');
+    $progress = json_decode(Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
+    $skipped = array_values(array_filter((array) ($progress['skipped'] ?? []), 'is_int'));
+    // Önceki çalıştırma bir kayıtta öldü ya da takıldıysa (2026-10-10: "30 dk'dır ilerlemiyor"), o kaydın izi önbellekte kalır:
+    // kayıt atlanır (imleç onun altına çekilir) ki her 5 dakikada aynı kayda takılıp durulmasın. Hangi kayıt olduğu sağlık ekranında görünür.
+    $inflightKey = 'relocate-force:inflight';
+    $stale = Cache::get($inflightKey);
+    if (is_array($stale) && (int) ($stale['id'] ?? 0) > 0 && ($cursor === 0 || (int) $stale['id'] <= $cursor)) {
+        $cursor = (int) $stale['id'];
+        $skipped[] = $cursor;
+        Log::warning('Yeniden konumlama: önceki çalıştırma bu kayıtta yarım kaldı, kayıt atlanıyor.', ['load' => $cursor, 'since' => $stale['at'] ?? null]);
+    }
     $started = microtime(true);
     $done = 0;
     $changed = 0;
+    $failed = (int) ($progress['failed'] ?? 0);
+    $lastError = $progress['last_error'] ?? null;
+    $checkpoint = function (bool $finished = false) use (&$progress, &$done, &$changed, &$cursor, &$failed, &$lastError, &$skipped): void {
+        $progress = ['done' => (int) ($progress['done'] ?? 0) + $done, 'changed' => (int) ($progress['changed'] ?? 0) + $changed, 'at' => now()->toDateTimeString(), 'cursor' => $cursor,
+            'finished' => $finished, 'failed' => $failed, 'last_error' => $lastError, 'skipped' => array_slice(array_values(array_unique($skipped)), -20)];
+        $done = 0;
+        $changed = 0;
+        Settings::set('scraper_relocate_force_cursor', (string) $cursor);
+        Settings::set('scraper_relocate_force_progress', json_encode($progress));
+    };
     $q = ScrapedLoad::query()->where('status', '!=', 'rejected')->where('created_at', '>=', now()->subDays(14))->orderByDesc('id');
     if ($cursor > 0) {
         $q->where('id', '<', $cursor);
     }
     $finished = true;
+    $seen = 0;
     foreach ($q->limit(3000)->cursor() as $load) {
         if (microtime(true) - $started > $budget) {
             $finished = false;
             break;
         }
+        $seen++;
         $done++;
-        if ($standardizer->relocateFromRaw($load, force: true)) {
-            $changed++;
+        Cache::put($inflightKey, ['id' => $load->id, 'at' => now()->toDateTimeString()], 3600);
+        try {
+            if ($standardizer->relocateFromRaw($load, force: true)) {
+                $changed++;
+            }
+        } catch (Throwable $e) {
+            // Tek kayıt bütün görevi durdurmaz: hata günlüğe ve sağlık ekranına yazılır, sıradakine geçilir.
+            $failed++;
+            $lastError = mb_substr('#'.$load->id.': '.$e->getMessage(), 0, 300);
+            Log::error('Yeniden konumlama kaydı işlenemedi.', ['load' => $load->id, 'error' => $e->getMessage()]);
         }
         $cursor = $load->id;
+        if ($done % 200 === 0) {
+            $checkpoint(); // ara kayıt: çalıştırma yarıda kesilse de ilerleme ve imleç kaybolmaz
+        }
     }
-    // İlerleme sağlık ekranında görünür: toplam bakılan/değişen, son parça zamanı, imleç
-    $progress = json_decode(Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
-    $progress = ['done' => (int) ($progress['done'] ?? 0) + $done, 'changed' => (int) ($progress['changed'] ?? 0) + $changed, 'at' => now()->toDateTimeString(), 'cursor' => $cursor, 'finished' => false];
-    if ($finished && $done < 3000) {
+    Cache::forget($inflightKey);
+    if ($finished && $seen < 3000) {
+        $checkpoint(finished: true);
         Settings::set('scraper_relocate_force_until', '');
         Settings::set('scraper_relocate_force_cursor', '0');
-        $progress['finished'] = true;
-        $this->info("Yeniden konumlama bitti: {$changed} / {$done} (son parça)");
+        $this->info('Yeniden konumlama bitti: '.$progress['changed'].' / '.$progress['done'].' (toplam)'.($failed > 0 ? ", hata: {$failed}" : ''));
     } else {
-        Settings::set('scraper_relocate_force_cursor', (string) $cursor);
-        $this->info("Yeniden konumlama sürüyor: {$changed} / {$done}, imleç #{$cursor}");
+        $checkpoint();
+        $this->info('Yeniden konumlama sürüyor: '.$progress['changed'].' / '.$progress['done'].", imleç #{$cursor}".($failed > 0 ? ", hata: {$failed}" : ''));
     }
-    Settings::set('scraper_relocate_force_progress', json_encode($progress));
 })->purpose('Konum sözlüğü düzeltmesi sonrası ilanları ham mesajdan yeniden konumlar');
 Schedule::command('scraped-loads:relocate-force')->everyFiveMinutes()->withoutOverlapping(10);
 Schedule::command('scraped-loads:ai-audit')->dailyAt('05:20')->withoutOverlapping(120);

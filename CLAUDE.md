@@ -660,6 +660,13 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   yenilenmez" + kurallar; tanıtım metinleri (plan kartı, /uyelik, SSS) `autoRenewAvailable()` ile koşullu. **iyzico cevabı bekleniyor:**
   kart saklama hesapta açılınca Osman kutuyu işaretler, sandbox'ta bir ödeme ile sınanır. İkinci kuruluş (navlun) seçilirse sağlayıcı
   seçimi amaca göre ayrılacak (abonelik iyzico'da kalır). Testler `PremiumAutoRenewTest` (9), `IyzicoGatewayTest` (+3).
+- **Yeniden konumlama takılması (2026-10-10, sağlık ekranı: "Yeniden konumlama 30 dk'dır ilerlemiyor (son parça 12:55)"):** eski komut
+  ilerlemeyi yalnız çalıştırma sonunda yazıyordu; tek bir kayıtta çöken/takılan çalıştırma her 5 dakikada aynı kayda dönüyor, imleç hiç
+  ilerlemiyordu. `scraped-loads:relocate-force` artık kayıt başına `try/catch` (hata sayılır, günlüğe yazılır, sıradakine geçilir; `progress.failed`
+  / `last_error`), 200 kayıtta bir ara kayıt (`Settings` imleç + ilerleme), ve işlenen kaydın izi önbellekte (`relocate-force:inflight`, 1 saat):
+  çalıştırma düzgün bitmezse sonraki çalıştırma o kaydı atlar (`progress.skipped`, en çok 20). Sağlık ekranı "hata N (son: …)", "atlanan kayıt #…",
+  "#id kaydında takılı görünüyor" yazar; bekçi mesajı bekleyen kaydı ve son hatayı söyler. Osman'dan atlanan/hatalı kayıt numarası gelirse ham
+  mesajı Dış kaynak sayfasında "#id" aramasıyla bulunup kural düzeltilir. Test `RelocationHealthTest` (+2).
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL

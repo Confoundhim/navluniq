@@ -347,7 +347,10 @@ class SystemWatchdog
         $progress = json_decode(Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
         $at = $progress['at'] ?? null;
         if ($at && Carbon::parse($at, config('app.timezone'))->lt(now()->subMinutes(30))) {
-            return "Yeniden konumlama 30 dk'dır ilerlemiyor (son parça ".Carbon::parse($at, config('app.timezone'))->format('H:i').'; scraped-loads:relocate-force).';
+            $inflight = Cache::get('relocate-force:inflight');
+            $hint = is_array($inflight) && ! empty($inflight['id']) ? ' Şu an #'.$inflight['id'].' kaydında bekliyor; bir sonraki çalıştırma bu kaydı atlar.' : '';
+
+            return "Yeniden konumlama 30 dk'dır ilerlemiyor (son parça ".Carbon::parse($at, config('app.timezone'))->format('H:i').'; scraped-loads:relocate-force).'.$hint.(! empty($progress['last_error']) ? ' Son hata: '.$progress['last_error'] : '');
         }
 
         return null;

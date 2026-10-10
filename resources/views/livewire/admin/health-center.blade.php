@@ -76,6 +76,16 @@ new class extends Component {
             $until = \App\Support\Settings::string('scraper_relocate_force_until');
             $p = json_decode(\App\Support\Settings::string('scraper_relocate_force_progress') ?: '{}', true) ?: [];
             $summary = isset($p['at']) ? ' · bakılan '.(int) ($p['done'] ?? 0).', değişen '.(int) ($p['changed'] ?? 0).' · son parça '.\Illuminate\Support\Carbon::parse($p['at'])->format('d.m H:i') : '';
+            if (! empty($p['failed'])) {
+                $summary .= ' · hata '.(int) $p['failed'].(! empty($p['last_error']) ? ' (son: '.$p['last_error'].')' : '');
+            }
+            if (! empty($p['skipped'])) {
+                $summary .= ' · takıldığı için atlanan kayıt: #'.implode(', #', array_map('intval', (array) $p['skipped']));
+            }
+            $inflight = \Illuminate\Support\Facades\Cache::get('relocate-force:inflight');
+            if ($until !== '' && is_array($inflight) && ! empty($inflight['id']) && ! empty($inflight['at']) && \Illuminate\Support\Carbon::parse($inflight['at'])->lt(now()->subMinutes(10))) {
+                $summary .= ' · #'.$inflight['id'].' kaydında takılı görünüyor (sonraki parça atlar)';
+            }
             if ($until === '') {
                 return ($p['finished'] ?? false) ? 'tamamlandı'.$summary : 'planlı değil'.$summary;
             }
