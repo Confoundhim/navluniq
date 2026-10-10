@@ -113,6 +113,14 @@ class extends Component {
             return;
         }
 
+        if ($load->fresh()?->isDirectPayment()) {
+            // Doğrudan kip: ödeme adımı yok; şoför yükleme bilgilerini hemen görür, navlun şoförle doğrudan ödenir.
+            session()->flash('success_message', 'Teklif kabul edildi. Şoför yükleme bilgilerini görebilir; navlun bedelini şoförle aranızda doğrudan ödersiniz.');
+            $this->redirect(route('cargo-owner.shipments.show', $load->id), navigate: true);
+
+            return;
+        }
+
         session()->flash('success_message', 'Teklif kabul edildi. Şoförün yola çıkabilmesi için navlun bedelini ödeyin.');
         $this->redirect(route('cargo-owner.finance.payment', $load->id), navigate: true);
     }
@@ -191,6 +199,7 @@ class extends Component {
 
         return [
             'load' => $load,
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'pendingOffers' => $pending->values(),
             'closedOffers' => $all->whereIn('status', ['rejected', 'withdrawn', 'expired'])->values(),
             'acceptedOffer' => $all->firstWhere('status', 'accepted'),
@@ -351,7 +360,11 @@ class extends Component {
                             <div class="text-3xl font-black text-neutral-900 dark:text-white tabular-nums">
                                 {{ number_format((float) $offer->amount, 2, ',', '.') }} <span class="text-brand-500 text-xl">₺</span>
                             </div>
-                            <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen ödeyeceğin toplam: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format($row['amounts']['total'], 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(navlun + hizmet bedeli)</span></p>
+                            @if($directPayment)
+                                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen şoföre ödeyeceğin tutar: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format((float) $offer->amount, 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(doğrudan şoföre, hizmet bedeli yok)</span></p>
+                            @else
+                                <p class="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">Kabul edersen ödeyeceğin toplam: <span class="font-bold text-neutral-800 dark:text-neutral-200 tabular-nums">{{ number_format($row['amounts']['total'], 2, ',', '.') }} ₺</span> <span class="whitespace-nowrap">(navlun + hizmet bedeli)</span></p>
+                            @endif
                         </div>
 
                         @if($load->status === 'active_seeking')
@@ -363,7 +376,7 @@ class extends Component {
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                     </svg>
-                                    <span>Kabul et ve ödemeye geç</span>
+                                    <span>{{ $directPayment ? 'Kabul et' : 'Kabul et ve ödemeye geç' }}</span>
                                 </button>
                             </div>
                         @endif

@@ -214,6 +214,39 @@ class DirectFreightPaymentTest extends TestCase
         $this->assertTrue(RefreshFaqCommand::isStale(), 'Doğrudan kip metni platform kipinde eski sayılır');
     }
 
+    public function test_pages_speak_direct_mode_and_hide_payment_buttons(): void
+    {
+        $ownerUser = User::factory()->create(['current_role' => 'cargo_owner']);
+        $ownerUser->syncRoles(['cargo_owner']);
+        $driverUser = $this->driver();
+        $driverUser->syncRoles(['driver']);
+        $load = $this->accepted($ownerUser, $driverUser);
+
+        // Yük sahibi: sevkiyat sayfasında düz "İptal et", iade sözü ve ödeme düğmesi yok, şoför telefonu hemen görünür
+        $this->actingAs($ownerUser->fresh())->get(route('cargo-owner.shipments.show', $load->id))->assertOk()
+            ->assertSee('İptal et')->assertDontSee('İptal et ve iade al')->assertDontSee('Ödeme yap')->assertSee('doğrudan');
+        $this->actingAs($ownerUser->fresh())->get(route('cargo-owner.finance.payment', $load->id))->assertOk()
+            ->assertSee('şoförle doğrudan ödenir')->assertDontSee('iyzico ile Öde');
+        $this->get(route('cargo-owner.finance.index'))->assertOk()->assertSee('doğrudan');
+
+        // Şoför: iş sayfasında "Yola çıktım" ödeme beklemeden, IBAN uyarısı yok; Ödemelerim doğrudan kipi anlatır
+        $this->actingAs($driverUser->fresh())->get(route('driver.jobs.show', $load->id))->assertOk()
+            ->assertSee('Yola çıktım')->assertDontSee('ödeme alındığında burada görünür')->assertDontSee('Kayıtlı IBAN\'ınız yok');
+        $this->get(route('driver.wallet.index'))->assertOk()->assertSee('doğrudan')->assertDontSee('iyzico pazaryeri');
+        $this->get(route('driver.dashboard'))->assertOk();
+
+        // Tanıtım: ana sayfa ve üyelik sayfası komisyon/ödeme kuruluşu iddiası taşımaz
+        auth()->logout();
+        $this->get('/')->assertOk()->assertDontSee('Teslimat onaylı güvenli ödeme')->assertSee('komisyon');
+        $this->get(route('subscription'))->assertOk()->assertDontSee('hizmet bedeli')->assertSee('Komisyon');
+        (new CmsContractSeeder)->run();
+        $this->get(route('contracts', 'kullanici-sozlesmesi'))->assertOk()->assertSee('5.0 Navlun Ödeme Yolu');
+
+        // Platform kipinde eski metinler geri gelir (genel sayfa)
+        Settings::set('freight_payment_mode', 'platform');
+        $this->get('/')->assertOk()->assertSee('Teslimat onaylı güvenli ödeme');
+    }
+
     /** Doğrudan kipte kabul edilmiş ilan (şoförde IBAN ve kimlik yok). */
     private function accepted(User $ownerUser, User $driverUser): Load
     {

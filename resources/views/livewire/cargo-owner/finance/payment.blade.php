@@ -137,8 +137,12 @@ class extends Component {
         $load = $this->ownerLoad();
         $payments = app(PaymentService::class);
 
+        // Doğrudan kip: ilan doğrudan ödemeli ya da (henüz platform akışı başlamamışken) genel ayar doğrudan ise ödeme ekranı yerine açıklama.
+        $directLoad = $load && ($load->isDirectPayment() || (\App\Support\FreightPayment::direct() && empty($load->escrow_status)));
+
         return [
             'load' => $load,
+            'directLoad' => $directLoad,
             'payable' => $load ? $this->isPayable($load) : false,
             'amounts' => $load ? $payments->calculateAmounts($load) : ['price' => 0.0, 'service_fee' => 0.0, 'total' => 0.0],
             'iframeUrl' => $this->checkoutType === 'iframe' ? $this->checkoutUrl : null,
@@ -162,7 +166,7 @@ class extends Component {
                 &larr; İlanlarıma dön
             </a>
             <h2 class="mt-2 text-xl font-bold text-neutral-900 dark:text-white tracking-tight flex items-center gap-2">
-                <span>Güvenli ödeme</span>
+                <span>{{ ($load ?? null) && $directLoad ? 'Navlun ödemesi' : 'Güvenli ödeme' }}</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 tabular-nums text-xs font-bold border border-brand-500/20">#{{ $loadId }}</span>
             </h2>
         </div>
@@ -171,7 +175,28 @@ class extends Component {
         @endif
     </div>
 
-    @if($load)
+    @if($load && $directLoad)
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
+            <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold">{{ $load->statusLabel() }}</span>
+                @if($load->price)
+                    <span class="px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[11px] font-bold tabular-nums">{{ number_format((float) $load->price, 2, ',', '.') }} ₺</span>
+                @endif
+            </div>
+            <div class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2 leading-relaxed">
+                <p class="text-neutral-900 dark:text-white font-semibold">Bu ilanda navlun şoförle doğrudan ödenir; NavlunIQ tahsilat yapmaz.</p>
+                <p class="text-neutral-600 dark:text-neutral-400">Ödeme adımı yoktur: teklif kabul edilince şoför yükleme bilgilerini görür ve yola çıkar. Navlun bedelini şoförle aranızda anlaştığınız şekilde ödersiniz; NavlunIQ para tutmaz, komisyon almaz ve ödemeye taraf olmaz.</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 pt-1">
+                @if($load->status === 'active_seeking')
+                    <a href="{{ route('cargo-owner.loads.offers', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-center">Teklifleri gör</a>
+                @elseif($load->shipment || in_array($load->status, ['driver_assigned', 'on_the_way', 'delivered', 'disputed', 'completed'], true))
+                    <a href="{{ route('cargo-owner.shipments.show', $load->id) }}" wire:navigate class="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold text-center">Sevkiyatı görüntüle</a>
+                @endif
+            </div>
+        </div>
+    @elseif($load)
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4 text-xs">
             <h3 class="section-title">Ödeme özeti</h3>
             <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">{{ $load->pickup_location }} <span class="text-brand-500">&rarr;</span> {{ $load->delivery_location }}</div>

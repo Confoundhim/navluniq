@@ -627,6 +627,7 @@ class extends Component {
             'myVehicleLength' => $profile?->activeVehicle()->value('trailer_length'),
             'minPrice' => Settings::float('min_load_price'),
             'commissionRate' => $profile?->commissionRate() ?? Settings::float('commission_standard_driver'),
+            'directPayment' => \App\Support\FreightPayment::direct(),
             'selectedLoad' => $this->selectedLoadId ? Load::query()->with('cargoOwnerProfile.user')->whereKey($this->selectedLoadId)->first() : null,
             // Teklif penceresi: şoförün son 3 teklifi (tutar, gün, mesaj) tek dokunuşla doldurulur; pencere kapalıyken sorgu yok.
             'recentOffers' => $this->offerModalOpen && $this->selectedLoadId
@@ -851,7 +852,7 @@ class extends Component {
         <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
             <div class="text-xs space-y-3">
                 <div class="text-2xs text-neutral-500 leading-relaxed">
-                    Bu ilanlar izinli dış kaynaklardan derlenir; NavlunIQ havuz ödemesi kapsamında değildir. Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
+                    Bu ilanlar izinli dış kaynaklardan derlenir; @if(! $directPayment)NavlunIQ havuz ödemesi kapsamında değildir. @endif Teklif ve anlaşma doğrudan ilan sahibiyle yapılır. Yalnız premium üyelere gösterilir.
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" wire:click="setIncomplete(false)" class="tab-pill {{ ! $incomplete ? 'tab-pill-active' : '' }}">Dış kaynak ilanlar <span class="opacity-70">{{ number_format($webLoadsCount, 0, ',', '.') }}</span></button>
@@ -923,7 +924,11 @@ class extends Component {
                         <input type="number" step="0.01" min="{{ $minPrice }}" x-model="amount" class="form-input tabular-nums">
                         @error('amount') <span class="form-error">{{ $message }}</span> @enderror
                         <span class="text-2xs text-neutral-500 mt-1 block">Asgari {{ number_format($minPrice, 2, ',', '.') }} ₺</span>
-                        <span class="text-2xs mt-1 block" data-commission-rate="{{ $commissionRate }}">Size kalan: <span class="font-bold text-neutral-900 dark:text-white tabular-nums" x-text="net() ? net() + ' ₺' : '—'">—</span> <span class="text-neutral-500">(%{{ number_format($commissionRate, 1, ',', '.') }} hizmet bedeli düşülür)</span></span>
+                        @if($directPayment)
+                            <span class="text-2xs mt-1 block text-neutral-500">Navlun bedelini yük sahibiyle aranızda doğrudan alırsınız; hizmet bedeli düşülmez.</span>
+                        @else
+                            <span class="text-2xs mt-1 block" data-commission-rate="{{ $commissionRate }}">Size kalan: <span class="font-bold text-neutral-900 dark:text-white tabular-nums" x-text="net() ? net() + ' ₺' : '—'">—</span> <span class="text-neutral-500">(%{{ number_format($commissionRate, 1, ',', '.') }} hizmet bedeli düşülür)</span></span>
+                        @endif
                     </div>
                     <div>
                         <label class="form-label">Tahmini süre (gün)</label>

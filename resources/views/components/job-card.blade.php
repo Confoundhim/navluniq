@@ -12,7 +12,7 @@
         <div class="flex flex-wrap items-center gap-1.5">
             <span class="badge {{ $trip->isSystem() ? 'bg-brand-500/10 text-brand-600 dark:text-brand-400' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400' }}">{{ $trip->sourceLabel() }}</span>
             <span class="trip-status trip-status-{{ $key }}"><span class="inline-flex h-1.5 w-1.5 rounded-full bg-current"></span>{{ $trip->displayStatusLabel() }}</span>
-            @if($load && $trip->isOpen() && $load->isPaid())<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">{{ $load->escrowLabel() }}</span>@endif
+            @if($load && $trip->isOpen() && ($load->isPaid() || $load->isDirectPayment()))<span class="badge bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">{{ $load->escrowLabel() }}</span>@endif
             @if($trip->match_count > 0)<span class="badge bg-violet-500/10 text-violet-700 dark:text-violet-300">{{ $trip->match_count }} dönüş yükü bildirildi</span>@endif
         </div>
         <div class="text-sm font-bold text-neutral-900 dark:text-white break-words">{{ $trip->pickup_location ?: 'Belirtilmemiş' }} <span class="text-brand-500">&rarr;</span> {{ $trip->delivery_location ?: 'Belirtilmemiş' }}</div>
@@ -36,8 +36,8 @@
                     <a href="{{ route('driver.jobs.show', $trip->load_id) }}#teslimat" wire:navigate class="load-card-action">Teslim ettim</a>
                 @endif
                 <a href="{{ route('driver.jobs.show', $trip->load_id) }}" wire:navigate class="load-card-action-ghost">{{ $trip->isOpen() ? 'Ayrıntı ve teslimat' : 'Ayrıntı' }}</a>
-                @if($trip->isOpen() && $load && $load->status === \App\Models\Load::STATUS_ASSIGNED && in_array($load->escrow_status, [\App\Models\Load::ESCROW_PENDING, \App\Models\Load::ESCROW_PAID], true))
-                    <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="{{ $load->isPaid() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : 'Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?' }}" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
+                @if($trip->isOpen() && $load && $load->status === \App\Models\Load::STATUS_ASSIGNED && in_array($load->escrow_status, [\App\Models\Load::ESCROW_PENDING, \App\Models\Load::ESCROW_PAID, \App\Models\Load::ESCROW_DIRECT], true))
+                    <button type="button" wire:click="withdrawJob({{ $trip->id }})" wire:confirm="{{ $load->isDirectPayment() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : ($load->isPaid() ? 'Yola çıkmadan vazgeçiyorsunuz: ilan yeniden havuza döner, navlun yük sahibine iade edilir ve vazgeçme hesabınızda sayılır. Devam edilsin mi?' : 'Ödeme beklemekten vazgeçiyorsunuz; ilan yeniden havuza döner ve bu iş kapanır. Devam edilsin mi?') }}" class="load-card-action-ghost text-neutral-500">Vazgeç</button>
                 @endif
             @else
                 @if(in_array($trip->status, ['planned', 'on_the_way'], true))<button type="button" wire:click="setStatus({{ $trip->id }}, 'delivered')" class="load-card-action-ghost">Teslim ettim</button>@endif
