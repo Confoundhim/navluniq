@@ -17,6 +17,8 @@ class PaymentOrder extends Model
         'user_id',
         'purpose',
         'subscription_months',
+        'auto_renew',
+        'stored_card_id',
         'provider',
         'merchant_oid',
         'provider_reference',
@@ -43,6 +45,7 @@ class PaymentOrder extends Model
         'commission_amount' => 'decimal:4',
         'driver_net_amount' => 'decimal:4',
         'insurance_amount' => 'decimal:4',
+        'auto_renew' => 'boolean',
         'request_snapshot' => 'array',
         'authorized_at' => 'datetime',
         'paid_at' => 'datetime',
@@ -63,5 +66,11 @@ class PaymentOrder extends Model
     public function events(): HasMany
     {
         return $this->hasMany(PaymentEvent::class);
+    }
+
+    /** Yenileme çekiminde kullanılan kayıtlı kart (kullanıcının açtığı ödemede boş). */
+    public function storedCard(): BelongsTo
+    {
+        return $this->belongsTo(StoredCard::class);
     }
 }

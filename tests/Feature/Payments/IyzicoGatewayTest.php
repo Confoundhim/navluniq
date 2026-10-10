@@ -11,6 +11,8 @@ use App\Models\Load;
 use App\Models\PaymentEvent;
 use App\Models\PaymentOrder;
 use App\Models\Payout;
+use App\Models\StoredCard;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Payments\GatewayManager;
 use App\Payments\Gateways\IyzicoGateway;
@@ -19,6 +21,7 @@ use App\Services\OfferService;
 use App\Services\PaymentService;
 use App\Services\PayoutService;
 use App\Services\ShipmentService;
+use App\Services\SubscriptionService;
 use App\Support\RuntimeMailConfig;
 use App\Support\Settings;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -405,4 +408,85 @@ class IyzicoGatewayTest extends TestCase
     }
 
     private string $basketId = '';
+
+    /** Kart saklama: ödeme formu kart anahtarını taşır, sorgu yanıtındaki kart kaydedilir, yenileme /payment/auth ile kayıtlı karttan çekilir. */
+    public function test_card_storage_saves_card_on_subscription_payment_and_renews_with_payment_auth(): void
+    {
+        Settings::set('iyzico_card_storage', '1');
+        Settings::set('premium_monthly_price', '900');
+        Http::fake([
+            'sandbox-api.iyzipay.com/payment/iyzipos/checkoutform/initialize/auth/ecom' => Http::response(['status' => 'success', 'token' => 'tok-sub', 'tokenExpireTime' => 1800, 'paymentPageUrl' => 'https://sandbox-cpp.iyzipay.com?token=tok-sub']),
+            'sandbox-api.iyzipay.com/payment/iyzipos/checkoutform/auth/ecom/detail' => fn () => Http::response(['status' => 'success', 'paymentStatus' => 'SUCCESS', 'paymentId' => '990009', 'basketId' => $this->basketId, 'paidPrice' => '900.00', 'price' => '900.00',
+                'cardUserKey' => 'CUK-1', 'cardToken' => 'CTK-1', 'lastFourDigits' => '0008', 'cardAssociation' => 'MASTER_CARD', 'cardFamily' => 'Bonus', 'itemTransactions' => [['paymentTransactionId' => '770009', 'itemId' => 'ORD-1']]]),
+            'sandbox-api.iyzipay.com/payment/auth' => Http::response(['status' => 'success', 'paymentId' => '990010', 'paidPrice' => '900.00', 'itemTransactions' => [['paymentTransactionId' => '770010']]]),
+        ]);
+        $driver = $this->driver();
+        $driver->driverProfile->update(['identity_number' => '10000000146']);
+        $payments = app(PaymentService::class);
+        $subscriptions = app(SubscriptionService::class);
+
+        $order = $subscriptions->startCheckout($driver->fresh(), 1, true);
+        $this->assertTrue((bool) $order->auto_renew);
+        $this->basketId = $order->merchant_oid;
+        $payments->checkout($order, request());
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'initialize') && $r->data()['paymentGroup'] === 'SUBSCRIPTION' && ! array_key_exists('cardUserKey', $r->data()));
+
+        $this->post('/odeme/bildirim/iyzico', ['token' => 'tok-sub'])->assertRedirect();
+        $card = StoredCard::query()->where('user_id', $driver->id)->firstOrFail();
+        $this->assertSame(['CUK-1', 'CTK-1', 'Mastercard •••• 0008'], [$card->card_user_key, $card->card_token, $card->label()]);
+        $subscription = Subscription::query()->where('user_id', $driver->id)->firstOrFail();
+        $this->assertTrue($subscription->auto_renew);
+        $this->assertSame($card->id, $subscription->stored_card_id);
+
+        // İkinci ödeme formu kayıtlı kart anahtarını taşır (iyzico sayfasında kart listelenir)
+        $second = $subscriptions->startCheckout($driver->fresh(), 3, true);
+        $payments->checkout($second, request());
+        Http::assertSent(fn ($r) => str_contains($r->url(), 'initialize') && ($r->data()['cardUserKey'] ?? null) === 'CUK-1');
+
+        // Yenileme: dönem 60 saat sonra bitiyor → /payment/auth kayıtlı kartla, 3D Secure'süz
+        $subscription->update(['current_period_ends_at' => now()->addHours(60)]);
+        $driver->driverProfile->update(['premium_until' => now()->addHours(60)]);
+        $this->assertSame(1, $subscriptions->renewDue());
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/payment/auth') && $r->data()['paymentCard'] === ['cardUserKey' => 'CUK-1', 'cardToken' => 'CTK-1']
+            && $r->data()['paidPrice'] === '900.00' && $r->data()['paymentGroup'] === 'SUBSCRIPTION' && $r->data()['buyer']['identityNumber'] === '10000000146');
+        $renewal = PaymentOrder::query()->where('user_id', $driver->id)->where('stored_card_id', $card->id)->firstOrFail();
+        $this->assertSame('paid', $renewal->status);
+        $this->assertSame('990010:770010', $renewal->provider_reference);
+        $this->assertEqualsWithDelta(now()->addHours(60)->addMonthsNoOverflow(1)->timestamp, $driver->driverProfile->fresh()->premium_until->timestamp, 5);
+
+        // Kart silme DELETE /cardstorage/card
+        Http::fake(['sandbox-api.iyzipay.com/cardstorage/card' => Http::response(['status' => 'success'])]);
+        $subscriptions->deleteStoredCard($driver, $card);
+        Http::assertSent(fn ($r) => $r->method() === 'DELETE' && str_ends_with($r->url(), '/cardstorage/card') && $r->data()['cardToken'] === 'CTK-1');
+        $this->assertFalse($subscription->fresh()->auto_renew);
+    }
+
+    public function test_expired_card_error_code_stops_renewal_without_retry(): void
+    {
+        Settings::set('iyzico_card_storage', '1');
+        Http::fake(['sandbox-api.iyzipay.com/payment/auth' => Http::response(['status' => 'failure', 'errorCode' => '10054', 'errorMessage' => 'Kartın son kullanma tarihi hatalı'])]);
+        $driver = $this->driver();
+        $driver->driverProfile->update(['identity_number' => '10000000146', 'premium_until' => now()->addHours(48)]);
+        $card = StoredCard::create(['user_id' => $driver->id, 'provider' => 'iyzico', 'card_user_key' => 'CUK-2', 'card_token' => 'CTK-2', 'last_four' => '0001']);
+        $subscription = Subscription::create(['user_id' => $driver->id, 'plan_code' => 'premium_monthly', 'provider' => 'iyzico', 'status' => 'active', 'amount' => 900, 'currency' => 'TRY', 'interval' => 'monthly',
+            'auto_renew' => true, 'renew_months' => 1, 'stored_card_id' => $card->id, 'current_period_starts_at' => now()->subMonth(), 'current_period_ends_at' => now()->addHours(48)]);
+
+        $this->assertSame(0, app(SubscriptionService::class)->renewDue());
+        $subscription->refresh();
+        $this->assertFalse($subscription->auto_renew);
+        $this->assertStringContainsString('10054', (string) $subscription->last_renewal_error);
+        $this->assertSame('failed', PaymentOrder::query()->where('user_id', $driver->id)->latest('id')->value('status'));
+        $this->assertSame(1, PaymentEvent::query()->where('event_type', 'renewal')->where('status', 'failed')->count());
+    }
+
+    public function test_diagnose_reports_card_storage_when_enabled(): void
+    {
+        Settings::set('iyzico_card_storage', '1');
+        Http::fake([
+            'sandbox-api.iyzipay.com/payment/bin/check' => Http::response(['status' => 'success']),
+            'sandbox-api.iyzipay.com/cardstorage/cards' => Http::response(['status' => 'failure', 'errorCode' => '3001', 'errorMessage' => 'Kart kullanıcısı bulunamadı']),
+        ]);
+        $labels = array_column(app(IyzicoGateway::class)->diagnose(), 'ok', 'label');
+        $this->assertTrue($labels['Kart saklama (otomatik yenileme)']);
+    }
 }

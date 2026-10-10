@@ -50,6 +50,29 @@ Site kriterleri (iyzico başvurusu): Hakkımızda, SSL, Teslimat ve İade Şartl
 sayfaları; altbilgide ve ödeme sayfalarında "iyzico ile Öde" + Mastercard/Visa/Amex/Troy logoları
 (`public/images/payment`).
 
+### Otomatik yenilenen premium (kart saklama, 2026-10-10)
+
+iyzico pazaryeri başvurusunu yazılı olarak reddetti (aracılık modeli); sanal POS yalnız yazılım/SaaS satışı için kalıyor.
+Premium üyelik buna uyar. Osman'ın kararı: "bir kere kayıt olsun, her ay otomatik devam etsin". Akış:
+
+- Panel: Sistem Ayarları → Ödeme altyapısı → "Kart saklama ürünü aktif" (`iyzico_card_storage`). Kapalıyken hiçbir ekranda
+  otomatik yenileme görünmez, abonelik eskisi gibi tek seferliktir. iyzico "kart saklama" ve "kayıtlı kartla tahsilat"
+  ürünlerini hesapta açınca kutu işaretlenir; "Bağlantıyı sına" kart saklama satırı yeşil olmalı.
+- Satın alma: ödeme sayfasında "Otomatik yenile" kutusu (varsayılan açık). İşaretliyse Ödeme Formu'na kullanıcının önceki
+  kart anahtarı (`cardUserKey`) gider; kullanıcı iyzico sayfasında "kartımı sakla" der; sorgu yanıtındaki `cardUserKey`/
+  `cardToken`/son 4 hane `stored_cards` tablosuna yazılır (token şifreli; kart numarası hiç gelmez). Kart kaydedilmediyse
+  yenileme açılmaz, şoföre söylenir.
+- Yenileme: `subscriptions:renew` (saatlik) dönem bitimine 72 saat kala `POST /payment/auth` ile `paymentCard{cardUserKey,
+  cardToken}` çekimi yapar (`IyzicoGateway::chargeStoredCard`, `PaymentService::chargeRenewal`, emir `stored_card_id` taşır),
+  başarıda `activate()` süreyi uzatır ve "yenilendi" bildirimi gider. Başarısızlıkta 24 saat sonra tekrar (en çok 3); kart
+  geçersizse (`CARD_INVALID_CODES`) ya da üçüncü başarısızlıkta yenileme kapanır, şoför bilgilendirilir, dönem sonunda üyelik biter.
+  Tutar yenileme günündeki panel fiyatıdır; `subscriptions:remind` yenilenecek aboneliğe 5 gün kala tutarı yazar (bedel önceden bildirilir).
+- Şoför Premium sayfası: "Otomatik yenileme" kartı (açık/kapalı, tek dokunuşla kapat/aç, kayıtlı kartı sil →
+  `DELETE /cardstorage/card`). Kapatma dönem sonuna kadar hakları etkilemez.
+- Sözleşmeler: MSS 2.1/3.1 ve İade 3.2 "satın alma ekranında seçilmediği sürece otomatik yenilenmez" + yenileme kuralları;
+  `legal:refresh --if-stale` metni yeniler. İkinci bir kuruluş (navlun için) seçilirse abonelik iyzico'da kalır; sağlayıcı
+  seçimi amaca göre (abonelik / navlun) ayrılacak.
+
 ## iyzico üye işyeri paneli: hangi ayar nasıl olmalı (2026-10-07)
 
 | iyzico paneli | Olması gereken | Neden |

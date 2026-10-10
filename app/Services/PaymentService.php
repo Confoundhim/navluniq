@@ -7,8 +7,10 @@ use App\Models\DriverProfile;
 use App\Models\Load;
 use App\Models\PaymentEvent;
 use App\Models\PaymentOrder;
+use App\Models\StoredCard;
 use App\Models\User;
 use App\Payments\Contracts\PaymentGateway;
+use App\Payments\Data\ChargeResult;
 use App\Payments\Data\Checkout;
 use App\Payments\Data\WebhookResult;
 use App\Payments\GatewayManager;
@@ -127,8 +129,11 @@ class PaymentService
         ]);
     }
 
-    /** Premium abonelik için açık bir ödeme emri döner (varsa yeniden kullanır). */
-    public function orderForSubscription(User $payer, float $amount, int $months = 1): PaymentOrder
+    /**
+     * Premium abonelik için açık bir ödeme emri döner (varsa yeniden kullanır). $autoRenew satın alma ekranındaki tercih;
+     * $card yalnız otomatik yenileme çekiminde (kullanıcı ekranda değil, sunucu kayıtlı karttan çeker) dolu gelir.
+     */
+    public function orderForSubscription(User $payer, float $amount, int $months = 1, bool $autoRenew = false, ?StoredCard $card = null): PaymentOrder
     {
         $amount = round($amount, 2);
         if ($amount <= 0) {
@@ -137,7 +142,8 @@ class PaymentService
 
         $existing = PaymentOrder::query()->where('user_id', $payer->id)->where('purpose', self::PURPOSE_SUBSCRIPTION)
             ->whereIn('status', ['created', 'pending'])->where('created_at', '>=', now()->subHours(6))->latest()->first();
-        if ($existing && abs((float) $existing->amount - $amount) < 0.01 && (int) ($existing->subscription_months ?: 1) === $months) {
+        if ($existing && abs((float) $existing->amount - $amount) < 0.01 && (int) ($existing->subscription_months ?: 1) === $months
+            && (bool) $existing->auto_renew === $autoRenew && (int) $existing->stored_card_id === (int) ($card?->id ?? 0)) {
             return $existing;
         }
 
@@ -146,6 +152,8 @@ class PaymentService
             'user_id' => $payer->id,
             'purpose' => self::PURPOSE_SUBSCRIPTION,
             'subscription_months' => $months,
+            'auto_renew' => $autoRenew,
+            'stored_card_id' => $card?->id,
             'provider' => $this->gateway()->id(),
             'merchant_oid' => $this->merchantOid('NQS'.$payer->id),
             'amount' => $amount,
@@ -180,6 +188,11 @@ class PaymentService
             'city' => $load?->pickup_location ? trim((string) explode('/', (string) $load->pickup_location)[0]) : 'İstanbul',
             'identity_number' => $this->buyerIdentity($order),
         ];
+        // Otomatik yenileme istenmişse kuruluşa kart saklama izni ve varsa kullanıcının daha önce kaydettiği kartın anahtarı gider.
+        if ($order->purpose === self::PURPOSE_SUBSCRIPTION && $order->auto_renew && $gateway->supportsStoredCards()) {
+            $context['save_card'] = true;
+            $context['card_user_key'] = StoredCard::query()->where('user_id', $order->user_id)->where('provider', $gateway->id())->latest('id')->value('card_user_key');
+        }
 
         if ($order->purpose === self::PURPOSE_ESCROW) {
             if ($blocker = PaymentReadiness::escrowBlocker($gateway)) {
@@ -332,8 +345,11 @@ class PaymentService
             return 'paid';
         }, 3);
 
+        // Kullanıcı ödeme sayfasında kartını kaydettiyse kart anahtarı (numara değil) saklanır; abonelik yenilemesi bununla çekilir.
+        $card = $outcome === 'paid' && $result->card && $order->purpose === self::PURPOSE_SUBSCRIPTION ? $this->storeCard($order, $result->card) : null;
+
         match ($outcome) {
-            'paid' => $this->afterPaid($order->fresh()),
+            'paid' => $this->afterPaid($order->fresh(), $card),
             'mismatch' => $this->afterMismatch($order->fresh(), $result),
             'orphan' => $this->afterOrphanPayment($order->fresh()),
             default => null,
@@ -409,10 +425,93 @@ class PaymentService
         return route('payment.result', ['order' => $order->public_id, 'outcome' => $ok ? 'basarili' : 'basarisiz']);
     }
 
-    private function afterPaid(PaymentOrder $order): void
+    /**
+     * Kuruluşun bildirdiği kart anahtarlarını kullanıcıya bağlar (aynı kart yeniden kaydedilirse anahtar güncellenir).
+     *
+     * @param  array{card_user_key:string, card_token:string, last_four?:string, association?:string, family?:string, bank?:?string}  $card
+     */
+    private function storeCard(PaymentOrder $order, array $card): ?StoredCard
+    {
+        if (empty($card['card_user_key']) || empty($card['card_token'])) {
+            return null;
+        }
+        try {
+            return StoredCard::query()->updateOrCreate(
+                ['user_id' => $order->user_id, 'provider' => (string) $order->provider, 'last_four' => mb_substr((string) ($card['last_four'] ?? ''), 0, 4), 'card_association' => mb_substr((string) ($card['association'] ?? ''), 0, 32)],
+                ['card_user_key' => (string) $card['card_user_key'], 'card_token' => (string) $card['card_token'], 'card_family' => mb_substr((string) ($card['family'] ?? ''), 0, 64) ?: null, 'bank_name' => isset($card['bank']) ? mb_substr((string) $card['bank'], 0, 120) : null],
+            );
+        } catch (\Throwable $e) {
+            Log::error('Kayıtlı kart yazılamadı.', ['order' => $order->id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Otomatik yenileme: kayıtlı kartla sunucudan çekim. Sonuç anında gelir; bildirim beklenmez. Başarıda emir "paid" olur ve
+     * abonelik dönemi eklenir; başarısızlıkta emir "failed" kalır, karar (tekrar deneme / kapatma) SubscriptionService'tedir.
+     */
+    public function chargeRenewal(PaymentOrder $order, StoredCard $card): ChargeResult
+    {
+        if ($order->purpose !== self::PURPOSE_SUBSCRIPTION || ! in_array($order->status, ['created', 'pending'], true)) {
+            return new ChargeResult(false, 'renew:'.$order->merchant_oid.':state', [], null, null, 'Sipariş çekim adımında değil.');
+        }
+        $gateway = $this->gateways->gateway((string) $order->provider);
+        if (! $gateway->isConfigured() || ! $gateway->supportsStoredCards() || $card->provider !== $gateway->id()) {
+            return new ChargeResult(false, 'renew:'.$order->merchant_oid.':gateway', [], null, null, 'Ödeme kuruluşunda kart saklama açık değil.');
+        }
+        try {
+            $result = $gateway->chargeStoredCard($order, $card, [
+                'ip' => '127.0.0.1',
+                'description' => 'NavlunIQ Premium şoför üyeliği ('.max(1, (int) ($order->subscription_months ?: 1)).' ay, otomatik yenileme)',
+                'identity_number' => $this->buyerIdentity($order),
+            ]);
+        } catch (RuntimeException $e) {
+            $result = new ChargeResult(false, 'renew:'.$order->merchant_oid.':prepare', [], null, null, $e->getMessage(), true);
+        }
+
+        $payloadJson = json_encode($result->payload, JSON_UNESCAPED_UNICODE) ?: '{}';
+        $paid = DB::transaction(function () use ($order, $result, $payloadJson): bool {
+            $locked = PaymentOrder::query()->lockForUpdate()->findOrFail($order->id);
+            if (! PaymentEvent::query()->where('payment_order_id', $locked->id)->where('provider_event_id', $result->eventId)->exists()) {
+                PaymentEvent::create([
+                    'payment_order_id' => $locked->id,
+                    'provider_event_id' => $result->eventId,
+                    'event_type' => 'renewal',
+                    'status' => $result->succeeded ? 'success' : 'failed',
+                    'payload_hash' => hash('sha256', $payloadJson),
+                    'payload_encrypted' => Crypt::encryptString($payloadJson),
+                    'processed_at' => now(),
+                    'failure_message' => $result->failureMessage,
+                ]);
+            }
+            if (! in_array($locked->status, ['created', 'pending'], true)) {
+                return false;
+            }
+            if (! $result->succeeded) {
+                $locked->update(['status' => 'failed', 'failed_at' => now(), 'failure_message' => mb_substr((string) $result->failureMessage, 0, 500)]);
+
+                return false;
+            }
+            if ($result->paidAmount !== null && abs($result->paidAmount - (float) $locked->amount) > 0.01) {
+                Log::critical('Abonelik yenileme tutarı uyuşmuyor.', ['order' => $locked->id, 'expected' => $locked->amount, 'paid' => $result->paidAmount]);
+            }
+            $locked->update(['status' => 'paid', 'paid_at' => now(), 'provider_reference' => $result->providerReference]);
+
+            return true;
+        }, 3);
+
+        if ($paid) {
+            $this->afterPaid($order->fresh(), $card);
+        }
+
+        return $result;
+    }
+
+    private function afterPaid(PaymentOrder $order, ?StoredCard $card = null): void
     {
         if ($order->purpose === self::PURPOSE_SUBSCRIPTION) {
-            app(SubscriptionService::class)->activate($order);
+            app(SubscriptionService::class)->activate($order, $card);
 
             return;
         }

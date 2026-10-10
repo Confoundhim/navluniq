@@ -20,5 +20,6 @@ final class WebhookResult
         public readonly string $ackBody = 'OK', // sağlayıcıya dönülecek yanıt gövdesi
         public readonly string $rejectBody = 'FAILED',
         public readonly bool $redirectUser = false, // true: bildirim kullanıcının tarayıcısından geldi, sonuç sayfasına yönlendir
+        public readonly ?array $card = null, // kullanıcı ödeme sayfasında kartını kaydettiyse: card_user_key, card_token, last_four, association, family, bank
     ) {}
 }

@@ -66,6 +66,10 @@ Artisan::command('subscriptions:expire', function (SubscriptionService $subscrip
     $this->info('Süresi dolan abonelik sayısı: '.$subscriptions->expireDue());
 })->purpose('Dönemi biten premium abonelikleri kapatır');
 
+Artisan::command('subscriptions:renew', function (SubscriptionService $subscriptions) {
+    $this->info('Kayıtlı karttan yenilenen premium abonelik: '.$subscriptions->renewDue());
+})->purpose('Otomatik yenilemesi açık premium abonelikleri dönem bitiminden 3 gün önce kayıtlı karttan çeker');
+
 Artisan::command('scraped-loads:ai-enrich', function (ScrapedLoadService $loads) {
     $this->info('Yapay zeka ile zenginleştirilen aday: '.$loads->aiEnrichPending());
 })->purpose('Yapay zeka sırası bekleyen dış kaynak adaylarını çözümler (kota/ağ hatası sonrası yeniden deneme)');
@@ -119,6 +123,7 @@ Schedule::command('loads:expire-unpaid')->everyThirtyMinutes()->withoutOverlappi
 Schedule::command('trips:scan-return-loads')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('trips:auto-close')->dailyAt('04:10');
 Schedule::command('subscriptions:expire')->hourly();
+Schedule::command('subscriptions:renew')->hourly()->withoutOverlapping(60);
 Schedule::command('subscriptions:remind')->dailyAt('09:00');
 Schedule::command('notifications:retry-mail')->everyTenMinutes()->withoutOverlapping(60);
 Schedule::command('scraped-loads:purge-expired')->daily();
