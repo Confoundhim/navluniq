@@ -25,17 +25,17 @@ new class extends Component {
 
     public function loadData(): void
     {
-        // Navlun ödeme kipi (FreightPayment): doğrudan kipte navlun taraflar arasında ödenir, NavlunIQ tahsilat yapmaz ve komisyon almaz;
-        // platform kipinde ödeme kuruluşu + teslimat onayı. Yönetici CMS'ten metin yazdıysa o metin geçerlidir.
+        // Navlun ödeme kipi (FreightPayment): doğrudan kipte tanıtım metinleri navlun ödemesinden ve komisyondan söz etmez (iyzico yalnız premium
+        // üyelik için kullanılır); platform kipinde ödeme kuruluşu + teslimat onayı anlatılır. Yönetici CMS'ten metin yazdıysa o metin geçerlidir.
         $direct = FreightPayment::direct();
         $this->ownerTitle = CmsContent::getVal('slider_owner_title', $direct ? 'Yükünüz Doğrulanmış Şoförlerle Güvende!' : 'Ödemeleriniz NavlunIQ ile Güvende!');
         $this->ownerDesc = CmsContent::getVal('slider_owner_desc', $direct
-            ? 'Gerçek Zamanlı Eşleşme ve Şeffaf Süreç. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Navlun bedelini şoförle doğrudan ödersiniz; NavlunIQ tahsilat yapmaz, komisyon almaz. Yükleriniz belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla korunur.'
+            ? 'Gerçek Zamanlı Eşleşme ve Şeffaf Süreç. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Yükleriniz belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla korunur.'
             : 'Gerçek Zamanlı Eşleşme ve Kontrollü Ödeme Süreci. İlanlarınıza gelen şoför tekliflerini anlık olarak değerlendirip onaylayabilirsiniz. Ödemeleriniz teslimat onaylı güvenli ödeme akışıyla, yükleriniz belgeleri doğrulanmış güvenilir şoförlerle korunur.');
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
         $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. Gruplarda ve webde paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
         $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', $direct
-            ? 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir (NavlunIQ tahsilat yapmaz, komisyon almaz) ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.'
+            ? 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.'
             : 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
     }
 
@@ -49,7 +49,7 @@ new class extends Component {
     @php
         $lead = app(\App\Services\LoadReleaseService::class)->delayMinutes();
         $leadText = $lead > 0 ? $lead.' dakika' : 'aynı anda';
-        $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+        $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: tanıtımda navlun ödemesi/komisyon anlatılmaz
     @endphp
 
     <style>
@@ -130,7 +130,7 @@ new class extends Component {
                             <div class="space-y-4 md:space-y-5" x-show="role === 'owner'" x-transition:enter.opacity.duration.300ms>
                                 <div class="hero-reveal inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 text-xs font-extrabold uppercase tracking-wider" style="--d: 0ms">
                                     <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
-                                    <span>{{ $directPay ? 'Komisyonsuz, doğrudan anlaşma' : 'Teslimat onaylı güvenli ödeme' }}</span>
+                                    <span>{{ $directPay ? 'Doğrulanmış şoför, canlı takip' : 'Teslimat onaylı güvenli ödeme' }}</span>
                                 </div>
                                 <h1 class="hero-reveal text-3xl sm:text-4xl lg:text-[3.25rem] font-black tracking-tight text-neutral-950 dark:text-white leading-[1.15] sm:leading-[1.1] lg:leading-[1.06]" style="--d: 80ms">
                                     {{ $ownerTitle }}
@@ -148,7 +148,7 @@ new class extends Component {
                                 <div class="hero-reveal flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-2 text-[11px] text-neutral-500 dark:text-neutral-400 pt-1" style="--d: 320ms">
                                     <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>İlan vermek ücretsiz</span>
                                     <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Teklifleri karşılaştır, sen seç</span>
-                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ $directPay ? 'Komisyon yok, şoföre doğrudan ödeme' : 'Para teslimata kadar güvende' }}</span>
+                                    <span class="inline-flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{{ $directPay ? 'Canlı konum ve teslim kanıtı' : 'Para teslimata kadar güvende' }}</span>
                                 </div>
                             </div>
 
@@ -261,7 +261,7 @@ new class extends Component {
                                     </span>
                                     <span class="leading-tight">
                                         <span class="block text-sm sm:text-base font-black text-neutral-900 dark:text-white tabular-nums">18.500 ₺</span>
-                                        <span class="block text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{{ $directPay ? 'Şoföre doğrudan · komisyon yok' : 'Teslimata kadar ödeme kuruluşunda' }}</span>
+                                        <span class="block text-[9px] sm:text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">{{ $directPay ? 'Teklif kabul edildi' : 'Teslimata kadar ödeme kuruluşunda' }}</span>
                                     </span>
                                 </div>
 
@@ -339,7 +339,7 @@ new class extends Component {
                     @foreach([
                         ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.5 12l2 2 3.5-4"/>', 'title' => 'Belgeleri doğrulanmış şoförler', 'text' => 'Ehliyet, SRC ve araç belgeleri onaylı'],
                         $directPay
-                            ? ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/><circle cx="12" cy="12" r="9"/>', 'title' => 'Komisyon yok', 'text' => 'Navlunu şoföre doğrudan ödersiniz; NavlunIQ pay almaz']
+                            ? ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/><circle cx="12" cy="12" r="9"/>', 'title' => 'Canlı konum takibi', 'text' => 'Sevkiyatı harita üzerinde anlık izleyin']
                             : ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M7 11V8a5 5 0 0110 0v3M6 11h12v9H6z"/>', 'title' => 'Ödeme teslimat onayıyla', 'text' => 'Para teslimata kadar ödeme kuruluşunda bekler'],
                         $directPay
                             ? ['icon' => '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5a2 2 0 002 2h2a2 2 0 002-2"/>', 'title' => 'Teslim kanıtı ve inceleme', 'text' => 'Fotoğraflı teslim kanıtı; sorun olursa uyuşmazlık incelemesi']
@@ -409,7 +409,7 @@ new class extends Component {
                 <h3 class="text-base font-bold text-neutral-900 dark:text-white">{{ $directPay ? 'Anlaşma & Canlı Takip' : 'Güvenli Ödeme & Canlı Takip' }}</h3>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
                     @if($directPay)
-                        Teklif kabul edilince şoför yük sahibinin iletişim bilgisini görür; navlun bedeli taraflar arasında doğrudan ödenir, NavlunIQ komisyon almaz. Yük sahibi sevkiyatı canlı konumla takip eder.
+                        Teklif kabul edilince şoför yük sahibinin iletişim bilgisini görür ve yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
                     @else
                         Yük sahibi navlun bedelini lisanslı ödeme kuruluşu üzerinden öder, şoför yola çıkar. Yük sahibi sevkiyatı canlı konumla takip eder.
                     @endif
@@ -639,7 +639,7 @@ new class extends Component {
             <div class="space-y-1 text-center md:text-left">
                 <span class="text-xs font-black text-brand-500 uppercase tracking-wider">FİNANSAL GÜVENCE</span>
                 <h3 class="text-lg font-black text-neutral-950 dark:text-white">Güvenli Ödeme Altyapısı</h3>
-                <p class="text-xs text-neutral-400 max-w-2xl">{{ $directPay ? 'Premium üyelik ödemeleri' : 'Ödemeler' }} BDDK lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz NavlunIQ sunucularına ulaşmaz{{ $directPay ? '. Navlun bedeli yük sahibi ile şoför arasında doğrudan ödenir; NavlunIQ tahsilat yapmaz, komisyon almaz.' : '; navlun ödemesi teslimat onayıyla şoföre tamamlanır.' }}</p>
+                <p class="text-xs text-neutral-400 max-w-2xl">{{ $directPay ? 'Premium üyelik ödemeleri' : 'Ödemeler' }} lisanslı ödeme kuruluşu iyzico üzerinden kredi kartı ya da banka kartıyla, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz NavlunIQ sunucularına ulaşmaz{{ $directPay ? '.' : '; navlun ödemesi teslimat onayıyla şoföre tamamlanır.' }}</p>
             </div>
             <div class="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 shrink-0">
                 <a href="https://www.iyzico.com" target="_blank" rel="noopener" title="iyzico ile Öde" class="opacity-90 hover:opacity-100 transition-opacity">

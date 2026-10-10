@@ -1,7 +1,7 @@
 @php
-    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: navlun taraflar arasında, komisyon yok
+    $directPay = \App\Support\FreightPayment::direct(); // doğrudan kip: tanıtımda navlun ödemesi/komisyon anlatılmaz
 @endphp
-<x-layouts.frontend title="Yük Sahipleri İçin - NavlunIQ Akıllı Taşımacılık" :description="'Yük sahipleri için NavlunIQ: ilanınızı verin, doğrulanmış şoförlerden teklif alın, '.($directPay ? 'şoförle doğrudan anlaşın; komisyon yok.' : 'ödemeyi teslimat onayıyla yapın.')">
+<x-layouts.frontend title="Yük Sahipleri İçin - NavlunIQ Akıllı Taşımacılık" :description="'Yük sahipleri için NavlunIQ: ilanınızı verin, doğrulanmış şoförlerden teklif alın, '.($directPay ? 'sevkiyatı canlı konumla izleyin.' : 'ödemeyi teslimat onayıyla yapın.')">
     <div class="max-w-5xl mx-auto px-6 md:px-12 space-y-16 animate-fade-in">
 
         <div class="text-center space-y-4 max-w-3xl mx-auto">
@@ -10,7 +10,7 @@
                 Yükünüz Güvende, Maliyetiniz Kontrol Altında
             </h1>
             <p class="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                İlan sihirbazımız ile araç türü, rota ve bütçe stratejinizi girerek ilanınızı anında açın. {{ $directPay ? 'Belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla yükünüz güvende; araya komisyon girmez.' : 'Güvenceli ödeme sistemiyle teslimata kadar riskinizi sıfırlayın.' }}
+                İlan sihirbazımız ile araç türü, rota ve bütçe stratejinizi girerek ilanınızı anında açın. {{ $directPay ? 'Belgeleri doğrulanmış şoförler, canlı konum ve teslim kanıtıyla yükünüz güvende.' : 'Güvenceli ödeme sistemiyle teslimata kadar riskinizi sıfırlayın.' }}
             </p>
         </div>
 
@@ -18,10 +18,10 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
             <div class="apple-glass rounded-3xl p-6 space-y-3">
                 <div class="text-2xl"></div>
-                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">{{ $directPay ? 'Komisyonsuz, Doğrudan Ödeme' : 'Teslimat Onaylı Ödeme' }}</h4>
+                <h4 class="font-bold text-sm text-neutral-900 dark:text-white">{{ $directPay ? 'Teslim Kanıtı ve Onay' : 'Teslimat Onaylı Ödeme' }}</h4>
                 <p class="text-neutral-500 leading-relaxed">
                     @if($directPay)
-                        Navlun bedelini şoförle doğrudan ödersiniz; NavlunIQ tahsilat yapmaz, komisyon almaz. Teslimatı siz onaylarsınız; sorun olursa uyuşmazlık incelemesi açarsınız.
+                        Şoför teslimatta fotoğraflı teslim kanıtı yükler; teslimatı siz onaylarsınız, sorun olursa uyuşmazlık incelemesi açarsınız.
                     @else
                         Navlun bedelini lisanslı ödeme kuruluşu üzerinden ödersiniz; ödeme, yükün sağlam teslim edildiğini onayladığınızda şoföre tamamlanır.
                     @endif

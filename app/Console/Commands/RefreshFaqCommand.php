@@ -18,11 +18,12 @@ class RefreshFaqCommand extends Command
 
     /**
      * Navlun ödeme yolu kipine göre eskiyen ifadeler (2026-10-10): doğrudan kipte "lisanslı ödeme kuruluşu üzerinden navlun / kayıtlı IBAN /
-     * hizmet bedeli düşülerek" cümleleri, platform kipinde "navlun şoförle doğrudan ödenir" cümleleri eski sayılır.
+     * hizmet bedeli düşülerek" cümleleri ve 2026-10-10 öncesi "navlun doğrudan ödenir / komisyon almaz" anlatımı (Osman: tanıtımda navlun
+     * ödemesi ve komisyon anlatılmaz) eski sayılır; platform kipinde "navlun şoförle doğrudan ödenir" cümleleri eski sayılır.
      */
-    public const DIRECT_STALE_PATTERN = '/kayıtlı IBAN|hizmet bedeli düşülerek|ödeme kuruluşu iyzico üzerinden|teslimat onayına kadar/iu';
+    public const DIRECT_STALE_PATTERN = '/kayıtlı IBAN|hizmet bedeli düşülerek|ödeme kuruluşu iyzico üzerinden|teslimat onayına kadar|doğrudan ödenir|NavlunIQ tahsilat yapmaz|komisyon almaz|komisyon ya da hizmet bedeli almaz/iu';
 
-    public const PLATFORM_STALE_PATTERN = '/doğrudan ödenir|NavlunIQ tahsilat yapmaz|komisyon almaz/iu';
+    public const PLATFORM_STALE_PATTERN = '/doğrudan ödenir|NavlunIQ tahsilat yapmaz|komisyon almaz|kendi aralarında kararlaştırır|Ücretler ve faturalar nasıl işler/iu';
 
     public function handle(): int
     {

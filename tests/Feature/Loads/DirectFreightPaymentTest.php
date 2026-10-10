@@ -235,10 +235,10 @@ class DirectFreightPaymentTest extends TestCase
         $this->get(route('driver.wallet.index'))->assertOk()->assertSee('doğrudan')->assertDontSee('iyzico pazaryeri');
         $this->get(route('driver.dashboard'))->assertOk();
 
-        // Tanıtım: ana sayfa ve üyelik sayfası komisyon/ödeme kuruluşu iddiası taşımaz
+        // Tanıtım: ana sayfa ve üyelik sayfası navlun ödemesi/komisyon anlatmaz; iyzico yalnız premium için
         auth()->logout();
-        $this->get('/')->assertOk()->assertDontSee('Teslimat onaylı güvenli ödeme')->assertSee('komisyon');
-        $this->get(route('subscription'))->assertOk()->assertDontSee('hizmet bedeli')->assertSee('Komisyon');
+        $this->get('/')->assertOk()->assertDontSee('Teslimat onaylı güvenli ödeme')->assertDontSee('omisyon')->assertDontSee('tahsilat yapmaz')->assertSee('Premium üyelik ödemeleri');
+        $this->get(route('subscription'))->assertOk()->assertDontSee('hizmet bedeli')->assertDontSee('omisyon');
         (new CmsContractSeeder)->run();
         $this->get(route('contracts', 'kullanici-sozlesmesi'))->assertOk()->assertSee('5.0 Navlun Ödeme Yolu');
 
