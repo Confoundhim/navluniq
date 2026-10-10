@@ -683,7 +683,10 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   SSS, plan kartları ve altbilgi doğrudan kipte navlun ödemesinden ve komisyondan hiç söz etmez** ("bilgi kirliliğine gerek yok; pazaryeri gelirse
   ekleriz"); yalnız "premium üyelik ödemeleri iyzico ile" kalır, ana sayfa "FİNANSAL GÜVENCE" kutusu da öyle. Doğrudan kip anlatımı yalnız
   sözleşmelerde (5.0) ve panel içindeki işlem ekranlarında (teklif kabulü, sevkiyat, Ödemelerim) durur. `DIRECT_STALE_PATTERN` eski
-  "komisyon almaz" SSS metnini de eski sayar.
+  "komisyon almaz" SSS metnini de eski sayar. **Osman'ın ikinci kuralı (aynı gece, "yemek tarifimizi veriyorsun"):** tanıtım sayfaları ve SSS
+  sistemin iç işleyişini anlatmaz (yapay zeka ile ayrıştırma, izinli gruplar, WhatsApp/Facebook adı, operasyon ekibinin onayı, tekrar ayıklama);
+  yalnız sonuç yazılır: "gruplardan ve web mecralarından derlenen ilanlar, şoförün kendi belirlediği filtrelere göre paneline düşer". "NavlunIQ Nedir?"
+  özeti Osman'ın metnidir (`hakkimizda_ozet` varsayılanı). KVKK metnindeki yapay zeka aktarım maddesi hukuken kalır.
 - **Analiz dökümü (2026-10-09, Osman: "5.000 bekleyen ilan var; hepsini tek tıkla indirip sana ileteyim, neden kuyrukta beklediklerini bul,
   hata oranını sıfıra çek"):** yönetici Dış kaynak sayfasında sonuç satırının sağında "Analiz dökümü indir" (`admin.scrapers.export`,
   `ScrapedLoadExportController`; `kapsam=queue|published|rejected|all`, `gun` 1-60, en çok 20.000 satır). Çıktı gzip JSONL

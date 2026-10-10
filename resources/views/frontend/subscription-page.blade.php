@@ -188,7 +188,7 @@
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Gruplardan derlenen ilanlar nedir?</h3>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">İzinli taşımacılık gruplarındaki dağınık mesajlar temiz ilan kartına çevrilir, tekrarlar ayıklanır, ilan bilgilerinin tamamı kartta durur. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; {{ $directPay ? 'teklif, canlı konum ve teslim kanıtı yalnız NavlunIQ ilanlarında vardır' : 'teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir' }}.</p>
+                    <p class="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">Taşımacılık gruplarında ve web mecralarında paylaşılan yük ilanları standart ilan kartı olarak, ilan bilgilerinin tamamıyla panelinize düşer; siz yalnız filtrenize uyanları görürsünüz. Yalnız premium üyelere gösterilir. Pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; {{ $directPay ? 'teklif, canlı konum ve teslim kanıtı yalnız NavlunIQ ilanlarında vardır' : 'teslimat onaylı güvenli ödeme yalnız NavlunIQ ilanlarında geçerlidir' }}.</p>
                 </div>
                 <div class="apple-glass rounded-2xl p-6 space-y-2 shadow-apple-sm">
                     <h3 class="text-sm font-bold text-neutral-900 dark:text-white">Uygulamayı sürekli açmak istemiyorum, ne yapabilirim?</h3>

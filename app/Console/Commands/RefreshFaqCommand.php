@@ -14,7 +14,7 @@ class RefreshFaqCommand extends Command
 
     protected $description = 'SSS metinlerini güncel seed ile yeniler';
 
-    public const STALE_PATTERN = '/cüzdan|cuzdan|bakiye|bloke|escrow|güvenli havuz|havuz hesab|havuza (?:al|aktar)|bildirim kanalı vaat edilmez|standart üyelere açılmadan 20 dakika önce premium|numara kısmen gizlenir|onaylı dış kaynak ilanları önce premium/iu';
+    public const STALE_PATTERN = '/cüzdan|cuzdan|bakiye|bloke|escrow|güvenli havuz|havuz hesab|havuza (?:al|aktar)|bildirim kanalı vaat edilmez|standart üyelere açılmadan 20 dakika önce premium|numara kısmen gizlenir|onaylı dış kaynak ilanları önce premium|operasyon ekibimiz her ilanı|alanlarına ayrıştırılır|Dış kaynaklı ilanlar sisteme nasıl derlenir/iu';
 
     /**
      * Navlun ödeme yolu kipine göre eskiyen ifadeler (2026-10-10): doğrudan kipte "lisanslı ödeme kuruluşu üzerinden navlun / kayıtlı IBAN /

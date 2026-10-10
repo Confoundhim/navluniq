@@ -64,8 +64,8 @@ class FaqSeeder extends Seeder
             ],
             [
                 'order_num' => 6,
-                'question' => 'Dış kaynaklı ilanlar sisteme nasıl derlenir?',
-                'answer' => 'Yalnız kullanım ve paylaşım izni alınmış kaynaklardan (web siteleri ve izinli gruplar) gelen ilan mesajları toplanır. Mesajlar önce otomatik olarak rota, yük cinsi, tonaj ve fiyat alanlarına ayrıştırılır, ardından operasyon ekibimiz her ilanı kontrol edip onaylar veya reddeder. Sadece onaylanan ilanlar şoför ilan listesine düşer ve "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; '.($direct ? 'teklif, canlı konum ve teslim kanıtı yalnız platform içi ilanlarda vardır.' : 'NavlunIQ\'nun teslimat onaylı ödeme sistemi yalnız platform içi ilanlarda geçerlidir.'),
+                'question' => 'Gruplardan derlenen ilanlar nedir?',
+                'answer' => 'Taşımacılık gruplarında ve web mecralarında paylaşılan yük ilanları standart ilan kartı olarak panelinize düşer; rota, yük cinsi, tonaj, fiyat ve iletişim bilgisi kartta durur, siz yalnız kendi belirlediğiniz filtrelere uyanları görürsünüz. Bu ilanlar "dış kaynak" etiketiyle ayrı gösterilir. Bu ilanlarda pazarlık ve ödeme ilan sahibiyle doğrudan yapılır; '.($direct ? 'teklif, canlı konum ve teslim kanıtı yalnız platform içi ilanlarda vardır.' : 'NavlunIQ\'nun teslimat onaylı ödeme sistemi yalnız platform içi ilanlarda geçerlidir.'),
             ],
             [
                 'order_num' => 7,

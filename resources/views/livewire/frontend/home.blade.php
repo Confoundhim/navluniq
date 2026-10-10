@@ -35,8 +35,8 @@ new class extends Component {
         $this->driverTitle = CmsContent::getVal('slider_driver_title', 'Yüzlerce Grubu Artık Takip Etmeyin!');
         $this->driverDesc = CmsContent::getVal('slider_driver_desc', 'Tek panelden ilanlara ulaş. Gruplarda ve webde paylaşılan karmaşık ilanlar anında panelinizde listelenir. Teslimat için yola çıktığınızda akıllı dönüş radarları dönüş yükünüzü sizin için araştırır.');
         $this->hakkimizda = CmsContent::getVal('hakkimizda_ozet', $direct
-            ? 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.'
-            : 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek panelde buluşturan dijital lojistik platformudur. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. İzinli gruplardan ve web mecralarından derlenen ilanlar yapay zeka ile ayrıştırılıp standart ilan kartına dönüştürülür; şoförler araç tipi, il ve mesafeye göre kaydettikleri filtrelerle kendilerine uygun yükü anında görür.');
+            ? 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek platformda buluşturan güvenli, akıllı taşımacılık ekosistemidir. Platform ilanlarına teklif verilir ve sevkiyat canlı konumla izlenir. Gruplardan ve web mecralarından derlenen ilanlar ise şoförlerin kendi belirledikleri filtrelere göre panellerine düşer.'
+            : 'NavlunIQ, yük sahipleri ile belgeleri doğrulanmış şoförleri tek platformda buluşturan güvenli, akıllı taşımacılık ekosistemidir. Platform ilanlarına teklif verilir, navlun ödemesi lisanslı ödeme kuruluşu üzerinden teslimat onayına bağlı olarak yapılır ve sevkiyat canlı konumla izlenir. Gruplardan ve web mecralarından derlenen ilanlar ise şoförlerin kendi belirledikleri filtrelere göre panellerine düşer.');
     }
 
     public function getAllFaqs()
@@ -276,7 +276,7 @@ new class extends Component {
                             <div class="hero-scene hero-reveal relative w-full max-w-xl mx-auto rounded-3xl border border-neutral-200/70 dark:border-neutral-800 bg-white/70 dark:bg-neutral-900/70 backdrop-blur-apple shadow-apple-md overflow-hidden p-4 sm:p-5 space-y-4" style="--d: 120ms">
                                 <div class="flex items-center justify-between">
                                     <span class="text-[10px] sm:text-[11px] font-black tracking-wider uppercase text-emerald-600 dark:text-emerald-400">Gruplardan panele</span>
-                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></span>Yapay zeka okuyor</span>
+                                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 font-bold text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse"></span>Anında panelinizde</span>
                                 </div>
 
                                 <div class="relative grid grid-cols-2 gap-x-11 gap-y-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3 items-center">
@@ -474,7 +474,7 @@ new class extends Component {
         <div class="text-center space-y-3 max-w-2xl mx-auto">
             <span class="text-xs font-extrabold text-brand-500 uppercase tracking-widest">ÇÖZÜMLERİMİZ</span>
             <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 dark:text-white">Hizmetlerimiz</h2>
-            <p class="text-xs sm:text-sm text-neutral-400">Şehir içi, şehirler arası taşımacılık ve yapay zeka ilan aboneliği.</p>
+            <p class="text-xs sm:text-sm text-neutral-400">Şehir içi, şehirler arası taşımacılık ve ilan aboneliği.</p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
