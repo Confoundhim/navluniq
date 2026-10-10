@@ -67,6 +67,9 @@ Premium üyelik buna uyar. Osman'ın kararı: "bir kere kayıt olsun, her ay oto
   başarıda `activate()` süreyi uzatır ve "yenilendi" bildirimi gider. Başarısızlıkta 24 saat sonra tekrar (en çok 3); kart
   geçersizse (`CARD_INVALID_CODES`) ya da üçüncü başarısızlıkta yenileme kapanır, şoför bilgilendirilir, dönem sonunda üyelik biter.
   Tutar yenileme günündeki panel fiyatıdır; `subscriptions:remind` yenilenecek aboneliğe 5 gün kala tutarı yazar (bedel önceden bildirilir).
+- Kurulum sınaması: `php artisan subscriptions:renew --user=<kullanıcı id>` o şoförün yenilemesini dönem sonunu beklemeden hemen
+  çeker (iyzico "Ödeme bazında 3D Secure" eşiğinin kayıtlı kartla NON-3DS çekimi engelleyip engellemediği böyle görülür; sonuç metni
+  çekimin başarısını ya da iyzico hata kodunu yazar). Canlıda gerçek çekimdir; test modunda sandbox kartıyla denenir.
 - Şoför Premium sayfası: "Otomatik yenileme" kartı (açık/kapalı, tek dokunuşla kapat/aç, kayıtlı kartı sil →
   `DELETE /cardstorage/card`). Kapatma dönem sonuna kadar hakları etkilemez.
 - Sözleşmeler: MSS 2.1/3.1 ve İade 3.2 "satın alma ekranında seçilmediği sürece otomatik yenilenmez" + yenileme kuralları;

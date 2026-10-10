@@ -2,6 +2,7 @@
 
 use App\Jobs\QueueHeartbeat;
 use App\Models\ScrapedLoad;
+use App\Models\User;
 use App\Services\AccountService;
 use App\Services\DriverLocationService;
 use App\Services\DriverTripService;
@@ -67,7 +68,13 @@ Artisan::command('subscriptions:expire', function (SubscriptionService $subscrip
     $this->info('Süresi dolan abonelik sayısı: '.$subscriptions->expireDue());
 })->purpose('Dönemi biten premium abonelikleri kapatır');
 
-Artisan::command('subscriptions:renew', function (SubscriptionService $subscriptions) {
+Artisan::command('subscriptions:renew {--user= : Bu kullanıcının yenilemesini dönem sonunu beklemeden hemen çek (kurulum sınaması)}', function (SubscriptionService $subscriptions) {
+    if ($userId = (int) $this->option('user')) {
+        $user = User::query()->find($userId);
+        $this->info($user ? $subscriptions->renewNow($user) : "Kullanıcı #{$userId} bulunamadı.");
+
+        return;
+    }
     $this->info('Kayıtlı karttan yenilenen premium abonelik: '.$subscriptions->renewDue());
 })->purpose('Otomatik yenilemesi açık premium abonelikleri dönem bitiminden 3 gün önce kayıtlı karttan çeker');
 

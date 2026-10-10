@@ -659,7 +659,7 @@ yapay zeka çözümü korunur; en çok 90 sn). Tekrar çalıştırmak güvenli.
   `tests/Feature/Payments/StoredCardFakeGateway`). Sözleşmeler MSS 2.1/3.1, İade 3.2 "satın alma ekranında seçilmediği sürece otomatik
   yenilenmez" + kurallar; tanıtım metinleri (plan kartı, /uyelik, SSS) `autoRenewAvailable()` ile koşullu. **iyzico cevabı bekleniyor:**
   kart saklama hesapta açılınca Osman kutuyu işaretler, sandbox'ta bir ödeme ile sınanır. İkinci kuruluş (navlun) seçilirse sağlayıcı
-  seçimi amaca göre ayrılacak (abonelik iyzico'da kalır). Testler `PremiumAutoRenewTest` (9), `IyzicoGatewayTest` (+3).
+  seçimi amaca göre ayrılacak (abonelik iyzico'da kalır). Kurulum sınaması: `subscriptions:renew --user=<id>` (`SubscriptionService::renewNow`) dönem sonunu beklemeden çeker; iyzico panelinde "Kart Saklama: Evet" görüldü (2026-10-10). Testler `PremiumAutoRenewTest` (10), `IyzicoGatewayTest` (+3).
 - **Yeniden konumlama takılması (2026-10-10, sağlık ekranı: "Yeniden konumlama 30 dk'dır ilerlemiyor (son parça 12:55)"):** eski komut
   ilerlemeyi yalnız çalıştırma sonunda yazıyordu; tek bir kayıtta çöken/takılan çalıştırma her 5 dakikada aynı kayda dönüyor, imleç hiç
   ilerlemiyordu. `scraped-loads:relocate-force` artık kayıt başına `try/catch` (hata sayılır, günlüğe yazılır, sıradakine geçilir; `progress.failed`
